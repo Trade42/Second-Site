@@ -1,0 +1,46 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/FindingPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "format": "uuid",
+      "title": "Call Id",
+      "type": "string"
+    },
+    "claim_type": {
+      "title": "Claim Type",
+      "type": "string"
+    },
+    "evidence_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Id"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Summary"
+    }
+  },
+  "required": [
+    "call_id",
+    "claim_type"
+  ],
+  "title": "FindingPayload",
+  "type": "object"
+}

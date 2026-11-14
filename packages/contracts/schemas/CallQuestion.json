@@ -1,0 +1,34 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/CallQuestion.json",
+  "additionalProperties": false,
+  "description": "One question the assistant may ask, grounded in an UNKNOWN / MAY_REQUIRE_WORK assessment.",
+  "properties": {
+    "claim_type": {
+      "description": "Evidence observation_type an answer would produce, e.g. 'tenant_subpanel_amps'",
+      "title": "Claim Type",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    },
+    "requirement_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requirement Id"
+    }
+  },
+  "required": [
+    "question",
+    "claim_type"
+  ],
+  "title": "CallQuestion",
+  "type": "object"
+}

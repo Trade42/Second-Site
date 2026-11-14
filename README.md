@@ -89,7 +89,7 @@ Rules live in [AGENTS.md](AGENTS.md); the original template docs are in [docs/AG
 ## Provider status (summary)
 | CoStar | Matterport | Vexcel | LA permits | IFC-Bench | Deep Agents | Photon | Telnyx | xAI voice | Oracle | Sourcing |
 |---|---|---|---|---|---|---|---|---|---|---|
-| LIVE (data kit) | LIVE | LIVE | LIVE-capable | PARTIAL | PARTIAL | PARTIAL | PARTIAL | NOT_STARTED | NOT_STARTED | MOCK |
+| LIVE (data kit) | LIVE | LIVE | LIVE-capable | PARTIAL | PARTIAL | PARTIAL (code complete) | PARTIAL (code complete) | NOT_STARTED | NOT_STARTED | MOCK |
 
 ## Security and truthfulness
 Secrets only in `.env` (gitignored). Approvals bind the exact payload hash and are enforced at the action boundary.
@@ -110,7 +110,9 @@ Fixture mode:
 1. Seed demo project → ranking shows Hollywood #302 beating the lower-rent Alhambra building over 36 months, with reasons.
 2. Property Intelligence → real LADBS permits (800A service, 2" water service, suite-302 sink) with scope, match status and "historical ≠ current" limitations.
 3. Design Studio → generate two validated layouts → Procurement → room-linked BOM.
-4. Activity → every agent step as a persisted event; approvals panel for outreach.
+4. Property Intelligence → "Ask the broker" → Activity: approve → Start call → (no Telnyx keys) "Run simulated broker
+   call": disclosure, grounded questions, deposit question escalates to you (Photon text / Join card), findings
+   become broker-reported evidence and re-rank the shortlist. Link Photon by texting the agent (or "Send as me").
 Data notes: [DEMO_DATA](docs/DEMO_DATA.md).
 
 ## Known limitations

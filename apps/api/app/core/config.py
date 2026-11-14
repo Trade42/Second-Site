@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
     public_base_url: str = Field(default="http://localhost:8000", alias="PUBLIC_BASE_URL")
+    public_web_url: str = Field(default="http://localhost:3000", alias="PUBLIC_WEB_URL")
     task_execution_mode: str = Field(default="inline", alias="TASK_EXECUTION_MODE")  # inline | redis
 
     # DATABASE / REDIS

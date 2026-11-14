@@ -11,6 +11,7 @@ from app.contracts import (
     CostScenario,
     DesignVersion,
     InfrastructureAssessment,
+    OwnerChannel,
     OwnerHandoffRequest,
     PermitRecord,
     ProjectContext,
@@ -171,4 +172,10 @@ tasks = RecordRepository(
     TaskRecord,
     "task_id",
     lambda c: {"project_id": c.project_id, "task_type": c.task_type.value, "status": c.status.value},
+)
+owner_channels = RecordRepository(
+    m.OwnerChannelRow,
+    OwnerChannel,
+    "owner_channel_id",
+    lambda c: {"owner_id": c.owner_id, "platform": c.platform, "handle": c.handle, "status": c.status.value},
 )

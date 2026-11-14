@@ -32,7 +32,7 @@ export function useEvents() {
   const { client, projectId } = useProject();
   return useApi(async () => {
     if (!projectId) return { data: { events: [], next_cursor: 0 } };
-    return client.GET("/api/v1/projects/{project_id}/events", { params: { path: { project_id: projectId }, query: { after: 0, limit: 200 } } });
+    return client.GET("/api/v1/projects/{project_id}/events", { params: { path: { project_id: projectId }, query: { after: 0, limit: 500 } } });
   }, `${projectId}:${Boolean(client)}`);
 }
 

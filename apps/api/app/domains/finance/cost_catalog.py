@@ -12,6 +12,8 @@ COSTS = {
     "partition_room_office_buildout": ("room", 200000, 400000, 700000),
     "partition_room_open_shell": ("room", 700000, 1100000, 1600000),
     "electrical_subpanel_allowance": ("allowance", 0, 600000, 1800000),
+    # Broker reports a dedicated panel with enough amps: circuits only, smaller allowance (still unverified).
+    "electrical_circuits_reported_capacity": ("allowance", 0, 200000, 700000),
     "hvac_rezone_existing": ("room", 100000, 250000, 500000),
     "hvac_new_distribution": ("room", 500000, 900000, 1500000),
     "finishes": ("m2", 9000, 15000, 25000),

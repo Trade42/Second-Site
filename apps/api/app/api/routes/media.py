@@ -9,6 +9,7 @@ from app.api.deps import container, db_session, owned_project
 from app.contracts import Contract, ProjectContext
 from app.core.container import Container
 from app.core.errors import AppError, NotFoundError
+from app.core.security import verify_media_key
 from app.integrations.base import ProviderError
 from app.repositories import registry as repos
 
@@ -61,3 +62,21 @@ def vexcel_ortho(
     if not img:
         raise NotFoundError("no imagery in this mode", error_code="NOT_FOUND")
     return Response(img, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@imagery_router.get("/public/{token}", response_class=Response, include_in_schema=False)
+def signed_object(token: str, c: Container = Depends(container)) -> Response:
+    """Short-lived signed link to one stored object (the owner's genuine intro for the carrier to play)."""
+    key = verify_media_key(c.settings.auth_secret.get_secret_value(), token)
+    try:
+        data = c.storage.get(key)
+    except (FileNotFoundError, ValueError) as exc:
+        raise NotFoundError("object not found") from exc
+    media = (
+        "audio/mpeg"
+        if key.endswith(".mp3")
+        else "audio/wav"
+        if key.endswith(".wav")
+        else "application/octet-stream"
+    )
+    return Response(data, media_type=media, headers={"Cache-Control": "no-store"})

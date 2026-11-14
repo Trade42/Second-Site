@@ -8,6 +8,10 @@ import { Badge, Card, cn } from "@/components/ui/primitives";
 import { useProperties } from "@/features/useProjectData";
 import { listingSource, RemoteImg } from "@/components/PropertyCard";
 import { usd } from "@/lib/format";
+import { useProject } from "@/hooks/useProject";
+import { problemMessage } from "@/lib/api";
+import { Button } from "@/components/ui/primitives";
+import Link from "next/link";
 
 function Intelligence() {
   const params = useSearchParams();
@@ -72,6 +76,41 @@ function Intelligence() {
 
 type Profile = NonNullable<ReturnType<typeof useProperties>["data"]>[number];
 
+function AskBroker({ p }: { p: Profile }) {
+  const { client, projectId } = useProject();
+  const [state, setState] = useState<string | null>(null);
+  const contact = p.commercial_listing?.broker_contact;
+  const open = (p.infrastructure_assessments ?? []).filter((a) => a.status === "UNKNOWN" || a.status === "MAY_REQUIRE_WORK").length;
+  if (!contact?.phone) return null;
+  const ask = async () => {
+    if (!projectId) return;
+    const { error } = await client.POST("/api/v1/projects/{project_id}/outreach", {
+      params: { path: { project_id: projectId } },
+      body: {
+        property_id: p.property_id,
+        channel: "VOICE",
+        recipient: { role: "broker", name: contact.name ?? "Listing broker", phone: contact.phone },
+        purpose: `Verify ${open} open item(s) for ${p.property_identity.normalized_address}`,
+      },
+    });
+    setState(error ? problemMessage(error) : "requested");
+  };
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-line p-3">
+      <div className="min-w-0 flex-1 text-sm">
+        <div className="font-medium">Ask {contact.name} ({contact.company || "listing broker"}) to verify {open} open item(s)</div>
+        <div className="text-xs text-ink-muted">Your assistant calls only after you approve, identifies itself as automated, and agrees to nothing. CoStar kit phone numbers are anonymized.</div>
+      </div>
+      {state === "requested" ? (
+        <Link href="/activity" className="text-sm underline">Approval requested: review in Activity</Link>
+      ) : (
+        <Button onClick={ask}>Ask the broker</Button>
+      )}
+      {state && state !== "requested" && <span className="text-sm text-danger">{state}</span>}
+    </div>
+  );
+}
+
 function InsideOut({ p }: { p: Profile }) {
   const l = p.commercial_listing;
   const src = listingSource(p);
@@ -94,6 +133,7 @@ function InsideOut({ p }: { p: Profile }) {
         </dl>
       )}
       {l?.disclaimer && <p className="mt-2 text-xs text-ink-muted">{l.disclaimer}</p>}
+      <AskBroker p={p} />
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div>
           <h3 className="text-sm font-medium">Interior</h3>

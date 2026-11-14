@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "OwnerChannelStatus": {
+      "enum": [
+        "PENDING_FIRST_MESSAGE",
+        "LINKED"
+      ],
+      "title": "OwnerChannelStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/OwnerChannel.json",
+  "additionalProperties": false,
+  "description": "How the assistant reaches the owner on Photon. A shared Photon line cannot start a conversation, so the\nchannel only becomes LINKED after the owner texts the agent; the reply ids come from that inbound message.",
+  "properties": {
+    "agent_user_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Photon User id of the agent (receivedBy.id)",
+      "title": "Agent User Id"
+    },
+    "handle": {
+      "description": "Owner's phone (E.164) or iMessage email",
+      "title": "Handle",
+      "type": "string"
+    },
+    "last_inbound_message_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Inbound Message Id"
+    },
+    "linked_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Linked At"
+    },
+    "owner_channel_id": {
+      "format": "uuid",
+      "title": "Owner Channel Id",
+      "type": "string"
+    },
+    "owner_id": {
+      "format": "uuid",
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "platform": {
+      "default": "imessage",
+      "description": "Photon platform, e.g. 'imessage', 'sms'",
+      "title": "Platform",
+      "type": "string"
+    },
+    "space_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Photon Space id of the owner<->agent conversation",
+      "title": "Space Id"
+    },
+    "status": {
+      "$ref": "#/$defs/OwnerChannelStatus",
+      "default": "PENDING_FIRST_MESSAGE"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "owner_id",
+    "handle"
+  ],
+  "title": "OwnerChannel",
+  "type": "object"
+}

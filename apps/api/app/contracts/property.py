@@ -71,6 +71,10 @@ class CommercialListing(Contract):
     )
     building_name: str | None = None
     brokerage_company: str | None = None
+    broker_contact: dict[str, str] | None = Field(
+        default=None,
+        description="{'name','company','phone'} of the listing contact. CoStar kit phones are anonymized (555).",
+    )
     photo_urls: list[str] = Field(default_factory=list, description="Provider CDN photo links (not stored).")
     source_record_date: date | None = Field(
         default=None, description="When the provider last certified the record (snapshot freshness)."

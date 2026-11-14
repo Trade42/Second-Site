@@ -29,11 +29,22 @@
         "security_deposit": 800000,
         "lease_term_months": 60,
         "existing_buildout": "open_shell",
-        "disclaimer": "Synthetic demo listing. Not a CoStar record."
+        "disclaimer": "Synthetic demo listing. Not a CoStar record.",
+        "broker_contact": {
+          "name": "Demo Leasing Contact",
+          "company": "Synthetic fixture (not a real broker)",
+          "phone": "+15555550100",
+          "role": "broker"
+        }
       },
       "interior_assets": [],
       "exterior_assets": [
-        {"provider": "fixture", "asset_id": "fixture-vexcel-alhambra", "asset_type": "oblique", "note": "Placeholder until Vexcel access is verified."}
+        {
+          "provider": "fixture",
+          "asset_id": "fixture-vexcel-alhambra",
+          "asset_type": "oblique",
+          "note": "Placeholder until Vexcel access is verified."
+        }
       ]
     },
     {
@@ -57,10 +68,22 @@
         "security_deposit": 1200000,
         "lease_term_months": 60,
         "existing_buildout": "office_buildout",
-        "disclaimer": "Synthetic demo listing. Not a CoStar record."
+        "disclaimer": "Synthetic demo listing. Not a CoStar record.",
+        "broker_contact": {
+          "name": "Demo Leasing Contact",
+          "company": "Synthetic fixture (not a real broker)",
+          "phone": "+15555550101",
+          "role": "broker"
+        }
       },
       "interior_assets": [
-        {"provider": "fixture", "asset_id": "fixture-matterport-hollywood-302", "asset_type": "matterport_model", "has_measured_geometry": true, "note": "Stand-in for the teammate-reported Matterport model; geometry in fixtures/geometry is synthetic."}
+        {
+          "provider": "fixture",
+          "asset_id": "fixture-matterport-hollywood-302",
+          "asset_type": "matterport_model",
+          "has_measured_geometry": true,
+          "note": "Stand-in for the teammate-reported Matterport model; geometry in fixtures/geometry is synthetic."
+        }
       ],
       "exterior_assets": []
     }

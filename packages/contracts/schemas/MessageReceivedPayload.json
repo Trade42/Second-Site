@@ -1,0 +1,38 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/MessageReceivedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "channel": {
+      "title": "Channel",
+      "type": "string"
+    },
+    "handled_as": {
+      "description": "'linked' | 'command' | 'chat' | 'image' | 'ignored'",
+      "title": "Handled As",
+      "type": "string"
+    },
+    "provider_message_id": {
+      "title": "Provider Message Id",
+      "type": "string"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Summary"
+    }
+  },
+  "required": [
+    "channel",
+    "provider_message_id",
+    "handled_as"
+  ],
+  "title": "MessageReceivedPayload",
+  "type": "object"
+}

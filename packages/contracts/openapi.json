@@ -894,6 +894,39 @@
         "title": "CallPayload",
         "type": "object"
       },
+      "CallQuestion": {
+        "additionalProperties": false,
+        "description": "One question the assistant may ask, grounded in an UNKNOWN / MAY_REQUIRE_WORK assessment.",
+        "properties": {
+          "claim_type": {
+            "description": "Evidence observation_type an answer would produce, e.g. 'tenant_subpanel_amps'",
+            "title": "Claim Type",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "requirement_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requirement Id"
+          }
+        },
+        "required": [
+          "question",
+          "claim_type",
+          "requirement_id"
+        ],
+        "title": "CallQuestion",
+        "type": "object"
+      },
       "CallSession": {
         "additionalProperties": false,
         "properties": {
@@ -916,6 +949,18 @@
             "title": "Call Id",
             "type": "string"
           },
+          "communication_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Communication Id"
+          },
           "conference_id": {
             "anyOf": [
               {
@@ -926,6 +971,14 @@
               }
             ],
             "title": "Conference Id"
+          },
+          "deferred_questions": {
+            "description": "Sensitive questions the assistant declined to answer for the owner.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Deferred Questions",
+            "type": "array"
           },
           "ended_at": {
             "anyOf": [
@@ -950,6 +1003,13 @@
             ],
             "title": "Failure Reason"
           },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/StructuredFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
           "handoff_request_id": {
             "anyOf": [
               {
@@ -973,6 +1033,17 @@
             ],
             "description": "Owner's genuine recorded intro (object storage key). Never synthesized.",
             "title": "Intro Recording Reference"
+          },
+          "outcome_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Summary"
           },
           "owner_id": {
             "format": "uuid",
@@ -1014,6 +1085,11 @@
             ],
             "title": "Provider Call Id"
           },
+          "question_index": {
+            "default": 0,
+            "title": "Question Index",
+            "type": "integer"
+          },
           "recipient": {
             "additionalProperties": {
               "type": "string"
@@ -1021,6 +1097,19 @@
             "description": "{'role':'broker','name':'...','phone':'+1...'}",
             "title": "Recipient",
             "type": "object"
+          },
+          "script": {
+            "items": {
+              "$ref": "#/components/schemas/CallQuestion"
+            },
+            "title": "Script",
+            "type": "array"
+          },
+          "simulated": {
+            "default": false,
+            "description": "True when driven by the call simulator, not a carrier.",
+            "title": "Simulated",
+            "type": "boolean"
           },
           "started_at": {
             "anyOf": [
@@ -1037,6 +1126,13 @@
           "state": {
             "$ref": "#/components/schemas/CallState",
             "default": "CREATED"
+          },
+          "transcript": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptTurn"
+            },
+            "title": "Transcript",
+            "type": "array"
           }
         },
         "required": [
@@ -1056,7 +1152,15 @@
           "participant_states",
           "started_at",
           "ended_at",
-          "failure_reason"
+          "failure_reason",
+          "communication_id",
+          "script",
+          "question_index",
+          "transcript",
+          "findings",
+          "deferred_questions",
+          "simulated",
+          "outcome_summary"
         ],
         "title": "CallSession",
         "type": "object"
@@ -1183,6 +1287,21 @@
               }
             ],
             "title": "Available From"
+          },
+          "broker_contact": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "{'name','company','phone'} of the listing contact. CoStar kit phones are anonymized (555).",
+            "title": "Broker Contact"
           },
           "brokerage_company": {
             "anyOf": [
@@ -1375,6 +1494,7 @@
           "lease_service_type",
           "building_name",
           "brokerage_company",
+          "broker_contact",
           "photo_urls",
           "source_record_date",
           "listing_url",
@@ -2126,6 +2246,9 @@
           "call.owner_joined",
           "call.completed",
           "call.failed",
+          "call.finding_recorded",
+          "communication.message_received",
+          "communication.owner_notified",
           "layout.version_created",
           "layout.validation_failed",
           "layout.approved",
@@ -2338,6 +2461,53 @@
           "note"
         ],
         "title": "FieldProvenance",
+        "type": "object"
+      },
+      "FindingPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "call_id": {
+            "format": "uuid",
+            "title": "Call Id",
+            "type": "string"
+          },
+          "claim_type": {
+            "title": "Claim Type",
+            "type": "string"
+          },
+          "evidence_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Evidence Id"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "call_id",
+          "claim_type",
+          "evidence_id",
+          "summary"
+        ],
+        "title": "FindingPayload",
         "type": "object"
       },
       "FinishSpecification": {
@@ -3327,6 +3497,44 @@
         "title": "MediaStored",
         "type": "object"
       },
+      "MessageReceivedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "handled_as": {
+            "description": "'linked' | 'command' | 'chat' | 'image' | 'ignored'",
+            "title": "Handled As",
+            "type": "string"
+          },
+          "provider_message_id": {
+            "title": "Provider Message Id",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Summary"
+          }
+        },
+        "required": [
+          "channel",
+          "provider_message_id",
+          "handled_as",
+          "summary"
+        ],
+        "title": "MessageReceivedPayload",
+        "type": "object"
+      },
       "Money": {
         "additionalProperties": false,
         "properties": {
@@ -3576,6 +3784,167 @@
         "title": "OutreachRequest",
         "type": "object"
       },
+      "OwnerChannel": {
+        "additionalProperties": false,
+        "description": "How the assistant reaches the owner on Photon. A shared Photon line cannot start a conversation, so the\nchannel only becomes LINKED after the owner texts the agent; the reply ids come from that inbound message.",
+        "properties": {
+          "agent_user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Photon User id of the agent (receivedBy.id)",
+            "title": "Agent User Id"
+          },
+          "handle": {
+            "description": "Owner's phone (E.164) or iMessage email",
+            "title": "Handle",
+            "type": "string"
+          },
+          "last_inbound_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Inbound Message Id"
+          },
+          "linked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked At"
+          },
+          "owner_channel_id": {
+            "format": "uuid",
+            "title": "Owner Channel Id",
+            "type": "string"
+          },
+          "owner_id": {
+            "format": "uuid",
+            "title": "Owner Id",
+            "type": "string"
+          },
+          "platform": {
+            "default": "imessage",
+            "description": "Photon platform, e.g. 'imessage', 'sms'",
+            "title": "Platform",
+            "type": "string"
+          },
+          "space_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Photon Space id of the owner<->agent conversation",
+            "title": "Space Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OwnerChannelStatus",
+            "default": "PENDING_FIRST_MESSAGE"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "owner_channel_id",
+          "owner_id",
+          "platform",
+          "handle",
+          "status",
+          "space_id",
+          "agent_user_id",
+          "last_inbound_message_id",
+          "linked_at",
+          "updated_at"
+        ],
+        "title": "OwnerChannel",
+        "type": "object"
+      },
+      "OwnerChannelBody": {
+        "additionalProperties": false,
+        "properties": {
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "platform": {
+            "default": "imessage",
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle"
+        ],
+        "title": "OwnerChannelBody",
+        "type": "object"
+      },
+      "OwnerChannelStatus": {
+        "enum": [
+          "PENDING_FIRST_MESSAGE",
+          "LINKED"
+        ],
+        "title": "OwnerChannelStatus",
+        "type": "string"
+      },
+      "OwnerChannelView": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Handle"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerChannel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instructions": {
+            "title": "Instructions",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "agent_handle",
+          "instructions"
+        ],
+        "title": "OwnerChannelView",
+        "type": "object"
+      },
       "OwnerHandoffRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3603,7 +3972,6 @@
                 "type": "null"
               }
             ],
-            "default": null,
             "description": "Opaque reference to a short-lived join token held server-side. Never the raw token.",
             "title": "Join Token Reference"
           },
@@ -3648,6 +4016,32 @@
           "status"
         ],
         "title": "OwnerHandoffRequest",
+        "type": "object"
+      },
+      "OwnerNotifiedPayload": {
+        "additionalProperties": false,
+        "properties": {
+          "communication_id": {
+            "format": "uuid",
+            "title": "Communication Id",
+            "type": "string"
+          },
+          "delivery": {
+            "description": "'accepted' (provider took it) | 'recorded' (fixture) | 'not_linked'",
+            "title": "Delivery",
+            "type": "string"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          }
+        },
+        "required": [
+          "communication_id",
+          "delivery",
+          "purpose"
+        ],
+        "title": "OwnerNotifiedPayload",
         "type": "object"
       },
       "ParticipantState": {
@@ -3966,6 +4360,30 @@
           "y"
         ],
         "title": "Point2D",
+        "type": "object"
+      },
+      "PollResult": {
+        "additionalProperties": false,
+        "properties": {
+          "fetched": {
+            "title": "Fetched",
+            "type": "integer"
+          },
+          "new": {
+            "title": "New",
+            "type": "integer"
+          },
+          "routed": {
+            "title": "Routed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fetched",
+          "new",
+          "routed"
+        ],
+        "title": "PollResult",
         "type": "object"
       },
       "ProblemDetail": {
@@ -5123,6 +5541,66 @@
         "title": "Severity",
         "type": "string"
       },
+      "SimulateBody": {
+        "additionalProperties": false,
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Answers",
+            "type": "object"
+          },
+          "owner_action": {
+            "default": "accept",
+            "title": "Owner Action",
+            "type": "string"
+          }
+        },
+        "title": "SimulateBody",
+        "type": "object"
+      },
+      "SimulatedTextBody": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "SimulatedTextBody",
+        "type": "object"
+      },
+      "SimulatedTextResult": {
+        "additionalProperties": false,
+        "properties": {
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          },
+          "routed": {
+            "title": "Routed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "routed",
+          "reply"
+        ],
+        "title": "SimulatedTextResult",
+        "type": "object"
+      },
       "SiteGeometry": {
         "additionalProperties": false,
         "properties": {
@@ -5674,6 +6152,17 @@
             "format": "uuid",
             "title": "Communication Id",
             "type": "string"
+          },
+          "simulate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simulate"
           }
         },
         "required": [
@@ -6128,6 +6617,32 @@
         "title": "TimelinePayload",
         "type": "object"
       },
+      "TranscriptTurn": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "speaker": {
+            "description": "'assistant' | 'counterparty' | 'owner' | 'system'",
+            "title": "Speaker",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "speaker",
+          "text",
+          "at"
+        ],
+        "title": "TranscriptTurn",
+        "type": "object"
+      },
       "UnknownDetectedPayload": {
         "additionalProperties": false,
         "properties": {
@@ -6413,6 +6928,222 @@
         "summary": "Vexcel Ortho",
         "tags": [
           "media"
+        ]
+      }
+    },
+    "/api/v1/owner/channel": {
+      "get": {
+        "operationId": "get_channel_api_v1_owner_channel_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerChannelView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Channel",
+        "tags": [
+          "communications"
+        ]
+      },
+      "put": {
+        "operationId": "put_channel_api_v1_owner_channel_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerChannelBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerChannelView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Channel",
+        "tags": [
+          "communications"
+        ]
+      }
+    },
+    "/api/v1/owner/channel/poll": {
+      "post": {
+        "description": "Fetch new Photon messages now (for setups without a public webhook URL).",
+        "operationId": "poll_channel_api_v1_owner_channel_poll_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Poll Channel",
+        "tags": [
+          "communications"
+        ]
+      }
+    },
+    "/api/v1/owner/channel/simulate-text": {
+      "post": {
+        "description": "Fixture messaging only: pretend the owner texted the agent (to demo linking, JOIN/LATER, STATUS, chat).",
+        "operationId": "simulate_text_api_v1_owner_channel_simulate_text_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulatedTextBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulatedTextResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate Text",
+        "tags": [
+          "communications"
         ]
       }
     },
@@ -6849,6 +7580,86 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/calls/{call_id}/simulate": {
+      "post": {
+        "description": "Fixture mode only: play the broker side of a simulated call through the real event handlers.",
+        "operationId": "simulate_call_api_v1_projects__project_id__calls__call_id__simulate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "call_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Call Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallSession"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Simulate Call",
+        "tags": [
+          "communications"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/chat": {
       "post": {
         "operationId": "chat_api_v1_projects__project_id__chat_post",
@@ -7187,6 +7998,69 @@
         "summary": "Stream Events",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/handoffs": {
+      "get": {
+        "operationId": "list_handoffs_api_v1_projects__project_id__handoffs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OwnerHandoffRequest"
+                  },
+                  "title": "Response List Handoffs Api V1 Projects  Project Id  Handoffs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Handoffs",
+        "tags": [
+          "communications"
         ]
       }
     },

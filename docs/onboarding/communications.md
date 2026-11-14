@@ -10,7 +10,13 @@ findings back as evidence. Targets the Photon track (incl. Best Voice Agent).
 `app/domains/communications/`, `app/services/call_orchestration/`, `app/api/routes/{communications,webhooks}.py`,
 `app/integrations/{photon,telnyx,xai_voice,storage}/`, `app/integrations/webhook_signatures.py`, `infra/voice/`, `fixtures/communications/`.
 
-## What already works
+## What already works (communications build)
+- Photon owner channel + inbound routing + polling; Telnyx call flow with transcription turns, findings → evidence →
+  feasibility, owner handoff via conference; call simulator; Activity page UI. See docs/PROVIDER_STATUS.md
+  ("Communications"). To go live: Photon key/project/agent handle (+ webhook or polling) and Telnyx key, connection,
+  number, public key, `PUBLIC_BASE_URL` (HTTPS), `ALLOW_LIVE_OUTBOUND_CALLS=true`.
+
+## Foundation (original)
 - Outreach creates a PENDING approval; `POST /calls` refuses until APPROVED (single use, exact payload).
 - Call state machine + handoff (accept/decline/timeout) with server-side join tokens; owner notification via Photon adapter (fixture outbox).
 - Photon Standard Webhooks verification + dedupe; Telnyx Ed25519 verification; escalation keyword policy.

@@ -1,0 +1,26 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/TranscriptTurn.json",
+  "additionalProperties": false,
+  "properties": {
+    "at": {
+      "format": "date-time",
+      "title": "At",
+      "type": "string"
+    },
+    "speaker": {
+      "description": "'assistant' | 'counterparty' | 'owner' | 'system'",
+      "title": "Speaker",
+      "type": "string"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "speaker",
+    "text"
+  ],
+  "title": "TranscriptTurn",
+  "type": "object"
+}

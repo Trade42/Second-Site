@@ -148,9 +148,47 @@ class FeasibilityEngine:
 
             elif rid.endswith("electrical.tenant_service"):
                 amps = by_type.get("electrical_service_amps", [])
+                reported = by_type.get("tenant_subpanel_amps", [])
                 questions = [
                     "What amperage is allocated to the tenant space's subpanel, and how much is in use?"
                 ]
+                if reported:
+                    best = max(reported, key=lambda e: float(e.extracted_value))
+                    enough = float(best.extracted_value) >= float(req.required_value)
+                    a = InfrastructureAssessment(
+                        project_id=prj,
+                        property_id=pid,
+                        requirement_id=rid,
+                        status=AssessmentStatus.MEETS if enough else AssessmentStatus.MAY_REQUIRE_WORK,
+                        observed_value=f"{int(float(best.extracted_value))}A tenant panel (broker-reported)",
+                        required_value=req.required_value,
+                        evidence_ids=[e.evidence_id for e in reported + amps],
+                        limitations=list(best.limitations)
+                        + ["Reported capacity is not verified load data; confirm with an electrician."],
+                        verification_questions=[
+                            "Can an electrician confirm the panel rating and current load?"
+                        ],
+                        uncertainty="Broker statement, not a load calculation or inspection.",
+                        review_status=ReviewStatus.NEEDS_REVIEW,
+                    )
+                    assessments.append(a)
+                    work.append(
+                        _work(
+                            pid,
+                            "electrical_circuits_reported_capacity"
+                            if enough
+                            else "electrical_subpanel_allowance",
+                            WorkCategory.ELECTRICAL,
+                            "Dedicated circuits for treatment equipment"
+                            if enough
+                            else "Allowance: subpanel/circuit upgrade (reported capacity below requirement)",
+                            1,
+                            ["Based on broker-reported panel capacity"],
+                            a.evidence_ids,
+                            a.assessment_id,
+                        )
+                    )
+                    continue
                 if amps:
                     best = max(amps, key=lambda e: float(e.extracted_value))
                     a = InfrastructureAssessment(
@@ -194,7 +232,32 @@ class FeasibilityEngine:
                 n = int(req.required_value)
                 sinks = by_type.get("sink_installed", [])
                 in_unit = [e for e in sinks if e.evidence_id in unit_permit_evidence]
-                if in_unit:
+                reported_plumbing = by_type.get("in_unit_plumbing", [])
+                if reported_plumbing and not in_unit:
+                    rp = reported_plumbing[-1]
+                    has = bool(rp.extracted_value)
+                    a = InfrastructureAssessment(
+                        project_id=prj,
+                        property_id=pid,
+                        requirement_id=rid,
+                        status=AssessmentStatus.MAY_REQUIRE_WORK,
+                        observed_value="Broker reports existing in-unit plumbing"
+                        if has
+                        else "Broker reports no plumbing in the unit",
+                        required_value=n,
+                        evidence_ids=[rp.evidence_id],
+                        limitations=list(rp.limitations),
+                        proposed_work=[
+                            f"Extend supply/drain from existing in-unit plumbing to {n} treatment sinks"
+                            if has
+                            else f"New supply and drain runs for {n} treatment sinks"
+                        ],
+                        verification_questions=["Where exactly are the supply and drain lines?"],
+                        uncertainty="Broker statement; line locations and capacity not inspected.",
+                        review_status=ReviewStatus.NEEDS_REVIEW,
+                    )
+                    key = "sink_extend_from_existing" if has else "sink_new_run_slab"
+                elif in_unit:
                     a = InfrastructureAssessment(
                         project_id=prj,
                         property_id=pid,
@@ -295,7 +358,17 @@ class FeasibilityEngine:
                 hv = by_type.get("hvac_tenant_improvement", []) + by_type.get("vav_boxes", [])
                 unit_hv = [e for e in hv if e.evidence_id in unit_permit_evidence]
                 n = profile.space_requirements.required_rooms.get("treatment", 0)
-                if unit_hv:
+                zon = by_type.get("hvac_zonable", [])
+                if zon and not unit_hv:
+                    z = zon[-1]
+                    key = "hvac_rezone_existing" if z.extracted_value else "hvac_new_distribution"
+                    obs = (
+                        "Broker reports existing HVAC can be zoned per room"
+                        if z.extracted_value
+                        else "Broker reports HVAC cannot be zoned per room"
+                    )
+                    status, ev_ids = AssessmentStatus.MAY_REQUIRE_WORK, [z.evidence_id]
+                elif unit_hv:
                     key, obs = "hvac_rezone_existing", "HVAC tenant improvement documented in this unit"
                     status, ev_ids = AssessmentStatus.MAY_REQUIRE_WORK, [e.evidence_id for e in unit_hv]
                 else:

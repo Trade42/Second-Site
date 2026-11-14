@@ -1,6 +1,6 @@
 # Voice infrastructure (owner: communications)
 
-Target topology (verified docs, not yet built):
+Implemented with Telnyx speak + transcription turns (see services/call_orchestration); xAI realtime voice is the planned upgrade for step 3:
 1. Telnyx Call Control dials the broker (`POST /v2/calls`) after an APPROVED `PLACE_CALL` approval.
 2. Owner's genuine recorded intro is played (never synthesized), followed by the required automation disclosure.
 3. The assistant leg is xAI realtime voice over SIP (`realtime.call.incoming` webhook ->

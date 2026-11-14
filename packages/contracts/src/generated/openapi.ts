@@ -79,6 +79,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/owner/channel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Channel */
+        get: operations["get_channel_api_v1_owner_channel_get"];
+        /** Put Channel */
+        put: operations["put_channel_api_v1_owner_channel_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/owner/channel/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Poll Channel
+         * @description Fetch new Photon messages now (for setups without a public webhook URL).
+         */
+        post: operations["poll_channel_api_v1_owner_channel_poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/owner/channel/simulate-text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Text
+         * @description Fixture messaging only: pretend the owner texted the agent (to demo linking, JOIN/LATER, STATUS, chat).
+         */
+        post: operations["simulate_text_api_v1_owner_channel_simulate_text_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -166,6 +224,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/calls/{call_id}/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simulate Call
+         * @description Fixture mode only: play the broker side of a simulated call through the real event handlers.
+         */
+        post: operations["simulate_call_api_v1_projects__project_id__calls__call_id__simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/chat": {
         parameters: {
             query?: never;
@@ -246,6 +324,23 @@ export interface paths {
          * @description Server-Sent Events. Polls the persisted event log (source of truth) every second.
          */
         get: operations["stream_events_api_v1_projects__project_id__events_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/handoffs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Handoffs */
+        get: operations["list_handoffs_api_v1_projects__project_id__handoffs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1005,6 +1100,21 @@ export interface components {
             /** State */
             state: string;
         };
+        /**
+         * CallQuestion
+         * @description One question the assistant may ask, grounded in an UNKNOWN / MAY_REQUIRE_WORK assessment.
+         */
+        CallQuestion: {
+            /**
+             * Claim Type
+             * @description Evidence observation_type an answer would produce, e.g. 'tenant_subpanel_amps'
+             */
+            claim_type: string;
+            /** Question */
+            question: string;
+            /** Requirement Id */
+            requirement_id: string | null;
+        };
         /** CallSession */
         CallSession: {
             /**
@@ -1024,12 +1134,21 @@ export interface components {
              * Format: uuid
              */
             call_id: string;
+            /** Communication Id */
+            communication_id: string | null;
             /** Conference Id */
             conference_id: string | null;
+            /**
+             * Deferred Questions
+             * @description Sensitive questions the assistant declined to answer for the owner.
+             */
+            deferred_questions: string[];
             /** Ended At */
             ended_at: string | null;
             /** Failure Reason */
             failure_reason: string | null;
+            /** Findings */
+            findings: components["schemas"]["StructuredFinding"][];
             /** Handoff Request Id */
             handoff_request_id: string | null;
             /**
@@ -1037,6 +1156,8 @@ export interface components {
              * @description Owner's genuine recorded intro (object storage key). Never synthesized.
              */
             intro_recording_reference: string | null;
+            /** Outcome Summary */
+            outcome_summary: string | null;
             /**
              * Owner Id
              * Format: uuid
@@ -1054,16 +1175,31 @@ export interface components {
             /** Provider Call Id */
             provider_call_id: string | null;
             /**
+             * Question Index
+             * @default 0
+             */
+            question_index: number;
+            /**
              * Recipient
              * @description {'role':'broker','name':'...','phone':'+1...'}
              */
             recipient: {
                 [key: string]: string;
             };
+            /** Script */
+            script: components["schemas"]["CallQuestion"][];
+            /**
+             * Simulated
+             * @description True when driven by the call simulator, not a carrier.
+             * @default false
+             */
+            simulated: boolean;
             /** Started At */
             started_at: string | null;
             /** @default CREATED */
             state: components["schemas"]["CallState"];
+            /** Transcript */
+            transcript: components["schemas"]["TranscriptTurn"][];
         };
         /**
          * CallState
@@ -1102,6 +1238,13 @@ export interface components {
             available_area_sqm: number | null;
             /** Available From */
             available_from: string | null;
+            /**
+             * Broker Contact
+             * @description {'name','company','phone'} of the listing contact. CoStar kit phones are anonymized (555).
+             */
+            broker_contact: {
+                [key: string]: string;
+            } | null;
             /** Brokerage Company */
             brokerage_company: string | null;
             /** Building Name */
@@ -1478,7 +1621,7 @@ export interface components {
          * EventType
          * @enum {string}
          */
-        EventType: "project.profile.confirmed" | "property.search.completed" | "property.identity.resolved" | "property.permits.ingested" | "property.spatial_analysis.completed" | "property.analysis.completed" | "infrastructure.unknown_detected" | "infrastructure.evidence_updated" | "financial.scenario.updated" | "property.ranking.updated" | "outreach.approval_requested" | "outreach.approved" | "outreach.completed" | "call.started" | "call.owner_handoff_requested" | "call.owner_joined" | "call.completed" | "call.failed" | "layout.version_created" | "layout.validation_failed" | "layout.approved" | "bom.generated" | "bom.recalculation_required" | "bom.approved" | "procurement.offer_updated" | "logistics.timeline_updated" | "approval.requested" | "approval.decided" | "task.started" | "task.completed" | "task.failed";
+        EventType: "project.profile.confirmed" | "property.search.completed" | "property.identity.resolved" | "property.permits.ingested" | "property.spatial_analysis.completed" | "property.analysis.completed" | "infrastructure.unknown_detected" | "infrastructure.evidence_updated" | "financial.scenario.updated" | "property.ranking.updated" | "outreach.approval_requested" | "outreach.approved" | "outreach.completed" | "call.started" | "call.owner_handoff_requested" | "call.owner_joined" | "call.completed" | "call.failed" | "call.finding_recorded" | "communication.message_received" | "communication.owner_notified" | "layout.version_created" | "layout.validation_failed" | "layout.approved" | "bom.generated" | "bom.recalculation_required" | "bom.approved" | "procurement.offer_updated" | "logistics.timeline_updated" | "approval.requested" | "approval.decided" | "task.started" | "task.completed" | "task.failed";
         /**
          * EvidenceClassification
          * @description How an assertion is known. Never collapsed into a single confidence score.
@@ -1553,6 +1696,26 @@ export interface components {
              * @description e.g. 'owner_form', 'onboarding_agent', 'chat:<message_id>'
              */
             source: string;
+        };
+        /** FindingPayload */
+        FindingPayload: {
+            /**
+             * Call Id
+             * Format: uuid
+             */
+            call_id: string;
+            /** Claim Type */
+            claim_type: string;
+            /**
+             * Evidence Id
+             * @default null
+             */
+            evidence_id: string | null;
+            /**
+             * Summary
+             * @default null
+             */
+            summary: string | null;
         };
         /** FinishSpecification */
         FinishSpecification: {
@@ -1943,6 +2106,23 @@ export interface components {
             /** Size Bytes */
             size_bytes: number;
         };
+        /** MessageReceivedPayload */
+        MessageReceivedPayload: {
+            /** Channel */
+            channel: string;
+            /**
+             * Handled As
+             * @description 'linked' | 'command' | 'chat' | 'image' | 'ignored'
+             */
+            handled_as: string;
+            /** Provider Message Id */
+            provider_message_id: string;
+            /**
+             * Summary
+             * @default null
+             */
+            summary: string | null;
+        };
         /** Money */
         Money: {
             /**
@@ -2043,6 +2223,78 @@ export interface components {
                 [key: string]: string;
             };
         };
+        /**
+         * OwnerChannel
+         * @description How the assistant reaches the owner on Photon. A shared Photon line cannot start a conversation, so the
+         *     channel only becomes LINKED after the owner texts the agent; the reply ids come from that inbound message.
+         */
+        OwnerChannel: {
+            /**
+             * Agent User Id
+             * @description Photon User id of the agent (receivedBy.id)
+             */
+            agent_user_id: string | null;
+            /**
+             * Handle
+             * @description Owner's phone (E.164) or iMessage email
+             */
+            handle: string;
+            /** Last Inbound Message Id */
+            last_inbound_message_id: string | null;
+            /** Linked At */
+            linked_at: string | null;
+            /**
+             * Owner Channel Id
+             * Format: uuid
+             */
+            owner_channel_id: string;
+            /**
+             * Owner Id
+             * Format: uuid
+             */
+            owner_id: string;
+            /**
+             * Platform
+             * @description Photon platform, e.g. 'imessage', 'sms'
+             * @default imessage
+             */
+            platform: string;
+            /**
+             * Space Id
+             * @description Photon Space id of the owner<->agent conversation
+             */
+            space_id: string | null;
+            /** @default PENDING_FIRST_MESSAGE */
+            status: components["schemas"]["OwnerChannelStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** OwnerChannelBody */
+        OwnerChannelBody: {
+            /** Handle */
+            handle: string;
+            /**
+             * Platform
+             * @default imessage
+             */
+            platform?: string;
+        };
+        /**
+         * OwnerChannelStatus
+         * @enum {string}
+         */
+        OwnerChannelStatus: "PENDING_FIRST_MESSAGE" | "LINKED";
+        /** OwnerChannelView */
+        OwnerChannelView: {
+            /** Agent Handle */
+            agent_handle: string | null;
+            channel: components["schemas"]["OwnerChannel"] | null;
+            /** Instructions */
+            instructions: string;
+        };
         /** OwnerHandoffRequest */
         OwnerHandoffRequest: {
             /**
@@ -2063,7 +2315,6 @@ export interface components {
             /**
              * Join Token Reference
              * @description Opaque reference to a short-lived join token held server-side. Never the raw token.
-             * @default null
              */
             join_token_reference: string | null;
             /**
@@ -2087,6 +2338,21 @@ export interface components {
              * @default HIGH
              */
             urgency: string;
+        };
+        /** OwnerNotifiedPayload */
+        OwnerNotifiedPayload: {
+            /**
+             * Communication Id
+             * Format: uuid
+             */
+            communication_id: string;
+            /**
+             * Delivery
+             * @description 'accepted' (provider took it) | 'recorded' (fixture) | 'not_linked'
+             */
+            delivery: string;
+            /** Purpose */
+            purpose: string;
         };
         /** ParticipantState */
         ParticipantState: {
@@ -2192,6 +2458,15 @@ export interface components {
             x: number;
             /** Y */
             y: number;
+        };
+        /** PollResult */
+        PollResult: {
+            /** Fetched */
+            fetched: number;
+            /** New */
+            new: number;
+            /** Routed */
+            routed: number;
         };
         /** ProblemDetail */
         ProblemDetail: {
@@ -2691,6 +2966,33 @@ export interface components {
          * @enum {string}
          */
         Severity: "HARD" | "SOFT";
+        /** SimulateBody */
+        SimulateBody: {
+            /**
+             * Answers
+             * @default {}
+             */
+            answers?: {
+                [key: string]: string;
+            };
+            /**
+             * Owner Action
+             * @default accept
+             */
+            owner_action?: string;
+        };
+        /** SimulatedTextBody */
+        SimulatedTextBody: {
+            /** Text */
+            text: string;
+        };
+        /** SimulatedTextResult */
+        SimulatedTextResult: {
+            /** Reply */
+            reply: string | null;
+            /** Routed */
+            routed: boolean;
+        };
         /** SiteGeometry */
         SiteGeometry: {
             /**
@@ -2910,6 +3212,8 @@ export interface components {
              * Format: uuid
              */
             communication_id: string;
+            /** Simulate */
+            simulate?: boolean | null;
         };
         /** StructuredFinding */
         StructuredFinding: {
@@ -3103,6 +3407,21 @@ export interface components {
             /** Milestone */
             milestone: string;
         };
+        /** TranscriptTurn */
+        TranscriptTurn: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Speaker
+             * @description 'assistant' | 'counterparty' | 'owner' | 'system'
+             */
+            speaker: string;
+            /** Text */
+            text: string;
+        };
         /** UnknownDetectedPayload */
         UnknownDetectedPayload: {
             /**
@@ -3253,6 +3572,138 @@ export interface operations {
                 };
                 content: {
                     "image/jpeg": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_channel_api_v1_owner_channel_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerChannelView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_channel_api_v1_owner_channel_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnerChannelBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerChannelView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    poll_channel_api_v1_owner_channel_poll_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulate_text_api_v1_owner_channel_simulate_text_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulatedTextBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulatedTextResult"];
                 };
             };
             /** @description Validation Error */
@@ -3507,6 +3958,44 @@ export interface operations {
             };
         };
     };
+    simulate_call_api_v1_projects__project_id__calls__call_id__simulate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                call_id: string;
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CallSession"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     chat_api_v1_projects__project_id__chat_post: {
         parameters: {
             query?: never;
@@ -3667,6 +4156,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_handoffs_api_v1_projects__project_id__handoffs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnerHandoffRequest"][];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -64,6 +64,22 @@
       "default": null,
       "title": "Available From"
     },
+    "broker_contact": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "{'name','company','phone'} of the listing contact. CoStar kit phones are anonymized (555).",
+      "title": "Broker Contact"
+    },
     "brokerage_company": {
       "anyOf": [
         {

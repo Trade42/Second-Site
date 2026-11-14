@@ -117,6 +117,47 @@ class ParticipantState(Contract):
     updated_at: UtcDatetime = Field(default_factory=utcnow)
 
 
+class TranscriptTurn(Contract):
+    speaker: str = Field(description="'assistant' | 'counterparty' | 'owner' | 'system'")
+    text: str
+    at: UtcDatetime = Field(default_factory=utcnow)
+
+
+class CallQuestion(Contract):
+    """One question the assistant may ask, grounded in an UNKNOWN / MAY_REQUIRE_WORK assessment."""
+
+    question: str
+    claim_type: str = Field(
+        description="Evidence observation_type an answer would produce, e.g. 'tenant_subpanel_amps'"
+    )
+    requirement_id: str | None = None
+
+
+class OwnerChannelStatus(StrEnum):
+    PENDING_FIRST_MESSAGE = (
+        "PENDING_FIRST_MESSAGE"  # owner registered a handle but has not texted the agent yet
+    )
+    LINKED = "LINKED"
+
+
+class OwnerChannel(Contract):
+    """How the assistant reaches the owner on Photon. A shared Photon line cannot start a conversation, so the
+    channel only becomes LINKED after the owner texts the agent; the reply ids come from that inbound message."""
+
+    owner_channel_id: UUID = Field(default_factory=new_id)
+    owner_id: UUID
+    platform: str = Field(default="imessage", description="Photon platform, e.g. 'imessage', 'sms'")
+    handle: str = Field(description="Owner's phone (E.164) or iMessage email")
+    status: OwnerChannelStatus = OwnerChannelStatus.PENDING_FIRST_MESSAGE
+    space_id: str | None = Field(
+        default=None, description="Photon Space id of the owner<->agent conversation"
+    )
+    agent_user_id: str | None = Field(default=None, description="Photon User id of the agent (receivedBy.id)")
+    last_inbound_message_id: str | None = None
+    linked_at: UtcDatetime | None = None
+    updated_at: UtcDatetime = Field(default_factory=utcnow)
+
+
 class CallSession(Contract):
     call_id: UUID = Field(default_factory=new_id)
     project_id: UUID
@@ -140,6 +181,19 @@ class CallSession(Contract):
     started_at: UtcDatetime | None = None
     ended_at: UtcDatetime | None = None
     failure_reason: str | None = None
+    communication_id: UUID | None = None
+    script: list[CallQuestion] = Field(default_factory=list)
+    question_index: int = 0
+    transcript: list[TranscriptTurn] = Field(default_factory=list)
+    findings: list[StructuredFinding] = Field(default_factory=list)
+    deferred_questions: list[str] = Field(
+        default_factory=list,
+        description="Sensitive questions the assistant declined to answer for the owner.",
+    )
+    simulated: bool = Field(
+        default=False, description="True when driven by the call simulator, not a carrier."
+    )
+    outcome_summary: str | None = None
 
     def transition(self, target: CallState) -> CallSession:
         check_transition("call", CALL_TRANSITIONS, self.state, target)

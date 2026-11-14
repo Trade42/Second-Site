@@ -1,0 +1,27 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/OwnerNotifiedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "communication_id": {
+      "format": "uuid",
+      "title": "Communication Id",
+      "type": "string"
+    },
+    "delivery": {
+      "description": "'accepted' (provider took it) | 'recorded' (fixture) | 'not_linked'",
+      "title": "Delivery",
+      "type": "string"
+    },
+    "purpose": {
+      "title": "Purpose",
+      "type": "string"
+    }
+  },
+  "required": [
+    "communication_id",
+    "delivery",
+    "purpose"
+  ],
+  "title": "OwnerNotifiedPayload",
+  "type": "object"
+}

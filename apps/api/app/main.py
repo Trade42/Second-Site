@@ -106,6 +106,7 @@ for r in (
     properties.router,
     design.router,
     communications.router,
+    communications.owner_router,
     approvals.router,
     media.router,
     media.imagery_router,

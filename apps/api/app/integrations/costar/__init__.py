@@ -151,6 +151,21 @@ def _date(v: str | None) -> date | None:
         return None
 
 
+def _contact(rec: dict[str, Any]) -> dict[str, str] | None:
+    """First displayed listing contact. The kit replaces real phone numbers with 555 numbers."""
+    for c in rec.get("listingContacts") or []:
+        digits = re.sub(r"\D", "", c.get("phoneNumber") or "")
+        name = " ".join(x for x in (c.get("firstName"), c.get("lastName")) if x)
+        if name and len(digits) == 10:
+            return {
+                "name": name,
+                "company": c.get("locationName") or "",
+                "phone": f"+1{digits}",
+                "role": "broker",
+            }
+    return None
+
+
 def _photo(uri: str, size: str = "113") -> str:
     return uri.replace("/112/", f"/{size}/")
 
@@ -340,6 +355,7 @@ class KitCoStarProvider:
             "lease_service_type": service,
             "building_name": rec.get("buildingName"),
             "brokerage_company": rec.get("brokerageCompanyName"),
+            "broker_contact": _contact(rec),
             "photo_urls": photos,
             "source_record_date": _date(rec.get("certifiedFreshDate")),
             "disclaimer": disclaimer,

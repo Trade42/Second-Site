@@ -232,6 +232,20 @@ class Communication(Base, DocumentMixin):
     state: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
+class OwnerChannelRow(Base, DocumentMixin):
+    """Owner's Photon messaging channel (handle -> Photon space/agent ids once the owner texts first)."""
+
+    __tablename__ = "owner_channels"
+    __table_args__ = (UniqueConstraint("platform", "handle"),)
+    id: Mapped[UUID] = pk()
+    owner_id: Mapped[UUID] = mapped_column(
+        SAUuid, ForeignKey("users.id", ondelete=CASCADE), nullable=False, index=True
+    )
+    platform: Mapped[str] = mapped_column(String(32), nullable=False)
+    handle: Mapped[str] = mapped_column(String(320), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
 class CallSessionRow(Base, DocumentMixin):
     __tablename__ = "call_sessions"
     id: Mapped[UUID] = pk()

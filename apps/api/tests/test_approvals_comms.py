@@ -155,8 +155,11 @@ def test_photon_webhook_signature_and_dedupe(client, db):
         client.post("/webhooks/photon", content=body, headers=hdr).status_code == 204
     )  # duplicate accepted, no-op
     db.expire_all()
-    assert db.scalar(select(func.count()).select_from(m.ProcessedWebhookEvent)) == 1
-    row = db.scalar(select(m.ProcessedWebhookEvent))
+    # one row for the event id and one for the message id (shared with polling dedupe)
+    assert db.scalar(select(func.count()).select_from(m.ProcessedWebhookEvent)) == 2
+    row = db.scalar(
+        select(m.ProcessedWebhookEvent).where(m.ProcessedWebhookEvent.provider_event_id == "evt_fixture_0001")
+    )
     assert row.verified is False and row.payload["mode"] == "fixture"  # fixture secret != live verification
     bad = dict(hdr, **{"webhook-signature": "v1," + base64.b64encode(b"x" * 32).decode()})
     r = client.post("/webhooks/photon", content=body, headers=bad)
@@ -179,14 +182,23 @@ def test_telnyx_webhook_ed25519(client):
     assert client.post("/webhooks/telnyx", content=body + b" ", headers=hdr).status_code == 400
 
 
-def _approved_call(db, container):
+def _approved_call(db, container, phone: str | None = "auto"):
     from app.contracts import ProjectContext
     from app.db import models as m
+    from app.domains.communications.owner_channel import register_channel
     from app.services.call_orchestration import call_payload
 
     owner = uuid4()
     db.add(m.User(id=owner, display_name="o"))
     db.flush()
+    if phone == "auto":
+        phone = f"+1555556{uuid4().int % 10000:04d}"
+    if phone:
+        register_channel(db, owner, phone)
+        container.photon.inject_inbound(phone, "hi")
+        from app.domains.communications.poller import poll_once
+
+        poll_once(db, container)  # owner texted first -> channel LINKED
     p = ProjectContext(owner_id=owner, project_name="t", market={"city": "Los Angeles", "state": "CA"})
     repos.projects.add(db, p)
     recipient = {"role": "broker", "name": "B", "phone": "+15555550100"}
@@ -208,7 +220,7 @@ def _approved_call(db, container):
 def test_call_handoff_accept_decline_and_timeout(db, container):
     orch = CallOrchestrator(container)
     for response in (HandoffStatus.ACCEPTED, HandoffStatus.DECLINED, None):
-        owner, p, recipient, a = _approved_call(db, container)
+        owner, p, recipient, a = _approved_call(db, container, phone=f"+1555555{uuid4().int % 10000:04d}")
         call = orch.start(
             db,
             project_id=p.project_id,
@@ -226,6 +238,7 @@ def test_call_handoff_accept_decline_and_timeout(db, container):
         )
         assert h.status == HandoffStatus.NOTIFIED and h.join_token_reference.startswith("ref_")
         assert any("needs you on a call" in m["text"] for m in container.photon.outbox)
+        assert all("ref_" not in m["text"] for m in container.photon.outbox)  # no token material in texts
         if response is None:  # owner never responds -> expires -> assistant defers
             stored = repos.handoffs.require(db, h.handoff_request_id)
             repos.handoffs.upsert(
@@ -234,14 +247,63 @@ def test_call_handoff_accept_decline_and_timeout(db, container):
             final = orch.expire_stale_handoffs(db, call.call_id)
             assert final.state == CallState.AI_RESUMED
             assert repos.handoffs.require(db, h.handoff_request_id).status == HandoffStatus.EXPIRED
+            assert final.deferred_questions == ["Can you do a 2-month deposit?"]
+        elif response == HandoffStatus.ACCEPTED:
+            final = orch.owner_response(db, h.handoff_request_id, owner, response)
+            assert final.state == CallState.OWNER_JOINING and final.conference_id
+            owner_leg = next(s.leg_id for s in final.participant_states if s.role == "owner")
+            from app.integrations.telnyx import encode_client_state
+
+            cs = encode_client_state({"call_id": str(call.call_id), "role": "owner"})
+            joined = orch.handle_event(
+                db,
+                {
+                    "data": {
+                        "event_type": "call.answered",
+                        "payload": {"call_control_id": owner_leg, "client_state": cs},
+                    }
+                },
+            )
+            assert container.telephony.conferences[final.conference_id][-1] == owner_leg
+            joined = orch.handle_event(
+                db,
+                {
+                    "data": {
+                        "event_type": "conference.participant.joined",
+                        "payload": {"call_control_id": owner_leg, "client_state": cs},
+                    }
+                },
+            )
+            assert joined.state == CallState.HUMAN_JOINED
         else:
             final = orch.owner_response(db, h.handoff_request_id, owner, response)
-            assert final.state == (
-                CallState.HUMAN_JOINED if response == HandoffStatus.ACCEPTED else CallState.AI_RESUMED
-            )
+            assert final.state == CallState.AI_RESUMED
         events = container.events.list(db, p.project_id)
         for _, e in events:
             assert "join_token" not in json.dumps(e.payload)
+
+
+def test_owner_accept_without_phone_defers(db, container):
+    orch = CallOrchestrator(container)
+    owner, p, recipient, a = _approved_call(db, container, phone=None)
+    call = orch.start(
+        db,
+        project_id=p.project_id,
+        owner_id=owner,
+        recipient=recipient,
+        property_id=None,
+        approval_id=a.approval_id,
+        intro_recording_reference=None,
+    )
+    orch.advance(db, call.call_id, CallState.INTRO)
+    orch.advance(db, call.call_id, CallState.ACTIVE)
+    h = orch.request_handoff(db, call.call_id, HandoffReason.BINDING_COMMITMENT, "Sign today?")
+    final = orch.owner_response(db, h.handoff_request_id, owner, HandoffStatus.ACCEPTED)
+    assert final.state == CallState.AI_RESUMED and "Sign today?" in final.deferred_questions
+    comms = repos.communications.list(db, project_id=p.project_id)
+    assert any(
+        c.purpose == "handoff_request" and c.state.value == "FAILED" for c in comms
+    )  # not linked: not sent
 
 
 def test_call_provider_failure_and_disconnect(db, container):

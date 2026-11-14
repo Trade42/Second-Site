@@ -34,6 +34,9 @@ class EventType(StrEnum):
     CALL_OWNER_JOINED = "call.owner_joined"
     CALL_COMPLETED = "call.completed"
     CALL_FAILED = "call.failed"
+    CALL_FINDING_RECORDED = "call.finding_recorded"
+    COMMUNICATION_MESSAGE_RECEIVED = "communication.message_received"
+    COMMUNICATION_OWNER_NOTIFIED = "communication.owner_notified"
     LAYOUT_VERSION_CREATED = "layout.version_created"
     LAYOUT_VALIDATION_FAILED = "layout.validation_failed"
     LAYOUT_APPROVED = "layout.approved"
@@ -131,6 +134,26 @@ class HandoffRequestedPayload(Contract):
     # NOTE: never include join tokens here.
 
 
+class FindingPayload(Contract):
+    call_id: UUID
+    claim_type: str
+    evidence_id: UUID | None = None
+    summary: str | None = None
+
+
+class MessageReceivedPayload(Contract):
+    channel: str
+    provider_message_id: str
+    handled_as: str = Field(description="'linked' | 'command' | 'chat' | 'image' | 'ignored'")
+    summary: str | None = None
+
+
+class OwnerNotifiedPayload(Contract):
+    communication_id: UUID
+    delivery: str = Field(description="'accepted' (provider took it) | 'recorded' (fixture) | 'not_linked'")
+    purpose: str
+
+
 class LayoutPayload(Contract):
     design_version_id: UUID | None
     property_id: UUID
@@ -186,6 +209,9 @@ EVENT_PAYLOADS: dict[EventType, type[Contract]] = {
     EventType.CALL_OWNER_JOINED: CallPayload,
     EventType.CALL_COMPLETED: CallPayload,
     EventType.CALL_FAILED: CallPayload,
+    EventType.CALL_FINDING_RECORDED: FindingPayload,
+    EventType.COMMUNICATION_MESSAGE_RECEIVED: MessageReceivedPayload,
+    EventType.COMMUNICATION_OWNER_NOTIFIED: OwnerNotifiedPayload,
     EventType.LAYOUT_VERSION_CREATED: LayoutPayload,
     EventType.LAYOUT_VALIDATION_FAILED: LayoutPayload,
     EventType.LAYOUT_APPROVED: LayoutPayload,

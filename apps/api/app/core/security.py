@@ -45,3 +45,23 @@ def verify_token(secret: str, token: str, purpose: str = "access") -> UUID:
 def opaque_reference() -> str:
     """Random reference stored in events instead of real secrets/tokens."""
     return "ref_" + secrets.token_urlsafe(16)
+
+
+def sign_media_key(secret: str, key: str, ttl_s: int = 900) -> str:
+    """Short-lived capability for one stored object (e.g. the owner's recorded intro fetched by the carrier)."""
+    body = f"media.{key}.{int(time.time()) + ttl_s}"
+    enc = base64.urlsafe_b64encode(body.encode()).decode().rstrip("=")
+    return f"{enc}.{_sign(secret, body)}"
+
+
+def verify_media_key(secret: str, token: str) -> str:
+    try:
+        enc, sig = token.rsplit(".", 1)
+        body = base64.urlsafe_b64decode(enc + "=" * (-len(enc) % 4)).decode()
+        purpose, rest = body.split(".", 1)
+        key, exp = rest.rsplit(".", 1)
+    except ValueError as exc:
+        raise UnauthorizedError("invalid media token") from exc
+    if purpose != "media" or not hmac.compare_digest(sig, _sign(secret, body)) or int(exp) < time.time():
+        raise UnauthorizedError("invalid or expired media token")
+    return key
