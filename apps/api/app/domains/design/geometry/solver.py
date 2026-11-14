@@ -1,6 +1,7 @@
 """Constraint-based layout generator (OR-Tools CP-SAT) for rectangular measured spaces.
 
-Foundation scope (property-spatial extends): rectangle boundary, entrance on the y=0 wall.
+The core solver works on a rectangle with the entrance on the y=0 wall; `framing.frame_for_solver` maps real
+measured floors (any outline, any entrance wall) into that frame and the results back onto the plan.
 Two topologies:
   A "spine"  — corridor perpendicular to the entrance wall, rooms in strips on both sides.
   B "front"  — corridor parallel to the entrance wall; reception/storage in front band, rooms behind.
@@ -24,6 +25,7 @@ from app.contracts import (
     SiteGeometry,
     ValidationIssue,
 )
+from app.domains.design.geometry.framing import frame_for_solver
 from app.domains.spatial.validation import validate_layout
 
 
@@ -60,18 +62,39 @@ def _expand(reqs: list[RoomRequirement]) -> list[RoomRequirement]:
 
 
 def _strips(
-    site: SiteGeometry, topology: str, corridor: float
+    site: SiteGeometry, topology: str, corridor: float, corridor_x0: float | None = None
 ) -> tuple[list[Strip], list[list[tuple[float, float]]]]:
     x0, y0, x1, y1 = _bbox(site)
     W, H = x1 - x0, y1 - y0
     ent = site.entrances[0] if site.entrances else None
     if topology == "spine":
-        cx = ((ent.start[0] + ent.end[0]) / 2) if ent else x0 + W / 2
-        c0, c1 = cx - corridor / 2, cx + corridor / 2
+        if corridor_x0 is None:
+            cx = ((ent.start[0] + ent.end[0]) / 2) if ent else x0 + W / 2
+            c0, c1 = cx - corridor / 2, cx + corridor / 2
+        else:
+            c0, c1 = corridor_x0, corridor_x0 + corridor
         circ = [[(c0, y0), (c1, y0), (c1, y1), (c0, y1)]]
+        left_res: list[tuple[float, float]] = []
+        right_res: list[tuple[float, float]] = []
+        if ent:
+            a, b = sorted([ent.start[0], ent.end[0]])
+            if a < c0 - 1e-6 or b > c1 + 1e-6:
+                # Door opens beside the corridor: reserve a vestibule from the door to the corridor.
+                circ.append(
+                    [
+                        (min(a, c0), y0),
+                        (max(b, c1), y0),
+                        (max(b, c1), y0 + corridor),
+                        (min(a, c0), y0 + corridor),
+                    ]
+                )
+                if a < c0 - 1e-6:
+                    left_res.append((0.0, corridor))
+                if b > c1 + 1e-6:
+                    right_res.append((0.0, corridor))
         return [
-            Strip("left", "y", (x0, y0), H, c0 - x0, []),
-            Strip("right", "y", (c1, y0), H, x1 - c1, []),
+            Strip("left", "y", (x0, y0), H, c0 - x0, left_res),
+            Strip("right", "y", (c1, y0), H, x1 - c1, right_res),
         ], circ
     front = min(4.0, (H - corridor) / 2)
     cy0, cy1 = y0 + front, y0 + front + corridor
@@ -181,14 +204,55 @@ def _to_polygon(st: Strip, start: float, length: float) -> list[tuple[float, flo
     ]
 
 
+def _corridor_offsets(
+    site: SiteGeometry, corridor: float, rooms: list[RoomRequirement]
+) -> list[float | None]:
+    """Spine corridor positions to try: at the entrance first, then positions that keep both strips usable."""
+    x0, _, x1, _ = _bbox(site)
+    widest = max((r.min_width_m for r in rooms), default=0.0)
+    narrowest = min((r.min_width_m for r in rooms), default=0.0)
+    out: list[float | None] = [None, x0 + (x1 - x0 - corridor) / 2]
+    for d in (widest, narrowest):
+        out += [x0 + d, x1 - d - corridor]
+    return [o for o in out if o is None or (x0 + narrowest <= o <= x1 - corridor - narrowest)]
+
+
+def _best_strips(site, topology, rooms, prefs):
+    corridor = prefs.circulation_width_m
+    offsets = _corridor_offsets(site, corridor, rooms) if topology == "spine" else [None]
+    first = None
+    for off in offsets:
+        strips, circ = _strips(site, topology, corridor, off)
+        first = first or (strips, circ)
+        sol = _solve(strips, rooms, site, prefs)
+        if sol is not None:
+            return strips, circ, sol
+    return first[0], first[1], None
+
+
 def generate_candidates(
     site: SiteGeometry, requirements: list[RoomRequirement], prefs: LayoutPreferences, count: int = 2
 ) -> list[Candidate]:
     rooms = _expand(requirements)
     out: list[Candidate] = []
+    frame = frame_for_solver(site)
+    if frame is None:
+        return [
+            Candidate(
+                "none",
+                [],
+                [],
+                GeometryValidationReport(
+                    valid=False,
+                    issues=[
+                        ValidationIssue(code="INFEASIBLE", message="No usable rectangular area in this floor")
+                    ],
+                ),
+            )
+        ]
+    measured_site, site = site, frame.site
     for topology in ("spine", "front")[: max(1, count)]:
-        strips, circ = _strips(site, topology, prefs.circulation_width_m)
-        sol = _solve(strips, rooms, site, prefs)
+        strips, circ, sol = _best_strips(site, topology, rooms, prefs)
         if sol is None:
             out.append(
                 Candidate(
@@ -220,5 +284,11 @@ def generate_candidates(
                     area_sqm=round(Polygon(pts).area, 2),
                 )
             )
-        out.append(Candidate(topology, polys, circ, validate_layout(site, polys, requirements, circ)))
+        report = validate_layout(site, polys, requirements, circ)
+        if frame.notes:
+            report = report.model_copy(update={"disclaimer": report.disclaimer + " " + " ".join(frame.notes)})
+        if measured_site is not site:
+            polys = [p.model_copy(update={"polygon": [frame.to_site(pt) for pt in p.polygon]}) for p in polys]
+            circ = [[frame.to_site(pt) for pt in ring] for ring in circ]
+        out.append(Candidate(topology, polys, circ, report))
     return out

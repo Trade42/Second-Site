@@ -35,6 +35,7 @@ from app.db import models as m
 from app.domains.feasibility.engine import FeasibilityEngine
 from app.domains.finance.calculator import FinancialCalculationService
 from app.domains.permits.service import PermitIntelligenceService
+from app.domains.property.enrichment import enrich_exterior, enrich_interior
 from app.domains.property.service import PropertyScoutService, attach_permits
 from app.domains.ranking.engine import RankingEngine
 from app.domains.requirements.templates import requirements_for
@@ -61,10 +62,32 @@ class PropertyAnalysisWorkflow:
         self.ranking = RankingEngine()
 
     # -- steps ---------------------------------------------------------------
+    def with_profile_limits(
+        self, db: Session, project_id: UUID, req: PropertySearchRequest
+    ) -> PropertySearchRequest:
+        """Fill unset search limits from the owner's business profile (area need, rent ceiling)."""
+        try:
+            profile = current_profile(db, project_id)
+        except NotFoundError:  # no profile yet: search with the request as given
+            return req
+        update = {}
+        if req.min_area_sqm is None and profile.space_requirements.min_area_sqm:
+            update["min_area_sqm"] = profile.space_requirements.min_area_sqm
+        if req.max_monthly_rent is None and profile.monthly_rent_limit:
+            update["max_monthly_rent"] = profile.monthly_rent_limit
+        return req.model_copy(update=update) if update else req
+
     def search(
         self, db: Session, project_id: UUID, req: PropertySearchRequest, correlation_id: UUID
     ) -> list[PropertyDigitalProfile]:
-        found = self.scout.search(project_id, req)
+        req = self.with_profile_limits(db, project_id, req)
+        # Pull a wider pool, then prefer candidates whose listed suite has a measured interior scan.
+        pool = self.scout.search(project_id, req.model_copy(update={"limit": min(req.limit * 3, 50)}))
+        pool = [enrich_interior(p, self.c.matterport) for p in pool]
+        pool.sort(key=lambda p: not any(a.matches_listing_unit for a in p.interior_assets))
+        found = [
+            enrich_exterior(p, self.c.vexcel, self.c.settings.public_base_url) for p in pool[: req.limit]
+        ]
         saved: list[PropertyDigitalProfile] = []
         for p in found:
             existing = db.scalar(

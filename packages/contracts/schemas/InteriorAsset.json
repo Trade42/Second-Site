@@ -16,6 +16,20 @@
   "$id": "https://second-site.dev/contracts/1.0/InteriorAsset.json",
   "additionalProperties": false,
   "properties": {
+    "area_sqm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Provider-measured floor area, if any.",
+      "title": "Area Sqm"
+    },
     "asset_id": {
       "title": "Asset Id",
       "type": "string"
@@ -32,6 +46,32 @@
       "default": false,
       "title": "Has Measured Geometry",
       "type": "boolean"
+    },
+    "label": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Provider title, e.g. the Matterport model name.",
+      "title": "Label"
+    },
+    "matches_listing_unit": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "True when the asset is matched to the listed suite (not just the building).",
+      "title": "Matches Listing Unit"
     },
     "provider": {
       "description": "'matterport' or fixture",

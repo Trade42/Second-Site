@@ -26,6 +26,7 @@ from app.contracts import (
 from app.core.container import Container
 from app.core.errors import ConflictError, NotFoundError
 from app.db import models as m
+from app.domains.design.geometry.framing import normalize_plan
 from app.domains.design.geometry.solver import generate_candidates
 from app.domains.design.interior.finishes import finish_specifications
 from app.domains.requirements.templates import SQM_PER_ROOM
@@ -64,18 +65,23 @@ class DesignService:
             if asset.has_measured_geometry:
                 doc = self.c.matterport.get_floor_geometry(asset.asset_id)
                 if doc:
+                    live = doc.get("data_origin") == "LIVE"
+                    if live:
+                        doc = normalize_plan(doc)
                     geo = SiteGeometry(
                         property_id=property_id,
                         source_id=asset.asset_id,
-                        geometry_source=GeometrySource.FIXTURE,
-                        data_origin=DataOrigin.FIXTURE_SYNTHETIC,
+                        geometry_source=GeometrySource(doc.get("geometry_source", "FIXTURE")),
+                        data_origin=DataOrigin.LIVE if live else DataOrigin.FIXTURE_SYNTHETIC,
+                        coordinate_reference=doc.get("coordinate_reference", "local_floor_origin"),
                         floor_boundary=doc["floor_boundary"],
                         fixed_obstacles=doc.get("fixed_obstacles", []),
+                        fixed_walls=[tuple(tuple(p) for p in w) for w in doc.get("fixed_walls", [])],
                         entrances=doc.get("entrances", []),
                         exits=doc.get("exits", []),
                         windows=doc.get("windows", []),
                         fixture_locations=doc.get("fixture_locations", []),
-                        scale_verified=False,
+                        scale_verified=bool(doc.get("scale_verified", False)),
                         measurement_uncertainty_m=doc.get("measurement_uncertainty_m"),
                     )
                     repos.geometries.add(db, geo)

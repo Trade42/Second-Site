@@ -17,6 +17,7 @@ from app.contracts import (
     LayoutGenerationRequest,
     ProjectContext,
     RoomRequirement,
+    SiteGeometry,
     Subsystem,
     TaskAccepted,
     TaskType,
@@ -71,6 +72,18 @@ def generate(
         },
     )
     return TaskAccepted(task=task, status_url=f"/api/v1/projects/{project.project_id}/tasks/{task.task_id}")
+
+
+@router.get("/geometry/{geometry_id}", response_model=SiteGeometry)
+def get_geometry(
+    geometry_id: UUID, project: ProjectContext = Depends(owned_project), db: Session = Depends(db_session)
+):
+    """The measured (or fixture) floor a layout was generated on: outline, partitions, openings."""
+    geo = repos.geometries.get(db, geometry_id)
+    prop = repos.properties.get(db, geo.property_id) if geo else None
+    if geo is None or prop is None or prop.project_id != project.project_id:
+        raise NotFoundError("geometry not found")
+    return geo
 
 
 @router.get("", response_model=list[DesignVersion])

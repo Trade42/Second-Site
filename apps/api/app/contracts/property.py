@@ -54,12 +54,26 @@ class CommercialListing(Contract):
     currency: CurrencyCode = "USD"
     asking_rent_monthly: NonNegativeMinor | None = None
     nnn_charges_monthly: NonNegativeMinor | None = None
+    nnn_is_estimate: bool = Field(
+        default=False,
+        description="True when nnn_charges_monthly is a DERIVED estimate because the listing quoted none.",
+    )
     security_deposit: NonNegativeMinor | None = None
     lease_term_months: int | None = Field(default=None, gt=0)
     available_from: date | None = None
     existing_buildout: str | None = Field(
         default=None,
         description="'open_shell' | 'office_buildout' | 'second_generation_salon' | null (unknown)",
+    )
+    lease_service_type: str | None = Field(
+        default=None,
+        description="Which operating expenses the rent includes, e.g. 'TripleNet', 'FullService', 'ModifiedGross'.",
+    )
+    building_name: str | None = None
+    brokerage_company: str | None = None
+    photo_urls: list[str] = Field(default_factory=list, description="Provider CDN photo links (not stored).")
+    source_record_date: date | None = Field(
+        default=None, description="When the provider last certified the record (snapshot freshness)."
     )
     listing_url: str | None = None
     disclaimer: str | None = None
@@ -71,6 +85,12 @@ class InteriorAsset(Contract):
     asset_type: str = Field(description="e.g. 'matterport_model', 'floor_plan_image', 'photo'")
     data_origin: DataOrigin
     url: str | None = None
+    label: str | None = Field(default=None, description="Provider title, e.g. the Matterport model name.")
+    area_sqm: float | None = Field(default=None, gt=0, description="Provider-measured floor area, if any.")
+    matches_listing_unit: bool | None = Field(
+        default=None,
+        description="True when the asset is matched to the listed suite (not just the building).",
+    )
     has_measured_geometry: bool = False
 
 
@@ -86,7 +106,7 @@ class ExteriorAsset(Contract):
 class SourceManifestEntry(Contract):
     provider: str
     dataset: str | None = None
-    status: str = Field(description="LIVE | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND")
+    status: str = Field(description="LIVE | SNAPSHOT | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND")
     record_count: int = 0
     retrieved_at: UtcDatetime | None = None
     note: str | None = None

@@ -49,7 +49,7 @@
       "title": "Retrieved At"
     },
     "status": {
-      "description": "LIVE | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND",
+      "description": "LIVE | SNAPSHOT | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND",
       "title": "Status",
       "type": "string"
     }

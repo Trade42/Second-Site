@@ -53,6 +53,30 @@
           "default": null,
           "title": "Available From"
         },
+        "brokerage_company": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Brokerage Company"
+        },
+        "building_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Building Name"
+        },
         "currency": {
           "default": "USD",
           "title": "Currency",
@@ -85,6 +109,19 @@
           "default": null,
           "description": "'open_shell' | 'office_buildout' | 'second_generation_salon' | null (unknown)",
           "title": "Existing Buildout"
+        },
+        "lease_service_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which operating expenses the rent includes, e.g. 'TripleNet', 'FullService', 'ModifiedGross'.",
+          "title": "Lease Service Type"
         },
         "lease_term_months": {
           "anyOf": [
@@ -129,6 +166,20 @@
           "default": null,
           "title": "Nnn Charges Monthly"
         },
+        "nnn_is_estimate": {
+          "default": false,
+          "description": "True when nnn_charges_monthly is a DERIVED estimate because the listing quoted none.",
+          "title": "Nnn Is Estimate",
+          "type": "boolean"
+        },
+        "photo_urls": {
+          "description": "Provider CDN photo links (not stored).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Photo Urls",
+          "type": "array"
+        },
         "property_type": {
           "anyOf": [
             {
@@ -171,6 +222,20 @@
           ],
           "default": null,
           "title": "Security Deposit"
+        },
+        "source_record_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "When the provider last certified the record (snapshot freshness).",
+          "title": "Source Record Date"
         }
       },
       "required": [
@@ -521,6 +586,20 @@
     "InteriorAsset": {
       "additionalProperties": false,
       "properties": {
+        "area_sqm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Provider-measured floor area, if any.",
+          "title": "Area Sqm"
+        },
         "asset_id": {
           "title": "Asset Id",
           "type": "string"
@@ -537,6 +616,32 @@
           "default": false,
           "title": "Has Measured Geometry",
           "type": "boolean"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Provider title, e.g. the Matterport model name.",
+          "title": "Label"
+        },
+        "matches_listing_unit": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "True when the asset is matched to the listed suite (not just the building).",
+          "title": "Matches Listing Unit"
         },
         "provider": {
           "description": "'matterport' or fixture",
@@ -987,7 +1092,7 @@
           "title": "Retrieved At"
         },
         "status": {
-          "description": "LIVE | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND",
+          "description": "LIVE | SNAPSHOT | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND",
           "title": "Status",
           "type": "string"
         }

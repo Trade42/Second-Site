@@ -104,7 +104,7 @@ class DataOrigin(StrEnum):
     """Where a record's content came from. Fixtures must never masquerade as live data."""
 
     LIVE = "LIVE"
-    FIXTURE_REAL = "FIXTURE_REAL"  # snapshot of a genuine public record
+    FIXTURE_REAL = "FIXTURE_REAL"  # snapshot of a genuine record (public data or sponsor data kit)
     FIXTURE_SYNTHETIC = "FIXTURE_SYNTHETIC"  # invented demo data
     USER_PROVIDED = "USER_PROVIDED"
     DERIVED = "DERIVED"

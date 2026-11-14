@@ -7,9 +7,9 @@ actually host the business (using public permit history plus interior/exterior d
 than rent, contact brokers through an approval-gated assistant, generate geometry-validated layouts, and turn the
 chosen layout into a room-by-room bill of materials. Every step writes to the same project records.
 
-> Status: **foundation**. The end-to-end slice runs on real LA permit records and clearly labeled fixtures.
-> Sponsor data (CoStar/Matterport/Vexcel), Photon, Telnyx and xAI are adapters awaiting credentials — see
-> [Provider status](docs/PROVIDER_STATUS.md). Nothing here claims a live integration it doesn't have.
+> Status: the end-to-end slice runs on **real sponsor data** — CoStar data-kit lease listings, Matterport measured
+> suite scans, Vexcel aerial imagery — plus live LA permit records. Photon, Telnyx and xAI are adapters awaiting
+> credentials — see [Provider status](docs/PROVIDER_STATUS.md). Nothing here claims a live integration it doesn't have.
 
 ![Overview](docs/demo/overview.png)
 
@@ -46,7 +46,9 @@ Open http://localhost:3000 and click **Seed demo project**. API docs: http://loc
 Without Docker: [runbooks/local-without-docker.md](docs/runbooks/local-without-docker.md). Full stack in containers: `make up`.
 
 ## Environment
-Copy `.env.example` → `.env`. Every provider defaults to **fixture** mode; real calls, messages and purchases are off
+Copy `.env.example` → `.env`. For real sponsor data: extract the CoStar kit to `.data/costar-kit`, add the
+Matterport/Vexcel keys, and set `PROPERTY_PROVIDER_MODE`, `MATTERPORT_PROVIDER_MODE`, `VEXCEL_PROVIDER_MODE` to `live`.
+Otherwise every provider defaults to **fixture** mode; real calls, messages and purchases are off
 (`ALLOW_LIVE_OUTBOUND_CALLS=false`, `ALLOW_LIVE_PURCHASES=false`). `PERMIT_PROVIDER_MODE=live` uses the public LA API with no key.
 `SUPERVISOR_MODEL` empty → deterministic supervisor; set e.g. `anthropic:claude-sonnet-5-5` + `ANTHROPIC_API_KEY` for the LLM.
 
@@ -87,7 +89,7 @@ Rules live in [AGENTS.md](AGENTS.md); the original template docs are in [docs/AG
 ## Provider status (summary)
 | CoStar | Matterport | Vexcel | LA permits | IFC-Bench | Deep Agents | Photon | Telnyx | xAI voice | Oracle | Sourcing |
 |---|---|---|---|---|---|---|---|---|---|---|
-| BLOCKED | BLOCKED | BLOCKED | LIVE-capable | PARTIAL | PARTIAL | PARTIAL | PARTIAL | NOT_STARTED | NOT_STARTED | MOCK |
+| LIVE (data kit) | LIVE | LIVE | LIVE-capable | PARTIAL | PARTIAL | PARTIAL | PARTIAL | NOT_STARTED | NOT_STARTED | MOCK |
 
 ## Security and truthfulness
 Secrets only in `.env` (gitignored). Approvals bind the exact payload hash and are enforced at the action boundary.
@@ -100,6 +102,11 @@ CoStar "Inside and Out" · LangChain Deep Agents · Photon 2.0 (incl. Best Voice
 Deadline **8:00 am ET, Sunday Nov 15, 2026**; demo ≤ 2 minutes; repository must be public.
 
 ## Demo
+Live sponsor mode: Seed demo → 10 real CoStar LA lease spaces ranked on total cost (rent + quoted or flagged-estimate
+operating costs + build-out); Property Intelligence shows CoStar terms, the Matterport tour of the listed suite and
+Vexcel aerial + roof observations; Design Studio lays the program out inside the measured walls of 630 W 6th St #110B.
+
+Fixture mode:
 1. Seed demo project → ranking shows Hollywood #302 beating the lower-rent Alhambra building over 36 months, with reasons.
 2. Property Intelligence → real LADBS permits (800A service, 2" water service, suite-302 sink) with scope, match status and "historical ≠ current" limitations.
 3. Design Studio → generate two validated layouts → Procurement → room-linked BOM.
@@ -107,5 +114,5 @@ Deadline **8:00 am ET, Sunday Nov 15, 2026**; demo ≤ 2 minutes; repository mus
 Data notes: [DEMO_DATA](docs/DEMO_DATA.md).
 
 ## Known limitations
-Sponsor data, messaging and voice are not connected yet; listing terms and geometry are synthetic; LA permit datasets
-start in 2020; the layout solver handles rectangular floors with the entrance on one wall; dev auth only.
+Messaging and voice are not connected yet; few listed suites have a Matterport scan named for the suite; layouts use
+the largest rectangular area of a measured floor; LA permit datasets start in 2020; dev auth only.

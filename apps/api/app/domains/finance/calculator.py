@@ -115,6 +115,12 @@ class FinancialCalculationService:
             "Rent and NNN held flat (no escalations)",
             "Unit costs are illustrative planning ranges, not quotes",
         ]
+        if listing and listing.nnn_is_estimate:
+            assumptions.append(
+                "NNN/CAM not quoted by the listing; derived estimate used (confirm with broker)"
+            )
+        elif listing and listing.nnn_charges_monthly is None:
+            assumptions.append("NNN/CAM charges unknown — monthly cost may be understated")
         if rent is None:
             assumptions.append("Asking rent unknown — monthly cost understated")
             rent = 0
@@ -133,7 +139,8 @@ class FinancialCalculationService:
             CostLineItem(
                 line_item_id="occupancy:nnn",
                 category="NNN",
-                description="NNN / CAM charges",
+                description="NNN / CAM charges"
+                + (" (estimated; not quoted by the listing)" if listing and listing.nnn_is_estimate else ""),
                 kind=CostKind.MONTHLY,
                 low=nnn,
                 expected=nnn,

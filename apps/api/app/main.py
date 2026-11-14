@@ -108,6 +108,7 @@ for r in (
     communications.router,
     approvals.router,
     media.router,
+    media.imagery_router,
     tasks.router,
     events.router,
     webhooks.router,

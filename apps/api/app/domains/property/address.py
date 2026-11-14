@@ -147,7 +147,9 @@ def _u(s: str | None) -> str | None:
 def _norm_unit(unit: str | None) -> str | None:
     if not unit:
         return None
-    u, _, _ = classify_designator(_clean(unit))
+    # "110 B" is suite 110B (not suite 110): keep a trailing single-letter designator.
+    unit = re.sub(r"^((?:STE|SUITE|UNIT|#)?\s*[A-Z]?\d+)\s+([A-Z])$", r"\1\2", _clean(unit))
+    u, _, _ = classify_designator(unit)
     if u:
         return u
     return re.sub(r"^(STE|SUITE|UNIT|#)\s*", "", _clean(unit)).strip() or None

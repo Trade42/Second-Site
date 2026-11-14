@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 
 from app.core.config import ProviderMode, Settings, get_settings
 from app.integrations.catalog import FixtureCatalogProvider
-from app.integrations.costar import FixtureCoStarProvider, LiveCoStarProvider
+from app.integrations.costar import FixtureCoStarProvider, KitCoStarProvider
 from app.integrations.la_permits import FixtureLAPermitProvider, LiveLAPermitProvider
-from app.integrations.matterport import FixtureMatterportProvider
+from app.integrations.matterport import FixtureMatterportProvider, LiveMatterportProvider
 from app.integrations.photon import FixturePhotonProvider, LivePhotonProvider
 from app.integrations.storage import LocalObjectStorage
 from app.integrations.telnyx import FixtureTelephonyProvider, LiveTelnyxProvider
-from app.integrations.vexcel import FixtureVexcelProvider
+from app.integrations.vexcel import FixtureVexcelProvider, LiveVexcelProvider
 from app.services.approvals import ApprovalService
 from app.services.authorization import AuthorizationService
 from app.services.events import EventService
@@ -57,7 +57,7 @@ class Container:
 def build_container(settings: Settings | None = None) -> Container:
     s = settings or get_settings()
     costar = (
-        LiveCoStarProvider(_secret(s.costar_api_key), s.costar_base_url)
+        KitCoStarProvider(s.costar_kit_dir)
         if s.property_provider_mode == ProviderMode.LIVE
         else FixtureCoStarProvider()
     )
@@ -83,12 +83,24 @@ def build_container(settings: Settings | None = None) -> Container:
         if s.voice_provider_mode == ProviderMode.LIVE and s.telnyx_api_key
         else FixtureTelephonyProvider()
     )
+    matterport = (
+        LiveMatterportProvider(
+            s.matterport_graph_url, _secret(s.matterport_api_key), _secret(s.matterport_api_token)
+        )
+        if s.matterport_provider_mode == ProviderMode.LIVE
+        else FixtureMatterportProvider()
+    )
+    vexcel = (
+        LiveVexcelProvider(s.vexcel_base_url, _secret(s.vexcel_api_key))
+        if s.vexcel_provider_mode == ProviderMode.LIVE
+        else FixtureVexcelProvider()
+    )
     return Container(
         settings=s,
         costar=costar,
         permits=permits,
-        matterport=FixtureMatterportProvider(),
-        vexcel=FixtureVexcelProvider(),
+        matterport=matterport,
+        vexcel=vexcel,
         photon=photon,
         telephony=telephony,
         catalog=FixtureCatalogProvider(),

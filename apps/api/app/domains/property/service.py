@@ -7,6 +7,7 @@ from uuid import UUID
 
 from app.contracts import (
     CommercialListing,
+    DataOrigin,
     ExteriorAsset,
     InteriorAsset,
     PermitRecord,
@@ -19,6 +20,11 @@ from app.integrations.costar import CoStarProvider, RawListing
 from .identity import build_identity
 
 LISTING_FIELDS = set(CommercialListing.model_fields)
+SOURCE_STATUS = {
+    DataOrigin.FIXTURE_SYNTHETIC: "MOCK",
+    DataOrigin.FIXTURE_REAL: "SNAPSHOT",
+    DataOrigin.LIVE: "LIVE",
+}
 
 
 def profile_from_listing(project_id: UUID, raw: RawListing) -> PropertyDigitalProfile:
@@ -32,7 +38,14 @@ def profile_from_listing(project_id: UUID, raw: RawListing) -> PropertyDigitalPr
         a.get("parcel_id"),
         a.get("latitude"),
         a.get("longitude"),
-        {raw.provider: raw.provider_listing_id},
+        {
+            raw.provider: raw.provider_listing_id,
+            **(
+                {"costar_property": str(raw.listing["costar_property_id"])}
+                if raw.listing.get("costar_property_id")
+                else {}
+            ),
+        },
     )
     listing = CommercialListing(
         **{k: v for k, v in raw.listing.items() if k in LISTING_FIELDS}, data_origin=raw.data_origin
@@ -43,6 +56,9 @@ def profile_from_listing(project_id: UUID, raw: RawListing) -> PropertyDigitalPr
             asset_id=x["asset_id"],
             asset_type=x["asset_type"],
             data_origin=raw.data_origin,
+            url=x.get("url"),
+            label=x.get("label"),
+            area_sqm=x.get("area_sqm"),
             has_measured_geometry=x.get("has_measured_geometry", False),
         )
         for x in raw.interior_assets
@@ -53,12 +69,18 @@ def profile_from_listing(project_id: UUID, raw: RawListing) -> PropertyDigitalPr
             asset_id=x["asset_id"],
             asset_type=x["asset_type"],
             data_origin=raw.data_origin,
+            url=x.get("url"),
         )
         for x in raw.exterior_assets
     ]
     missing = []
     if not interior:
         missing.append("No interior model or measured floor plan")
+    if listing.lease_service_type and (listing.nnn_charges_monthly is None or listing.nnn_is_estimate):
+        missing.append(
+            f"Operating-expense charges not quoted ({listing.lease_service_type} lease)"
+            + ("; estimated from comparable listings" if listing.nnn_is_estimate else "")
+        )
     if not exterior:
         missing.append("No exterior imagery")
     if listing.existing_buildout is None:
@@ -76,7 +98,7 @@ def profile_from_listing(project_id: UUID, raw: RawListing) -> PropertyDigitalPr
             SourceManifestEntry(
                 provider=raw.provider,
                 dataset="listings",
-                status="MOCK" if raw.provider == "fixture" else "LIVE",
+                status=SOURCE_STATUS.get(raw.data_origin, "LIVE"),
                 record_count=1,
                 retrieved_at=now,
                 note=listing.disclaimer,

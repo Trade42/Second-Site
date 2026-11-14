@@ -58,6 +58,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/media/vexcel/ortho/{property_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Vexcel Ortho
+         * @description Aerial orthomosaic around a stored candidate property. Proxied so the Vexcel key never reaches the
+         *     browser; only coordinates of properties already in the database can be requested (no open proxy).
+         */
+        get: operations["vexcel_ortho_api_v1_media_vexcel_ortho__property_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -278,6 +299,26 @@ export interface paths {
         put?: never;
         /** Generate */
         post: operations["generate_api_v1_projects__project_id__layouts_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/layouts/geometry/{geometry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Geometry
+         * @description The measured (or fixture) floor a layout was generated on: outline, partitions, openings.
+         */
+        get: operations["get_geometry_api_v1_projects__project_id__layouts_geometry__geometry_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1061,6 +1102,10 @@ export interface components {
             available_area_sqm: number | null;
             /** Available From */
             available_from: string | null;
+            /** Brokerage Company */
+            brokerage_company: string | null;
+            /** Building Name */
+            building_name: string | null;
             /**
              * Currency
              * @default USD
@@ -1074,6 +1119,11 @@ export interface components {
              * @description 'open_shell' | 'office_buildout' | 'second_generation_salon' | null (unknown)
              */
             existing_buildout: string | null;
+            /**
+             * Lease Service Type
+             * @description Which operating expenses the rent includes, e.g. 'TripleNet', 'FullService', 'ModifiedGross'.
+             */
+            lease_service_type: string | null;
             /** Lease Term Months */
             lease_term_months: number | null;
             /** @default LEASE */
@@ -1082,6 +1132,17 @@ export interface components {
             listing_url: string | null;
             /** Nnn Charges Monthly */
             nnn_charges_monthly: number | null;
+            /**
+             * Nnn Is Estimate
+             * @description True when nnn_charges_monthly is a DERIVED estimate because the listing quoted none.
+             * @default false
+             */
+            nnn_is_estimate: boolean;
+            /**
+             * Photo Urls
+             * @description Provider CDN photo links (not stored).
+             */
+            photo_urls: string[];
             /** Property Type */
             property_type: string | null;
             /**
@@ -1093,6 +1154,11 @@ export interface components {
             provider_listing_id: string | null;
             /** Security Deposit */
             security_deposit: number | null;
+            /**
+             * Source Record Date
+             * @description When the provider last certified the record (snapshot freshness).
+             */
+            source_record_date: string | null;
         };
         /** CommunicationSession */
         CommunicationSession: {
@@ -1729,6 +1795,11 @@ export interface components {
         IntegrationStatus: "LIVE" | "MOCK" | "PARTIAL" | "BLOCKED" | "NOT_STARTED";
         /** InteriorAsset */
         InteriorAsset: {
+            /**
+             * Area Sqm
+             * @description Provider-measured floor area, if any.
+             */
+            area_sqm: number | null;
             /** Asset Id */
             asset_id: string;
             /**
@@ -1742,6 +1813,16 @@ export interface components {
              * @default false
              */
             has_measured_geometry: boolean;
+            /**
+             * Label
+             * @description Provider title, e.g. the Matterport model name.
+             */
+            label: string | null;
+            /**
+             * Matches Listing Unit
+             * @description True when the asset is matched to the listed suite (not just the building).
+             */
+            matches_listing_unit: boolean | null;
             /**
              * Provider
              * @description 'matterport' or fixture
@@ -2646,10 +2727,7 @@ export interface components {
                 number
             ][];
             geometry_source: components["schemas"]["GeometrySource"];
-            /**
-             * Measurement Uncertainty M
-             * @default null
-             */
+            /** Measurement Uncertainty M */
             measurement_uncertainty_m: number | null;
             /**
              * Property Id
@@ -2787,7 +2865,7 @@ export interface components {
             retrieved_at: string | null;
             /**
              * Status
-             * @description LIVE | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND
+             * @description LIVE | SNAPSHOT | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND
              */
             status: string;
         };
@@ -3153,6 +3231,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DevTokenResponse"];
+                };
+            };
+        };
+    };
+    vexcel_ortho_api_v1_media_vexcel_ortho__property_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                property_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3665,6 +3774,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_geometry_api_v1_projects__project_id__layouts_geometry__geometry_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                geometry_id: string;
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteGeometry"];
                 };
             };
             /** @description Validation Error */

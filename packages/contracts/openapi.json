@@ -1184,6 +1184,28 @@
             ],
             "title": "Available From"
           },
+          "brokerage_company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brokerage Company"
+          },
+          "building_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Building Name"
+          },
           "currency": {
             "default": "USD",
             "title": "Currency",
@@ -1214,6 +1236,18 @@
             ],
             "description": "'open_shell' | 'office_buildout' | 'second_generation_salon' | null (unknown)",
             "title": "Existing Buildout"
+          },
+          "lease_service_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which operating expenses the rent includes, e.g. 'TripleNet', 'FullService', 'ModifiedGross'.",
+            "title": "Lease Service Type"
           },
           "lease_term_months": {
             "anyOf": [
@@ -1255,6 +1289,20 @@
             ],
             "title": "Nnn Charges Monthly"
           },
+          "nnn_is_estimate": {
+            "default": false,
+            "description": "True when nnn_charges_monthly is a DERIVED estimate because the listing quoted none.",
+            "title": "Nnn Is Estimate",
+            "type": "boolean"
+          },
+          "photo_urls": {
+            "description": "Provider CDN photo links (not stored).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Photo Urls",
+            "type": "array"
+          },
           "property_type": {
             "anyOf": [
               {
@@ -1294,6 +1342,19 @@
               }
             ],
             "title": "Security Deposit"
+          },
+          "source_record_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the provider last certified the record (snapshot freshness).",
+            "title": "Source Record Date"
           }
         },
         "required": [
@@ -1306,10 +1367,16 @@
           "currency",
           "asking_rent_monthly",
           "nnn_charges_monthly",
+          "nnn_is_estimate",
           "security_deposit",
           "lease_term_months",
           "available_from",
           "existing_buildout",
+          "lease_service_type",
+          "building_name",
+          "brokerage_company",
+          "photo_urls",
+          "source_record_date",
           "listing_url",
           "disclaimer"
         ],
@@ -2916,6 +2983,19 @@
       "InteriorAsset": {
         "additionalProperties": false,
         "properties": {
+          "area_sqm": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider-measured floor area, if any.",
+            "title": "Area Sqm"
+          },
           "asset_id": {
             "title": "Asset Id",
             "type": "string"
@@ -2932,6 +3012,30 @@
             "default": false,
             "title": "Has Measured Geometry",
             "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Provider title, e.g. the Matterport model name.",
+            "title": "Label"
+          },
+          "matches_listing_unit": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when the asset is matched to the listed suite (not just the building).",
+            "title": "Matches Listing Unit"
           },
           "provider": {
             "description": "'matterport' or fixture",
@@ -2956,6 +3060,9 @@
           "asset_type",
           "data_origin",
           "url",
+          "label",
+          "area_sqm",
+          "matches_listing_unit",
           "has_measured_geometry"
         ],
         "title": "InteriorAsset",
@@ -5128,14 +5235,13 @@
           "measurement_uncertainty_m": {
             "anyOf": [
               {
-                "minimum": 0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
                 "type": "null"
               }
             ],
-            "default": null,
             "title": "Measurement Uncertainty M"
           },
           "property_id": {
@@ -5447,7 +5553,7 @@
             "title": "Retrieved At"
           },
           "status": {
-            "description": "LIVE | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND",
+            "description": "LIVE | SNAPSHOT | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND",
             "title": "Status",
             "type": "string"
           }
@@ -6267,6 +6373,46 @@
         "summary": "Dev Token",
         "tags": [
           "dev"
+        ]
+      }
+    },
+    "/api/v1/media/vexcel/ortho/{property_id}": {
+      "get": {
+        "description": "Aerial orthomosaic around a stored candidate property. Proxied so the Vexcel key never reaches the\nbrowser; only coordinates of properties already in the database can be requested (no open proxy).",
+        "operationId": "vexcel_ortho_api_v1_media_vexcel_ortho__property_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "property_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Property Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Vexcel Ortho",
+        "tags": [
+          "media"
         ]
       }
     },
@@ -7250,6 +7396,76 @@
           }
         },
         "summary": "Generate",
+        "tags": [
+          "design"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/layouts/geometry/{geometry_id}": {
+      "get": {
+        "description": "The measured (or fixture) floor a layout was generated on: outline, partitions, openings.",
+        "operationId": "get_geometry_api_v1_projects__project_id__layouts_geometry__geometry_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "geometry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Geometry Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteGeometry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Geometry",
         "tags": [
           "design"
         ]

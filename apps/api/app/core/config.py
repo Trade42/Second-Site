@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,6 +14,9 @@ class ProviderMode(StrEnum):
     LIVE = "live"
     FIXTURE = "fixture"
     DISABLED = "disabled"
+
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 class Settings(BaseSettings):
@@ -52,11 +56,25 @@ class Settings(BaseSettings):
         default=ProviderMode.FIXTURE, alias="PROCUREMENT_PROVIDER_MODE"
     )
 
-    # COSTAR / MATTERPORT / VEXCEL (sponsor toolkits; names to be confirmed against sponsor docs)
-    costar_api_key: SecretStr | None = Field(default=None, alias="COSTAR_API_KEY")
-    costar_base_url: str | None = Field(default=None, alias="COSTAR_BASE_URL")
+    # COSTAR: the sponsor data kit is a password-protected download (JSONL + docs), NOT an API.
+    # PROPERTY_PROVIDER_MODE=live reads the extracted kit from COSTAR_KIT_DIR. Never commit the kit.
+    costar_kit_dir: str = Field(default=str(REPO_ROOT / ".data" / "costar-kit"), alias="COSTAR_KIT_DIR")
+
+    # MATTERPORT Model API (GraphQL, HTTP Basic: token id = MATTERPORT_API_KEY, secret = MATTERPORT_API_TOKEN)
+    matterport_provider_mode: ProviderMode = Field(
+        default=ProviderMode.FIXTURE, alias="MATTERPORT_PROVIDER_MODE"
+    )
+    matterport_api_key: SecretStr | None = Field(default=None, alias="MATTERPORT_API_KEY")
     matterport_api_token: SecretStr | None = Field(default=None, alias="MATTERPORT_API_TOKEN")
+    matterport_sdk_key: SecretStr | None = Field(default=None, alias="MATTERPORT_SDK_KEY")
+    matterport_graph_url: str = Field(
+        default="https://api.matterport.com/api/models/graph", alias="MATTERPORT_GRAPH_URL"
+    )
+
+    # VEXCEL API 2.0 (X-API-KEY header)
+    vexcel_provider_mode: ProviderMode = Field(default=ProviderMode.FIXTURE, alias="VEXCEL_PROVIDER_MODE")
     vexcel_api_key: SecretStr | None = Field(default=None, alias="VEXCEL_API_KEY")
+    vexcel_base_url: str = Field(default="https://api.vexcelgroup.com/v2", alias="VEXCEL_BASE_URL")
 
     # LA OPEN DATA (Socrata). App token optional; raises rate limits.
     la_open_data_base_url: str = Field(default="https://data.lacity.org", alias="LA_OPEN_DATA_BASE_URL")
@@ -94,7 +112,8 @@ class Settings(BaseSettings):
     def missing_for_live(self) -> dict[str, list[str]]:
         """Which live-mode providers lack credentials (names only, never values)."""
         req = {
-            "property": (self.property_provider_mode, ["COSTAR_API_KEY"]),
+            "matterport": (self.matterport_provider_mode, ["MATTERPORT_API_KEY", "MATTERPORT_API_TOKEN"]),
+            "vexcel": (self.vexcel_provider_mode, ["VEXCEL_API_KEY"]),
             "messaging": (
                 self.messaging_provider_mode,
                 ["PHOTON_API_KEY", "PHOTON_PROJECT_ID", "PHOTON_WEBHOOK_SECRET"],

@@ -25,6 +25,17 @@ os.environ["DATABASE_URL"] = TEST_DB
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("AUTH_SECRET", "test-secret")
 os.environ["SUPERVISOR_MODEL"] = ""
+# Tests never touch live providers, even when a developer's .env enables them.
+for _mode in (
+    "PROPERTY_PROVIDER_MODE",
+    "PERMIT_PROVIDER_MODE",
+    "MATTERPORT_PROVIDER_MODE",
+    "VEXCEL_PROVIDER_MODE",
+    "MESSAGING_PROVIDER_MODE",
+    "VOICE_PROVIDER_MODE",
+    "PROCUREMENT_PROVIDER_MODE",
+):
+    os.environ[_mode] = "fixture"
 TEST_PHOTON_SECRET = "whsec_" + base64.b64encode(b"photon-test-secret-key-32-bytes!").decode()
 os.environ["PHOTON_WEBHOOK_SECRET"] = TEST_PHOTON_SECRET
 
