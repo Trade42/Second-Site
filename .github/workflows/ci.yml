@@ -63,3 +63,36 @@ jobs:
       - uses: actions/checkout@v4
       - run: bash -n tools/board && bash -n .claude/hooks/board-prompt.sh && bash -n .claude/hooks/board-session-start.sh
       - run: python3 -m json.tool .claude/settings.json > /dev/null
+
+  backend-rust:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: secondsite, POSTGRES_PASSWORD: secondsite, POSTGRES_DB: secondsite_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U secondsite" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      # The Rust tests create one schema per test in this database and migrate it themselves.
+      TEST_DATABASE_URL: postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test
+      CARGO_TERM_COLOR: always
+    defaults: { run: { working-directory: apps/backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stable toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/backend/target
+          key: rust-${{ runner.os }}-${{ hashFiles('apps/backend/Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests (in-memory store and PostgreSQL 16)
+        run: cargo test --workspace
