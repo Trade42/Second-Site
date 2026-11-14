@@ -117,14 +117,37 @@ fn check_id(field: &str, id: &str) -> Result<(), NessieError> {
     validate_id(field, id).map_err(NessieError::InvalidRequest)
 }
 
-fn recompute(a: &mut Account) {
-    let pending = a.pending_debits_cents.unwrap_or(0);
-    a.available_cents = match a.account_type {
-        AccountType::CreditCard => {
-            a.credit_limit_cents.unwrap_or(DEFAULT_CREDIT_LIMIT_CENTS) - a.balance_cents - pending
-        }
-        _ => a.balance_cents - pending,
+/// The account with `delta` added to its balance and `hold` to its holds, checked: an amount
+/// that leaves the `i64` range is a 422, never wrapped and never a panic.
+fn adjusted(a: &Account, delta: i64, hold: i64) -> Result<Account, NessieError> {
+    let mut n = a.clone();
+    let mut apply = || -> Option<()> {
+        n.balance_cents = n.balance_cents.checked_add(delta)?;
+        let pending = n
+            .pending_debits_cents
+            .unwrap_or(0)
+            .checked_add(hold)?
+            .max(0);
+        n.pending_debits_cents = Some(pending);
+        n.available_cents = match n.account_type {
+            AccountType::CreditCard => n
+                .credit_limit_cents
+                .unwrap_or(DEFAULT_CREDIT_LIMIT_CENTS)
+                .checked_sub(n.balance_cents)?
+                .checked_sub(pending)?,
+            _ => n.balance_cents.checked_sub(pending)?,
+        };
+        Some(())
     };
+    match apply() {
+        Some(()) => Ok(n),
+        None => Err(problem(
+            422,
+            "amount_out_of_range",
+            "Unprocessable Entity",
+            format!("Account {} cannot hold that amount.", a.id),
+        )),
+    }
 }
 
 fn is_debit(kind: &TransactionKind) -> bool {
@@ -193,15 +216,8 @@ impl FixtureBank {
                 ),
             ));
         }
-        account.pending_debits_cents = Some(account.pending_debits_cents.unwrap_or(0) + amount);
-        recompute(account);
+        *account = adjusted(account, 0, amount)?;
         Ok(())
-    }
-
-    fn release(account: &mut Account, amount: i64) {
-        account.pending_debits_cents =
-            Some((account.pending_debits_cents.unwrap_or(0) - amount).max(0));
-        recompute(account);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -331,7 +347,7 @@ impl FixtureBank {
         reason: Option<&str>,
     ) -> Result<Transaction, NessieError> {
         let now = st.tick();
-        let tx = Self::find_tx(st, id)?;
+        let tx = Self::find_tx(st, id)?.clone();
         if tx.status != TransactionStatus::Pending {
             return Err(problem(
                 409,
@@ -340,16 +356,16 @@ impl FixtureBank {
                 format!("Transaction {id} is {}, not pending.", tx.status),
             ));
         }
+        if is_debit(&tx.kind) {
+            if let Some(acct) = tx.payer_id.as_deref().and_then(|p| st.accounts.get_mut(p)) {
+                *acct = adjusted(acct, 0, tx.amount_cents.saturating_neg())?;
+            }
+        }
+        let tx = Self::find_tx(st, id)?;
         tx.status = TransactionStatus::Cancelled;
         tx.decision_reason = reason.map(str::to_owned);
         tx.updated_at = Some(now);
-        let tx = tx.clone();
-        if is_debit(&tx.kind) {
-            if let Some(acct) = tx.payer_id.as_deref().and_then(|p| st.accounts.get_mut(p)) {
-                Self::release(acct, tx.amount_cents);
-            }
-        }
-        Ok(tx)
+        Ok(tx.clone())
     }
 }
 
@@ -431,7 +447,7 @@ impl NessieBank for FixtureBank {
             body.credit_limit_cents
                 .unwrap_or(DEFAULT_CREDIT_LIMIT_CENTS)
         });
-        let mut a = Account {
+        let a = Account {
             id: id.clone(),
             customer_id: Some(customer_id.to_owned()),
             account_type: body.account_type.clone(),
@@ -445,7 +461,7 @@ impl NessieBank for FixtureBank {
             created_at: Some(now.clone()),
             updated_at: Some(now),
         };
-        recompute(&mut a);
+        let a = adjusted(&a, 0, 0)?;
         st.accounts.insert(id, a.clone());
         Ok(self.rec(a))
     }
@@ -605,36 +621,37 @@ impl NessieBank for FixtureBank {
         check_id("transaction id", id)?;
         let mut st = self.lock();
         let now = st.tick();
-        let tx = Self::find_tx(&mut st, id)?;
-        if tx.status != TransactionStatus::Pending {
+        let current = Self::find_tx(&mut st, id)?.clone();
+        if current.status != TransactionStatus::Pending {
             // Already settled or ended: answer with the transaction as it is.
-            let tx = tx.clone();
-            return Ok(self.rec(tx));
+            return Ok(self.rec(current));
         }
+        // Move the money first (checked); the transaction completes only if that worked. A debit
+        // lowers a bank balance and raises what a card owes; a credit does the reverse.
+        let debit = is_debit(&current.kind);
+        let side = if debit {
+            &current.payer_id
+        } else {
+            &current.payee_id
+        };
+        if let Some(a) = side.as_deref().and_then(|p| st.accounts.get_mut(p)) {
+            let (amt, card) = (
+                current.amount_cents,
+                a.account_type == AccountType::CreditCard,
+            );
+            let delta = if debit == card {
+                amt
+            } else {
+                amt.saturating_neg()
+            };
+            *a = adjusted(a, delta, if debit { amt.saturating_neg() } else { 0 })?;
+        }
+        let tx = Self::find_tx(&mut st, id)?;
         tx.status = TransactionStatus::Completed;
         tx.decision = Some("approve".into());
         tx.decision_source = Some("owner".into());
         tx.updated_at = Some(now);
         let tx = tx.clone();
-        if is_debit(&tx.kind) {
-            if let Some(a) = tx.payer_id.as_deref().and_then(|p| st.accounts.get_mut(p)) {
-                a.pending_debits_cents =
-                    Some((a.pending_debits_cents.unwrap_or(0) - tx.amount_cents).max(0));
-                if a.account_type == AccountType::CreditCard {
-                    a.balance_cents += tx.amount_cents;
-                } else {
-                    a.balance_cents -= tx.amount_cents;
-                }
-                recompute(a);
-            }
-        } else if let Some(a) = tx.payee_id.as_deref().and_then(|p| st.accounts.get_mut(p)) {
-            if a.account_type == AccountType::CreditCard {
-                a.balance_cents -= tx.amount_cents;
-            } else {
-                a.balance_cents += tx.amount_cents;
-            }
-            recompute(a);
-        }
         if let Some(bill) = tx.bill_id.as_deref().and_then(|b| st.bills.get_mut(b)) {
             // Assumption (not documented): a paid one-off bill becomes `completed`; a
             // recurring bill stays `recurring`.

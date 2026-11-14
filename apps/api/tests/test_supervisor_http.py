@@ -590,3 +590,219 @@ def test_http_tools_return_the_same_text_as_in_process_on_real_data(client, cont
     reply = DeterministicSupervisor(http_ctx).chat("rank the properties")
     assert reply.mode == "deterministic" and reply.reply.startswith("Ranking (deterministic engine):")
     assert not any(re.search(r"/calls|/decision", r.url.path) for r in seen)
+
+
+# ---- the model-free supervisor on a failing Rust API (R6) ----------------------------------------------------
+
+
+def _assert_honest_failure(reply, tool: str, *texts: str) -> None:
+    """Not a ranking, not a project status: a plain statement that the backend failed, with the tool's error text."""
+    assert reply.mode == "deterministic"
+    assert "Ranking (deterministic engine)" not in reply.reply and "#1:" not in reply.reply
+    assert "is in status" not in reply.reply
+    assert reply.reply.startswith("No ranking to show:") or reply.reply.startswith(
+        "No project status to show:"
+    )
+    assert tool in reply.reply
+    for text in texts:
+        assert text in reply.reply, reply.reply
+
+
+def test_model_free_supervisor_answers_a_rust_error_honestly(rust):
+    rust.overrides[("GET", f"{rust.base}/rankings")] = _problem(
+        503, "PROVIDER_UNAVAILABLE", "store unavailable", retryable=True
+    )
+    reply = DeterministicSupervisor(rust.ctx()).chat("rank the properties")
+    _assert_honest_failure(
+        reply,
+        "get_ranking",
+        "could not be reached or returned an error",
+        "PROVIDER_UNAVAILABLE",
+        "store unavailable",
+    )
+
+    def refused(request):
+        raise httpx.ConnectError("connection refused", request=request)
+
+    rust.overrides[("GET", rust.base)] = refused
+    reply = DeterministicSupervisor(rust.ctx()).chat("what's the status?")
+    _assert_honest_failure(reply, "get_project_state", "could not be reached", "BACKEND_UNAVAILABLE")
+    assert reply.reply.startswith("No project status to show:")
+
+
+def test_model_free_supervisor_reports_a_failed_analysis_and_a_missing_ranking(rust):
+    rust.overrides[("GET", f"{rust.base}/rankings")] = httpx.Response(200, json=[])  # no ranking yet
+    failed = rust.task.model_copy(
+        update={
+            "status": TaskStatus.FAILED,
+            "output_reference": {},
+            "error_code": "ConflictError",
+            "error_message": "no candidate properties found",
+        }
+    )
+    rust.overrides[("POST", f"{rust.base}/properties/search")] = httpx.Response(
+        202, json=TaskAccepted(task=failed, status_url="/x").model_dump(mode="json")
+    )
+    reply = DeterministicSupervisor(rust.ctx()).chat("find properties")
+    _assert_honest_failure(reply, "run_property_analysis", "ConflictError", "no candidate properties found")
+    assert "analysis ran" not in reply.reply
+
+    # The search completes but Rust still lists no ranking: an unusable answer, not an empty ranking.
+    del rust.overrides[("POST", f"{rust.base}/properties/search")]
+    ctx = rust.ctx()
+    reply = DeterministicSupervisor(ctx).chat("find properties")
+    _assert_honest_failure(reply, "get_ranking", "NO_RANKING", "The property analysis ran")
+    assert [r.method for r in rust.requests[-3:]] == ["GET", "POST", "GET"]
+    assert reply.grounded_record_ids == ctx.touched_records  # the properties the analysis returned
+
+
+class _Canned:
+    """Stands in for one tool: always answers with this text."""
+
+    def __init__(self, text: str):
+        self.text = text
+
+    def invoke(self, _args):
+        return self.text
+
+
+@pytest.mark.parametrize(
+    ("prompt", "tool", "text", "expect"),
+    [
+        ("rank the properties", "get_ranking", "<html>bad gateway</html>", "not JSON"),
+        ("rank the properties", "get_ranking", "[]", "not a JSON object"),
+        ("rank the properties", "get_ranking", '{"ranking_id": "r1"}', "no ranked properties"),
+        (
+            "rank the properties",
+            "get_ranking",
+            '{"ranking_id": "r1", "ranked": [{"rank": 1, "property_id": "p1"}], "explanations": {}}',
+            "rank or explanation",
+        ),
+        (
+            "rank the properties",
+            "get_ranking",
+            '{"status": "ERROR"}',
+            "could not be reached or returned an error",
+        ),
+        ("what's the status?", "get_project_state", "null", "not a JSON object"),
+        ("what's the status?", "get_project_state", '{"project": {"project_name": "x"}}', "project_status"),
+        ("what's the status?", "get_project_state", '{"business_profile": null}', "project_status"),
+    ],
+    ids=["not-json", "list", "no-ranked", "no-explanation", "bare-error", "null", "no-status", "no-project"],
+)
+def test_model_free_supervisor_never_crashes_on_an_unusable_tool_answer(rust, prompt, tool, text, expect):
+    sup = DeterministicSupervisor(rust.ctx())
+    sup.tools[tool] = _Canned(text)
+    reply = sup.chat(prompt)
+    _assert_honest_failure(reply, tool, expect)
+    assert rust.requests == []  # the canned tool replaced the only call this prompt makes
+
+
+@pytest.fixture
+def local_http():
+    """Real HTTP servers on ephemeral 127.0.0.1 ports. `start(answer)` returns (origin, hits); `answer(method, path)`
+    gives (status, json body). Each hit records method, request target and headers."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    servers = []
+
+    def start(answer):
+        hits: list[tuple[str, str, dict[str, str]]] = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def _any(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                if length:
+                    self.rfile.read(length)
+                hits.append((self.command, self.path, {k.lower(): v for k, v in self.headers.items()}))
+                status, body = answer(self.command, self.path)
+                data = json.dumps(body).encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            do_GET = do_POST = _any
+
+            def log_message(self, *_args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        servers.append((server, thread))
+        return f"http://127.0.0.1:{server.server_port}", hits
+
+    yield start
+    for server, thread in servers:
+        server.shutdown()
+        server.server_close()
+        thread.join(5)
+
+
+def test_chat_route_answers_a_rust_outage_with_an_honest_reply(client, container, local_http, monkeypatch):
+    from app.core.security import issue_token
+
+    unavailable = {
+        "error_code": "PROVIDER_UNAVAILABLE",
+        "message": "database unavailable",
+        "details": {},
+        "request_id": "req-9",
+        "retryable": True,
+    }
+    rust_url, hits = local_http(lambda _m, _p: (503, unavailable))
+    owner = uuid4()
+    h = {"Authorization": f"Bearer {issue_token(container.settings.auth_secret.get_secret_value(), owner)}"}
+    r = client.post(
+        "/api/v1/projects",
+        json={"project_name": "Chat outage", "market": {"city": "Los Angeles", "state": "CA"}},
+        headers=h,
+    )
+    assert r.status_code == 201, r.text
+    project_id = r.json()["project"]["project_id"]
+    monkeypatch.setattr(container.settings, "backend_api_url", rust_url)  # HTTP mode, real socket transport
+    for message, tool in (
+        ("rank the properties", "get_ranking"),
+        ("what's the status?", "get_project_state"),
+    ):
+        r = client.post(f"/api/v1/projects/{project_id}/chat", json={"message": message}, headers=h)
+        assert r.status_code == 200, r.text  # was a 500 INTERNAL_ERROR (KeyError) before
+        out = r.json()
+        assert out["mode"] == "deterministic" and out["grounded_record_ids"] == []
+        assert out["reply"].startswith(
+            "No ranking to show:" if tool == "get_ranking" else "No project status"
+        )
+        assert tool in out["reply"] and "PROVIDER_UNAVAILABLE" in out["reply"]
+        assert "database unavailable" in out["reply"]
+    assert [p for _m, p, _h in hits] == [
+        f"/api/v1/projects/{project_id}/rankings",
+        f"/api/v1/projects/{project_id}",
+    ]
+
+
+# ---- the client to the Rust API ignores ambient proxy settings (R8) ------------------------------------------
+
+
+def test_proxy_environment_does_not_change_where_the_request_goes(monkeypatch, local_http):
+    rust_url, rust_hits = local_http(lambda _m, _p: (200, []))
+    proxy_url, proxy_hits = local_http(lambda _m, _p: (502, {"message": "via proxy", "error_code": "PROXY"}))
+    for var in ("NO_PROXY", "no_proxy"):
+        monkeypatch.delenv(var, raising=False)
+    for var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+        monkeypatch.setenv(var, proxy_url)
+
+    # Control: a default httpx client in this environment really goes through the proxy.
+    assert httpx.get(f"{rust_url}/control").status_code == 502
+    assert [p for _m, p, _h in proxy_hits] == [f"{rust_url}/control"] and rust_hits == []
+
+    owner, project = uuid4(), uuid4()
+    tools = {t.name: t for t in build_tools(_http_ctx(None, project, owner, url=rust_url))}
+    assert json.loads(tools["get_ranking"].invoke({})) == {
+        "status": "NO_RANKING"
+    }  # answered by the Rust stand-in
+    assert [(m, p) for m, p, _h in rust_hits] == [("GET", f"/api/v1/projects/{project}/rankings")]
+    assert verify_token(SECRET, rust_hits[0][2]["authorization"].split(" ", 1)[1]) == owner
+    assert len(proxy_hits) == 1  # only the control request; the owner's token never reached the proxy
+    assert "authorization" not in proxy_hits[0][2]

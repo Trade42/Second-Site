@@ -5,14 +5,16 @@
 //!   go in the query string"). It is never in a URL, a log line (ureq masks the
 //!   `Authorization` value in its debug log), an error message or `Debug` output; every message
 //!   built from a response is scrubbed of it as well.
-//! - One timeout for connect, read and write each (default 20 s); redirects are not followed;
+//! - One timeout (default 20 s) for connecting and for each whole request, response body
+//!   included (an overall deadline, so a slow body cannot hold a thread); redirects are not followed;
 //!   any non-2xx is an error, with kinds mapped as the other providers (401/403 AUTH, 404
 //!   NOT_FOUND, 429 RATE_LIMITED, other >= 500 UNAVAILABLE, else BAD_RESPONSE; timeout TIMEOUT,
 //!   transport UNAVAILABLE) plus Nessie's RFC 9457 problem slug.
 //! - Only GETs are retried (RATE_LIMITED, TIMEOUT, UNAVAILABLE; 3 attempts, 0.5 s doubling
 //!   backoff). Creates are sent once: Nessie has no idempotency key, so "a create that timed out
 //!   may still have happened, and sending it again is a second transaction".
-//! - `/ready` reports `LIVE` only after an authenticated call succeeded (see [`crate::status`]).
+//! - `/ready` reports `LIVE` only after an authenticated call succeeded and its answer was read
+//!   (see [`crate::status`]).
 
 use std::io::Read;
 use std::sync::{Mutex, MutexGuard};
@@ -73,10 +75,10 @@ impl std::fmt::Debug for LiveNessieBank {
 }
 
 fn timeout(policy: &RetryPolicy) -> Duration {
-    if policy.timeout_s.is_finite() && policy.timeout_s > 0.0 {
-        Duration::from_secs_f64(policy.timeout_s)
-    } else {
-        Duration::from_secs(20)
+    // try_from: a finite but absurd value (1e300 s) would make from_secs_f64 panic.
+    match Duration::try_from_secs_f64(policy.timeout_s) {
+        Ok(d) if !d.is_zero() => d,
+        _ => Duration::from_secs(20),
     }
 }
 
@@ -124,6 +126,9 @@ impl LiveNessieBank {
     pub fn with_policy(base_url: &str, key: ApiKey, policy: RetryPolicy) -> Self {
         let t = timeout(&policy);
         let agent = ureq::AgentBuilder::new()
+            // Overall deadline for the whole request, body included: per-read timeouts alone let
+            // a server that drips bytes hold a blocking thread indefinitely.
+            .timeout(t)
             .timeout_connect(t)
             .timeout_read(t)
             .timeout_write(t)
@@ -222,29 +227,30 @@ impl LiveNessieBank {
         self.error(ProviderErrorKind::Unavailable, &msg)
     }
 
-    fn note_outcome(&self, result: &Result<Vec<u8>, NessieError>) {
+    /// Called only after an authenticated 2xx answer was read and parsed: a 2xx this crate could
+    /// not read (a wrong base URL serving HTML, say) proves nothing.
+    fn note_verified(&self) {
         let mut h = self.health_lock();
-        match result {
-            Ok(_) => {
-                h.readiness = Readiness::Verified;
-                h.detail = Some(format!(
-                    "Last success {}.",
-                    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
-                ));
+        h.readiness = Readiness::Verified;
+        h.detail = Some(format!(
+            "Last success {}.",
+            Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+        ));
+    }
+
+    fn note_failure(&self, e: &NessieError) {
+        let mut h = self.health_lock();
+        match e.kind() {
+            Some(ProviderErrorKind::Auth) => {
+                h.readiness = Readiness::KeyRejected;
+                h.detail = e.http_status().map(|s| format!("Last answer HTTP {s}."));
             }
-            Err(e) => match (e.kind(), e.http_status()) {
-                (Some(ProviderErrorKind::Auth), _) => {
-                    h.readiness = Readiness::KeyRejected;
-                    h.detail = e.http_status().map(|s| format!("Last answer HTTP {s}."));
-                }
-                (Some(ProviderErrorKind::Timeout), _)
-                | (Some(ProviderErrorKind::Unavailable), _) => {
-                    h.readiness = Readiness::LastCallFailed;
-                    h.detail = e.kind().map(|k| format!("Last failure {}.", k.as_str()));
-                }
-                // Other refusals (404, 422, ...) say nothing about the key; leave it as it was.
-                _ => {}
-            },
+            Some(k @ (ProviderErrorKind::Timeout | ProviderErrorKind::Unavailable)) => {
+                h.readiness = Readiness::LastCallFailed;
+                h.detail = Some(format!("Last failure {}.", k.as_str()));
+            }
+            // Other refusals (404, 422, ...) say nothing about the key; leave it as it was.
+            _ => {}
         }
     }
 
@@ -312,8 +318,8 @@ impl LiveNessieBank {
             }
             Err(ureq::Error::Transport(t)) => Err(self.transport_error(&t)),
         };
-        if authenticated {
-            self.note_outcome(&out);
+        if let (true, Err(e)) = (authenticated, &out) {
+            self.note_failure(e);
         }
         out
     }
@@ -337,14 +343,22 @@ impl LiveNessieBank {
         let mut last = None;
         for attempt in 0..self.policy.attempts.max(1) {
             match self.send_once("GET", path, query, None, true) {
-                Ok(body) => return self.parse(what, &body),
+                Ok(body) => {
+                    let parsed = self.parse(what, &body);
+                    if parsed.is_ok() {
+                        self.note_verified();
+                    }
+                    return parsed;
+                }
                 Err(e) if !e.retryable() => return Err(e),
                 Err(e) => last = Some(e),
             }
             if attempt + 1 < self.policy.attempts {
                 let pause = self.policy.backoff_s * f64::from(2u32.saturating_pow(attempt));
                 if pause.is_finite() && pause > 0.0 {
-                    std::thread::sleep(Duration::from_secs_f64(pause));
+                    // Capped: from_secs_f64 panics on a finite but absurd value.
+                    let d = Duration::try_from_secs_f64(pause.min(30.0)).unwrap_or_default();
+                    std::thread::sleep(d);
                 }
             }
         }
@@ -373,12 +387,16 @@ impl LiveNessieBank {
             None => None,
         };
         let out = self.send_once("POST", path, &[], text.as_deref(), true)?;
-        self.parse(what, &out)
+        let parsed = self.parse(what, &out)?;
+        self.note_verified();
+        Ok(parsed)
     }
 
     /// DELETE, sent once (204 No Content).
     fn delete(&self, path: &str) -> Result<(), NessieError> {
-        self.send_once("DELETE", path, &[], None, true).map(|_| ())
+        self.send_once("DELETE", path, &[], None, true)?;
+        self.note_verified();
+        Ok(())
     }
 
     fn rec<T>(&self, t: T) -> BankRecord<T> {

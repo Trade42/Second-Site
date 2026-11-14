@@ -91,7 +91,7 @@ pub struct NessieConfig {
     pub api_key: Option<ApiKey>,
     /// Without a trailing slash.
     pub base_url: String,
-    /// Connect, read and write timeout of the live client, each.
+    /// Timeout of the live client: for connecting, and for each whole request (body included).
     pub timeout_s: f64,
 }
 

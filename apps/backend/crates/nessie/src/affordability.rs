@@ -31,7 +31,8 @@ pub enum AffordabilityVerdict {
     /// A credit card: available credit is borrowing, not cash.
     #[serde(rename = "NOT_A_CASH_ACCOUNT")]
     NotACashAccount,
-    /// The account type is one this crate does not know.
+    /// No verdict: the account type is one this crate does not know, or the monthly rent and
+    /// NNN are unknown ($0 in the cost scenario), so coverage cannot be claimed.
     #[serde(rename = "UNKNOWN")]
     Unknown,
 }
@@ -64,7 +65,8 @@ pub struct AffordabilityReport {
     pub move_in_cash_expected_minor: i64,
     pub move_in_cash_high_minor: i64,
     pub working_capital_reserve_minor: Option<i64>,
-    /// Move-in cash + reserve.
+    /// max(move-in cash, the scenario's upfront cash) + reserve: never below what the ranking
+    /// engine's opening-capital constraint requires.
     pub required_expected_minor: i64,
     pub required_high_minor: i64,
     /// Available - required (negative when short). `None` for a card account.
@@ -108,24 +110,29 @@ pub fn check_affordability(
     let a = &account.record;
     let reserve = working_capital_reserve.unwrap_or(0);
     let ovf = || PlanError::Overflow("required cash".into());
-    let required_expected = plan
+    // Never more lenient than the ranking engine (upfront_cash_expected <= opening_capital):
+    // planned move-in cash falls below the upfront cash when cost lines are not simulated or a
+    // bill of materials replaces a larger FF&E allowance.
+    let base_expected = plan
         .move_in_cash_expected_minor
-        .checked_add(reserve)
-        .ok_or_else(ovf)?;
-    let required_high = plan
-        .move_in_cash_high_minor
-        .checked_add(reserve)
-        .ok_or_else(ovf)?;
+        .max(scenario.upfront_cash_expected);
+    let base_high = plan.move_in_cash_high_minor.max(base_expected);
+    let required_expected = base_expected.checked_add(reserve).ok_or_else(ovf)?;
+    let required_high = base_high.checked_add(reserve).ok_or_else(ovf)?;
     let available = a.available_cents;
     let monthly = plan.monthly_recurring_minor;
+    // The finance engine writes $0 for an unknown asking rent: an unknown cost can still show a
+    // shortfall, but never coverage.
+    let occupancy_unknown = monthly <= 0;
 
     let is_cash = matches!(a.account_type, AccountType::Checking | AccountType::Savings);
     let verdict = match a.account_type {
         AccountType::CreditCard => AffordabilityVerdict::NotACashAccount,
         AccountType::Unknown(_) => AffordabilityVerdict::Unknown,
+        _ if available < required_expected => AffordabilityVerdict::Short,
+        _ if occupancy_unknown => AffordabilityVerdict::Unknown,
         _ if available >= required_high => AffordabilityVerdict::CoversHighEstimate,
-        _ if available >= required_expected => AffordabilityVerdict::CoversExpectedOnly,
-        _ => AffordabilityVerdict::Short,
+        _ => AffordabilityVerdict::CoversExpectedOnly,
     };
     let remaining_expected = is_cash.then(|| available.saturating_sub(required_expected));
     let remaining_high = is_cash.then(|| available.saturating_sub(required_high));
@@ -159,6 +166,9 @@ pub fn check_affordability(
             format_usd(required_expected.saturating_sub(available))
         ),
         AffordabilityVerdict::NotACashAccount => "Simulation only: this sandbox account is a credit card. Available credit is borrowing, not cash, so it is not compared with the move-in cost.".to_owned(),
+        AffordabilityVerdict::Unknown if is_cash => format!(
+            "Simulation only: the sandbox account's {avail} available (mock money) is at least the known part of the {what} ({need}), but the monthly rent and NNN are unknown ($0 in the cost scenario), so no verdict is given."
+        ),
         AffordabilityVerdict::Unknown => format!(
             "Simulation only: the sandbox account type {:?} is unknown, so no verdict is given.",
             a.account_type.as_str()
@@ -186,8 +196,15 @@ pub fn check_affordability(
     }
     if plan.not_simulated_expected_minor != 0 {
         caveats.push(format!(
-            "{} of cost lines are not simulated (see not_simulated) and not counted here.",
+            "{} of cost lines are not simulated as payments (see not_simulated) and are not part of the planned move-in cash.",
             format_usd(plan.not_simulated_expected_minor)
+        ));
+    }
+    if base_expected > plan.move_in_cash_expected_minor {
+        caveats.push(format!(
+            "The planned move-in cash ({}) is below the cost scenario's upfront cash ({}), so the check uses the upfront cash: it is never more lenient than the ranking's opening-capital check.",
+            format_usd(plan.move_in_cash_expected_minor),
+            format_usd(scenario.upfront_cash_expected)
         ));
     }
     caveats.extend(
