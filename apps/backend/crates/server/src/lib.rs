@@ -24,6 +24,7 @@ pub mod config;
 pub mod contracts;
 pub mod error;
 pub mod http;
+pub mod integrations;
 pub mod logging;
 pub mod pyjson;
 pub mod security;
@@ -44,9 +45,12 @@ use crate::store::{Store, StoreError};
 /// add one line here per workflow, e.g. `workflows::property_analysis::register(app);`.
 pub fn register_subscribers(_app: &App) {}
 
-/// Provider adapters and their `/ready` status reporters. Later commissions add one line here
-/// per provider, e.g. `integrations::costar::register(app);`.
-pub fn register_providers(_app: &App) {}
+/// Provider adapters and their `/ready` status reporters, selected from the settings as
+/// `core/container.py` selects them (see [`integrations`]).
+pub fn register_providers(app: &App) {
+    let selected = integrations::Integrations::from_settings(&app.settings);
+    integrations::register(app, Arc::new(selected));
+}
 
 /// The composition root (`build_container`).
 pub fn build_app(settings: Settings, store: Arc<dyn Store>) -> AppState {

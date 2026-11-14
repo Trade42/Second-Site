@@ -191,9 +191,22 @@ pub fn truthy(v: &Value) -> bool {
     }
 }
 
-/// `str(value)` for a JSON-decoded value (`None`, `True`, ints, float repr, strings).
-/// Lists and dicts use JSON text, which differs from Python's repr (not used by ported code).
+/// `str(value)` for a JSON-decoded value (`None`, `True`, ints, float repr, strings). Lists and
+/// dicts print like Python's `str(list)` / `str(dict)`: elements and keys use `repr` (see
+/// [`value_repr`]).
 pub fn value_str(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        other => value_repr(other),
+    }
+}
+
+/// `repr(value)` for a JSON-decoded value: `None`, `True`, ints, float repr, `str_repr` for
+/// strings, `[a, b]` for lists and `{'k': v}` for dicts. Dict keys come out in the order the
+/// `serde_json` map holds them; without serde_json's `preserve_order` feature that is sorted
+/// order, where Python keeps insertion order (identical for dicts with at most one key).
+/// Integers beyond `u64` were already turned into floats by the JSON parser.
+pub fn value_repr(v: &Value) -> String {
     match v {
         Value::Null => "None".into(),
         Value::Bool(true) => "True".into(),
@@ -207,8 +220,18 @@ pub fn value_str(v: &Value) -> String {
                 float_repr(n.as_f64().unwrap_or(f64::NAN))
             }
         }
-        Value::String(s) => s.clone(),
-        other => other.to_string(),
+        Value::String(s) => str_repr(s),
+        Value::Array(items) => {
+            let parts: Vec<String> = items.iter().map(value_repr).collect();
+            format!("[{}]", parts.join(", "))
+        }
+        Value::Object(map) => {
+            let parts: Vec<String> = map
+                .iter()
+                .map(|(k, x)| format!("{}: {}", str_repr(k), value_repr(x)))
+                .collect();
+            format!("{{{}}}", parts.join(", "))
+        }
     }
 }
 
@@ -448,11 +471,62 @@ pub fn int_true_div(a: i64, b: i64) -> Option<f64> {
     Some(if negative { -value } else { value })
 }
 
-/// Python `float(s)` for a string: surrounding `str.isspace()` whitespace is ignored and single
-/// underscores between digits are allowed; `inf`, `infinity` and `nan` in any case. Narrower than
-/// CPython: non-ASCII decimal digits are rejected.
+/// CPython's `_PyUnicode_TransformDecimalAndSpaceToASCII`, which `float(str)` and `int(str)` apply
+/// first: every `str.isspace()` character becomes an ASCII space and every Unicode decimal digit
+/// (general category Nd) becomes its ASCII digit. Other non-ASCII characters become `?`, which
+/// no number accepts.
+pub fn decimal_and_space_to_ascii(s: &str) -> String {
+    if s.is_ascii() {
+        return s.to_owned();
+    }
+    s.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c
+            } else if is_space(c) {
+                ' '
+            } else {
+                match unicode_decimal(c) {
+                    Some(d) => char::from(b'0' + d),
+                    None => '?',
+                }
+            }
+        })
+        .collect()
+}
+
+/// The value of a Unicode decimal digit (general category Nd). Unicode encodes those digits in
+/// runs of exactly ten consecutive code points, 0 to 9, so the value is the offset from the
+/// start of the maximal Nd range containing `c`, modulo 10.
+fn unicode_decimal(c: char) -> Option<u8> {
+    static ND: std::sync::LazyLock<Regex> =
+        std::sync::LazyLock::new(|| Regex::new(r"^\p{Nd}$").expect("static regex is valid"));
+    let is_nd = |cp: u32| {
+        char::from_u32(cp).is_some_and(|ch| ND.is_match(ch.encode_utf8(&mut [0; 4])))
+    };
+    let cp = c as u32;
+    if !is_nd(cp) {
+        return None;
+    }
+    let mut start = cp;
+    while start > 0 && is_nd(start - 1) {
+        start -= 1;
+    }
+    u8::try_from((cp - start) % 10).ok()
+}
+
+/// C `isspace` in the "C" locale (CPython's `Py_ISSPACE`): space, `\t \n \v \f \r`. After
+/// [`decimal_and_space_to_ascii`], `float()` and `int()` strip only these.
+fn is_c_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\x0b' | '\x0c' | '\r')
+}
+
+/// Python `float(s)` for a string: Unicode decimal digits and whitespace are first mapped to
+/// ASCII ([`decimal_and_space_to_ascii`]), surrounding C whitespace is ignored and single
+/// underscores between digits are allowed; `inf`, `infinity` and `nan` in any case.
 pub fn float_of_str(s: &str) -> Option<f64> {
-    let t = strip(s);
+    let ascii = decimal_and_space_to_ascii(s);
+    let t = ascii.trim_matches(is_c_space);
     let cleaned: String = if t.contains('_') {
         let chars: Vec<char> = t.chars().collect();
         for (i, c) in chars.iter().enumerate() {
@@ -539,12 +613,14 @@ pub fn int_str_of_float(f: f64) -> Result<String, String> {
     Ok(format!("{t:.0}"))
 }
 
-/// Python `int(s)` for a string: optional sign, ASCII digits with single underscores between
-/// digits, surrounding whitespace ignored. Narrower than CPython: non-ASCII digits are rejected,
-/// and values outside `i64` are an error.
+/// Python `int(s)` for a string: Unicode decimal digits and whitespace are first mapped to ASCII
+/// ([`decimal_and_space_to_ascii`]); then an optional sign and digits with single underscores
+/// between digits, surrounding C whitespace ignored. Values outside `i64` are an error (Python
+/// returns a big int).
 pub fn int_of_str(s: &str) -> Result<i64, String> {
     let err = || format!("invalid literal for int() with base 10: {}", str_repr(s));
-    let t = strip(s);
+    let ascii = decimal_and_space_to_ascii(s);
+    let t = ascii.trim_matches(is_c_space);
     let (sign, digits) = match t.as_bytes().first() {
         Some(b'-') => (-1i128, &t[1..]),
         Some(b'+') => (1, &t[1..]),

@@ -6,7 +6,8 @@
 //! value is a value (pydantic-settings does not ignore empty variables).
 //!
 //! Rust-only additions: `STORE_BACKEND` (`postgres` default, or `memory`), `HOST` and `PORT`
-//! (what uvicorn took on its command line).
+//! (what uvicorn took on its command line), and `FIXTURES_DIR` (where the fixture providers read
+//! `fixtures/`; Python resolves it from its source file, which a container image does not have).
 
 use std::collections::HashMap;
 use std::fmt;
@@ -154,6 +155,9 @@ pub struct Settings {
     pub store_backend: StoreBackend,
     pub host: String,
     pub port: u16,
+    /// `FIXTURES_DIR`: the repository's `fixtures/` directory (default: resolved from this crate's
+    /// source location at build time, like Python's `FIXTURES_DIR`).
+    pub fixtures_dir: std::path::PathBuf,
 }
 
 /// The repository root as Python computes it (`Path(__file__).parents[4]`): resolved from this
@@ -350,6 +354,10 @@ impl Settings {
             store_backend,
             host: s.string("HOST", "0.0.0.0"),
             port,
+            fixtures_dir: match s.get("FIXTURES_DIR").map(str::trim) {
+                None | Some("") => ss_domain::integrations::base::fixtures_dir(),
+                Some(dir) => std::path::PathBuf::from(dir),
+            },
         })
     }
 
@@ -489,6 +497,9 @@ mod tests {
         );
         assert!(s.missing_for_live().is_empty());
         assert!(s.check_startup().is_ok());
+        assert!(s.fixtures_dir.join("permits").is_dir());
+        let s = Settings::from_vars([("FIXTURES_DIR", "/srv/fixtures")]).unwrap();
+        assert_eq!(s.fixtures_dir, std::path::PathBuf::from("/srv/fixtures"));
     }
 
     #[test]
