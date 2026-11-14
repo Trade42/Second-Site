@@ -159,6 +159,72 @@ async fn other_projects_are_not_serialized() {
     db.finish().await;
 }
 
+/// A search holds the project's event lock from `task.started` until it commits and updates the
+/// `projects` row at the end of the slice; PUT business-profile updates that row first and emits
+/// afterwards. Taken in opposite orders, PostgreSQL aborted one of the two with a deadlock
+/// (reviewer finding: the profile update failed after `deadlock_timeout`). The search route now
+/// locks the project row before its first event, so both take the row lock first.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_search_and_a_profile_update_of_one_project_do_not_deadlock() {
+    let Some(db) = TestDb::new(Kind::Postgres).await else {
+        return;
+    };
+    let t = TestApp::new(&db, &[]);
+    let (tok, _) = t.dev_token().await;
+    let created = t.create_project(&tok, &demo_project_body()).await;
+    let pid: Uuid = created["project"]["project_id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+
+    // 1. The profile update's statements in `save_profile`'s order: the project row first ...
+    let mut put = t.app.store.begin().await.unwrap();
+    let project = PROJECTS.require(&mut *put, pid).await.unwrap();
+    PROJECTS.upsert(&mut *put, &project).await.unwrap();
+
+    // 2. ... while a search of the same project runs.
+    let router = t.router.clone();
+    let path = format!("/api/v1/projects/{pid}/properties/search");
+    let search = tokio::spawn(async move {
+        let req = axum::http::Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("authorization", format!("Bearer {tok}"))
+            .header("content-type", "application/json")
+            .body(axum::body::Body::from("{}"))
+            .unwrap();
+        let resp = tower::ServiceExt::oneshot(router, req).await.unwrap();
+        let bytes = http_body_util::BodyExt::collect(resp.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
+        serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()
+    });
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+
+    // 3. ... then the profile update emits its event and commits.
+    let emitted = app_emit(&t.app, &mut *put, pid).await;
+    let committed = put.commit().await;
+    let body = search.await.unwrap();
+    assert!(emitted.is_ok(), "profile update failed: {emitted:?}");
+    assert!(committed.is_ok(), "{committed:?}");
+    assert_eq!(body["task"]["status"], "COMPLETED", "{body}");
+    db.finish().await;
+}
+
+async fn app_emit(
+    app: &AppState,
+    tx: &mut dyn ss_server::store::Tx,
+    pid: Uuid,
+) -> Result<(), String> {
+    app.events()
+        .emit(tx, confirmed(pid, "profile-update"))
+        .await
+        .map(|_| ())
+        .map_err(|e| format!("{e:?}"))
+}
+
 #[test]
 fn lock_keys_are_stable_and_distinct() {
     let a: Uuid = "6a8f3a52-1d3b-4f6e-9c4e-0b7c1f2a3d4e".parse().unwrap();

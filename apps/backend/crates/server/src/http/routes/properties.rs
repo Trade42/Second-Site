@@ -28,7 +28,7 @@ use crate::error::AppResult;
 use crate::http::extract::{
     bearer_user, body_errors_with_input, early_json_body, AuthUser, PathParams,
 };
-use crate::store::repo::{ASSESSMENTS, COST_SCENARIOS, PERMITS, PROPERTIES, RANKINGS};
+use crate::store::repo::{ASSESSMENTS, COST_SCENARIOS, PERMITS, PROJECTS, PROPERTIES, RANKINGS};
 use crate::store::{Query, Tx};
 use crate::workflows::property_analysis::PropertyAnalysisWorkflow;
 
@@ -112,6 +112,10 @@ async fn search(
             Ok(Value::Object(m)) => m,
             _ => JsonMap::new(),
         };
+        // Lock order: the project row before the project's event lock (taken by the first emit,
+        // `task.started`). The slice updates the project row at its end and PUT business-profile
+        // updates it before emitting; in opposite orders PostgreSQL aborted one with a deadlock.
+        PROJECTS.get_for_update(tx, project_id).await?;
         let task = app
             .tasks()
             .create(
