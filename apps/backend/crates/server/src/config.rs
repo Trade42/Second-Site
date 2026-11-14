@@ -158,6 +158,9 @@ pub struct Settings {
     /// `FIXTURES_DIR`: the repository's `fixtures/` directory (default: resolved from this crate's
     /// source location at build time, like Python's `FIXTURES_DIR`).
     pub fixtures_dir: std::path::PathBuf,
+    /// `PYTHON_SERVICE_URL`: base URL of the Python service (Photon, owner texts); unset means the
+    /// owner cannot be texted from this service.
+    pub python_service_url: Option<String>,
 }
 
 /// The repository root as Python computes it (`Path(__file__).parents[4]`): resolved from this
@@ -358,6 +361,7 @@ impl Settings {
                 None | Some("") => ss_domain::integrations::base::fixtures_dir(),
                 Some(dir) => std::path::PathBuf::from(dir),
             },
+            python_service_url: s.opt("PYTHON_SERVICE_URL"),
         })
     }
 

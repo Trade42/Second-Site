@@ -17,7 +17,13 @@
 //! - `GET .../bom` takes a per-design-version advisory lock before it looks for a stored bill,
 //!   so two concurrent first requests store one bill and emit one `bom.generated` (Python can
 //!   store two);
-//! - the solver runs on tokio's blocking pool (it is CPU work, up to a few seconds).
+//! - the solver runs on tokio's blocking pool (it is CPU work, up to a few seconds);
+//! - a layout task runs in three phases ([`DesignService::run_layout_task`]) so that nothing is
+//!   held while the floor is fetched from the provider and solved: a short read transaction, then
+//!   the fetch and the solve with no transaction, pool connection or lock, then one write
+//!   transaction with the task's whole visible lifecycle (F1 of the part 3 review). Python runs
+//!   it all in the request's one transaction; its observable answers, rows and events are the
+//!   same.
 
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -27,7 +33,7 @@ use ss_domain::contracts::{
     LayoutGenerationRequest, LayoutPreferences, RevisionStatus, RoomRequirement, SiteGeometry,
 };
 use ss_domain::design::geometry::framing::normalize_plan;
-use ss_domain::design::geometry::solver::generate_candidates;
+use ss_domain::design::geometry::solver::{generate_candidates, Candidate};
 use ss_domain::design::interior::finishes::finish_specifications;
 use ss_domain::procurement::bom::generate_bom;
 use ss_domain::py;
@@ -35,12 +41,12 @@ use ss_domain::requirements::templates::sqm_per_room;
 use uuid::Uuid;
 
 use crate::app::App;
-use crate::contracts::{ActorType, EventType};
+use crate::contracts::{ActorType, EventType, JsonMap, TaskRecord};
 use crate::error::{AppError, AppResult};
 use crate::http::extract::py_truthy;
 use crate::integrations::blocking;
 use crate::services::events::Emit;
-use crate::store::repo::{designs, rooms, BOMS, DESIGNS, GEOMETRIES, PROPERTIES};
+use crate::store::repo::{designs, rooms, BOMS, DESIGNS, GEOMETRIES, PROPERTIES, TASKS};
 use crate::store::{Query, Tx};
 
 /// `ROOM_MIN_WIDTH` (meters); other room types get 2.4.
@@ -50,6 +56,68 @@ pub const ROOM_MIN_WIDTH: &[(&str, f64)] =
 /// How often [`DesignService::persist`] renumbers after losing the version-number race to a
 /// writer that does not take the advisory lock.
 pub const VERSION_ATTEMPTS: usize = 5;
+
+/// How often [`DesignService::run_layout_task`] starts over when the property's stored geometry
+/// changed between its read phase and its write phase (another request stored the property's
+/// first geometry meanwhile; the task then solves again on that one).
+pub const SITE_ATTEMPTS: usize = 3;
+
+/// Where the floor of a layout comes from, read in a layout task's first phase.
+#[derive(Debug, Clone)]
+pub enum SiteSource {
+    /// The property's last stored geometry.
+    Stored(SiteGeometry),
+    /// Nothing is stored yet: the property's interior assets with measured geometry, in order.
+    Assets(Vec<String>),
+}
+
+/// The floor a layout is solved on.
+#[derive(Debug, Clone)]
+pub enum PreparedSite {
+    /// The property's last stored geometry when the task read it.
+    Stored(SiteGeometry),
+    /// Built from a provider document by this task; stored in the write phase unless another
+    /// request stored one first.
+    Fresh(SiteGeometry),
+}
+
+impl PreparedSite {
+    pub fn geometry(&self) -> &SiteGeometry {
+        match self {
+            PreparedSite::Stored(g) | PreparedSite::Fresh(g) => g,
+        }
+    }
+}
+
+/// What a layout task does; the route builds it after its request checks.
+#[derive(Debug, Clone)]
+pub enum LayoutJob {
+    Generate(LayoutGenerationRequest),
+    Revise(DesignRevisionRequest),
+}
+
+/// What the versions of one generation are attached to.
+#[derive(Debug, Clone, Copy)]
+pub struct VersionContext<'r> {
+    pub project_id: Uuid,
+    pub correlation_id: Uuid,
+    pub parent: Option<&'r DesignVersion>,
+    pub revision_id: Option<Uuid>,
+}
+
+/// A layout task after its read phase and its solve.
+struct Solved {
+    req: LayoutGenerationRequest,
+    site: PreparedSite,
+    candidates: Vec<Candidate>,
+}
+
+fn ids(created: &[DesignVersion]) -> Value {
+    json!(created
+        .iter()
+        .map(|d| d.design_version_id.to_string())
+        .collect::<Vec<_>>())
+}
 
 /// `room_requirements_from_profile(rooms, plumbing_rooms)`: one requirement per room type with a
 /// positive count, in the profile's order. `plumbing_rooms` empty or `None` means
@@ -186,32 +254,47 @@ impl<'a> DesignService<'a> {
         Self { app }
     }
 
-    /// `site_geometry(property_id)`: the property's last stored geometry; otherwise the first
-    /// interior asset with measured geometry that the Matterport provider has a document for
-    /// (stored, and recorded as the property's `geometry_reference`); otherwise 404
-    /// `GEOMETRY_UNAVAILABLE`. The property must belong to `project_id` (404 `property not
-    /// found`), which Python did not check.
-    pub async fn site_geometry(
+    /// `site_geometry(property_id)`, first part (a layout task's read phase): the property's last
+    /// stored geometry or, when none is stored yet, its interior assets with measured geometry.
+    /// The property must belong to `project_id` (404 `property not found`), which Python did not
+    /// check.
+    pub async fn site_source(
         &self,
         tx: &mut dyn Tx,
         project_id: Uuid,
         property_id: Uuid,
-    ) -> AppResult<SiteGeometry> {
-        let mut prop = PROPERTIES
+    ) -> AppResult<SiteSource> {
+        let prop = PROPERTIES
             .require_in_project(tx, property_id, project_id, "property not found")
             .await?;
         let mut stored = GEOMETRIES
             .list(tx, Query::new().eq("property_id", property_id))
             .await?;
         if let Some(last) = stored.pop() {
-            return Ok(last);
+            return Ok(SiteSource::Stored(last));
         }
-        let assets: Vec<String> = prop
-            .interior_assets
-            .iter()
-            .filter(|a| a.has_measured_geometry)
-            .map(|a| a.asset_id.clone())
-            .collect();
+        Ok(SiteSource::Assets(
+            prop.interior_assets
+                .iter()
+                .filter(|a| a.has_measured_geometry)
+                .map(|a| a.asset_id.clone())
+                .collect(),
+        ))
+    }
+
+    /// `site_geometry(property_id)`, second part (no transaction, connection or lock held): the
+    /// stored geometry as it is, or the first asset the Matterport provider has a document for,
+    /// built into a `SiteGeometry` (normalized first when the document is `LIVE`); otherwise 404
+    /// `GEOMETRY_UNAVAILABLE`.
+    pub async fn prepare_site(
+        &self,
+        property_id: Uuid,
+        source: SiteSource,
+    ) -> AppResult<PreparedSite> {
+        let assets = match source {
+            SiteSource::Stored(g) => return Ok(PreparedSite::Stored(g)),
+            SiteSource::Assets(assets) => assets,
+        };
         for asset_id in assets {
             let matterport = self.app.integrations().matterport.clone();
             let id = asset_id.clone();
@@ -239,16 +322,65 @@ impl<'a> DesignService<'a> {
             } else {
                 obj
             };
-            let geo = site_geometry_from_doc(property_id, &asset_id, &obj, live)?;
-            GEOMETRIES.add(tx, &geo).await?;
-            prop.geometry_reference = Some(geo.site_geometry_id);
-            PROPERTIES.upsert(tx, &prop).await?;
-            return Ok(geo);
+            return Ok(PreparedSite::Fresh(site_geometry_from_doc(
+                property_id,
+                &asset_id,
+                &obj,
+                live,
+            )?));
         }
         Err(
             AppError::not_found("no measured geometry available for this property")
                 .code("GEOMETRY_UNAVAILABLE"),
         )
+    }
+
+    /// `site_geometry(property_id)`, last part (a layout task's write phase, after its first
+    /// event took the project's event lock): a fresh geometry is stored and recorded as the
+    /// property's `geometry_reference`. `None` when the property's stored geometry is no longer
+    /// the one the layout was solved on (another request stored the first one meanwhile): the
+    /// caller starts over and solves on the stored one, so a property keeps one geometry.
+    pub async fn settle_site(
+        &self,
+        tx: &mut dyn Tx,
+        project_id: Uuid,
+        site: &PreparedSite,
+    ) -> AppResult<Option<SiteGeometry>> {
+        let property_id = site.geometry().property_id;
+        let latest = GEOMETRIES
+            .list(tx, Query::new().eq("property_id", property_id))
+            .await?
+            .pop();
+        match (site, latest) {
+            (PreparedSite::Stored(g), Some(l)) if l.site_geometry_id == g.site_geometry_id => {
+                Ok(Some(g.clone()))
+            }
+            (PreparedSite::Fresh(g), None) => {
+                let mut prop = PROPERTIES
+                    .require_in_project(tx, property_id, project_id, "property not found")
+                    .await?;
+                GEOMETRIES.add(tx, g).await?;
+                prop.geometry_reference = Some(g.site_geometry_id);
+                PROPERTIES.upsert(tx, &prop).await?;
+                Ok(Some(g.clone()))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// The layout solver, on tokio's blocking pool (CPU work, up to a few seconds); a layout task
+    /// runs it with nothing held.
+    pub async fn solve(
+        site: &SiteGeometry,
+        req: &LayoutGenerationRequest,
+    ) -> AppResult<Vec<Candidate>> {
+        let (s, reqs, prefs, count) = (
+            site.clone(),
+            req.room_requirements.clone(),
+            req.preferences.clone(),
+            req.candidate_count,
+        );
+        Ok(blocking(move || generate_candidates(&s, &reqs, &prefs, count)).await??)
     }
 
     /// `_next_version(property_id)`: `max(version_number) + 1`, 1 for the first version.
@@ -316,26 +448,24 @@ impl<'a> DesignService<'a> {
         Ok(())
     }
 
-    /// `generate(project_id, req, correlation_id, parent, revision_id)`: one design version per
-    /// valid candidate (`layout.version_created`), one `layout.validation_failed` per invalid
-    /// one, which is never stored. Returns the created versions in candidate order.
-    pub async fn generate(
+    /// The write part of `generate(project_id, req, correlation_id, parent, revision_id)`, given
+    /// the floor and the solver's candidates: one design version per valid candidate
+    /// (`layout.version_created`), one `layout.validation_failed` per invalid one, which is never
+    /// stored. Returns the created versions in candidate order.
+    pub async fn record_candidates(
         &self,
         tx: &mut dyn Tx,
-        project_id: Uuid,
+        ctx: &VersionContext<'_>,
         req: &LayoutGenerationRequest,
-        correlation_id: Uuid,
-        parent: Option<&DesignVersion>,
-        revision_id: Option<Uuid>,
+        site: &SiteGeometry,
+        candidates: Vec<Candidate>,
     ) -> AppResult<Vec<DesignVersion>> {
-        let site = self.site_geometry(tx, project_id, req.property_id).await?;
-        let (s, reqs, prefs, count) = (
-            site.clone(),
-            req.room_requirements.clone(),
-            req.preferences.clone(),
-            req.candidate_count,
-        );
-        let candidates = blocking(move || generate_candidates(&s, &reqs, &prefs, count)).await??;
+        let VersionContext {
+            project_id,
+            correlation_id,
+            parent,
+            revision_id,
+        } = *ctx;
         let mut created = Vec::new();
         for cand in candidates {
             if !cand.report.valid {
@@ -411,17 +541,17 @@ impl<'a> DesignService<'a> {
         Ok(created)
     }
 
-    /// `revise(rev, correlation_id)`: 409 `STALE_DESIGN_VERSION` when the base is superseded,
-    /// 409 `REVISION_NOT_STRUCTURED` without room overrides; otherwise one candidate on the
-    /// base's property with the overrides as the room program (default preferences, as in
-    /// Python), `APPLIED` when it is valid and stored, `INFEASIBLE` when not. The base is never
-    /// modified.
-    pub async fn revise(
+    /// The checks of `revise(rev, correlation_id)` and the request it generates: 409
+    /// `STALE_DESIGN_VERSION` when the base is superseded, 409 `REVISION_NOT_STRUCTURED` without
+    /// room overrides; otherwise one candidate on the base's property with the overrides as the
+    /// room program (default preferences, as in Python). The revision is `APPLIED` when that
+    /// candidate is valid and stored, `INFEASIBLE` when not ([`DesignService::run_layout_task`]);
+    /// the base is never modified.
+    pub async fn revision_plan(
         &self,
         tx: &mut dyn Tx,
         rev: &DesignRevisionRequest,
-        correlation_id: Uuid,
-    ) -> AppResult<(DesignRevisionRequest, Vec<DesignVersion>)> {
+    ) -> AppResult<(DesignVersion, LayoutGenerationRequest)> {
         let base = DESIGNS
             .require_in_project(
                 tx,
@@ -450,24 +580,148 @@ impl<'a> DesignService<'a> {
             candidate_count: 1,
         };
         req.validate()?;
-        let created = self
-            .generate(
-                tx,
-                rev.project_id,
-                &req,
-                correlation_id,
-                Some(&base),
+        Ok((base, req))
+    }
+
+    /// Run a layout generation or revision as a task, in three phases so that nothing is held
+    /// while the floor is fetched and solved (F1 of the part 3 review):
+    /// 1. a short read transaction: the property's stored geometry or the assets to fetch, and,
+    ///    for a revision, its base and the checks on it ([`DesignService::revision_plan`]);
+    /// 2. no transaction, pool connection or lock: the provider fetch (when nothing is stored)
+    ///    and the solver, both on tokio's blocking pool;
+    /// 3. one write transaction, as Python's `TaskService.run` (create, `task.started`, the work
+    ///    in a savepoint, the outcome): `task.started` takes the project's event lock; the
+    ///    revision checks run again; the geometry is stored only if none is stored yet, and if
+    ///    another request stored one meanwhile the transaction is rolled back and the task starts
+    ///    over on that geometry (at most [`SITE_ATTEMPTS`] times); then the versions, their
+    ///    events and the task's outcome.
+    ///
+    /// Anything phases 1 and 2 raise is recorded in the task (FAILED, the Python class as
+    /// `error_code`), as Python records what the work raises. `task` is the QUEUED record built
+    /// when the request arrived, so its `created_at` is the request's time; nobody sees it
+    /// before phase 3 commits (Python's one transaction did not show it earlier either). The
+    /// lock order of phase 3 is the one of the single-transaction version: the task row (a key
+    /// share on the project row), the event lock, the property row, the version lock.
+    pub async fn run_layout_task(
+        &self,
+        task: TaskRecord,
+        job: &LayoutJob,
+    ) -> AppResult<TaskRecord> {
+        let project_id = task.project_id;
+        let mut attempt = 0;
+        loop {
+            attempt += 1;
+            let solved = self.plan_and_solve(project_id, job).await;
+            let mut tx = self.app.store.begin().await?;
+            TASKS.add(&mut *tx, &task).await?;
+            let running = self.app.tasks().start(&mut *tx, task.clone()).await?;
+            let correlation_id = running.task.correlation_id;
+            let outcome = match solved {
+                Err(e) => Err(e),
+                Ok(s) => {
+                    match self
+                        .write_layouts(&mut *tx, project_id, job, s, correlation_id)
+                        .await
+                    {
+                        Ok(Some(out)) => Ok(out),
+                        Ok(None) if attempt < SITE_ATTEMPTS => {
+                            tx.rollback().await?;
+                            continue;
+                        }
+                        Ok(None) => Err(AppError::conflict(
+                            "the property's stored floor geometry changed while the layout was \
+                             generated; try again",
+                        )),
+                        Err(e) => Err(e),
+                    }
+                }
+            };
+            let done = self.app.tasks().finish(&mut *tx, running, outcome).await?;
+            tx.commit().await?;
+            return Ok(done);
+        }
+    }
+
+    /// Phases 1 and 2 of [`DesignService::run_layout_task`].
+    async fn plan_and_solve(&self, project_id: Uuid, job: &LayoutJob) -> AppResult<Solved> {
+        let mut tx = self.app.store.begin().await?;
+        let planned = async {
+            let req = match job {
+                LayoutJob::Generate(req) => req.clone(),
+                LayoutJob::Revise(rev) => self.revision_plan(&mut *tx, rev).await?.1,
+            };
+            let source = self
+                .site_source(&mut *tx, project_id, req.property_id)
+                .await?;
+            AppResult::Ok((req, source))
+        }
+        .await;
+        // Read only: nothing to keep.
+        tx.rollback().await?;
+        let (req, source) = planned?;
+        let site = self.prepare_site(req.property_id, source).await?;
+        let candidates = Self::solve(site.geometry(), &req).await?;
+        Ok(Solved {
+            req,
+            site,
+            candidates,
+        })
+    }
+
+    /// The work of phase 3, after `task.started`: the task's output, or `None` when the stored
+    /// geometry changed since phase 1 (start over).
+    async fn write_layouts(
+        &self,
+        tx: &mut dyn Tx,
+        project_id: Uuid,
+        job: &LayoutJob,
+        solved: Solved,
+        correlation_id: Uuid,
+    ) -> AppResult<Option<JsonMap>> {
+        // A revision's checks again, under the lock: its base may have been superseded since.
+        let (base, revision_id) = match job {
+            LayoutJob::Generate(_) => (None, None),
+            LayoutJob::Revise(rev) => (
+                Some(self.revision_plan(tx, rev).await?.0),
                 Some(rev.revision_request_id),
-            )
-            .await?;
-        let mut updated = rev.clone();
-        updated.status = if created.is_empty() {
-            // The last valid design stays current.
-            RevisionStatus::Infeasible
-        } else {
-            RevisionStatus::Applied
+            ),
         };
-        Ok((updated, created))
+        let Some(site) = self.settle_site(tx, project_id, &solved.site).await? else {
+            return Ok(None);
+        };
+        let ctx = VersionContext {
+            project_id,
+            correlation_id,
+            parent: base.as_ref(),
+            revision_id,
+        };
+        let created = self
+            .record_candidates(tx, &ctx, &solved.req, &site, solved.candidates)
+            .await?;
+        let mut out = JsonMap::new();
+        match &base {
+            None => {
+                out.insert("design_version_ids".into(), ids(&created));
+            }
+            Some(base) => {
+                let status = if created.is_empty() {
+                    // The last valid design stays current.
+                    RevisionStatus::Infeasible
+                } else {
+                    RevisionStatus::Applied
+                };
+                let current = created
+                    .first()
+                    .map_or(base.design_version_id, |d| d.design_version_id);
+                out.insert("revision_status".into(), json!(status.as_str()));
+                out.insert("design_version_ids".into(), ids(&created));
+                out.insert(
+                    "current_valid_version_id".into(),
+                    json!(current.to_string()),
+                );
+            }
+        }
+        Ok(Some(out))
     }
 
     /// `GET .../layouts/{id}/bom`: the design version's latest stored bill, or a new one

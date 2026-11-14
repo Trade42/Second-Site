@@ -23,6 +23,9 @@ services:
       interval: 5s
       retries: 20
 
+  # Python app: Photon, the supervisor and the call flow, behind the Rust service. It owns the
+  # migrations (alembic). Host port 8001 is for debugging. Python-only stack, as before:
+  #   API_HOST_PORT=8000 API_BACKEND_API_URL= docker compose -f infra/compose.yaml up --build postgres redis api worker
   api:
     build: { context: .., dockerfile: infra/docker/api.Dockerfile }
     env_file: [{ path: ../.env, required: false }]
@@ -31,14 +34,41 @@ services:
       REDIS_URL: redis://redis:6379/0
       TASK_EXECUTION_MODE: inline
       CORS_ORIGINS: http://localhost:3000
+      BACKEND_API_URL: ${API_BACKEND_API_URL-http://backend:8000}   # empty: in-process tools
     command: sh -c "uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000"
-    ports: ["8000:8000"]
+    ports: ["${API_HOST_PORT:-8001}:8000"]
     volumes: [objects:/repo/apps/api/.data]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 10
+
+  # Rust API (apps/backend): the browser's single origin on host port 8000. Starts after api is
+  # healthy, so alembic has migrated an empty database first; its own start-up migration then
+  # finds alembic head and does nothing (alembic takes no lock, so the two must not race).
+  backend:
+    build: { context: .., dockerfile: infra/docker/backend.Dockerfile }
+    env_file: [{ path: ../.env, required: false }]
+    environment:
+      DATABASE_URL: postgresql://secondsite:secondsite@postgres:5432/secondsite
+      STORE_BACKEND: postgres
+      HOST: 0.0.0.0
+      PORT: "8000"
+      FIXTURES_DIR: /app/fixtures
+      OBJECT_STORAGE_LOCAL_DIR: /data/objects
+      TASK_EXECUTION_MODE: inline
+      CORS_ORIGINS: http://localhost:3000
+      PYTHON_SERVICE_URL: http://api:8000   # used once the forwarder lands
+    ports: ["${BACKEND_HOST_PORT:-8000}:8000"]
+    volumes: [backend-objects:/data]
+    depends_on:
+      postgres: { condition: service_healthy }
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "bash", "/usr/local/bin/second-site-healthcheck"]
       interval: 10s
       retries: 10
 
@@ -64,3 +94,4 @@ volumes:
   pgdata: {}
   redisdata: {}
   objects: {}
+  backend-objects: {}
