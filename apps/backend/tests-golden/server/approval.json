@@ -1,0 +1,43 @@
+{
+ "dump": {
+  "approval_id": "11111111-2222-4333-8444-555555555555",
+  "project_id": "6c1d9b7e-2f3a-4c5d-8e9f-0a1b2c3d4e5f",
+  "requested_by_agent": "procurement",
+  "action_type": "PURCHASE",
+  "action_payload": {
+   "sku": "bed-1",
+   "qty": 3,
+   "note": "für Zimmer 2"
+  },
+  "action_payload_hash": "3dd6df4ad7e1d862c6b8c5023bd7bdf467c45b926a991bb8f0b26d83610c4baa",
+  "risk_category": "CONSEQUENTIAL",
+  "approval_status": "PENDING",
+  "summary": "Buy 3 beds",
+  "expires_at": "2026-11-15T12:00:00Z",
+  "authorized_owner_id": "3f2b8c1e-5d4a-4f6b-9a7c-0e1d2c3b4a59",
+  "decision_timestamp": null,
+  "decided_by": null,
+  "idempotency_key": "purchase-1",
+  "created_at": "2026-11-14T12:00:00.123456Z"
+ },
+ "without_hash": {
+  "approval_id": "11111111-2222-4333-8444-555555555555",
+  "project_id": "6c1d9b7e-2f3a-4c5d-8e9f-0a1b2c3d4e5f",
+  "requested_by_agent": "procurement",
+  "action_type": "PURCHASE",
+  "action_payload": {
+   "sku": "bed-1",
+   "qty": 3,
+   "note": "für Zimmer 2"
+  },
+  "risk_category": "CONSEQUENTIAL",
+  "approval_status": "PENDING",
+  "summary": "Buy 3 beds",
+  "expires_at": "2026-11-15T12:00:00Z",
+  "authorized_owner_id": "3f2b8c1e-5d4a-4f6b-9a7c-0e1d2c3b4a59",
+  "decision_timestamp": null,
+  "decided_by": null,
+  "idempotency_key": "purchase-1",
+  "created_at": "2026-11-14T12:00:00.123456Z"
+ }
+}
