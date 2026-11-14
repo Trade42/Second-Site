@@ -102,7 +102,6 @@ fn purchase_intent(amount: i64) -> PaymentIntent {
         property_id: Uuid::from_u128(2),
         scenario_id: Uuid::from_u128(3),
         plan_item_id: "buildout:renovation".into(),
-        attempt_id: "0123abcd4567".into(),
         action: ApprovalAction::Purchase,
         operation: PaymentOperation::Purchase {
             account_id: "acct_1".into(),
@@ -110,7 +109,7 @@ fn purchase_intent(amount: i64) -> PaymentIntent {
         },
         amount_minor: amount,
         currency: "USD".into(),
-        description: "SIMULATION (Second Site plan item buildout:renovation, attempt 0123abcd4567): review".into(),
+        description: "SIMULATION (Second Site plan): review".into(),
     }
 }
 
@@ -618,7 +617,7 @@ fn review_intents_carry_only_plan_amounts() {
         occupancy_bill_id: Some("bill_1".into()),
     };
     for p in &plan.payments {
-        let i = plan.intent_for(&p.plan_item_id, &t, "0123abcd4567").unwrap();
+        let i = plan.intent_for(&p.plan_item_id, &t).unwrap();
         assert_eq!(i.amount_minor, p.amount_expected_minor);
         assert_eq!(i.action, p.approval_action);
         assert!(i.description.chars().count() <= 200);
@@ -632,10 +631,10 @@ fn review_intents_carry_only_plan_amounts() {
         account_id: "acct_1/../../data".into(),
         ..t.clone()
     };
-    assert!(plan.intent_for("movein:security_deposit", &bad, "0123abcd4567").is_err());
+    assert!(plan.intent_for("movein:security_deposit", &bad).is_err());
     let bad = SandboxTargets {
         landlord_merchant_id: Some("merch?x=1".into()),
         ..t
     };
-    assert!(plan.intent_for("movein:security_deposit", &bad, "0123abcd4567").is_err());
+    assert!(plan.intent_for("movein:security_deposit", &bad).is_err());
 }

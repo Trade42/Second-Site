@@ -14,9 +14,6 @@ use crate::money::MoneyError;
 /// The provider name used in errors and in `/ready`.
 pub const PROVIDER_NAME: &str = "nessie";
 
-/// The HTTP statuses that count as the bank refusing a create before anything exists.
-pub const REFUSAL_STATUSES: [u16; 7] = [400, 401, 403, 404, 409, 422, 429];
-
 /// What Nessie's problem+json body said, cut to safe lengths.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ProblemSummary {
@@ -65,13 +62,10 @@ impl NessieError {
         }
     }
 
-    /// True when the bank refused the request with a status that says nothing was done: 400,
-    /// 401, 403, 404, 409, 422 or 429 (Nessie checks funds "before the transaction exists").
-    /// Any other 4xx (408, 499, ... from an intermediary) proves nothing about the create and is
-    /// not a refusal; see [`REFUSAL_STATUSES`].
+    /// True when the bank answered with a 4xx: the request was refused and, for a create,
+    /// nothing was created (Nessie checks funds "before the transaction exists").
     pub fn is_client_refusal(&self) -> bool {
-        self.http_status()
-            .is_some_and(|s| REFUSAL_STATUSES.contains(&s))
+        self.http_status().is_some_and(|s| (400..500).contains(&s))
     }
 
     /// The provider error kind, when the failure came from the bank.

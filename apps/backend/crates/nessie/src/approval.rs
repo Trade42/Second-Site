@@ -3,32 +3,22 @@
 //! A simulated payment is a consequential action in the product's model even though Nessie money
 //! is mock money. The flow the server integration follows:
 //!
-//! 1. Build a [`PaymentIntent`] from a planned payment, the sandbox ids and an attempt id
-//!    ([`crate::MoveInPaymentPlan::intent_for`]). The plan item id and the attempt id are part
-//!    of the approved payload and start the Nessie description ([`description_prefix`]), so a
-//!    transaction found in the sandbox can be matched to its approval.
+//! 1. Build a [`PaymentIntent`] from a planned payment and the sandbox ids
+//!    ([`crate::MoveInPaymentPlan::intent_for`]).
 //! 2. Request an approval with `action_type = intent.action.as_str()` (`PURCHASE` or
 //!    `FINANCIAL_COMMITMENT`, both existing `ActionType` values), `action_payload =
 //!    intent.approval_payload()`, `risk_category = CONSEQUENTIAL` and `summary =
 //!    intent.summary()`.
 //! 3. When the owner has approved it, call the server's `require_approved(tx, project_id,
-//!    approval_id, action, &intent.approval_payload())`, turn **the approval it returned in that
-//!    same transaction** into an [`ApprovalEvidence`] (never anything taken from the request),
-//!    and build a [`PaymentAuthorization`] with [`PaymentAuthorization::verify`].
+//!    approval_id, action, &intent.approval_payload())`, turn the returned approval into an
+//!    [`ApprovalEvidence`], and build a [`PaymentAuthorization`] with
+//!    [`PaymentAuthorization::verify`], which checks everything again here, at the boundary:
+//!    status APPROVED, the action type, the project, unexpired, and the stored payload equal to
+//!    the intent's payload.
 //! 4. Pass the authorization to [`crate::NessieBank::execute`]. It is consumed (not `Clone`), the
 //!    bank refuses an approval id it has already used, and the Nessie request body is built from
 //!    the approved intent, so no other payload can be sent. Spend the approval with
 //!    `mark_executed` in the same transaction, which is the durable single-use guard.
-//!
-//! What [`PaymentAuthorization::verify`] proves, and what it does not: it checks the evidence it
-//! is handed against the intent (status APPROVED, the action type, the project, unexpired, the
-//! stored payload equal to the intent's payload). [`ApprovalEvidence`] is a plain struct anyone
-//! can fill in, so `verify` alone only proves that its caller *claims* an APPROVED approval for
-//! this payload. The authoritative checks are the server's: `require_approved` (the approval's
-//! project, expiry, action type, status and payload hash, with the row locked) and
-//! `mark_executed` (single use) in the same transaction as the bank call. This crate cannot
-//! depend on the server, so that split cannot be closed here; the server must build the evidence
-//! only from what `require_approved` returned.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -64,10 +54,6 @@ impl ApprovalAction {
 /// The facts of a stored approval, as the server's `require_approved` returned it
 /// (`ApprovalRequest`'s `approval_id`, `project_id`, `action_type`, `approval_status`,
 /// `action_payload` and `expires_at`).
-///
-/// A plain struct: it carries no proof of where its values came from. Build it only from the
-/// approval `require_approved` returned in the transaction that also makes the bank call and
-/// `mark_executed`, never from request data (see the module documentation).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ApprovalEvidence {
     pub approval_id: Uuid,
@@ -96,10 +82,8 @@ pub enum PaymentOperation {
         nickname: String,
         recurring_day: u8,
     },
-    /// `POST /bills/{bill_id}/payments` with the approved `amount_cents`. `account_id` is the
-    /// account the bill belongs to, which pays it: it is not sent (the path names the bill), but
-    /// it is approved and compared with the payer of the bank's answer.
-    PayBill { account_id: String, bill_id: String },
+    /// `POST /bills/{bill_id}/payments` with the approved `amount_cents`.
+    PayBill { bill_id: String },
 }
 
 impl PaymentOperation {
@@ -126,56 +110,18 @@ pub struct PaymentIntent {
     pub project_id: Uuid,
     pub property_id: Uuid,
     pub scenario_id: Uuid,
-    /// At most [`PLAN_ITEM_ID_MAX_LEN`] printable ASCII characters without spaces.
     pub plan_item_id: String,
-    /// Identifies this approval's attempt in the sandbox: part of the approved payload and of
-    /// the Nessie description ([`validate_attempt_id`]).
-    pub attempt_id: String,
     pub action: ApprovalAction,
     pub operation: PaymentOperation,
     /// US cents, `>= 1`.
     pub amount_minor: i64,
     /// Always `USD`: Nessie amounts are US cents.
     pub currency: String,
-    /// Sent to Nessie as the transaction description; starts with
-    /// [`description_prefix`]`(plan_item_id, attempt_id)`.
+    /// Sent to Nessie as the transaction description; starts with `SIMULATION`.
     pub description: String,
 }
 
 pub const PAYLOAD_INTEGRATION: &str = "capital_one_nessie_v2";
-
-/// Longest plan item id an intent accepts.
-pub const PLAN_ITEM_ID_MAX_LEN: usize = 64;
-/// An attempt id is 8 to 16 lower-case hexadecimal characters.
-pub const ATTEMPT_ID_MIN_LEN: usize = 8;
-pub const ATTEMPT_ID_MAX_LEN: usize = 16;
-
-/// Checks an attempt id: 8 to 16 lower-case hexadecimal characters.
-pub fn validate_attempt_id(attempt_id: &str) -> Result<(), String> {
-    let n = attempt_id.len();
-    if !(ATTEMPT_ID_MIN_LEN..=ATTEMPT_ID_MAX_LEN).contains(&n)
-        || !attempt_id
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-    {
-        return Err(format!(
-            "attempt_id must be {ATTEMPT_ID_MIN_LEN} to {ATTEMPT_ID_MAX_LEN} lower-case hexadecimal characters"
-        ));
-    }
-    Ok(())
-}
-
-/// A fresh random attempt id: 12 lower-case hexadecimal characters (48 random bits of a v4
-/// UUID). A caller may instead derive its own, as long as it passes [`validate_attempt_id`].
-pub fn new_attempt_id() -> String {
-    Uuid::new_v4().simple().to_string().chars().take(12).collect()
-}
-
-/// The start of every simulated payment's Nessie description: it names the plan item and the
-/// attempt, so a transaction in the sandbox can be matched to its approval.
-pub fn description_prefix(plan_item_id: &str, attempt_id: &str) -> String {
-    format!("SIMULATION (Second Site plan item {plan_item_id}, attempt {attempt_id}): ")
-}
 
 impl PaymentIntent {
     /// Checks the intent against the documented Nessie limits and this crate's rules.
@@ -195,22 +141,8 @@ impl PaymentIntent {
         if self.plan_item_id.is_empty() {
             return Err("plan_item_id must not be empty".into());
         }
-        if self.plan_item_id.len() > PLAN_ITEM_ID_MAX_LEN
-            || !self.plan_item_id.bytes().all(|b| b.is_ascii_graphic())
-        {
-            return Err(format!(
-                "plan_item_id must be at most {PLAN_ITEM_ID_MAX_LEN} printable ASCII characters without spaces"
-            ));
-        }
-        validate_attempt_id(&self.attempt_id)?;
         if !self.description.starts_with("SIMULATION") {
             return Err("description must start with SIMULATION".into());
-        }
-        if !self
-            .description
-            .starts_with(&description_prefix(&self.plan_item_id, &self.attempt_id))
-        {
-            return Err("description must name the plan item and the attempt id".into());
         }
         if self.description.chars().count() > 200 {
             return Err("description must be at most 200 characters".into());
@@ -244,11 +176,7 @@ impl PaymentIntent {
                     return Err("a recurring bill is a FINANCIAL_COMMITMENT".into());
                 }
             }
-            PaymentOperation::PayBill {
-                account_id,
-                bill_id,
-            } => {
-                validate_id("account_id", account_id)?;
+            PaymentOperation::PayBill { bill_id } => {
                 validate_id("bill_id", bill_id)?;
                 if self.action != ApprovalAction::FinancialCommitment {
                     return Err("a bill payment is a FINANCIAL_COMMITMENT".into());
@@ -271,7 +199,6 @@ impl PaymentIntent {
         m.insert("property_id".into(), json!(self.property_id.to_string()));
         m.insert("scenario_id".into(), json!(self.scenario_id.to_string()));
         m.insert("plan_item_id".into(), json!(self.plan_item_id));
-        m.insert("attempt_id".into(), json!(self.attempt_id));
         m.insert("amount_minor".into(), json!(self.amount_minor));
         m.insert("currency".into(), json!(self.currency));
         m.insert("description".into(), json!(self.description));
@@ -294,11 +221,7 @@ impl PaymentIntent {
                 m.insert("nickname".into(), json!(nickname));
                 m.insert("recurring_day".into(), json!(recurring_day));
             }
-            PaymentOperation::PayBill {
-                account_id,
-                bill_id,
-            } => {
-                m.insert("account_id".into(), json!(account_id));
+            PaymentOperation::PayBill { bill_id } => {
                 m.insert("bill_id".into(), json!(bill_id));
             }
         }
@@ -324,8 +247,8 @@ impl PaymentIntent {
             }
         };
         format!(
-            "Simulation only: {what} {bank} for plan item {} (attempt {}). Nothing real is paid or committed.",
-            self.plan_item_id, self.attempt_id
+            "Simulation only: {what} {bank} for plan item {}. Nothing real is paid or committed.",
+            self.plan_item_id
         )
     }
 }
@@ -353,9 +276,8 @@ pub enum AuthorizationError {
     },
 }
 
-/// An approval checked against exactly one simulated payment. Not `Clone`:
-/// [`crate::NessieBank::execute`] consumes it. It is only as good as the [`ApprovalEvidence`] it
-/// was built from (see the module documentation for what [`PaymentAuthorization::verify`] proves).
+/// Proof that an APPROVED owner approval authorizes exactly one simulated payment. Not `Clone`:
+/// [`crate::NessieBank::execute`] consumes it.
 #[derive(Debug, PartialEq, Eq)]
 pub struct PaymentAuthorization {
     approval_id: Uuid,
@@ -363,10 +285,7 @@ pub struct PaymentAuthorization {
 }
 
 impl PaymentAuthorization {
-    /// Checks the evidence against the intent, at `now`: status APPROVED, the action type, the
-    /// project, unexpired, and the stored payload equal to the intent's payload. It does not (and
-    /// cannot) prove that the evidence came from the stored approval; the server's
-    /// `require_approved` in the same transaction does.
+    /// Checks the approval against the intent, at `now`.
     pub fn verify(
         evidence: &ApprovalEvidence,
         intent: PaymentIntent,
