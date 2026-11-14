@@ -5,7 +5,9 @@ pub mod approvals;
 pub mod dev;
 pub mod events;
 pub mod health;
+pub mod media;
 pub mod projects;
+pub mod properties;
 pub mod tasks;
 
 use axum::Router;
@@ -21,6 +23,8 @@ pub fn api_routes() -> Router<AppState> {
         .merge(approvals::router())
         .merge(tasks::router())
         .merge(events::router())
+        .merge(properties::router())
+        .merge(media::router())
 }
 
 /// Open a transaction, run `$body` with `tx: &mut dyn Tx`, commit on success. An early return

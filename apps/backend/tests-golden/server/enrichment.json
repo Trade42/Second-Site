@@ -1,0 +1,4921 @@
+{
+ "_meta": {
+  "warning": "Synthetic kit and scripted provider answers: test data, not CoStar, Matterport or Vexcel data."
+ },
+ "media_base": "http://api.test",
+ "interior": [
+  {
+   "name": "suite_scan_marked",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "summaries": {
+     "MODEL1": {
+      "name": "Suite 106",
+      "area_sqm": 105.0,
+      "floor_count": 1
+     },
+     "MODEL2": {
+      "name": "Lobby",
+      "area_sqm": 40.0,
+      "floor_count": 1
+     }
+    }
+   },
+   "requested": [
+    [
+     "MODEL1",
+     "MODEL2"
+    ]
+   ],
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Suite 106",
+      "area_sqm": 105.0,
+      "matches_listing_unit": true,
+      "has_measured_geometry": true
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": "Lobby",
+      "area_sqm": 40.0,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "matterport",
+      "dataset": "model_api",
+      "status": "LIVE",
+      "record_count": 2,
+      "retrieved_at": "2026-11-14T21:51:02.560075Z",
+      "note": "1 scan(s) of the listed suite"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "no_suite_scan",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "summaries": {
+     "MODEL1": {
+      "name": "Lobby",
+      "area_sqm": 40.0,
+      "floor_count": 1
+     },
+     "MODEL2": {
+      "name": "2BR,3BA - 2,280 SF",
+      "area_sqm": 0.0,
+      "floor_count": 0
+     }
+    }
+   },
+   "requested": [
+    [
+     "MODEL1",
+     "MODEL2"
+    ]
+   ],
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Lobby",
+      "area_sqm": 40.0,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": "2BR,3BA - 2,280 SF",
+      "area_sqm": null,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery",
+     "No Matterport scan of suite 106; 2 scan(s) of other spaces in the building"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "matterport",
+      "dataset": "model_api",
+      "status": "LIVE",
+      "record_count": 2,
+      "retrieved_at": "2026-11-14T21:51:02.560233Z",
+      "note": "building scans only; listed suite not scanned"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "suite_scan_without_floors",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "summaries": {
+     "MODEL2": {
+      "name": "STE 106",
+      "area_sqm": null,
+      "floor_count": 0
+     }
+    }
+   },
+   "requested": [
+    [
+     "MODEL1",
+     "MODEL2"
+    ]
+   ],
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": "STE 106",
+      "area_sqm": null,
+      "matches_listing_unit": true,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "matterport",
+      "dataset": "model_api",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.560308Z",
+      "note": "1 scan(s) of the listed suite"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "provider_error",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "error": "AUTH"
+   },
+   "requested": [
+    [
+     "MODEL1",
+     "MODEL2"
+    ]
+   ],
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery",
+     "Matterport scans not retrieved (AUTH)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "fixture_mode_is_a_no_op",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "mode": "fixture",
+    "summaries": {}
+   },
+   "requested": [],
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "listing_without_suite",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": null,
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "summaries": {
+     "MODEL1": {
+      "name": "Suite 106",
+      "area_sqm": 105.0,
+      "floor_count": 1
+     }
+    }
+   },
+   "requested": [
+    [
+     "MODEL1",
+     "MODEL2"
+    ]
+   ],
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": null,
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Suite 106",
+      "area_sqm": 105.0,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery",
+     "No Matterport scan of suite (unspecified); 1 scan(s) of other spaces in the building"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "matterport",
+      "dataset": "model_api",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.560584Z",
+      "note": "building scans only; listed suite not scanned"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "forty_model_cap_and_six_building_scans",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MANY000",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY001",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY002",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY003",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY004",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY005",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY006",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY007",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY008",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY009",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY010",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY011",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY012",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY013",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY014",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY015",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY016",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY017",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY018",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY019",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY020",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY021",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY022",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY023",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY024",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY025",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY026",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY027",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY028",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY029",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY030",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY031",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY032",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY033",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY034",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY035",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY036",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY037",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY038",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY039",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY040",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY041",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY042",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY043",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY044",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "summaries": {
+     "MANY000": {
+      "name": null,
+      "area_sqm": 50.0,
+      "floor_count": 0
+     },
+     "MANY001": {
+      "name": "Space 1",
+      "area_sqm": 53.5,
+      "floor_count": 1
+     },
+     "MANY002": {
+      "name": "Space 2",
+      "area_sqm": 57.0,
+      "floor_count": 0
+     },
+     "MANY003": {
+      "name": "Space 3",
+      "area_sqm": 60.5,
+      "floor_count": 1
+     },
+     "MANY004": {
+      "name": "Space 4",
+      "area_sqm": 64.0,
+      "floor_count": 0
+     },
+     "MANY005": {
+      "name": "Space 5",
+      "area_sqm": 67.5,
+      "floor_count": 1
+     },
+     "MANY006": {
+      "name": "Space 6",
+      "area_sqm": 71.0,
+      "floor_count": 0
+     },
+     "MANY007": {
+      "name": null,
+      "area_sqm": 74.5,
+      "floor_count": 1
+     },
+     "MANY008": {
+      "name": "Space 8",
+      "area_sqm": 78.0,
+      "floor_count": 0
+     },
+     "MANY009": {
+      "name": "Space 9",
+      "area_sqm": 81.5,
+      "floor_count": 1
+     },
+     "MANY010": {
+      "name": "Space 10",
+      "area_sqm": 85.0,
+      "floor_count": 0
+     },
+     "MANY011": {
+      "name": "Space 11",
+      "area_sqm": 88.5,
+      "floor_count": 1
+     },
+     "MANY012": {
+      "name": "Space 12",
+      "area_sqm": 92.0,
+      "floor_count": 0
+     },
+     "MANY013": {
+      "name": "Space 13",
+      "area_sqm": 95.5,
+      "floor_count": 1
+     },
+     "MANY014": {
+      "name": null,
+      "area_sqm": 99.0,
+      "floor_count": 0
+     },
+     "MANY015": {
+      "name": "Space 15",
+      "area_sqm": 102.5,
+      "floor_count": 1
+     },
+     "MANY016": {
+      "name": "Space 16",
+      "area_sqm": 106.0,
+      "floor_count": 0
+     },
+     "MANY017": {
+      "name": "Space 17",
+      "area_sqm": 109.5,
+      "floor_count": 1
+     },
+     "MANY018": {
+      "name": "Space 18",
+      "area_sqm": 113.0,
+      "floor_count": 0
+     },
+     "MANY019": {
+      "name": "Space 19",
+      "area_sqm": 116.5,
+      "floor_count": 1
+     },
+     "MANY020": {
+      "name": "Space 20",
+      "area_sqm": 120.0,
+      "floor_count": 0
+     },
+     "MANY021": {
+      "name": null,
+      "area_sqm": 123.5,
+      "floor_count": 1
+     },
+     "MANY022": {
+      "name": "Space 22",
+      "area_sqm": 127.0,
+      "floor_count": 0
+     },
+     "MANY023": {
+      "name": "Space 23",
+      "area_sqm": 130.5,
+      "floor_count": 1
+     },
+     "MANY024": {
+      "name": "Space 24",
+      "area_sqm": 134.0,
+      "floor_count": 0
+     },
+     "MANY025": {
+      "name": "Space 25",
+      "area_sqm": 137.5,
+      "floor_count": 1
+     },
+     "MANY026": {
+      "name": "Space 26",
+      "area_sqm": 141.0,
+      "floor_count": 0
+     },
+     "MANY027": {
+      "name": "Space 27",
+      "area_sqm": 144.5,
+      "floor_count": 1
+     },
+     "MANY028": {
+      "name": null,
+      "area_sqm": 148.0,
+      "floor_count": 0
+     },
+     "MANY029": {
+      "name": "Space 29",
+      "area_sqm": 151.5,
+      "floor_count": 1
+     },
+     "MANY030": {
+      "name": "Space 30",
+      "area_sqm": 155.0,
+      "floor_count": 0
+     },
+     "MANY031": {
+      "name": "Space 31",
+      "area_sqm": 158.5,
+      "floor_count": 1
+     },
+     "MANY032": {
+      "name": "Space 32",
+      "area_sqm": 162.0,
+      "floor_count": 0
+     },
+     "MANY033": {
+      "name": "Space 33",
+      "area_sqm": 165.5,
+      "floor_count": 1
+     },
+     "MANY034": {
+      "name": "Space 34",
+      "area_sqm": 169.0,
+      "floor_count": 0
+     },
+     "MANY035": {
+      "name": null,
+      "area_sqm": 172.5,
+      "floor_count": 1
+     },
+     "MANY036": {
+      "name": "Space 36",
+      "area_sqm": 176.0,
+      "floor_count": 0
+     },
+     "MANY037": {
+      "name": "Space 37",
+      "area_sqm": 179.5,
+      "floor_count": 1
+     },
+     "MANY038": {
+      "name": "Space 38",
+      "area_sqm": 183.0,
+      "floor_count": 0
+     },
+     "MANY039": {
+      "name": "Space 39",
+      "area_sqm": 186.5,
+      "floor_count": 1
+     },
+     "MANY040": {
+      "name": "Space 40",
+      "area_sqm": 190.0,
+      "floor_count": 0
+     },
+     "MANY041": {
+      "name": "Space 41",
+      "area_sqm": 193.5,
+      "floor_count": 1
+     },
+     "MANY042": {
+      "name": null,
+      "area_sqm": 197.0,
+      "floor_count": 0
+     },
+     "MANY043": {
+      "name": "Space 43",
+      "area_sqm": 200.5,
+      "floor_count": 1
+     },
+     "MANY044": {
+      "name": "Space 44",
+      "area_sqm": 204.0,
+      "floor_count": 0
+     }
+    }
+   },
+   "requested": [
+    [
+     "MANY000",
+     "MANY001",
+     "MANY002",
+     "MANY003",
+     "MANY004",
+     "MANY005",
+     "MANY006",
+     "MANY007",
+     "MANY008",
+     "MANY009",
+     "MANY010",
+     "MANY011",
+     "MANY012",
+     "MANY013",
+     "MANY014",
+     "MANY015",
+     "MANY016",
+     "MANY017",
+     "MANY018",
+     "MANY019",
+     "MANY020",
+     "MANY021",
+     "MANY022",
+     "MANY023",
+     "MANY024",
+     "MANY025",
+     "MANY026",
+     "MANY027",
+     "MANY028",
+     "MANY029",
+     "MANY030",
+     "MANY031",
+     "MANY032",
+     "MANY033",
+     "MANY034",
+     "MANY035",
+     "MANY036",
+     "MANY037",
+     "MANY038",
+     "MANY039"
+    ]
+   ],
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MANY016",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Space 16",
+      "area_sqm": 106.0,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY017",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Space 17",
+      "area_sqm": 109.5,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY015",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Space 15",
+      "area_sqm": 102.5,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY018",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Space 18",
+      "area_sqm": 113.0,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY014",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": 99.0,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MANY019",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": "Space 19",
+      "area_sqm": 116.5,
+      "matches_listing_unit": false,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery",
+     "No Matterport scan of suite 106; 40 scan(s) of other spaces in the building"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "matterport",
+      "dataset": "model_api",
+      "status": "LIVE",
+      "record_count": 40,
+      "retrieved_at": "2026-11-14T21:51:02.561037Z",
+      "note": "building scans only; listed suite not scanned"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  }
+ ],
+ "exterior": [
+  {
+   "name": "elements",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "properties": {
+     "structures": [
+      {
+       "primary-structure": true,
+       "footprint.area": 812.4,
+       "roof-characteristics.condition": 4.0,
+       "roof-characteristics.material.class": "membrane",
+       "roof-characteristics.material.score": 0.8,
+       "roof-objects.ac-unit.count": 6,
+       "roof-defects.structural-damage.detected": false,
+       "roof-defects.discoloration.types.water-pooling.detected": true,
+       "structure-distance": 0.0
+      }
+     ],
+     "metadata.ortho-date-estimate": "2025-12-01T10:00:00",
+     "metadata.collection": "us-ca-losangeles-2025",
+     "request-information.inside-parcel": true
+    }
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": "2025-12-01",
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [
+     {
+      "observation_id": "b73dbdb6-ef33-4fef-bea7-68065d160aed",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "building_footprint_area",
+      "value": 812.4,
+      "unit": "m2",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Building footprint from Vexcel us-ca-losangeles-2025 2025-12-01"
+     },
+     {
+      "observation_id": "7cb9cbd9-e146-45fa-b313-20625bd7c1d9",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_condition",
+      "value": 4.0,
+      "unit": "score_1_5",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Roof condition score (1 poor - 5 excellent) from Vexcel us-ca-losangeles-2025 2025-12-01"
+     },
+     {
+      "observation_id": "3583bc21-db69-4a4b-9ea1-c1f4389ccfc5",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_material",
+      "value": "membrane",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Roof material (detector score 0.8)"
+     },
+     {
+      "observation_id": "03d5aa8c-e037-4c3a-87ae-b7caa432e713",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "rooftop_hvac_units",
+      "value": 6.0,
+      "unit": "count",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Rooftop HVAC/AC units detected (existing equipment, not spare capacity)"
+     },
+     {
+      "observation_id": "d76f7a7b-8c28-456d-acaa-f96c655eeb7f",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_defects",
+      "value": "water pooling",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Roof defects flagged by imagery model; ask landlord about roof repairs"
+     }
+    ],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 6,
+      "retrieved_at": "2026-11-14T21:51:02.561266Z",
+      "note": "Imagery 2025-12-01"
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": "2025-12-01",
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [
+     {
+      "observation_id": "9005c9c3-7722-4f0c-a1d0-c76172298b9b",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "building_footprint_area",
+      "value": 812.4,
+      "unit": "m2",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Building footprint from Vexcel us-ca-losangeles-2025 2025-12-01"
+     },
+     {
+      "observation_id": "16e5bdd0-e5dc-4753-a58f-f9247d187574",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_condition",
+      "value": 4.0,
+      "unit": "score_1_5",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Roof condition score (1 poor - 5 excellent) from Vexcel us-ca-losangeles-2025 2025-12-01"
+     },
+     {
+      "observation_id": "fc5ba47f-37ea-4d4f-895d-1426f6532b9a",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_material",
+      "value": "membrane",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Roof material (detector score 0.8)"
+     },
+     {
+      "observation_id": "bdc79980-1267-4a3f-99a0-2da54dd99fad",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "rooftop_hvac_units",
+      "value": 6.0,
+      "unit": "count",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Rooftop HVAC/AC units detected (existing equipment, not spare capacity)"
+     },
+     {
+      "observation_id": "cfa7eafe-e7e0-451f-b64a-91b3504e4e43",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_defects",
+      "value": "water pooling",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite."
+      ],
+      "description": "Roof defects flagged by imagery model; ask landlord about roof repairs"
+     }
+    ],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 6,
+      "retrieved_at": "2026-11-14T21:51:02.561349Z",
+      "note": "Imagery 2025-12-01"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "fixture_mode_is_a_no_op",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "mode": "fixture"
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "no_coordinates",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": null,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "properties": {
+     "structures": [
+      {
+       "primary-structure": true,
+       "footprint.area": 812.4,
+       "roof-characteristics.condition": 4.0,
+       "roof-characteristics.material.class": "membrane",
+       "roof-characteristics.material.score": 0.8,
+       "roof-objects.ac-unit.count": 6,
+       "roof-defects.structural-damage.detected": false,
+       "roof-defects.discoloration.types.water-pooling.detected": true,
+       "structure-distance": 0.0
+      }
+     ],
+     "metadata.ortho-date-estimate": "2025-12-01T10:00:00",
+     "metadata.collection": "us-ca-losangeles-2025",
+     "request-information.inside-parcel": true
+    }
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": null,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": null,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "elements_error",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "elements_error": "RATE_LIMITED"
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "Vexcel imagery not retrieved (RATE_LIMITED)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "Vexcel imagery not retrieved (RATE_LIMITED)",
+     "Vexcel imagery not retrieved (RATE_LIMITED)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "no_parcel_capture_date_fallback",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "properties": null,
+    "captures": [
+     {
+      "layer": "urban",
+      "last-capture-date": "2024-03-05T00:00:00Z"
+     },
+     {
+      "layer": "urban",
+      "last-capture-date": "2025-01-20"
+     },
+     {
+      "layer": "rural",
+      "last-capture-date": "2026-02-01"
+     },
+     {
+      "layer": "urban"
+     }
+    ]
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": "2025-01-20",
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.561664Z",
+      "note": "Imagery 2025-01-20"
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": "2025-01-20",
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.561692Z",
+      "note": "Imagery 2025-01-20"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "no_parcel_capture_error",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "properties": null,
+    "captures_error": "UNAVAILABLE"
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": null,
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.561777Z",
+      "note": "Imagery date unknown"
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": null,
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.561799Z",
+      "note": "Imagery date unknown"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "neighbour_structure_and_defects",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "properties": {
+     "structures": [
+      {
+       "footprint.area": 300.04,
+       "roof-defects.structural-damage.detected": true,
+       "roof-defects.discoloration.types.water-pooling.detected": true,
+       "structure-distance": 12.5,
+       "roof-characteristics.material.class": "tile"
+      },
+      {
+       "primary-structure": false
+      }
+     ],
+     "metadata.collection": null,
+     "metadata.ortho-date-estimate": null
+    },
+    "captures": []
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": null,
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [
+     {
+      "observation_id": "bda1bb97-b2a3-48ad-b83a-070fcfce1b07",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "building_footprint_area",
+      "value": 300.0,
+      "unit": "m2",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite.",
+       "Nearest structure is 12 m from the geocoded point; it may be a neighbouring building."
+      ],
+      "description": "Building footprint from Vexcel"
+     },
+     {
+      "observation_id": "fd3cc01e-eba1-46dc-8d27-bc8b8df62d59",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_material",
+      "value": "tile",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite.",
+       "Nearest structure is 12 m from the geocoded point; it may be a neighbouring building."
+      ],
+      "description": "Roof material (detector score None)"
+     },
+     {
+      "observation_id": "a7223083-c23f-4e3a-95bd-f1e5d53eae82",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_defects",
+      "value": "structural damage; water pooling",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite.",
+       "Nearest structure is 12 m from the geocoded point; it may be a neighbouring building."
+      ],
+      "description": "Roof defects flagged by imagery model; ask landlord about roof repairs"
+     }
+    ],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 4,
+      "retrieved_at": "2026-11-14T21:51:02.561906Z",
+      "note": "Imagery date unknown"
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": null,
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [
+     {
+      "observation_id": "713a0fbc-e39d-4fa3-a2e5-b68a203936a5",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "building_footprint_area",
+      "value": 300.0,
+      "unit": "m2",
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite.",
+       "Nearest structure is 12 m from the geocoded point; it may be a neighbouring building."
+      ],
+      "description": "Building footprint from Vexcel"
+     },
+     {
+      "observation_id": "ee9cc77c-3ade-4a8c-a045-da545f5aca77",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_material",
+      "value": "tile",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite.",
+       "Nearest structure is 12 m from the geocoded point; it may be a neighbouring building."
+      ],
+      "description": "Roof material (detector score None)"
+     },
+     {
+      "observation_id": "5c20360c-6258-4883-9c77-967ca277ba81",
+      "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+      "observation_type": "roof_defects",
+      "value": "structural damage; water pooling",
+      "unit": null,
+      "classification": "VISUALLY_OBSERVED",
+      "evidence_ids": [],
+      "limitations": [
+       "Automated detection from aerial imagery; describes the building, not the suite.",
+       "Nearest structure is 12 m from the geocoded point; it may be a neighbouring building."
+      ],
+      "description": "Roof defects flagged by imagery model; ask landlord about roof repairs"
+     }
+    ],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 4,
+      "retrieved_at": "2026-11-14T21:51:02.561956Z",
+      "note": "Imagery date unknown"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  },
+  {
+   "name": "date_only_and_no_elements",
+   "input": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)",
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "provider": {
+    "properties": {
+     "structures": [],
+     "metadata.ortho-date-estimate": "20250704"
+    }
+   },
+   "output": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": "2025-07-04",
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.562083Z",
+      "note": "Imagery 2025-07-04"
+     }
+    ],
+    "last_analyzed_at": null
+   },
+   "output_twice": {
+    "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+    "project_id": "a82a8700-0000-4000-8000-0000000000a1",
+    "property_identity": {
+     "property_id": "a82a8700-0000-4000-8000-0000000000c1",
+     "provider_property_ids": {
+      "costar": "1:16",
+      "costar_property": "100"
+     },
+     "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+     "street_address": "100 W MAIN ST",
+     "unit_or_suite": "106",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90012",
+     "parcel_id": null,
+     "latitude": 34.05,
+     "longitude": -118.25,
+     "identity_match_status": "NEEDS_REVIEW",
+     "identity_match_confidence": 0.5
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "LEASE",
+     "property_type": "Retail",
+     "available_area_sqm": 106.8,
+     "currency": "USD",
+     "asking_rent_monthly": 345000,
+     "nnn_charges_monthly": null,
+     "nnn_is_estimate": false,
+     "security_deposit": null,
+     "lease_term_months": 60,
+     "available_from": "2026-12-01",
+     "existing_buildout": "second_generation_salon",
+     "lease_service_type": "TripleNet",
+     "building_name": "Test Plaza",
+     "brokerage_company": "Example Brokerage",
+     "broker_contact": null,
+     "photo_urls": [
+      "https://cdn.example/i/abc/113/image.jpg"
+     ],
+     "source_record_date": "2026-10-01",
+     "listing_url": null,
+     "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL1",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL1",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     },
+     {
+      "provider": "matterport",
+      "asset_id": "MODEL2",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_REAL",
+      "url": "https://my.matterport.com/show/?m=MODEL2",
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": false
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.050000,-118.250000",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": "2025-07-04",
+      "url": "http://api.test/api/v1/media/vexcel/ortho/a82a8700-0000-4000-8000-0000000000c1"
+     }
+    ],
+    "permit_records": [],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "Operating-expense charges not quoted (TripleNet lease)"
+    ],
+    "source_manifest": [
+     {
+      "provider": "costar",
+      "dataset": "listings",
+      "status": "SNAPSHOT",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
+      "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     {
+      "provider": "vexcel",
+      "dataset": "ortho+property",
+      "status": "LIVE",
+      "record_count": 1,
+      "retrieved_at": "2026-11-14T21:51:02.562112Z",
+      "note": "Imagery 2025-07-04"
+     }
+    ],
+    "last_analyzed_at": null
+   }
+  }
+ ]
+}

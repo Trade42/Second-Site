@@ -97,13 +97,49 @@ both_backends!(health_and_ready, |db| {
             "langchain_deep_agents"
         ]
     );
-    // Nothing that does not exist here is reported as LIVE or MOCK.
+    // The ported providers report their own status, exactly as Python's fixture providers do
+    // (values printed by `build_container(settings).<provider>.status()`); nothing that does not
+    // exist here is reported as LIVE or MOCK.
+    assert_eq!(
+        providers[..4].to_vec(),
+        vec![
+            json!({"provider": "costar", "mode": "fixture", "status": "MOCK", "credentials_present": false, "note": "Synthetic listings (provider='fixture'). Set PROPERTY_PROVIDER_MODE=live to use the CoStar kit."}),
+            json!({"provider": "la_open_data", "mode": "fixture", "status": "MOCK", "credentials_present": false, "note": "Real public records snapshot (FIXTURE_REAL); set PERMIT_PROVIDER_MODE=live for live API."}),
+            json!({"provider": "matterport", "mode": "fixture", "status": "MOCK", "credentials_present": false, "note": "Synthetic rectangle geometry. Set MATTERPORT_PROVIDER_MODE=live with Model API token."}),
+            json!({"provider": "vexcel", "mode": "fixture", "status": "MOCK", "credentials_present": false, "note": "No imagery in fixture mode. Set VEXCEL_PROVIDER_MODE=live with VEXCEL_API_KEY."}),
+        ]
+    );
     assert!(
-        providers.iter().all(|p| p["status"] == "NOT_STARTED"),
+        providers[4..].iter().all(|p| p["status"] == "NOT_STARTED"),
         "{}",
         r.text
     );
     assert!(r.body["checks"].get("live_config").is_none());
+});
+
+both_backends!(ready_reports_live_providers_honestly, |db| {
+    let t = TestApp::new(
+        db,
+        &[
+            ("PROPERTY_PROVIDER_MODE", "live"),
+            ("PERMIT_PROVIDER_MODE", "live"),
+            ("MATTERPORT_PROVIDER_MODE", "live"),
+            ("VEXCEL_PROVIDER_MODE", "live"),
+            ("COSTAR_KIT_DIR", "/nonexistent-kit"),
+        ],
+    );
+    let r = t.get("/ready", None).await;
+    let providers = r.body["providers"].as_array().unwrap();
+    // Python, same settings: `build_container(Settings(... mode="live" ...))`.
+    assert_eq!(
+        providers[..4].to_vec(),
+        vec![
+            json!({"provider": "costar", "mode": "live", "status": "BLOCKED", "credentials_present": false, "note": "CoStar data kit not extracted; set COSTAR_KIT_DIR."}),
+            json!({"provider": "la_open_data", "mode": "live", "status": "LIVE", "credentials_present": true, "note": "Public Socrata API; app token optional. Coverage 2020-present."}),
+            json!({"provider": "matterport", "mode": "live", "status": "BLOCKED", "credentials_present": false, "note": "MATTERPORT_API_KEY / MATTERPORT_API_TOKEN missing."}),
+            json!({"provider": "vexcel", "mode": "live", "status": "BLOCKED", "credentials_present": false, "note": "VEXCEL_API_KEY missing."}),
+        ]
+    );
 });
 
 both_backends!(ready_lists_missing_live_credentials, |db| {

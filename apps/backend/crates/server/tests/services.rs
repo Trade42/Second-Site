@@ -35,6 +35,12 @@ fn app(db: &TestDb) -> AppState {
     ss_server::build_app(test_settings(&[]), db.store.clone())
 }
 
+/// The application without the workflow subscribers, for tests of the generic event machinery
+/// that register their own handlers on workflow event types.
+fn bare_app(db: &TestDb) -> AppState {
+    std::sync::Arc::new(App::new(test_settings(&[]), db.store.clone()))
+}
+
 /// A user and a project (as the Python tests seed them directly).
 async fn seed(app: &App, tx: &mut dyn Tx) -> (Uuid, ProjectContext) {
     let owner = Uuid::new_v4();
@@ -517,7 +523,7 @@ impl EventHandler for RankAfterAnalysis {
 }
 
 both_backends!(event_chain_idempotency_and_redelivery, |db| {
-    let app = app(db);
+    let app = bare_app(db);
     let calls = Arc::new(AtomicUsize::new(0));
     app.subscribe(
         EventType::InfrastructureEvidenceUpdated,

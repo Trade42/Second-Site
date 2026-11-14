@@ -1,0 +1,1857 @@
+[
+ {
+  "name": "l_shaped_suite",
+  "model": {
+   "id": "TESTMODEL01",
+   "name": "Suite 210",
+   "floors": [
+    {
+     "id": "f1",
+     "label": "Floor 1",
+     "dimensions": {
+      "areaFloor": 108.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 12,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 12,
+        "y": 7
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 8,
+        "y": 7
+       }
+      },
+      {
+       "id": "e",
+       "position": {
+        "x": 8,
+        "y": 10
+       }
+      },
+      {
+       "id": "f",
+       "position": {
+        "x": 0,
+        "y": 10
+       }
+      },
+      {
+       "id": "g",
+       "position": {
+        "x": 3,
+        "y": 0
+       }
+      },
+      {
+       "id": "h",
+       "position": {
+        "x": 3,
+        "y": 10
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "g"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "g"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": [
+        {
+         "type": "doorway",
+         "width": 1.0,
+         "relativeCenter": 0.3333333333333333
+        }
+       ]
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e4",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "e"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e5",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "e"
+        },
+        {
+         "id": "h"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e6",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "h"
+        },
+        {
+         "id": "f"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e7",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "f"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e8",
+       "type": "wall",
+       "thickness": 0.15,
+       "vertices": [
+        {
+         "id": "g"
+        },
+        {
+         "id": "h"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    }
+   ],
+   "rooms": [
+    {
+     "id": "r1",
+     "floor": {
+      "id": "f1"
+     },
+     "label": "Office",
+     "dimensions": {
+      "areaFloor": 24.0
+     }
+    }
+   ]
+  },
+  "result": {
+   "source_id": "TESTMODEL01",
+   "model_name": "Suite 210",
+   "floor_label": "Floor 1",
+   "floor_count": 1,
+   "measured_area_sqm": 108.0,
+   "geometry_source": "MATTERPORT_MEASURED",
+   "data_origin": "LIVE",
+   "floor_boundary": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     10.0
+    ],
+    [
+     8.0,
+     10.0
+    ],
+    [
+     8.0,
+     7.0
+    ],
+    [
+     12.0,
+     7.0
+    ],
+    [
+     12.0,
+     0.0
+    ]
+   ],
+   "fixed_walls": [
+    [
+     [
+      3,
+      0
+     ],
+     [
+      3,
+      10
+     ]
+    ]
+   ],
+   "entrances": [
+    {
+     "kind": "entrance",
+     "start": [
+      5.5,
+      0.0
+     ],
+     "end": [
+      6.5,
+      0.0
+     ]
+    }
+   ],
+   "windows": [],
+   "interior_doors": [],
+   "rooms": [
+    {
+     "label": "Office",
+     "area_sqm": 24.0
+    }
+   ],
+   "scale_verified": true,
+   "measurement_uncertainty_m": null
+  }
+ },
+ {
+  "name": "windows_doors_rounding_rooms",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "g",
+     "label": "Floor 1",
+     "dimensions": {
+      "areaFloor": 63.2
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0.12345678,
+        "y": 0.0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 9.87654321,
+        "y": 0.0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 9.87654321,
+        "y": 6.5
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0.12345678,
+        "y": 6.5
+       }
+      },
+      {
+       "id": "m",
+       "position": {
+        "x": 5.0,
+        "y": 0.0
+       }
+      },
+      {
+       "id": "n",
+       "position": {
+        "x": 5.0,
+        "y": 6.5
+       }
+      },
+      {
+       "id": "p",
+       "position": {
+        "x": 2.0,
+        "y": 3.0
+       }
+      },
+      {
+       "id": "q",
+       "position": {
+        "x": 2.0,
+        "y": 6.5
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "m"
+        }
+       ],
+       "openings": [
+        {
+         "type": "window",
+         "width": 1.2,
+         "relativeCenter": 0.5
+        }
+       ]
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "m"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": [
+        {
+         "type": "opening",
+         "width": 0,
+         "relativeCenter": 0
+        }
+       ]
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "n"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e4",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "n"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e5",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e6",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "m"
+        },
+        {
+         "id": "n"
+        }
+       ],
+       "openings": [
+        {
+         "type": "doorway",
+         "width": 0.9,
+         "relativeCenter": 0.25
+        },
+        {
+         "type": "window",
+         "width": 1.0
+        }
+       ]
+      },
+      {
+       "id": "e7",
+       "type": "railing",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "p"
+        },
+        {
+         "id": "q"
+        }
+       ],
+       "openings": [
+        {
+         "type": "doorway"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "rooms": [
+    {
+     "id": "r1",
+     "floor": {
+      "id": "g"
+     },
+     "label": null,
+     "classifications": [
+      {
+       "label": "Treatment",
+       "confidence": 0.9
+      }
+     ],
+     "dimensions": {
+      "areaFloor": 30.1
+     }
+    },
+    {
+     "id": "r2",
+     "floor": {
+      "id": "g"
+     },
+     "label": "",
+     "classifications": [],
+     "dimensions": null
+    },
+    {
+     "id": "r3",
+     "floor": {
+      "id": "other"
+     },
+     "label": "Elsewhere"
+    }
+   ]
+  },
+  "result": {
+   "source_id": "GEOM0001",
+   "model_name": "Suite 1",
+   "floor_label": "Floor 1",
+   "floor_count": 1,
+   "measured_area_sqm": 63.2,
+   "geometry_source": "MATTERPORT_MEASURED",
+   "data_origin": "LIVE",
+   "floor_boundary": [
+    [
+     0.123,
+     0.0
+    ],
+    [
+     0.123,
+     6.5
+    ],
+    [
+     9.877,
+     6.5
+    ],
+    [
+     9.877,
+     0.0
+    ]
+   ],
+   "fixed_walls": [
+    [
+     [
+      5.0,
+      0.0
+     ],
+     [
+      5.0,
+      6.5
+     ]
+    ]
+   ],
+   "entrances": [
+    {
+     "kind": "entrance",
+     "start": [
+      6.9882716049999996,
+      0.0
+     ],
+     "end": [
+      7.888271605,
+      0.0
+     ]
+    }
+   ],
+   "windows": [
+    {
+     "kind": "window",
+     "start": [
+      1.96172839,
+      0.0
+     ],
+     "end": [
+      3.1617283900000004,
+      0.0
+     ]
+    }
+   ],
+   "interior_doors": [
+    {
+     "kind": "interior_door",
+     "start": [
+      5.0,
+      1.175
+     ],
+     "end": [
+      5.0,
+      2.0749999999999997
+     ]
+    },
+    {
+     "kind": "interior_door",
+     "start": [
+      2.0,
+      4.3
+     ],
+     "end": [
+      2.0,
+      5.2
+     ]
+    }
+   ],
+   "rooms": [
+    {
+     "label": "Treatment",
+     "area_sqm": 30.1
+    },
+    {
+     "label": null,
+     "area_sqm": null
+    }
+   ],
+   "scale_verified": true,
+   "measurement_uncertainty_m": null
+  }
+ },
+ {
+  "name": "largest_floor_by_area",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "f1",
+     "label": "Ground",
+     "dimensions": {
+      "areaFloor": 16.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 4,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 4,
+        "y": 4
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0,
+        "y": 4
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    },
+    {
+     "id": "f2",
+     "label": "Upper",
+     "dimensions": {
+      "areaFloor": 40.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 8,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 8,
+        "y": 5
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0,
+        "y": 5
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    }
+   ],
+   "rooms": []
+  },
+  "result": {
+   "source_id": "GEOM0001",
+   "model_name": "Suite 1",
+   "floor_label": "Upper",
+   "floor_count": 2,
+   "measured_area_sqm": 40.0,
+   "geometry_source": "MATTERPORT_MEASURED",
+   "data_origin": "LIVE",
+   "floor_boundary": [
+    [
+     8.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     5.0
+    ],
+    [
+     8.0,
+     5.0
+    ]
+   ],
+   "fixed_walls": [],
+   "entrances": [],
+   "windows": [],
+   "interior_doors": [],
+   "rooms": [],
+   "scale_verified": true,
+   "measurement_uncertainty_m": null
+  }
+ },
+ {
+  "name": "floor_area_tie_most_edges",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "f1",
+     "label": "A",
+     "dimensions": {
+      "areaFloor": 40.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 8,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 8,
+        "y": 5
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0,
+        "y": 5
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    },
+    {
+     "id": "f2",
+     "label": "B",
+     "dimensions": {
+      "areaFloor": 40.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 8,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 8,
+        "y": 5
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0,
+        "y": 5
+       }
+      },
+      {
+       "id": "m",
+       "position": {
+        "x": 4,
+        "y": 0
+       }
+      },
+      {
+       "id": "n",
+       "position": {
+        "x": 4,
+        "y": 5
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "m"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "m"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e4",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e5",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "m"
+        },
+        {
+         "id": "n"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    }
+   ],
+   "rooms": []
+  },
+  "result": {
+   "source_id": "GEOM0001",
+   "model_name": "Suite 1",
+   "floor_label": "B",
+   "floor_count": 2,
+   "measured_area_sqm": 40.0,
+   "geometry_source": "MATTERPORT_MEASURED",
+   "data_origin": "LIVE",
+   "floor_boundary": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     5.0
+    ],
+    [
+     8.0,
+     5.0
+    ],
+    [
+     8.0,
+     0.0
+    ]
+   ],
+   "fixed_walls": [
+    [
+     [
+      4,
+      0
+     ],
+     [
+      4,
+      5
+     ]
+    ]
+   ],
+   "entrances": [],
+   "windows": [],
+   "interior_doors": [],
+   "rooms": [],
+   "scale_verified": true,
+   "measurement_uncertainty_m": null
+  }
+ },
+ {
+  "name": "too_small",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "f",
+     "label": "Floor 1",
+     "dimensions": {
+      "areaFloor": 3.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 1.5,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 1.5,
+        "y": 2
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0,
+        "y": 2
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    }
+   ],
+   "rooms": []
+  },
+  "result": null
+ },
+ {
+  "name": "open_walls_no_face",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "f",
+     "label": "Floor 1",
+     "dimensions": {
+      "areaFloor": 40.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 8,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 8,
+        "y": 5
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0,
+        "y": 5
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    }
+   ],
+   "rooms": []
+  },
+  "result": null
+ },
+ {
+  "name": "no_usable_floor",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "f",
+     "vertices": [],
+     "edges": []
+    }
+   ],
+   "rooms": []
+  },
+  "result": null
+ },
+ {
+  "name": "rotated_with_partition_and_bad_edges",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "f",
+     "label": "Floor 1",
+     "dimensions": null,
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0.0,
+        "y": 0.0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 7.0710678,
+        "y": 7.0710678
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 2.8284271,
+        "y": 11.3137085
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": -4.2426407,
+        "y": 4.2426407
+       }
+      },
+      {
+       "id": "m",
+       "position": {
+        "x": 3.5355339,
+        "y": 3.5355339
+       }
+      },
+      {
+       "id": "n",
+       "position": {
+        "x": -0.7071068,
+        "y": 7.7781746
+       }
+      },
+      {
+       "id": "x",
+       "position": {
+        "x": 1.0,
+        "y": 1.0
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "m"
+        }
+       ],
+       "openings": [
+        {
+         "type": "doorway",
+         "width": 0.8,
+         "relativeCenter": 0.5
+        }
+       ]
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "m"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "n"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e4",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "n"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e5",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e6",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "m"
+        },
+        {
+         "id": "n"
+        }
+       ],
+       "openings": [
+        {
+         "type": "opening",
+         "width": 1.1,
+         "relativeCenter": 0.4
+        }
+       ]
+      },
+      {
+       "id": "e7",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "zzz"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e8",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "x"
+        },
+        {
+         "id": "x"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    }
+   ],
+   "rooms": []
+  },
+  "result": {
+   "source_id": "GEOM0001",
+   "model_name": "Suite 1",
+   "floor_label": "Floor 1",
+   "floor_count": 1,
+   "measured_area_sqm": null,
+   "geometry_source": "MATTERPORT_MEASURED",
+   "data_origin": "LIVE",
+   "floor_boundary": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     -4.243,
+     4.243
+    ],
+    [
+     2.828,
+     11.314
+    ],
+    [
+     7.071,
+     7.071
+    ]
+   ],
+   "fixed_walls": [
+    [
+     [
+      3.536,
+      3.536
+     ],
+     [
+      -0.707,
+      7.778
+     ]
+    ]
+   ],
+   "entrances": [
+    {
+     "kind": "entrance",
+     "start": [
+      1.484924237525381,
+      1.484924237525381
+     ],
+     "end": [
+      2.0506096624746193,
+      2.0506096624746193
+     ]
+    }
+   ],
+   "windows": [],
+   "interior_doors": [
+    {
+     "kind": "interior_door",
+     "start": [
+      2.227386349652601,
+      4.843681450347399
+     ],
+     "end": [
+      1.4495688903473987,
+      5.621498909652601
+     ]
+    }
+   ],
+   "rooms": [],
+   "scale_verified": true,
+   "measurement_uncertainty_m": null
+  }
+ },
+ {
+  "name": "walls_near_the_boundary",
+  "model": {
+   "id": "GEOM0001",
+   "name": "Suite 1",
+   "floors": [
+    {
+     "id": "f",
+     "label": "Floor 1",
+     "dimensions": {
+      "areaFloor": 40.0
+     },
+     "vertices": [
+      {
+       "id": "a",
+       "position": {
+        "x": 0,
+        "y": 0
+       }
+      },
+      {
+       "id": "b",
+       "position": {
+        "x": 8,
+        "y": 0
+       }
+      },
+      {
+       "id": "c",
+       "position": {
+        "x": 8,
+        "y": 5
+       }
+      },
+      {
+       "id": "d",
+       "position": {
+        "x": 0,
+        "y": 5
+       }
+      },
+      {
+       "id": "i",
+       "position": {
+        "x": 0.5,
+        "y": 0.08
+       }
+      },
+      {
+       "id": "j",
+       "position": {
+        "x": 7.5,
+        "y": 0.08
+       }
+      },
+      {
+       "id": "k",
+       "position": {
+        "x": 0.5,
+        "y": 0.3
+       }
+      },
+      {
+       "id": "l",
+       "position": {
+        "x": 7.5,
+        "y": 0.3
+       }
+      }
+     ],
+     "edges": [
+      {
+       "id": "e0",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "a"
+        },
+        {
+         "id": "b"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e1",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "b"
+        },
+        {
+         "id": "c"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e2",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "c"
+        },
+        {
+         "id": "d"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e3",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "d"
+        },
+        {
+         "id": "a"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e4",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "i"
+        },
+        {
+         "id": "j"
+        }
+       ],
+       "openings": []
+      },
+      {
+       "id": "e5",
+       "type": "wall",
+       "thickness": 0.1,
+       "vertices": [
+        {
+         "id": "k"
+        },
+        {
+         "id": "l"
+        }
+       ],
+       "openings": []
+      }
+     ]
+    }
+   ],
+   "rooms": []
+  },
+  "result": {
+   "source_id": "GEOM0001",
+   "model_name": "Suite 1",
+   "floor_label": "Floor 1",
+   "floor_count": 1,
+   "measured_area_sqm": 40.0,
+   "geometry_source": "MATTERPORT_MEASURED",
+   "data_origin": "LIVE",
+   "floor_boundary": [
+    [
+     8.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     5.0
+    ],
+    [
+     8.0,
+     5.0
+    ]
+   ],
+   "fixed_walls": [
+    [
+     [
+      0.5,
+      0.3
+     ],
+     [
+      7.5,
+      0.3
+     ]
+    ]
+   ],
+   "entrances": [],
+   "windows": [],
+   "interior_doors": [],
+   "rooms": [],
+   "scale_verified": true,
+   "measurement_uncertainty_m": null
+  }
+ }
+]
