@@ -1,0 +1,93 @@
+[
+ {
+  "name": "empty",
+  "payload_json": "{}",
+  "canonical": "{}",
+  "hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "rust_supported": true
+ },
+ {
+  "name": "key_order",
+  "payload_json": "{\"b\": 1, \"a\": 2}",
+  "canonical": "{\"a\":2,\"b\":1}",
+  "hash": "d3626ac30a87e6f7a6428233b3c68299976865fa5508e4267c5415c76af7a772",
+  "rust_supported": true
+ },
+ {
+  "name": "nested",
+  "payload_json": "{\"z\": {\"y\": [3, {\"b\": true, \"a\": null}], \"x\": \"s\"}, \"a\": [], \"m\": {}}",
+  "canonical": "{\"a\":[],\"m\":{},\"z\":{\"x\":\"s\",\"y\":[3,{\"a\":null,\"b\":true}]}}",
+  "hash": "d106e8c0f63e3b2d55b41c3f96c5b3c2d6e80956317099a124431921e91e44e4",
+  "rust_supported": true
+ },
+ {
+  "name": "unicode",
+  "payload_json": "{\"é\": \"ü\", \"emoji\": \"😀\", \"cjk\": \"漢字\", \"ctrl\": \"\\n\\t\\u0001\\u007f\\u0085\", \"quote\": \"\\\"\\\\/\"}",
+  "canonical": "{\"cjk\":\"\\u6f22\\u5b57\",\"ctrl\":\"\\n\\t\\u0001\\u007f\\u0085\",\"emoji\":\"\\ud83d\\ude00\",\"quote\":\"\\\"\\\\/\",\"\\u00e9\":\"\\u00fc\"}",
+  "hash": "a7aecba52632fdbb0d6f21094a1f8cab2815cd7d5057d2290e95da9a5a43126d",
+  "rust_supported": true
+ },
+ {
+  "name": "key_sort_codepoints",
+  "payload_json": "{\"B\": 1, \"a\": 2, \"_\": 3, \"é\": 4, \"Z\": 5, \"aa\": 6, \"a b\": 7, \"😀\": 8, \"ﬀ\": 9}",
+  "canonical": "{\"B\":1,\"Z\":5,\"_\":3,\"a\":2,\"a b\":7,\"aa\":6,\"\\u00e9\":4,\"\\ufb00\":9,\"\\ud83d\\ude00\":8}",
+  "hash": "fd7acacd1a4ccc42d14d363af6a7f54c3577bc7da73edc16a69c869094a50bf5",
+  "rust_supported": true
+ },
+ {
+  "name": "ints",
+  "payload_json": "{\"zero\": 0, \"neg\": -1, \"p53\": 9007199254740993, \"i64max\": 9223372036854775807, \"i64min\": -9223372036854775808, \"u64max\": 18446744073709551615}",
+  "canonical": "{\"i64max\":9223372036854775807,\"i64min\":-9223372036854775808,\"neg\":-1,\"p53\":9007199254740993,\"u64max\":18446744073709551615,\"zero\":0}",
+  "hash": "b5d1f618552eb976e4f20ffa7c95ed953fc4add773645540b24ac24dfda8cb41",
+  "rust_supported": true
+ },
+ {
+  "name": "floats",
+  "payload_json": "{\"a\": 0.0, \"b\": -0.0, \"c\": 1.0, \"d\": 1.5, \"e\": 0.1, \"f\": 1e-5, \"g\": 1e16, \"h\": 1.7976931348623157e308, \"i\": 5e-324, \"j\": 123456.789, \"k\": 1e22, \"l\": 100.0, \"m\": 1E2, \"n\": 0.0001, \"o\": 1e15, \"p\": 2.5e-7}",
+  "canonical": "{\"a\":0.0,\"b\":-0.0,\"c\":1.0,\"d\":1.5,\"e\":0.1,\"f\":1e-05,\"g\":1e+16,\"h\":1.7976931348623157e+308,\"i\":5e-324,\"j\":123456.789,\"k\":1e+22,\"l\":100.0,\"m\":100.0,\"n\":0.0001,\"o\":1000000000000000.0,\"p\":2.5e-07}",
+  "hash": "9137a3dc4e92f94d10824c86717a7839d30e930e600de38a11627b2a92ee77b7",
+  "rust_supported": true
+ },
+ {
+  "name": "bools_vs_ints",
+  "payload_json": "{\"t\": true, \"f\": false, \"one\": 1, \"zero\": 0, \"n\": null}",
+  "canonical": "{\"f\":false,\"n\":null,\"one\":1,\"t\":true,\"zero\":0}",
+  "hash": "470dfc5a7a39c67778240a9107dabcb59981f27f533a491787d5f9ef4cfd48f4",
+  "rust_supported": true
+ },
+ {
+  "name": "deep_lists",
+  "payload_json": "{\"l\": [[[[1, [2, [3, {\"k\": [4]}]]]]]]}",
+  "canonical": "{\"l\":[[[[1,[2,[3,{\"k\":[4]}]]]]]]}",
+  "hash": "592fe0dbe0d9ab6c98543810309f280243026380308d5785d89ea1f723300f31",
+  "rust_supported": true
+ },
+ {
+  "name": "call_payload",
+  "payload_json": "{\"project_id\": \"6c1d9b7e-2f3a-4c5d-8e9f-0a1b2c3d4e5f\", \"recipient\": {\"role\": \"broker\", \"name\": \"Test Broker\", \"phone\": \"+15555550100\"}, \"property_id\": null, \"purpose\": \"Ask about electrical capacity\"}",
+  "canonical": "{\"project_id\":\"6c1d9b7e-2f3a-4c5d-8e9f-0a1b2c3d4e5f\",\"property_id\":null,\"purpose\":\"Ask about electrical capacity\",\"recipient\":{\"name\":\"Test Broker\",\"phone\":\"+15555550100\",\"role\":\"broker\"}}",
+  "hash": "12000406016b6975ceda341ccbc080c2c8e90ee54bb918b5c1a72e33ace48e26",
+  "rust_supported": true
+ },
+ {
+  "name": "purchase",
+  "payload_json": "{\"sku\": \"bed-1\", \"qty\": 3}",
+  "canonical": "{\"qty\":3,\"sku\":\"bed-1\"}",
+  "hash": "bacdaf23edc4ef399a95232918ad9cb6a0186f6cbd48433281fce672946f1462",
+  "rust_supported": true
+ },
+ {
+  "name": "big_int_beyond_u64",
+  "payload_json": "{\"n\": 1180591620717411303424}",
+  "canonical": "{\"n\":1180591620717411303424}",
+  "hash": "b69ef9299f5d6958cce991bf150e23cf960a2d5295e188735d6c700ab34ff975",
+  "rust_supported": false
+ },
+ {
+  "name": "negative_zero_integer_literal",
+  "payload_json": "{\"n\": -0}",
+  "canonical": "{\"n\":0}",
+  "hash": "f3013f933b9fb80ab6d995e7ad9da36f683837ba1d81e950c943d40111eac2f0",
+  "rust_supported": false
+ }
+]

@@ -1,0 +1,1562 @@
+[
+  {
+    "model": "ProjectContext",
+    "name": "owner_id missing",
+    "input": {
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "missing",
+        "loc": [
+          "owner_id"
+        ],
+        "msg": "Field required"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "extra field",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z",
+      "surprise": 1
+    },
+    "errors": [
+      {
+        "type": "extra_forbidden",
+        "loc": [
+          "surprise"
+        ],
+        "msg": "Extra inputs are not permitted"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "naive created_at",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "value_error",
+        "loc": [
+          "created_at"
+        ],
+        "msg": "Value error, timestamps must be timezone-aware (UTC)"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "empty project_name",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "string_too_short",
+        "loc": [
+          "project_name"
+        ],
+        "msg": "String should have at least 1 character"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "project_name too long",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "string_too_long",
+        "loc": [
+          "project_name"
+        ],
+        "msg": "String should have at most 200 characters"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "market state too short",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "C"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "string_too_short",
+        "loc": [
+          "market",
+          "state"
+        ],
+        "msg": "String should have at least 2 characters"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "market state too long",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CAL"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "string_too_long",
+        "loc": [
+          "market",
+          "state"
+        ],
+        "msg": "String should have at most 2 characters"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "market extra field",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA",
+        "zip": "90028"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "extra_forbidden",
+        "loc": [
+          "market",
+          "zip"
+        ],
+        "msg": "Extra inputs are not permitted"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "record_version zero",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z",
+      "record_version": 0
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "record_version"
+        ],
+        "msg": "Input should be greater than or equal to 1"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "negative budget revision",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z",
+      "current_budget_revision": -1
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "current_budget_revision"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "bad project_status",
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z",
+      "project_status": "DONE"
+    },
+    "errors": [
+      {
+        "type": "enum",
+        "loc": [
+          "project_status"
+        ],
+        "msg": "Input should be 'ONBOARDING', 'SEARCHING', 'ANALYZING', 'COMPARING', 'DESIGNING', 'PROCURING', 'OPENING' or 'ARCHIVED'"
+      }
+    ]
+  },
+  {
+    "model": "ProjectContext",
+    "name": "bad owner uuid",
+    "input": {
+      "owner_id": "not-a-uuid",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "errors": [
+      {
+        "type": "uuid_parsing",
+        "loc": [
+          "owner_id"
+        ],
+        "msg": "Input should be a valid UUID, invalid character: found `n` at 0"
+      }
+    ]
+  },
+  {
+    "model": "Money",
+    "name": "lowercase currency",
+    "input": {
+      "amount_minor": 1,
+      "currency": "usd"
+    },
+    "errors": [
+      {
+        "type": "value_error",
+        "loc": [
+          "currency"
+        ],
+        "msg": "Value error, currency must be an ISO 4217 code such as 'USD'"
+      }
+    ]
+  },
+  {
+    "model": "Money",
+    "name": "two-letter currency",
+    "input": {
+      "amount_minor": 1,
+      "currency": "US"
+    },
+    "errors": [
+      {
+        "type": "value_error",
+        "loc": [
+          "currency"
+        ],
+        "msg": "Value error, currency must be an ISO 4217 code such as 'USD'"
+      }
+    ]
+  },
+  {
+    "model": "Money",
+    "name": "digit in currency",
+    "input": {
+      "amount_minor": 1,
+      "currency": "U5D"
+    },
+    "errors": [
+      {
+        "type": "value_error",
+        "loc": [
+          "currency"
+        ],
+        "msg": "Value error, currency must be an ISO 4217 code such as 'USD'"
+      }
+    ]
+  },
+  {
+    "model": "Money",
+    "name": "fractional minor units",
+    "input": {
+      "amount_minor": 1.5
+    },
+    "errors": [
+      {
+        "type": "int_from_float",
+        "loc": [
+          "amount_minor"
+        ],
+        "msg": "Input should be a valid integer, got a number with a fractional part"
+      }
+    ]
+  },
+  {
+    "model": "Money",
+    "name": "amount missing",
+    "input": {
+      "currency": "USD"
+    },
+    "errors": [
+      {
+        "type": "missing",
+        "loc": [
+          "amount_minor"
+        ],
+        "msg": "Field required"
+      }
+    ]
+  },
+  {
+    "model": "Measurement",
+    "name": "unit missing",
+    "input": {
+      "value": 1.0
+    },
+    "errors": [
+      {
+        "type": "missing",
+        "loc": [
+          "unit"
+        ],
+        "msg": "Field required"
+      }
+    ]
+  },
+  {
+    "model": "Point2D",
+    "name": "y missing",
+    "input": {
+      "x": 1.0
+    },
+    "errors": [
+      {
+        "type": "missing",
+        "loc": [
+          "y"
+        ],
+        "msg": "Field required"
+      }
+    ]
+  },
+  {
+    "model": "Point2D",
+    "name": "extra field",
+    "input": {
+      "x": 1.0,
+      "y": 2.0,
+      "z": 3.0
+    },
+    "errors": [
+      {
+        "type": "extra_forbidden",
+        "loc": [
+          "z"
+        ],
+        "msg": "Extra inputs are not permitted"
+      }
+    ]
+  },
+  {
+    "model": "SourceReference",
+    "name": "description missing",
+    "input": {
+      "url": "https://example.invalid"
+    },
+    "errors": [
+      {
+        "type": "missing",
+        "loc": [
+          "description"
+        ],
+        "msg": "Field required"
+      }
+    ]
+  },
+  {
+    "model": "SourceReference",
+    "name": "bad evidence uuid",
+    "input": {
+      "description": "d",
+      "evidence_id": "nope"
+    },
+    "errors": [
+      {
+        "type": "uuid_parsing",
+        "loc": [
+          "evidence_id"
+        ],
+        "msg": "Input should be a valid UUID, invalid character: found `n` at 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "empty business_type",
+    "input": {
+      "business_type": "",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "string_too_short",
+        "loc": [
+          "business_type"
+        ],
+        "msg": "String should have at least 1 character"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "negative location count",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": -1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "current_location_count"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "two field errors",
+    "input": {
+      "business_type": "",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": -1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "string_too_short",
+        "loc": [
+          "business_type"
+        ],
+        "msg": "String should have at least 1 character"
+      },
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "current_location_count"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "negative opening capital",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": -5,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "opening_capital"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "negative rent limit",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": -1,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "monthly_rent_limit"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "lowercase currency",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002",
+      "currency": "usd"
+    },
+    "errors": [
+      {
+        "type": "value_error",
+        "loc": [
+          "currency"
+        ],
+        "msg": "Value error, currency must be an ISO 4217 code such as 'USD'"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "space_requirements missing",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "missing",
+        "loc": [
+          "space_requirements"
+        ],
+        "msg": "Field required"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "zero min area",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 0
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than",
+        "loc": [
+          "space_requirements",
+          "min_area_sqm"
+        ],
+        "msg": "Input should be greater than 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "negative max area",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110,
+        "max_area_sqm": -1
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than",
+        "loc": [
+          "space_requirements",
+          "max_area_sqm"
+        ],
+        "msg": "Input should be greater than 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "horizon too long",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 241
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "less_than_equal",
+        "loc": [
+          "ranking_priorities",
+          "comparison_horizon_months"
+        ],
+        "msg": "Input should be less than or equal to 240"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "horizon zero",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 0
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than",
+        "loc": [
+          "ranking_priorities",
+          "comparison_horizon_months"
+        ],
+        "msg": "Input should be greater than 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "negative weight",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": -0.1,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "ranking_priorities",
+          "total_cost"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "negative sinks",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": -1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "infrastructure_requirements",
+          "sinks_per_treatment_room"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "zero amps",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1,
+        "min_electrical_service_amps": 0
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "greater_than",
+        "loc": [
+          "infrastructure_requirements",
+          "min_electrical_service_amps"
+        ],
+        "msg": "Input should be greater than 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "negative staff",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002",
+      "operational_requirements": {
+        "staff_count": -1
+      }
+    },
+    "errors": [
+      {
+        "type": "greater_than_equal",
+        "loc": [
+          "operational_requirements",
+          "staff_count"
+        ],
+        "msg": "Input should be greater than or equal to 0"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "provenance status missing",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "s"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "missing",
+        "loc": [
+          "source_references",
+          0,
+          "confirmation_status"
+        ],
+        "msg": "Field required"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "bad confirmation status",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "MAYBE",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "enum",
+        "loc": [
+          "confirmation_status"
+        ],
+        "msg": "Input should be 'DRAFT', 'INFERRED' or 'CONFIRMED'"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "nested extra field",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist",
+        "colour": "red"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "extra_forbidden",
+        "loc": [
+          "design_preferences",
+          "colour"
+        ],
+        "msg": "Extra inputs are not permitted"
+      }
+    ]
+  },
+  {
+    "model": "BusinessExpansionProfile",
+    "name": "non-string market value",
+    "input": {
+      "business_type": "facial_studio",
+      "business_description": "Facial and skincare studio opening its second location.",
+      "current_location_count": 1,
+      "target_market": {
+        "city": 5,
+        "state": "CA"
+      },
+      "opening_capital": 18000000,
+      "monthly_rent_limit": 750000,
+      "working_capital_reserve": 3000000,
+      "space_requirements": {
+        "required_rooms": {
+          "treatment": 3,
+          "reception": 1,
+          "storage": 1
+        },
+        "min_area_sqm": 110
+      },
+      "infrastructure_requirements": {
+        "minimize_plumbing_changes": true,
+        "sinks_per_treatment_room": 1
+      },
+      "design_preferences": {
+        "interior_style": "warm_minimalist"
+      },
+      "ranking_priorities": {
+        "total_cost": 0.5,
+        "infrastructure_fit": 0.3,
+        "evidence_certainty": 0.2,
+        "comparison_horizon_months": 36
+      },
+      "confirmation_status": "CONFIRMED",
+      "source_references": [
+        {
+          "field": "*",
+          "source": "fixture:facial_studio.json",
+          "confirmation_status": "CONFIRMED",
+          "note": "Demo inputs"
+        }
+      ],
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+    },
+    "errors": [
+      {
+        "type": "string_type",
+        "loc": [
+          "target_market",
+          "city"
+        ],
+        "msg": "Input should be a valid string"
+      }
+    ]
+  }
+]

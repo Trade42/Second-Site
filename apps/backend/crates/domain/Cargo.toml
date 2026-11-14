@@ -1,0 +1,23 @@
+[package]
+name = "ss-domain"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Second Site domain contracts and deterministic engines (no HTTP, no database)"
+
+[dependencies]
+ss-core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip: parse JSON floats exactly (correctly rounded), as Python does; ss-server enables it too.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+indexmap = { version = "2", features = ["serde"] }
+thiserror = "2"
+regex = "1"
+rust_decimal = { version = "1", default-features = false, features = ["std", "serde"] }
+csv = "1"
+
+[dev-dependencies]
+indexmap = "2"
+jsonschema = { version = "0.61.2", default-features = false }

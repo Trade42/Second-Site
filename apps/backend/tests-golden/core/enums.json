@@ -1,0 +1,56 @@
+{
+  "EvidenceClassification": [
+    "DOCUMENTED_HISTORICAL",
+    "VISUALLY_OBSERVED",
+    "GEOMETRY_MEASURED",
+    "OWNER_REPORTED",
+    "PROFESSIONALLY_VERIFIED",
+    "DERIVED_ESTIMATE",
+    "UNKNOWN",
+    "CONFLICTING"
+  ],
+  "VerificationStatus": [
+    "UNVERIFIED",
+    "SOURCE_CONFIRMED",
+    "CORROBORATED",
+    "PROFESSIONALLY_VERIFIED",
+    "DISPUTED"
+  ],
+  "MatchStatus": [
+    "EXACT",
+    "PROBABLE",
+    "AMBIGUOUS",
+    "UNMATCHED",
+    "CONFLICTING",
+    "NEEDS_REVIEW"
+  ],
+  "DataOrigin": [
+    "LIVE",
+    "FIXTURE_REAL",
+    "FIXTURE_SYNTHETIC",
+    "USER_PROVIDED",
+    "DERIVED"
+  ],
+  "IntegrationStatus": [
+    "LIVE",
+    "MOCK",
+    "PARTIAL",
+    "BLOCKED",
+    "NOT_STARTED"
+  ],
+  "ProjectStatus": [
+    "ONBOARDING",
+    "SEARCHING",
+    "ANALYZING",
+    "COMPARING",
+    "DESIGNING",
+    "PROCURING",
+    "OPENING",
+    "ARCHIVED"
+  ],
+  "ConfirmationStatus": [
+    "DRAFT",
+    "INFERRED",
+    "CONFIRMED"
+  ]
+}

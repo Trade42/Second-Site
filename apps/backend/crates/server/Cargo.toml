@@ -1,0 +1,43 @@
+[package]
+name = "ss-server"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Second Site HTTP API: store, auth, events, tasks, approvals and core routes (port of apps/api)"
+
+[lib]
+name = "ss_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "second-site-backend"
+path = "src/main.rs"
+
+[dependencies]
+ss-core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip: parse floats exactly as Python does (payload_hash parity, lossless documents).
+# It must be a normal-dependency feature: the jsonschema dev-dependency enables it in test builds.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+serde_path_to_error = "0.1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+indexmap = { version = "2", features = ["serde"] }
+thiserror = "2"
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "original-uri", "matched-path"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "catch-panic"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+bytes = "1"
+sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls-ring", "uuid", "chrono", "json"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+rand = "0.8"
+
+[dev-dependencies]
+jsonschema = { version = "0.61.2", default-features = false }
+http-body-util = "0.1"

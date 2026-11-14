@@ -1,0 +1,2827 @@
+{
+ "listings": [
+  {
+   "args": [
+    "5380 E Alhambra Ave",
+    null,
+    "Los Angeles",
+    "CA",
+    "90032",
+    "5220031007",
+    34.07668,
+    -118.16837,
+    "la-alhambra-5380"
+   ],
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90032",
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+    "implied_floor": null
+   },
+   "identity": {
+    "provider_property_ids": {
+     "fixture": "la-alhambra-5380"
+    },
+    "normalized_address": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+    "street_address": "5380 E ALHAMBRA AVE",
+    "unit_or_suite": null,
+    "city": "Los Angeles",
+    "state": "CA",
+    "postal_code": "90032",
+    "parcel_id": "5220031007",
+    "latitude": 34.07668,
+    "longitude": -118.16837,
+    "identity_match_status": "PROBABLE",
+    "identity_match_confidence": 0.8
+   }
+  },
+  {
+   "args": [
+    "6922 W Hollywood Blvd",
+    "302",
+    "Los Angeles",
+    "CA",
+    "90028",
+    "5548006011",
+    34.10137,
+    -118.34103,
+    "la-hollywood-6922-302"
+   ],
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90028",
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90028",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD, LOS ANGELES, CA 90028",
+    "implied_floor": "3"
+   },
+   "identity": {
+    "provider_property_ids": {
+     "fixture": "la-hollywood-6922-302"
+    },
+    "normalized_address": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90028",
+    "street_address": "6922 W HOLLYWOOD BLVD",
+    "unit_or_suite": "302",
+    "city": "Los Angeles",
+    "state": "CA",
+    "postal_code": "90028",
+    "parcel_id": "5548006011",
+    "latitude": 34.10137,
+    "longitude": -118.34103,
+    "identity_match_status": "PROBABLE",
+    "identity_match_confidence": 0.8
+   }
+  }
+ ],
+ "permit_addresses": [
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE 1/2 Floors",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": "1/2 FLOORS",
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD #900",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "900",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 900",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 107",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "107",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 107",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 11th floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "11",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "11"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 12th floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "12",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "12"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 2nd Fl",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "2",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "2"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 304",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "304",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 304",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 3rd Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "3",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 3rd Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "3",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 3rd floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "3",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 500",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "500",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 500",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5TH FL",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5TH FLOOR-LOBBY CORR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th FL res",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th Fl",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 7th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "7",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "7"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8TH FL",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8TH FL",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8TH FLOOR-RESTROOM",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8TH FLR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 900",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "900",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 900",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 950",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "950",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 950",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 9th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "9",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 9th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "9",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 9th floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "9",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Level P1",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "P1",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "P1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD P1 Level E",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "P1",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "P1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD STE 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD STE 304",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "304",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 304",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD SUITE #304",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": "SUITE # 304",
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD SUITE 925",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "925",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 925",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD SUITE 950",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "950",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 950",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 314",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "314",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 314",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 314",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "314",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 314",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD UNIT 200",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "200",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 200",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "2"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD UNIT 925",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "925",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 925",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Unit 106",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "106",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 106",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "5380 E ALHAMBRA AVE",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD #314",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "314",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 314",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD #925",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "925",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 925",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 107",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "107",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 107",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 108",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "108",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 108",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 200",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "200",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 200",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "2"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 200",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "200",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 200",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "2"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 2ND FLOOR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "2",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "2"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 2nd FLOOR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "2",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "2"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 304",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "304",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 304",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 314",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "314",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 314",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 314",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "314",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 314",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 3rd floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "3",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 500",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "500",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 500",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 500",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "500",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 500",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5TH FL ELE",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5TH FLOOR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5TH FLOOR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th Elevat",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": "5TH ELEVAT",
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 5th flr el",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "5",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "5"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8TH FLOOR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8TH FLOOR",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8th Floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8th floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 8th floor",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "8",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "8"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 900",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "900",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 900",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 925",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "925",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 925",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 950",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "950",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 950",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 9TH FL LOB",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "9",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 9th fl ele",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "9",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD P1 Elevato",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": "P1",
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "P1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD ROOF",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": "ROOF",
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD ROOF",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": "ROOF",
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 109",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "109",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 109",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 304",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "304",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 304",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 900",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "900",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 900",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 925",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "925",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 925",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Suite 950",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "950",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 950",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Trailer Pa",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": "TRAILER PA",
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD Unit 106",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "106",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 106",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD lobby and",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": null,
+    "floor": null,
+    "trailing": "LOBBY AND",
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD suite 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD suite 304",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "304",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 304",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD suite 900",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "900",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 900",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD suite 950",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "950",
+    "floor": null,
+    "trailing": null,
+    "city": null,
+    "state": null,
+    "postal_code": null,
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 950",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD",
+    "implied_floor": "9"
+   }
+  },
+  {
+   "street": "5380 East Alhambra Avenue",
+   "parsed": {
+    "house_number": "5380",
+    "direction": "E",
+    "street_name": "ALHAMBRA",
+    "street_type": "AVE",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "5380 E ALHAMBRA AVE",
+    "normalized": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90012",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD, LOS ANGELES, CA 90012",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W HOLLYWOOD BLVD STE 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD, LOS ANGELES, CA 90012",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 W Hollywood Blvd Suite 302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD, LOS ANGELES, CA 90012",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "6922 w hollywood blvd #302",
+   "parsed": {
+    "house_number": "6922",
+    "direction": "W",
+    "street_name": "HOLLYWOOD",
+    "street_type": "BLVD",
+    "unit": "302",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "6922 W HOLLYWOOD BLVD",
+    "normalized": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "6922 W HOLLYWOOD BLVD, LOS ANGELES, CA 90012",
+    "implied_floor": "3"
+   }
+  },
+  {
+   "street": "100 N Main",
+   "parsed": {
+    "house_number": "100",
+    "direction": "N",
+    "street_name": "MAIN",
+    "street_type": null,
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "100 N MAIN",
+    "normalized": "100 N MAIN, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "100 N MAIN, LOS ANGELES, CA 90012",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "100 West St",
+   "parsed": {
+    "house_number": "100",
+    "direction": null,
+    "street_name": "WEST",
+    "street_type": "ST",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "100 WEST ST",
+    "normalized": "100 WEST ST, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "100 WEST ST, LOS ANGELES, CA 90012",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "12B Ocean Ave Rm 4",
+   "parsed": {
+    "house_number": "12B",
+    "direction": null,
+    "street_name": "OCEAN",
+    "street_type": "AVE",
+    "unit": "4",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "12B OCEAN AVE",
+    "normalized": "12B OCEAN AVE STE 4, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "12B OCEAN AVE, LOS ANGELES, CA 90012",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "1 Nowhere St",
+   "parsed": {
+    "house_number": "1",
+    "direction": null,
+    "street_name": "NOWHERE",
+    "street_type": "ST",
+    "unit": null,
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "1 NOWHERE ST",
+    "normalized": "1 NOWHERE ST, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "1 NOWHERE ST, LOS ANGELES, CA 90012",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "630 W 6th St Ste 110 B",
+   "parsed": {
+    "house_number": "630",
+    "direction": "W",
+    "street_name": "6TH",
+    "street_type": "ST",
+    "unit": "110",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "630 W 6TH ST",
+    "normalized": "630 W 6TH ST STE 110, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "630 W 6TH ST, LOS ANGELES, CA 90012",
+    "implied_floor": "1"
+   }
+  },
+  {
+   "street": "77 N.  Spring   St., Unit 5",
+   "parsed": {
+    "house_number": "77",
+    "direction": "N",
+    "street_name": "SPRING",
+    "street_type": "ST",
+    "unit": "5",
+    "floor": null,
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "77 N SPRING ST",
+    "normalized": "77 N SPRING ST STE 5, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "77 N SPRING ST, LOS ANGELES, CA 90012",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "900 S Figueroa St Level P2",
+   "parsed": {
+    "house_number": "900",
+    "direction": "S",
+    "street_name": "FIGUEROA",
+    "street_type": "ST",
+    "unit": null,
+    "floor": "P2",
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "900 S FIGUEROA ST",
+    "normalized": "900 S FIGUEROA ST, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "900 S FIGUEROA ST, LOS ANGELES, CA 90012",
+    "implied_floor": "P2"
+   }
+  },
+  {
+   "street": "900 S FIGUEROA ST, LOS ANGELES",
+   "parsed": {
+    "house_number": "900",
+    "direction": "S",
+    "street_name": "FIGUEROA",
+    "street_type": "ST",
+    "unit": null,
+    "floor": null,
+    "trailing": "LOS ANGELES",
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "900 S FIGUEROA ST",
+    "normalized": "900 S FIGUEROA ST, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "900 S FIGUEROA ST, LOS ANGELES, CA 90012",
+    "implied_floor": null
+   }
+  },
+  {
+   "street": "42 Elm Way 3rd Flr",
+   "parsed": {
+    "house_number": "42",
+    "direction": null,
+    "street_name": "ELM",
+    "street_type": "WAY",
+    "unit": null,
+    "floor": "3",
+    "trailing": null,
+    "city": "LOS ANGELES",
+    "state": "CA",
+    "postal_code": "90012",
+    "street_line": "42 ELM WAY",
+    "normalized": "42 ELM WAY, LOS ANGELES, CA 90012",
+    "normalized_without_unit": "42 ELM WAY, LOS ANGELES, CA 90012",
+    "implied_floor": "3"
+   }
+  }
+ ],
+ "units": [
+  {
+   "unit": "110 B",
+   "norm": "110B"
+  },
+  {
+   "unit": "Ste 110 B",
+   "norm": "110B"
+  },
+  {
+   "unit": "302",
+   "norm": "302"
+  },
+  {
+   "unit": "Suite 302",
+   "norm": "302"
+  },
+  {
+   "unit": "#314",
+   "norm": "314"
+  },
+  {
+   "unit": "UNIT 7",
+   "norm": "7"
+  },
+  {
+   "unit": "5th Floor",
+   "norm": "5TH FLOOR"
+  },
+  {
+   "unit": "ROOF",
+   "norm": "ROOF"
+  },
+  {
+   "unit": "",
+   "norm": null
+  },
+  {
+   "unit": null,
+   "norm": null
+  },
+  {
+   "unit": "A",
+   "norm": "A"
+  },
+  {
+   "unit": "Suite #304",
+   "norm": "# 304"
+  },
+  {
+   "unit": "ste. 12-a",
+   "norm": "12-A"
+  },
+  {
+   "unit": "  9  ",
+   "norm": "9"
+  }
+ ],
+ "designators": [
+  {
+   "rest": "",
+   "result": [
+    null,
+    null,
+    null
+   ]
+  },
+  {
+   "rest": "STE 302",
+   "result": [
+    "302",
+    null,
+    null
+   ]
+  },
+  {
+   "rest": "# 314",
+   "result": [
+    "314",
+    null,
+    null
+   ]
+  },
+  {
+   "rest": "5TH FLOOR",
+   "result": [
+    null,
+    "5",
+    null
+   ]
+  },
+  {
+   "rest": "FLOOR 3",
+   "result": [
+    null,
+    "3",
+    null
+   ]
+  },
+  {
+   "rest": "LEVEL P1",
+   "result": [
+    null,
+    "P1",
+    null
+   ]
+  },
+  {
+   "rest": "P1 ELEVATO",
+   "result": [
+    null,
+    "P1",
+    null
+   ]
+  },
+  {
+   "rest": "ROOF",
+   "result": [
+    null,
+    null,
+    "ROOF"
+   ]
+  },
+  {
+   "rest": "LOBBY AND",
+   "result": [
+    null,
+    null,
+    "LOBBY AND"
+   ]
+  },
+  {
+   "rest": "3RD FLOOR",
+   "result": [
+    null,
+    "3",
+    null
+   ]
+  },
+  {
+   "rest": "2ND FL",
+   "result": [
+    null,
+    "2",
+    null
+   ]
+  },
+  {
+   "rest": "12TH FLOOR",
+   "result": [
+    null,
+    "12",
+    null
+   ]
+  },
+  {
+   "rest": "5TH FLOOR-LOBBY CORR",
+   "result": [
+    null,
+    "5",
+    null
+   ]
+  },
+  {
+   "rest": "302",
+   "result": [
+    "302",
+    null,
+    null
+   ]
+  },
+  {
+   "rest": "A12",
+   "result": [
+    "A12",
+    null,
+    null
+   ]
+  },
+  {
+   "rest": "TRAILER PA",
+   "result": [
+    null,
+    null,
+    "TRAILER PA"
+   ]
+  },
+  {
+   "rest": "1/2 FLOORS",
+   "result": [
+    null,
+    null,
+    "1/2 FLOORS"
+   ]
+  },
+  {
+   "rest": "UNIT 200",
+   "result": [
+    "200",
+    null,
+    null
+   ]
+  },
+  {
+   "rest": "APT 4B",
+   "result": [
+    "4B",
+    null,
+    null
+   ]
+  },
+  {
+   "rest": "SPACE 9",
+   "result": [
+    "9",
+    null,
+    null
+   ]
+  }
+ ],
+ "errors": [
+  {
+   "street": "Main St",
+   "message": "address must start with a house number: 'Main St'"
+  },
+  {
+   "street": "",
+   "message": "address must start with a house number: ''"
+  },
+  {
+   "street": "   ",
+   "message": "address must start with a house number: '   '"
+  },
+  {
+   "street": "#12 Main St",
+   "message": "address must start with a house number: '#12 Main St'"
+  },
+  {
+   "street": "ONE MAIN ST",
+   "message": "address must start with a house number: 'ONE MAIN ST'"
+  }
+ ]
+}
