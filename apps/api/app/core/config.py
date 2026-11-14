@@ -45,8 +45,6 @@ class Settings(BaseSettings):
     supervisor_model: str | None = Field(default=None, alias="SUPERVISOR_MODEL")
     anthropic_api_key: SecretStr | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     agent_checkpointer: str = Field(default="memory", alias="AGENT_CHECKPOINTER")  # memory | postgres
-    # Origin of the Rust API (e.g. http://localhost:8000, no /api/v1). Unset: supervisor tools run in-process.
-    backend_api_url: str | None = Field(default=None, alias="BACKEND_API_URL")
 
     # PROVIDER MODES
     property_provider_mode: ProviderMode = Field(default=ProviderMode.FIXTURE, alias="PROPERTY_PROVIDER_MODE")

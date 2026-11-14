@@ -385,30 +385,6 @@ pub fn body_errors_with_input(
                 obj.insert("ctx".into(), json!({ key: n }));
             }
         }
-        // List length errors: Pydantic's `ctx` is `{field_type, min_length|max_length,
-        // actual_length}`, read back from the message it formats from them ("List should have at
-        // least 1 item after validation, not 0").
-        let length = match kind.as_str() {
-            "too_short" => Some(("List should have at least ", "min_length")),
-            "too_long" => Some(("List should have at most ", "max_length")),
-            _ => None,
-        };
-        if let Some((prefix, key)) = length {
-            let msg = obj.get("msg").and_then(Value::as_str).unwrap_or("");
-            if let Some(rest) = msg.strip_prefix(prefix) {
-                let bound = rest.split(' ').next().and_then(|n| n.parse::<i64>().ok());
-                let actual = rest
-                    .rsplit(", not ")
-                    .next()
-                    .and_then(|n| n.parse::<i64>().ok());
-                if let (Some(bound), Some(actual)) = (bound, actual) {
-                    obj.insert(
-                        "ctx".into(),
-                        json!({"field_type": "List", key: bound, "actual_length": actual}),
-                    );
-                }
-            }
-        }
     }
     AppError::RequestValidation(errors)
 }

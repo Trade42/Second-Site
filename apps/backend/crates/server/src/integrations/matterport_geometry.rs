@@ -23,27 +23,6 @@
 //! limit may be classified differently than GEOS's polygonal buffers would. Numbers keep
 //! Python's types: wall coordinates copied from the model stay integers when the model sent
 //! integers, computed coordinates are floats.
-//!
-//! **Deliberate deviation: rotated multi-room plans (part 2 review, F5).** When rooms are drawn
-//! as separate boxes that share walls, and the plan is rotated, the shared walls are collinear
-//! only up to float rounding and meet at T-junctions without a shared vertex. GEOS then leaves
-//! the rooms as separate polygons with gaps below 1e-7 m between them, so Python returns the
-//! largest single room as the outline (or `None` when that room is under 4 m2). This port nodes
-//! within 1e-12 and returns the whole plan's outline, which is the physically meaningful floor:
-//! the layout solver needs the suite, not one room of it. Evidence:
-//! - the reviewer's runs: 6 of 10 random rotated multi-room plans differ, while their 20
-//!   unrotated and quarter-turn variants all match; in 5,000 fuzz graphs, 103 of the 1,000
-//!   rotated-box cases differ (88 by area, 15 where Python gives `None`), and in another 1,500,
-//!   20 differ (17 by area, 3 where Python keeps a 4.0 m2 footprint and Rust gives `None`:
-//!   float noise at the 4 m2 limit, the opposite direction);
-//! - Shapely itself: buffering the faces by 1e-7 makes their union one polygon;
-//! - the pinned case `tests-golden/server/matterport_geometry_rotated.json` (from
-//!   `gen_geometry_rotated.py`): three rooms of 40.0, 24.5 and 17.6 m2 rotated by 11 degrees;
-//!   Python's outline is the 40.0 m2 room, Rust's is the 82.1 m2 suite (test
-//!   `providers::rotated_multi_room_plan_keeps_the_whole_suite`).
-//!
-//! Openings and `fixed_walls` follow from the footprint choice (a wall between two rooms that
-//! Python sees as the outline of one room is an interior wall here).
 
 use std::collections::{HashMap, HashSet};
 
@@ -243,12 +222,7 @@ fn point_in_ring(p: P, ring: &[P]) -> bool {
 
 /// Trace cycles of directed half-edges `(u, v)`: from `u -> v`, continue with the outgoing
 /// half-edge of `v` that is next clockwise from `v -> u` (the face lies on the left).
-///
-/// `None` when the set is inconsistent: a half-edge ends at a vertex with no outgoing half-edge.
-/// That cannot happen for a full set of twins, and should not for the traced union boundary,
-/// but the walls are provider data, so the caller reports "no geometry" instead of panicking
-/// (part 2 review, F11).
-fn trace(pts: &[P], half: &[(usize, usize)]) -> Option<Vec<Vec<usize>>> {
+fn trace(pts: &[P], half: &[(usize, usize)]) -> Vec<Vec<usize>> {
     let mut out_of: HashMap<usize, Vec<usize>> = HashMap::new();
     for (i, &(u, _)) in half.iter().enumerate() {
         out_of.entry(u).or_default().push(i);
@@ -271,7 +245,7 @@ fn trace(pts: &[P], half: &[(usize, usize)]) -> Option<Vec<Vec<usize>>> {
             used[e] = true;
             let (u, v) = half[e];
             cycle.push(u);
-            let list = out_of.get(&v).filter(|l| !l.is_empty())?;
+            let list = &out_of[&v];
             // Position of the twin `v -> u` among v's outgoing edges (sorted counter-clockwise),
             // or of the angle it would have when the twin is not a half-edge of this set.
             let twin_angle = (pts[u].1 - pts[v].1).atan2(pts[u].0 - pts[v].0);
@@ -289,18 +263,17 @@ fn trace(pts: &[P], half: &[(usize, usize)]) -> Option<Vec<Vec<usize>>> {
         }
         cycles.push(cycle);
     }
-    Some(cycles)
+    cycles
 }
 
 /// The rings bounding the union of the bounded faces, as point lists (counter-clockwise).
-/// `None` when the traced boundary is inconsistent (see [`trace`]).
-fn union_rings(g: &Graph) -> Option<Vec<Vec<P>>> {
+fn union_rings(g: &Graph) -> Vec<Vec<P>> {
     let mut half = Vec::with_capacity(g.edges.len() * 2);
     for &(u, v) in &g.edges {
         half.push((u, v));
         half.push((v, u));
     }
-    let cycles = trace(&g.pts, &half)?;
+    let cycles = trace(&g.pts, &half);
     let rings: Vec<Vec<P>> = cycles
         .iter()
         .map(|c| c.iter().map(|&i| g.pts[i]).collect())
@@ -338,13 +311,11 @@ fn union_rings(g: &Graph) -> Option<Vec<Vec<P>>> {
                 && !matches!(t, Some(t) if bounded[t])
         })
         .collect();
-    Some(
-        trace(&g.pts, &boundary)?
-            .into_iter()
-            .map(|c| c.into_iter().map(|i| g.pts[i]).collect::<Vec<P>>())
-            .filter(|r: &Vec<P>| r.len() >= 3 && signed_area(r) > 0.0)
-            .collect(),
-    )
+    trace(&g.pts, &boundary)
+        .into_iter()
+        .map(|c| c.into_iter().map(|i| g.pts[i]).collect::<Vec<P>>())
+        .filter(|r: &Vec<P>| r.len() >= 3 && signed_area(r) > 0.0)
+        .collect()
 }
 
 /// Douglas-Peucker on a closed ring (first point fixed, as GEOS treats the ring as a line).
@@ -488,10 +459,7 @@ pub fn floor_geometry_from_model(
         .collect();
     let mut graph = node(&plain);
     remove_dangles(&mut graph);
-    // An inconsistent boundary (F11) is "no geometry", as a model without a usable floor.
-    let Some(rings) = union_rings(&graph) else {
-        return Ok(None);
-    };
+    let rings = union_rings(&graph);
     // The largest polygon (first of equal areas), holes dropped.
     let Some(footprint) = rings.into_iter().fold(None::<Vec<P>>, |acc, r| match acc {
         Some(a) if signed_area(&a).abs() >= signed_area(&r).abs() => Some(a),
@@ -586,7 +554,7 @@ mod tests {
     fn footprint(segs: &[(P, P)]) -> Vec<P> {
         let mut g = node(segs);
         remove_dangles(&mut g);
-        let rings = union_rings(&g).unwrap();
+        let rings = union_rings(&g);
         let best = rings
             .into_iter()
             .max_by(|a, b| signed_area(a).total_cmp(&signed_area(b)))
@@ -667,29 +635,8 @@ mod tests {
         segs.extend(square_ring(4.0, 4.0, 9.0, 9.0));
         let mut g = node(&segs);
         remove_dangles(&mut g);
-        let mut areas: Vec<f64> = union_rings(&g)
-            .unwrap()
-            .iter()
-            .map(|r| signed_area(r))
-            .collect();
+        let mut areas: Vec<f64> = union_rings(&g).iter().map(|r| signed_area(r)).collect();
         areas.sort_by(f64::total_cmp);
         assert_eq!(areas, vec![16.0, 25.0]);
-    }
-
-    /// F11 (part 2 review): a half-edge that ends at a vertex with no outgoing half-edge used to
-    /// panic on a `HashMap` index (`&out_of[&v]`); it is now an inconsistent set, `None`.
-    #[test]
-    fn an_inconsistent_boundary_is_no_geometry_not_a_panic() {
-        let pts = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)];
-        // 0 -> 1 -> 2, and nothing leaves 2.
-        assert_eq!(trace(&pts, &[(0, 1), (1, 2)]), None);
-        assert_eq!(trace(&pts, &[(0, 1)]), None);
-        // A closed cycle is still traced.
-        assert_eq!(
-            trace(&pts, &[(0, 1), (1, 2), (2, 0)]),
-            Some(vec![vec![0, 1, 2]])
-        );
-        // An empty set has no cycles.
-        assert_eq!(trace(&pts, &[]), Some(vec![]));
     }
 }

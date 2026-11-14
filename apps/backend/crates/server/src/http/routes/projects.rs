@@ -203,16 +203,8 @@ async fn save_profile(
                 return Err(not_yours());
             }
         }
-        // Lock the project row before the first write, and build the update from the locked
-        // row (part 2 review, F2). A PUT that overlaps a search then waits for it and writes onto
-        // its result instead of putting back the copy read before the search committed (which
-        // reverted `project_status`), and it takes the search route's lock order: the project
-        // row, then the project's event lock (first emit).
-        let (mut updated, _) = PROJECTS
-            .get_for_update(tx, project.project_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("project not found"))?;
         PROFILES.upsert(tx, &profile).await?;
+        let mut updated = project.clone();
         updated.business_profile_id = Some(profile.profile_id);
         PROJECTS.upsert(tx, &updated).await?;
         if profile.confirmation_status == ConfirmationStatus::Confirmed {

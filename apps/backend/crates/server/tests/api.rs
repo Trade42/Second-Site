@@ -109,16 +109,8 @@ both_backends!(health_and_ready, |db| {
             json!({"provider": "vexcel", "mode": "fixture", "status": "MOCK", "credentials_present": false, "note": "No imagery in fixture mode. Set VEXCEL_PROVIDER_MODE=live with VEXCEL_API_KEY."}),
         ]
     );
-    // The fixture catalog (its price table feeds the bill of materials), as Python reports it.
-    assert_eq!(
-        providers[7],
-        json!({"provider": "product_catalog", "mode": "fixture", "status": "MOCK", "credentials_present": false, "note": "Illustrative prices only; no supplier integration."})
-    );
     assert!(
-        providers[4..7]
-            .iter()
-            .chain(&providers[8..])
-            .all(|p| p["status"] == "NOT_STARTED"),
+        providers[4..].iter().all(|p| p["status"] == "NOT_STARTED"),
         "{}",
         r.text
     );

@@ -2197,22 +2197,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ss-nessie"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "jsonschema",
- "log",
- "serde",
- "serde_json",
- "ss-core",
- "ss-domain",
- "thiserror",
- "ureq",
- "uuid",
-]
-
-[[package]]
 name = "ss-server"
 version = "0.1.0"
 dependencies = [
