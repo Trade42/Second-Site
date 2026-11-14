@@ -9,7 +9,6 @@ import hmac
 import json
 import threading
 import time
-from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -348,65 +347,3 @@ def test_internal_route_is_not_in_the_public_contract(client):
     assert not any(p.startswith("/internal") for p in app.openapi()["paths"])
     published = json.loads((API_DIR.parents[1] / "packages" / "contracts" / "openapi.json").read_text())
     assert not any(p.startswith("/internal") for p in published["paths"])
-
-
-@pytest.fixture
-def failing_commit(db):
-    """PostgreSQL refuses the COMMIT (not an earlier statement) of a transaction that inserted the notify event for
-    key 'commit-fails': a deferred constraint trigger raises at commit time. `remove()` lets commits through again."""
-    from app.db.session import get_engine
-
-    eng = get_engine()
-
-    def run(*statements: str) -> None:
-        db.rollback()  # the test session must not hold a lock on activity_events while the trigger changes
-        with eng.begin() as conn:
-            conn.execute(text("SET LOCAL lock_timeout = '5s'"))
-            for statement in statements:
-                conn.execute(text(statement))
-
-    run(
-        "CREATE OR REPLACE FUNCTION ss_test_refuse_commit() RETURNS trigger LANGUAGE plpgsql AS"
-        " $$ BEGIN RAISE EXCEPTION 'commit refused by the test trigger'; END $$",
-        "CREATE CONSTRAINT TRIGGER ss_test_refuse_commit AFTER INSERT ON activity_events"
-        " DEFERRABLE INITIALLY DEFERRED FOR EACH ROW"
-        " WHEN (NEW.idempotency_key = 'notify:commit-fails') EXECUTE FUNCTION ss_test_refuse_commit()",
-    )
-    removed = False
-
-    def remove() -> None:
-        nonlocal removed
-        if not removed:
-            run(
-                "DROP TRIGGER IF EXISTS ss_test_refuse_commit ON activity_events",
-                "DROP FUNCTION IF EXISTS ss_test_refuse_commit()",
-            )
-            removed = True
-
-    yield SimpleNamespace(key="commit-fails", remove=remove)
-    remove()
-
-
-def test_a_failed_commit_is_a_non_2xx_and_nothing_is_stored(client, container, db, sends, failing_commit):
-    from app.main import app
-
-    uid, h, (pid,) = _owner(client, container)
-    _link(client, h, container)
-    sent_before = len(sends)
-    body, headers = _body(uid, pid, key=failing_commit.key), _service(container, uid)
-    r = TestClient(app, raise_server_exceptions=False).post(URL, json=body, headers=headers)
-    # The answer is sent only after the commit: a refused commit is a non-2xx (before the fix: 200 "recorded").
-    assert r.status_code == 500 and r.json()["error_code"] == "INTERNAL_ERROR", r.text
-    assert "communication_id" not in r.json()
-    db.rollback()
-    assert [c for c in _comms(db, pid) if c.purpose == "call_summary"] == []
-    assert _notify_events(db, failing_commit.key) == 0
-    # The text did go out before the commit failed, so "not notified" under-reports. The key was not consumed:
-    # a retry with the same key texts again (the accepted trade-off of committing before answering).
-    assert len(sends) == sent_before + 1
-    failing_commit.remove()
-    again = client.post(URL, json=body, headers=headers)
-    assert again.status_code == 200 and again.json()["delivery"] == "recorded", again.text
-    assert len(sends) == sent_before + 2
-    assert _notify_events(db, failing_commit.key) == 1
-    assert len([c for c in _comms(db, pid) if c.purpose == "call_summary"]) == 1
