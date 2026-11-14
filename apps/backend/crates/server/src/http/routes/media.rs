@@ -138,10 +138,12 @@ async fn upload(
         let filename = field.file_name().map(str::to_owned);
         // Starlette's `UploadFile.content_type`: the part's raw header, decoded as latin-1 (no
         // MIME parsing or case folding, so `IMAGE/JPEG` is refused as in Python).
-        let content_type = field
-            .headers()
-            .get(CONTENT_TYPE)
-            .map(|v| v.as_bytes().iter().map(|&b| char::from(b)).collect::<String>());
+        let content_type = field.headers().get(CONTENT_TYPE).map(|v| {
+            v.as_bytes()
+                .iter()
+                .map(|&b| char::from(b))
+                .collect::<String>()
+        });
         let is_file = filename.is_some();
         let mut part = FilePart {
             filename,
