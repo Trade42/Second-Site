@@ -357,6 +357,95 @@ def test_parse_inbound_ignores_agent_and_other_events():
     ]
 
 
+def test_revise_and_change_save_design_words_without_chat(monkeypatch):
+    """revise: and change: are saved and answered in inbound routing. They never reach run_chat."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from uuid import UUID
+
+    from app.contracts import OwnerChannel, OwnerChannelStatus
+    from app.domains.communications.inbound import route_owner_message
+    from app.integrations.photon import InboundMessage
+
+    owner_id = UUID("00000000-0000-0000-0000-000000000001")
+    project_id = UUID("00000000-0000-0000-0000-000000000002")
+    channel = OwnerChannel(
+        owner_id=owner_id, handle="+15555550142", status=OwnerChannelStatus.LINKED
+    )
+    monkeypatch.setattr(
+        "app.domains.communications.owner_channel.channel_for_handle", lambda db, handle: channel
+    )
+    monkeypatch.setattr(
+        "app.domains.communications.owner_channel.link_from_inbound", lambda db, ch, msg: ch
+    )
+    monkeypatch.setattr(
+        "app.domains.communications.owner_channel.latest_project_id", lambda db, oid: project_id
+    )
+    chat_calls: list[str] = []
+
+    def fake_run_chat(ctx, message, settings, model=None, thread_id=None):
+        chat_calls.append(message)
+        return SimpleNamespace(reply="from chat")
+
+    def refuse_revise(*args, **kwargs):
+        raise AssertionError("DesignService.revise must not run from an owner text")
+
+    monkeypatch.setattr("app.agents.supervisor.run_chat", fake_run_chat)
+    monkeypatch.setattr("app.domains.design.service.DesignService.revise", refuse_revise)
+
+    def inbound(text: str, message_id: str) -> InboundMessage:
+        return InboundMessage(
+            event_id=message_id,
+            message_id=message_id,
+            platform="imessage",
+            sender_handle="+15555550142",
+            sender_user_id="u1",
+            agent_user_id="a1",
+            agent_handle=None,
+            space_id="spc1",
+            space_kind="direct",
+            text=text,
+        )
+
+    container = SimpleNamespace(settings=SimpleNamespace(public_web_url="http://localhost:3000"))
+    db = MagicMock()
+
+    handled, reply = route_owner_message(
+        db, container, inbound("revise: move the reception to the front", "m-revise")
+    )
+    assert handled == "command"
+    assert reply == (
+        "Noted. I saved this design change: move the reception to the front. "
+        "Layout edits still happen in the app."
+    )
+    assert chat_calls == []
+
+    handled, reply = route_owner_message(
+        db, container, inbound("CHANGE: add a second treatment room", "m-change")
+    )
+    assert handled == "command"
+    assert reply == (
+        "Noted. I saved this design change: add a second treatment room. "
+        "Layout edits still happen in the app."
+    )
+    assert "AI" not in reply
+    assert chat_calls == []
+
+    saved = [call.args[0].data for call in db.add.call_args_list]
+    assert [row["structured_findings"][0]["answer"] for row in saved] == [
+        "move the reception to the front",
+        "add a second treatment room",
+    ]
+    assert all(row["purpose"] == "design change" for row in saved)
+    assert [row["provider_message_ids"] for row in saved] == [["m-revise"], ["m-change"]]
+
+    handled, reply = route_owner_message(
+        db, container, inbound("Can you change the reception later?", "m-chat")
+    )
+    assert handled == "chat" and reply == "from chat"
+    assert chat_calls == ["Can you change the reception later?"]
+
+
 def test_simulated_owner_text_endpoint(client, auth, demo_project_body):
     h, _ = auth
     _project(client, h, demo_project_body)
