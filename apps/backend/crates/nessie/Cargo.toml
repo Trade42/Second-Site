@@ -1,0 +1,23 @@
+[package]
+name = "ss-nessie"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Second Site: Capital One Nessie v2 sandbox integration (simulated move-in payments and an affordability check; mock money only)"
+
+[dependencies]
+ss-core = { path = "../core" }
+ss-domain = { path = "../domain" }
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip: parse JSON floats exactly (bill amounts are dollar floats); the other crates enable it too.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock", "serde"] }
+thiserror = "2"
+# Blocking HTTP client, the same version and features as ss-server's live provider adapters.
+ureq = { version = "2", default-features = false, features = ["tls"] }
+
+[dev-dependencies]
+jsonschema = { version = "0.61.2", default-features = false }
+# Captures every log record (ureq logs through `log`) so tests can assert the key never appears.
+log = { version = "0.4", features = ["std"] }

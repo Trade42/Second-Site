@@ -1,7 +1,8 @@
 """Minimal HMAC-signed bearer tokens for the hackathon build.
 
 Production should replace this with a real IdP (documented in docs/INFRASTRUCTURE_DECISIONS.md).
-Tokens: base64url(user_id.exp).hexsig — no external dependency, constant-time verification.
+Tokens: base64url(purpose.user_id.exp).hexsig — no external dependency, constant-time verification.
+The purpose is signed, so a token verifies only for the purpose it was minted for.
 """
 
 from __future__ import annotations
@@ -15,18 +16,24 @@ from uuid import UUID
 
 from .errors import UnauthorizedError
 
+# Ordinary bearer tokens (web app, dev token). `api.deps.current_user` accepts only this purpose.
+ACCESS_PURPOSE = "access"
+# Rust service -> this app, internal routes only (`api/routes/internal.py`); user id = the owner it acts for.
+# Never accepted as an access token, and an access token is never accepted where this purpose is required.
+SERVICE_PURPOSE = "service"
+
 
 def _sign(secret: str, body: str) -> str:
     return hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
 
 
-def issue_token(secret: str, user_id: UUID, ttl_s: int = 7 * 24 * 3600, purpose: str = "access") -> str:
+def issue_token(secret: str, user_id: UUID, ttl_s: int = 7 * 24 * 3600, purpose: str = ACCESS_PURPOSE) -> str:
     body = f"{purpose}.{user_id}.{int(time.time()) + ttl_s}"
     enc = base64.urlsafe_b64encode(body.encode()).decode().rstrip("=")
     return f"{enc}.{_sign(secret, body)}"
 
 
-def verify_token(secret: str, token: str, purpose: str = "access") -> UUID:
+def verify_token(secret: str, token: str, purpose: str = ACCESS_PURPOSE) -> UUID:
     try:
         enc, sig = token.rsplit(".", 1)
         body = base64.urlsafe_b64decode(enc + "=" * (-len(enc) % 4)).decode()
