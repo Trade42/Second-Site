@@ -366,8 +366,7 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
             if let Some(last) = rows.into_iter().last() {
                 scenarios.insert(p.property_id, last);
             }
-            let arows: Vec<InfrastructureAssessment> =
-                live_for_property(tx, p.property_id).await?;
+            let arows: Vec<InfrastructureAssessment> = live_for_property(tx, p.property_id).await?;
             assessments.insert(p.property_id, arows);
         }
         let latest = tx
@@ -438,8 +437,14 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
                     .collect::<Vec<_>>(),
             ),
         );
-        out.insert("ranking_id".into(), Value::String(ranking.ranking_id.to_string()));
-        out.insert("ranking_version".into(), Value::from(ranking.ranking_version));
+        out.insert(
+            "ranking_id".into(),
+            Value::String(ranking.ranking_id.to_string()),
+        );
+        out.insert(
+            "ranking_version".into(),
+            Value::from(ranking.ranking_version),
+        );
         Ok(out)
     }
 }

@@ -20,7 +20,9 @@ use serde_json::{json, Map, Value};
 use ss_domain::integrations::base::{ProviderError, RetryPolicy};
 use ss_domain::integrations::la_permits::{LaPermitProvider, RawPermit};
 use ss_server::integrations::matterport::{suite_matches, MatterportProvider};
-use ss_server::integrations::vexcel::{summarize_property, VexcelProvider, ORTHO_PIXELS, ORTHO_SIZE_M};
+use ss_server::integrations::vexcel::{
+    summarize_property, VexcelProvider, ORTHO_PIXELS, ORTHO_SIZE_M,
+};
 use ss_server::integrations::{LiveLaPermitProvider, LiveMatterportProvider, LiveVexcelProvider};
 
 use common::mock_http::{Canned, MockServer};
@@ -30,7 +32,10 @@ const B64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STA
 
 fn canned(r: &Value) -> Canned {
     let status = r["status"].as_u64().unwrap() as u16;
-    let explicit = r.get("content_type").and_then(Value::as_str).map(str::to_owned);
+    let explicit = r
+        .get("content_type")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     if let Some(j) = r.get("json") {
         Canned {
             status,
@@ -99,10 +104,25 @@ fn floats(v: &Value) -> Value {
     }
 }
 
-fn run(s: &Value) -> (Result<Value, ProviderError>, Vec<common::mock_http::Recorded>, String) {
-    let responses: Vec<Canned> = s["responses"].as_array().unwrap().iter().map(canned).collect();
+fn run(
+    s: &Value,
+) -> (
+    Result<Value, ProviderError>,
+    Vec<common::mock_http::Recorded>,
+    String,
+) {
+    let responses: Vec<Canned> = s["responses"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(canned)
+        .collect();
     let server = MockServer::start(responses);
-    let base = format!("{}{}", server.base, base_path(s["base_url"].as_str().unwrap()));
+    let base = format!(
+        "{}{}",
+        server.base,
+        base_path(s["base_url"].as_str().unwrap())
+    );
     let args = &s["args"];
     let call = &s["call_args"];
     let method = s["method"].as_str().unwrap();
@@ -167,9 +187,9 @@ fn run(s: &Value) -> (Result<Value, ProviderError>, Vec<common::mock_http::Recor
                 "property_elements" => p
                     .property_elements(lat, lon)
                     .map(|o| o.map_or(Value::Null, Value::Object)),
-                _ => p.capture_dates(lat, lon).map(|v| {
-                    Value::Array(v.into_iter().map(Value::Object).collect())
-                }),
+                _ => p
+                    .capture_dates(lat, lon)
+                    .map(|v| Value::Array(v.into_iter().map(Value::Object).collect())),
             }
         }
     };
@@ -188,13 +208,23 @@ fn live_adapters_send_what_python_sends() {
         let (result, requests, rust_base) = run(s);
         let want = s["requests"].as_array().unwrap();
         if requests.len() != want.len() {
-            problems.push(format!("{name}: {} requests, Python sent {}", requests.len(), want.len()));
+            problems.push(format!(
+                "{name}: {} requests, Python sent {}",
+                requests.len(),
+                want.len()
+            ));
             continue;
         }
         for (i, (got, w)) in requests.iter().zip(want).enumerate() {
             let q: Vec<Value> = got.query.iter().map(|(k, v)| json!([k, v])).collect();
-            if got.method != w["method"] || got.path != w["path"].as_str().unwrap() || Value::Array(q.clone()) != w["query"] {
-                problems.push(format!("{name}[{i}]: {} {} {:?} != python {} {} {}", got.method, got.path, q, w["method"], w["path"], w["query"]));
+            if got.method != w["method"]
+                || got.path != w["path"].as_str().unwrap()
+                || Value::Array(q.clone()) != w["query"]
+            {
+                problems.push(format!(
+                    "{name}[{i}]: {} {} {:?} != python {} {} {}",
+                    got.method, got.path, q, w["method"], w["path"], w["query"]
+                ));
             }
             for h in ["authorization", "x-api-key", "x-app-token"] {
                 let g = got.headers.get(h).map(String::as_str);
@@ -210,7 +240,10 @@ fn live_adapters_send_what_python_sends() {
                 }
                 let ct = got.headers.get("content-type").map(String::as_str);
                 if ct != w["headers"]["content-type"].as_str() {
-                    problems.push(format!("{name}[{i}]: content-type {ct:?} != python {}", w["headers"]["content-type"]));
+                    problems.push(format!(
+                        "{name}[{i}]: content-type {ct:?} != python {}",
+                        w["headers"]["content-type"]
+                    ));
                 }
             }
         }
@@ -218,9 +251,16 @@ fn live_adapters_send_what_python_sends() {
         let py_origin = &py_base[..py_base.len() - base_path(py_base).len()];
         match (&result, &s["result"]) {
             (Ok(v), w) if w.get("ok").is_some() => {
-                let text = serde_json::to_string(&w["ok"]).unwrap().replace(py_origin, &rust_base);
+                let text = serde_json::to_string(&w["ok"])
+                    .unwrap()
+                    .replace(py_origin, &rust_base);
                 let want: Value = serde_json::from_str(&text).unwrap();
-                if floats(v) != floats(&want) {
+                let (got, want) = if s["method"] == "model_summaries" {
+                    (floats(v), floats(&want))
+                } else {
+                    (v.clone(), want)
+                };
+                if got != want {
                     problems.push(format!("{name}: result {v} != python {want}"));
                 }
             }
@@ -252,10 +292,17 @@ fn vexcel_answers_are_cached() {
     let p = LiveVexcelProvider::with_policy(
         &format!("{}/v2", server.base),
         Some("vk"),
-        RetryPolicy { attempts: 2, backoff_s: 0.0, timeout_s: 5.0 },
+        RetryPolicy {
+            attempts: 2,
+            backoff_s: 0.0,
+            timeout_s: 5.0,
+        },
     );
     for _ in 0..3 {
-        assert_eq!(p.ortho_image(34.05, -118.25, 80, 600).unwrap(), Some(jpeg.clone()));
+        assert_eq!(
+            p.ortho_image(34.05, -118.25, 80, 600).unwrap(),
+            Some(jpeg.clone())
+        );
     }
     assert_eq!(server.requests().len(), 1);
 }
@@ -270,12 +317,19 @@ fn transport_failures_are_classified() {
     let p = LiveVexcelProvider::with_policy(
         &format!("http://127.0.0.1:{port}/v2"),
         Some("vk-secret-value"),
-        RetryPolicy { attempts: 2, backoff_s: 0.0, timeout_s: 2.0 },
+        RetryPolicy {
+            attempts: 2,
+            backoff_s: 0.0,
+            timeout_s: 2.0,
+        },
     );
     let e = p.property_elements(34.05, -118.25).unwrap_err();
     assert_eq!(e.kind.as_str(), "UNAVAILABLE", "{e}");
     assert!(e.retryable());
-    assert!(!e.to_string().contains("127.0.0.1") && !e.to_string().contains("vk-secret"), "{e}");
+    assert!(
+        !e.to_string().contains("127.0.0.1") && !e.to_string().contains("vk-secret"),
+        "{e}"
+    );
     // A server that accepts but never answers: TIMEOUT.
     let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = l.local_addr().unwrap().port();
@@ -288,7 +342,11 @@ fn transport_failures_are_classified() {
         &format!("http://127.0.0.1:{port}/graph"),
         Some("tid"),
         Some("tsecret"),
-        RetryPolicy { attempts: 2, backoff_s: 0.0, timeout_s: 0.5 },
+        RetryPolicy {
+            attempts: 2,
+            backoff_s: 0.0,
+            timeout_s: 0.5,
+        },
     );
     let e = p.model_summaries(&["AAAA1111".to_owned()]).unwrap_err();
     assert_eq!(e.kind.as_str(), "TIMEOUT", "{e}");
@@ -328,4 +386,49 @@ fn vexcel_summary() {
     assert!(s["image_date"].as_str().unwrap().starts_with("2025-12"));
     assert_eq!(s.len(), 16);
     assert_eq!(s["solar"], Value::Null);
+}
+
+/// `floor_geometry_from_model` against Python's output on the same models
+/// (`tests-golden/server/matterport_geometry.json`). Compared strictly, numbers with their type,
+/// except `floor_boundary`, compared as a cyclic sequence (same vertices in the same clockwise
+/// order; GEOS's starting vertex depends on its internal edge order).
+#[test]
+fn floor_geometry_matches_python() {
+    use ss_server::integrations::matterport_geometry::floor_geometry_from_model;
+    let cases = golden("matterport_geometry.json");
+    let cases = cases.as_array().unwrap();
+    assert_eq!(cases.len(), 9);
+    let rotate_to_min = |b: &Value| -> Value {
+        let mut pts: Vec<Value> = b.as_array().unwrap().clone();
+        let key = |p: &Value| (p[0].as_f64().unwrap(), p[1].as_f64().unwrap());
+        let start = (0..pts.len())
+            .min_by(|&i, &j| {
+                let (a, b) = (key(&pts[i]), key(&pts[j]));
+                a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1))
+            })
+            .unwrap();
+        pts.rotate_left(start);
+        Value::Array(pts)
+    };
+    for c in cases {
+        let name = c["name"].as_str().unwrap();
+        let got = floor_geometry_from_model(c["model"].as_object().unwrap()).unwrap();
+        let want = &c["result"];
+        match got {
+            None => assert!(
+                want.is_null(),
+                "{name}: Rust found no geometry, Python {want}"
+            ),
+            Some(mut g) => {
+                assert!(
+                    !want.is_null(),
+                    "{name}: Python found no geometry, Rust {g}"
+                );
+                let mut w = want.clone();
+                g["floor_boundary"] = rotate_to_min(&g["floor_boundary"]);
+                w["floor_boundary"] = rotate_to_min(&w["floor_boundary"]);
+                assert_eq!(g, w, "{name}");
+            }
+        }
+    }
 }

@@ -3,9 +3,7 @@
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use ss_core::{
-    BusinessExpansionProfile, Checker, Contract, Market, ProjectContext, Validate,
-};
+use ss_core::{BusinessExpansionProfile, Checker, Contract, Market, ProjectContext, Validate};
 use uuid::Uuid;
 
 use super::{plain_contract, JsonMap, TaskRecord};

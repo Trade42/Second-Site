@@ -13,10 +13,19 @@ use uuid::Uuid;
 use common::mock_http::{Canned, MockServer};
 use common::*;
 
+/// `<tmp>/ss-media-<id>/objects`: the storage root, with room for a file just outside it.
 fn objects_dir() -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("ss-media-{}", Uuid::new_v4().simple()));
+    let d = std::env::temp_dir()
+        .join(format!("ss-media-{}", Uuid::new_v4().simple()))
+        .join("objects");
     std::fs::create_dir_all(&d).unwrap();
     d
+}
+
+fn cleanup(objects: &std::path::Path) {
+    if let Some(parent) = objects.parent() {
+        let _ = std::fs::remove_dir_all(parent);
+    }
 }
 
 fn part(name: &str, filename: Option<&str>, content_type: Option<&str>, data: &[u8]) -> Vec<u8> {
@@ -42,7 +51,13 @@ fn form(parts: &[Vec<u8>]) -> Vec<u8> {
     out
 }
 
-async fn upload(t: &TestApp, pid: &str, token: Option<&str>, content_type: &str, body: Vec<u8>) -> Resp {
+async fn upload(
+    t: &TestApp,
+    pid: &str,
+    token: Option<&str>,
+    content_type: &str,
+    body: Vec<u8>,
+) -> Resp {
     let mut b = Request::builder()
         .method(Method::POST)
         .uri(format!("/api/v1/projects/{pid}/media"))
@@ -61,32 +76,63 @@ both_backends!(upload_route, |db| {
     let t = TestApp::new(db, &[("OBJECT_STORAGE_LOCAL_DIR", dir_s.as_str())]);
     let (tok, _) = t.dev_token().await;
     let pid = t
-        .create_project(&tok, &json!({"project_name": "x", "market": {"city": "Los Angeles", "state": "CA"}}))
+        .create_project(
+            &tok,
+            &json!({"project_name": "x", "market": {"city": "Los Angeles", "state": "CA"}}),
+        )
         .await["project"]["project_id"]
         .as_str()
         .unwrap()
         .to_owned();
 
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", Some("a b.mp3"), Some("audio/mpeg"), b"abc")])).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", Some("a b.mp3"), Some("audio/mpeg"), b"abc")]),
+    )
+    .await;
     assert_eq!(r.status, StatusCode::CREATED, "{}", r.text);
     // sha256("abc")[:16], the filename without the space.
     assert_eq!(
         r.body,
         json!({"object_key": format!("{pid}/ba7816bf8f01cfea-ab.mp3"), "content_type": "audio/mpeg", "size_bytes": 3})
     );
-    assert_eq!(std::fs::read(dir.join(format!("{pid}/ba7816bf8f01cfea-ab.mp3"))).unwrap(), b"abc");
+    assert_eq!(
+        std::fs::read(dir.join(format!("{pid}/ba7816bf8f01cfea-ab.mp3"))).unwrap(),
+        b"abc"
+    );
+    assert_conforms_openapi("MediaStored", &r.body);
 
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", Some("a.txt"), Some("text/plain"), b"abc")])).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", Some("a.txt"), Some("text/plain"), b"abc")]),
+    )
+    .await;
     assert_problem(&r, 400, "UNSUPPORTED_MEDIA");
     assert_eq!(r.body["message"], "unsupported content type text/plain");
     // No Content-Type on the part: Python prints None.
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", Some("a.mp3"), None, b"abc")])).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", Some("a.mp3"), None, b"abc")]),
+    )
+    .await;
     assert_problem(&r, 400, "UNSUPPORTED_MEDIA");
     assert_eq!(r.body["message"], "unsupported content type None");
 
     // No `file` part, a JSON body, an empty body: 422 missing body.file.
     for (ct, body) in [
-        (MP, form(&[part("other", Some("a.mp3"), Some("audio/mpeg"), b"abc")])),
+        (
+            MP,
+            form(&[part("other", Some("a.mp3"), Some("audio/mpeg"), b"abc")]),
+        ),
         ("application/json", br#"{"file": "x"}"#.to_vec()),
         ("application/json", Vec::new()),
     ] {
@@ -94,28 +140,59 @@ both_backends!(upload_route, |db| {
         assert_problem(&r, 422, "VALIDATION_ERROR");
         assert_eq!(
             r.body["details"]["errors"],
-            json!([{"type": "missing", "loc": ["body", "file"], "msg": "Field required"}])
+            json!([{"type": "missing", "loc": ["body", "file"], "msg": "Field required", "input": null}])
         );
     }
     // A plain form field named `file` (Python answers 500 here; see the module docs).
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", None, None, b"notafile")])).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", None, None, b"notafile")]),
+    )
+    .await;
     assert_problem(&r, 422, "VALIDATION_ERROR");
     assert_eq!(r.body["details"]["errors"][0]["type"], "value_error");
 
     // Size: exactly 15 MiB is accepted, one byte more is refused.
     let exact = vec![b'x'; 15 * 1024 * 1024];
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", Some("a.pdf"), Some("application/pdf"), &exact)])).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", Some("a.pdf"), Some("application/pdf"), &exact)]),
+    )
+    .await;
     assert_eq!(r.status, StatusCode::CREATED, "{}", r.text);
     assert_eq!(r.body["size_bytes"], 15 * 1024 * 1024);
     let mut big = exact.clone();
     big.push(b'x');
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", Some("a.pdf"), Some("application/pdf"), &big)])).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", Some("a.pdf"), Some("application/pdf"), &big)]),
+    )
+    .await;
     assert_problem(&r, 400, "FILE_TOO_LARGE");
     assert_eq!(r.body["message"], "file too large");
 
     // An empty filename is stored as `upload`; of two `file` parts the last one counts.
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", Some(""), Some("audio/mpeg"), b"abc")])).await;
-    assert_eq!(r.body["object_key"], format!("{pid}/ba7816bf8f01cfea-upload"));
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", Some(""), Some("audio/mpeg"), b"abc")]),
+    )
+    .await;
+    assert_eq!(
+        r.body["object_key"],
+        format!("{pid}/ba7816bf8f01cfea-upload")
+    );
     let r = upload(
         &t,
         &pid,
@@ -135,7 +212,14 @@ both_backends!(upload_route, |db| {
     let r = upload(&t, &pid, Some(&tok), MP, b"garbage".to_vec()).await;
     assert_problem(&r, 400, "BAD_REQUEST");
     assert_eq!(r.body["message"], "Invalid multipart data.");
-    let r = upload(&t, &pid, Some(&tok), "multipart/form-data", b"garbage".to_vec()).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        "multipart/form-data",
+        b"garbage".to_vec(),
+    )
+    .await;
     assert_problem(&r, 400, "BAD_REQUEST");
     assert_eq!(r.body["message"], "Missing boundary in multipart.");
 
@@ -149,7 +233,7 @@ both_backends!(upload_route, |db| {
     assert_eq!(r.body["message"], "project not found");
     let r = upload(&t, &pid, Some(&other), MP, b"garbage".to_vec()).await;
     assert_problem(&r, 404, "NOT_FOUND");
-    let _ = std::fs::remove_dir_all(dir);
+    cleanup(&dir);
 });
 
 both_backends!(signed_object_route, |db| {
@@ -158,16 +242,26 @@ both_backends!(signed_object_route, |db| {
     let t = TestApp::new(db, &[("OBJECT_STORAGE_LOCAL_DIR", dir_s.as_str())]);
     let (tok, _) = t.dev_token().await;
     let pid = t
-        .create_project(&tok, &json!({"project_name": "x", "market": {"city": "Los Angeles", "state": "CA"}}))
+        .create_project(
+            &tok,
+            &json!({"project_name": "x", "market": {"city": "Los Angeles", "state": "CA"}}),
+        )
         .await["project"]["project_id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let r = upload(&t, &pid, Some(&tok), MP, form(&[part("file", Some("intro.wav"), Some("audio/wav"), b"RIFF")])).await;
+    let r = upload(
+        &t,
+        &pid,
+        Some(&tok),
+        MP,
+        form(&[part("file", Some("intro.wav"), Some("audio/wav"), b"RIFF")]),
+    )
+    .await;
     let key = r.body["object_key"].as_str().unwrap().to_owned();
     std::fs::write(dir.join(format!("{pid}/rec.mp3")), b"ID3").unwrap();
     std::fs::write(dir.join(format!("{pid}/notes.pdf")), b"%PDF").unwrap();
-    std::fs::write(dir.join("../secret.txt"), b"s").ok();
+    std::fs::write(dir.parent().unwrap().join("secret.txt"), b"s").unwrap();
 
     let get = |token: String| {
         let t = &t;
@@ -205,7 +299,7 @@ both_backends!(signed_object_route, |db| {
         assert_problem(&r, 404, "NOT_FOUND");
         assert_eq!(r.body["message"], "object not found", "{k}");
     }
-    let _ = std::fs::remove_dir_all(dir);
+    cleanup(&dir);
 });
 
 both_backends!(vexcel_ortho_route, |db| {
@@ -217,10 +311,17 @@ both_backends!(vexcel_ortho_route, |db| {
         .unwrap()
         .to_owned();
     let r = t
-        .post(&format!("/api/v1/projects/{pid}/properties/search"), Some(&tok), &json!({}))
+        .post(
+            &format!("/api/v1/projects/{pid}/properties/search"),
+            Some(&tok),
+            &json!({}),
+        )
         .await;
     assert_eq!(r.body["task"]["status"], "COMPLETED", "{}", r.text);
-    let props = t.get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok)).await.body;
+    let props = t
+        .get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok))
+        .await
+        .body;
     let prop = &props[0];
     let prop_id = prop["property_id"].as_str().unwrap();
     let (lat, lon) = (
@@ -229,10 +330,17 @@ both_backends!(vexcel_ortho_route, |db| {
     );
 
     // Fixture mode: no imagery.
-    let r = t.get(&format!("/api/v1/media/vexcel/ortho/{prop_id}"), None).await;
+    let r = t
+        .get(&format!("/api/v1/media/vexcel/ortho/{prop_id}"), None)
+        .await;
     assert_problem(&r, 404, "NOT_FOUND");
     assert_eq!(r.body["message"], "no imagery in this mode");
-    let r = t.get(&format!("/api/v1/media/vexcel/ortho/{}", Uuid::new_v4()), None).await;
+    let r = t
+        .get(
+            &format!("/api/v1/media/vexcel/ortho/{}", Uuid::new_v4()),
+            None,
+        )
+        .await;
     assert_problem(&r, 404, "NOT_FOUND");
     assert_eq!(r.body["message"], "property not found");
     let r = t.get("/api/v1/media/vexcel/ortho/not-a-uuid", None).await;
@@ -241,8 +349,16 @@ both_backends!(vexcel_ortho_route, |db| {
     // Live mode against a mock Vexcel: the image, then a provider failure.
     let jpeg = b"\xff\xd8\xff\xe0 jpeg".to_vec();
     let server = MockServer::start(vec![
-        Canned { status: 200, content_type: Some("image/jpeg".into()), body: jpeg.clone() },
-        Canned { status: 401, content_type: None, body: Vec::new() },
+        Canned {
+            status: 200,
+            content_type: Some("image/jpeg".into()),
+            body: jpeg.clone(),
+        },
+        Canned {
+            status: 401,
+            content_type: None,
+            body: Vec::new(),
+        },
     ]);
     let base = format!("{}/v2", server.base);
     let live = TestApp::new(
@@ -272,7 +388,9 @@ both_backends!(vexcel_ortho_route, |db| {
     assert_eq!(q["destination-dimensions"], "600,600");
     // A different property (not cached) gets the 401: 400 PROVIDER_UNAVAILABLE, as Python maps it.
     let other_id = props[1]["property_id"].as_str().unwrap();
-    let r = live.get(&format!("/api/v1/media/vexcel/ortho/{other_id}"), None).await;
+    let r = live
+        .get(&format!("/api/v1/media/vexcel/ortho/{other_id}"), None)
+        .await;
     assert_problem(&r, 400, "PROVIDER_UNAVAILABLE");
     assert_eq!(r.body["message"], "imagery unavailable (AUTH)");
     assert!(!r.text.contains("vk-live-secret"));
@@ -292,7 +410,13 @@ impl OneshotGet for axum::Router {
             .unwrap();
         let status = resp.status();
         let headers = resp.headers().clone();
-        let bytes = resp.into_body().collect().await.unwrap().to_bytes().to_vec();
+        let bytes = resp
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec();
         (status, headers, bytes)
     }
 }

@@ -337,9 +337,10 @@ pub fn enrich_exterior(
     };
     let mut observations: Vec<InfrastructureObservation> = Vec::new();
     if let Some(el) = &el {
-        let mut lim =
-            vec!["Automated detection from aerial imagery; describes the building, not the suite."
-                .to_owned()];
+        let mut lim = vec![
+            "Automated detection from aerial imagery; describes the building, not the suite."
+                .to_owned(),
+        ];
         if let Some(dist) = get(el, "structure_distance_m").as_f64() {
             if dist != 0.0 && dist > 3.0 {
                 lim.push(format!(
@@ -478,7 +479,15 @@ mod tests {
         assert_eq!(d("2025-W01-1").as_deref(), Some("2024-12-30"));
         assert_eq!(d("2025W013").as_deref(), Some("2025-01-01"));
         assert_eq!(d("2025-W01").as_deref(), Some("2024-12-30"));
-        for bad in ["2025-12-0", "2025-13-01", "0000-01-01", "20251201T1", "", "2025/12/01", "２０２５-12-01"] {
+        for bad in [
+            "2025-12-0",
+            "2025-13-01",
+            "0000-01-01",
+            "20251201T1",
+            "",
+            "2025/12/01",
+            "２０２５-12-01",
+        ] {
             assert_eq!(date_fromisoformat(bad), None, "{bad}");
         }
     }

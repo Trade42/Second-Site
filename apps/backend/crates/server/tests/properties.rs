@@ -15,7 +15,9 @@ use ss_server::app::AppState;
 use ss_server::contracts::{ActorType, EventType};
 use ss_server::services::events::Emit;
 use ss_server::services::evidence::EvidenceService;
-use ss_server::store::repo::{events, users, User, COST_SCENARIOS, PROFILES, PROJECTS, PROPERTIES, RANKINGS};
+use ss_server::store::repo::{
+    events, users, User, COST_SCENARIOS, PROFILES, PROJECTS, PROPERTIES, RANKINGS,
+};
 use ss_server::store::{schema, Query, Tx};
 use ss_server::workflows::property_analysis::PropertyAnalysisWorkflow;
 use uuid::Uuid;
@@ -71,7 +73,12 @@ both_backends!(end_to_end_property_slice, |db| {
         .as_array()
         .unwrap()
         .iter()
-        .map(|p| (p["provider"].as_str().unwrap(), p["status"].as_str().unwrap()))
+        .map(|p| {
+            (
+                p["provider"].as_str().unwrap(),
+                p["status"].as_str().unwrap(),
+            )
+        })
         .collect();
     assert_eq!(statuses["costar"], "MOCK");
 
@@ -82,7 +89,10 @@ both_backends!(end_to_end_property_slice, |db| {
     let task = &r.body["task"];
     assert_eq!(task["status"], "COMPLETED", "{task}");
     let status_url = r.body["status_url"].as_str().unwrap();
-    assert_eq!(t.get(status_url, Some(&tok)).await.body["status"], "COMPLETED");
+    assert_eq!(
+        t.get(status_url, Some(&tok)).await.body["status"],
+        "COMPLETED"
+    );
 
     let props = t
         .get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok))
@@ -96,7 +106,10 @@ both_backends!(end_to_end_property_slice, |db| {
     let alh = &by_addr[ALHAMBRA];
     // Never presented as CoStar.
     assert_eq!(alh["commercial_listing"]["provider"], "fixture");
-    assert_eq!(alh["commercial_listing"]["data_origin"], "FIXTURE_SYNTHETIC");
+    assert_eq!(
+        alh["commercial_listing"]["data_origin"],
+        "FIXTURE_SYNTHETIC"
+    );
     let alh_id = alh["property_id"].as_str().unwrap();
 
     let permits = t
@@ -137,10 +150,16 @@ both_backends!(end_to_end_property_slice, |db| {
         .await
         .body;
     assert_eq!(rankings.as_array().unwrap().len(), 1);
-    assert_eq!(rankings[0]["ranked_properties"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        rankings[0]["ranked_properties"].as_array().unwrap().len(),
+        2
+    );
     assert_conforms("PropertyRankingResult", &rankings[0]);
     let scenarios = t
-        .get(&format!("/api/v1/projects/{pid}/cost-scenarios"), Some(&tok))
+        .get(
+            &format!("/api/v1/projects/{pid}/cost-scenarios"),
+            Some(&tok),
+        )
         .await
         .body;
     assert_eq!(scenarios.as_array().unwrap().len(), 2);
@@ -174,7 +193,12 @@ both_backends!(end_to_end_property_slice, |db| {
         .as_array()
         .unwrap()
         .iter()
-        .filter(|e| e["event_type"].as_str().unwrap().starts_with("property.permits"))
+        .filter(|e| {
+            e["event_type"]
+                .as_str()
+                .unwrap()
+                .starts_with("property.permits")
+        })
         .map(|e| e["correlation_id"].as_str().unwrap())
         .collect();
     assert_eq!(permit_corr.len(), 1);
@@ -204,12 +228,15 @@ both_backends!(end_to_end_property_slice, |db| {
         .collect();
     assert_eq!(versions, vec![1, 2]);
     assert_eq!(
-        t.get(&format!("/api/v1/projects/{pid}/cost-scenarios"), Some(&tok))
-            .await
-            .body
-            .as_array()
-            .unwrap()
-            .len(),
+        t.get(
+            &format!("/api/v1/projects/{pid}/cost-scenarios"),
+            Some(&tok)
+        )
+        .await
+        .body
+        .as_array()
+        .unwrap()
+        .len(),
         2,
         "earlier scenarios are superseded"
     );
@@ -230,7 +257,10 @@ both_backends!(end_to_end_property_slice, |db| {
     assert!(out["assessment_ids"].as_array().unwrap().len() > 3);
     assert!(out["scenario_id"].is_string() && out["ranking_id"].is_string());
     let scen = t
-        .get(&format!("/api/v1/projects/{pid}/cost-scenarios"), Some(&tok))
+        .get(
+            &format!("/api/v1/projects/{pid}/cost-scenarios"),
+            Some(&tok),
+        )
         .await
         .body;
     assert_eq!(scen.as_array().unwrap().len(), 2);
@@ -250,14 +280,18 @@ both_backends!(unauthorized_project_access, |db| {
         StatusCode::UNAUTHORIZED
     );
     let other = t.token_for(Uuid::new_v4());
-    let r = t.get(&format!("/api/v1/projects/{pid}"), Some(&other)).await;
+    let r = t
+        .get(&format!("/api/v1/projects/{pid}"), Some(&other))
+        .await;
     assert_problem(&r, 404, "NOT_FOUND");
     assert_eq!(
         t.status_of(&format!("/api/v1/projects/{pid}/events"), Some(&other))
             .await,
         StatusCode::NOT_FOUND
     );
-    let bad = t.get(&format!("/api/v1/projects/{pid}"), Some("junk")).await;
+    let bad = t
+        .get(&format!("/api/v1/projects/{pid}"), Some("junk"))
+        .await;
     assert_problem(&bad, 401, "UNAUTHORIZED");
 });
 
@@ -361,10 +395,22 @@ both_backends!(request_checks_follow_fastapi_order, |db| {
     );
     let missing = Uuid::new_v4();
     for (m, path) in [
-        (Method::GET, format!("/api/v1/projects/{pid}/properties/{missing}")),
-        (Method::POST, format!("/api/v1/projects/{pid}/properties/{missing}/analyze")),
-        (Method::GET, format!("/api/v1/projects/{pid}/properties/{missing}/permits")),
-        (Method::GET, format!("/api/v1/projects/{pid}/properties/{missing}/feasibility")),
+        (
+            Method::GET,
+            format!("/api/v1/projects/{pid}/properties/{missing}"),
+        ),
+        (
+            Method::POST,
+            format!("/api/v1/projects/{pid}/properties/{missing}/analyze"),
+        ),
+        (
+            Method::GET,
+            format!("/api/v1/projects/{pid}/properties/{missing}/permits"),
+        ),
+        (
+            Method::GET,
+            format!("/api/v1/projects/{pid}/properties/{missing}/feasibility"),
+        ),
     ] {
         let r = t.call(m, &path, Some(&tok), None).await;
         assert_problem(&r, 404, "NOT_FOUND");
@@ -378,7 +424,10 @@ both_backends!(isolation_between_owners_and_projects, |db| {
     let t = TestApp::new(db, &[]);
     let (tok, _) = t.dev_token().await;
     let pid = project_with_demo_profile(&t, &tok).await;
-    assert_eq!(search(&t, &tok, &pid).await.body["task"]["status"], "COMPLETED");
+    assert_eq!(
+        search(&t, &tok, &pid).await.body["task"]["status"],
+        "COMPLETED"
+    );
     let props = t
         .get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok))
         .await
@@ -392,14 +441,42 @@ both_backends!(isolation_between_owners_and_projects, |db| {
 
     let routes = |p: &str, prop: &str| {
         vec![
-            (Method::POST, format!("/api/v1/projects/{p}/properties/search"), Some(json!({}))),
-            (Method::GET, format!("/api/v1/projects/{p}/properties"), None),
-            (Method::GET, format!("/api/v1/projects/{p}/properties/{prop}"), None),
-            (Method::POST, format!("/api/v1/projects/{p}/properties/{prop}/analyze"), None),
-            (Method::GET, format!("/api/v1/projects/{p}/properties/{prop}/permits"), None),
-            (Method::GET, format!("/api/v1/projects/{p}/properties/{prop}/feasibility"), None),
+            (
+                Method::POST,
+                format!("/api/v1/projects/{p}/properties/search"),
+                Some(json!({})),
+            ),
+            (
+                Method::GET,
+                format!("/api/v1/projects/{p}/properties"),
+                None,
+            ),
+            (
+                Method::GET,
+                format!("/api/v1/projects/{p}/properties/{prop}"),
+                None,
+            ),
+            (
+                Method::POST,
+                format!("/api/v1/projects/{p}/properties/{prop}/analyze"),
+                None,
+            ),
+            (
+                Method::GET,
+                format!("/api/v1/projects/{p}/properties/{prop}/permits"),
+                None,
+            ),
+            (
+                Method::GET,
+                format!("/api/v1/projects/{p}/properties/{prop}/feasibility"),
+                None,
+            ),
             (Method::GET, format!("/api/v1/projects/{p}/rankings"), None),
-            (Method::GET, format!("/api/v1/projects/{p}/cost-scenarios"), None),
+            (
+                Method::GET,
+                format!("/api/v1/projects/{p}/cost-scenarios"),
+                None,
+            ),
         ]
     };
     // The other owner gets 404 `project not found` on every route of my project.
@@ -409,7 +486,10 @@ both_backends!(isolation_between_owners_and_projects, |db| {
         assert_eq!(r.body["message"], "project not found", "{path}");
     }
     // My property under my other project: 404 `property not found`.
-    for (m, path, body) in routes(&pid2, &prop_id).into_iter().filter(|(_, p, _)| p.contains(&prop_id)) {
+    for (m, path, body) in routes(&pid2, &prop_id)
+        .into_iter()
+        .filter(|(_, p, _)| p.contains(&prop_id))
+    {
         let r = t.call(m, &path, Some(&tok), body.as_ref()).await;
         assert_problem(&r, 404, "NOT_FOUND");
         assert_eq!(r.body["message"], "property not found", "{path}");
@@ -444,18 +524,21 @@ both_backends!(isolation_between_owners_and_projects, |db| {
         .filter(|e| e.event_type != EventType::ProjectProfileConfirmed)
         .collect();
     assert!(!mine.is_empty());
-    assert!(mine.iter().all(|e| e.project_id == pid_u), "an event of the search landed elsewhere");
-    let tasks = tx
-        .select(&schema::TASKS, &Query::new())
-        .await
-        .unwrap();
+    assert!(
+        mine.iter().all(|e| e.project_id == pid_u),
+        "an event of the search landed elsewhere"
+    );
+    let tasks = tx.select(&schema::TASKS, &Query::new()).await.unwrap();
     assert_eq!(tasks.len(), 1);
     assert_eq!(tasks[0].uuid("project_id").unwrap(), pid_u);
     // The task status URL is not readable through another project.
     let task_id = tasks[0].uuid("id").unwrap();
     tx.rollback().await.unwrap();
     let r = t
-        .get(&format!("/api/v1/projects/{pid2}/tasks/{task_id}"), Some(&tok))
+        .get(
+            &format!("/api/v1/projects/{pid2}/tasks/{task_id}"),
+            Some(&tok),
+        )
         .await;
     assert_problem(&r, 404, "NOT_FOUND");
 });
@@ -483,11 +566,16 @@ async fn seed_slice(app: &AppState) -> ProjectContext {
     let mut fx = read_json("fixtures/projects/facial_studio.json")["business_profile"].clone();
     fx["project_id"] = json!(project.project_id.to_string());
     fx["opening_capital"] = Value::Null;
-    let profile = <ss_core::BusinessExpansionProfile as ss_core::Contract>::from_json_value(fx)
-        .unwrap();
+    let profile =
+        <ss_core::BusinessExpansionProfile as ss_core::Contract>::from_json_value(fx).unwrap();
     PROFILES.add(tx, &profile).await.unwrap();
     PropertyAnalysisWorkflow::new(app)
-        .run(tx, project.project_id, PropertySearchRequest::default(), Uuid::new_v4())
+        .run(
+            tx,
+            project.project_id,
+            PropertySearchRequest::default(),
+            Uuid::new_v4(),
+        )
         .await
         .unwrap();
     txb.commit().await.unwrap();
@@ -564,7 +652,10 @@ both_backends!(evidence_update_recomputes_downstream, |db| {
         .unwrap();
     let chain: Vec<&str> = rows.iter().map(|(_, e)| e.event_type.as_str()).collect();
     assert_eq!(chain[0], "infrastructure.evidence_updated");
-    assert!(chain.contains(&"property.analysis.completed") && chain.contains(&"financial.scenario.updated"));
+    assert!(
+        chain.contains(&"property.analysis.completed")
+            && chain.contains(&"financial.scenario.updated")
+    );
     assert_eq!(*chain.last().unwrap(), "property.ranking.updated");
     let ranking = &rows.last().unwrap().1;
     let scenario = &rows
@@ -654,13 +745,276 @@ both_backends!(conflicting_evidence_coexists, |db| {
         limitations: vec!["Broker statement".into()],
     };
     EvidenceService.add(tx, &ev).await.unwrap();
-    let all = EvidenceService.for_property(tx, alh.property_id).await.unwrap();
+    let all = EvidenceService
+        .for_property(tx, alh.property_id)
+        .await
+        .unwrap();
     let conflicts = EvidenceService::conflicts(&all);
-    let amps = conflicts.get("electrical_service_amps").expect("a conflict");
+    let amps = conflicts
+        .get("electrical_service_amps")
+        .expect("a conflict");
     let values: BTreeSet<String> = amps
         .iter()
         .map(|e| ss_domain::py::value_str(&e.extracted_value))
         .collect();
-    assert!(values.contains("800.0") && values.contains("400"), "{values:?}");
+    assert!(
+        values.contains("800.0") && values.contains("400"),
+        "{values:?}"
+    );
     txb.rollback().await.unwrap();
+});
+
+// ---- live providers (synthetic kit, mocked Matterport and Vexcel) --------------------------------
+
+both_backends!(missing_costar_kit_fails_the_task_like_python, |db| {
+    let t = TestApp::new(
+        db,
+        &[
+            ("PROPERTY_PROVIDER_MODE", "live"),
+            ("COSTAR_KIT_DIR", "/nonexistent-kit"),
+        ],
+    );
+    let (tok, _) = t.dev_token().await;
+    let pid = project_with_demo_profile(&t, &tok).await;
+    let r = t
+        .post(
+            &format!("/api/v1/projects/{pid}/properties/search"),
+            Some(&tok),
+            &json!({}),
+        )
+        .await;
+    // Python, same settings: 202, task FAILED, error_code ProviderError, str(exc) as the message.
+    assert_eq!(r.status, StatusCode::ACCEPTED, "{}", r.text);
+    assert_eq!(r.body["task"]["status"], "FAILED");
+    assert_eq!(r.body["task"]["error_code"], "ProviderError");
+    assert_eq!(
+        r.body["task"]["error_message"],
+        "[costar] NOT_CONFIGURED: CoStar data kit not found at /nonexistent-kit (set COSTAR_KIT_DIR; see docs/PROVIDER_STATUS.md)."
+    );
+    let events = t
+        .get(&format!("/api/v1/projects/{pid}/events"), Some(&tok))
+        .await
+        .body;
+    let types: Vec<&str> = events["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["event_type"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        types,
+        ["project.profile.confirmed", "task.started", "task.failed"]
+    );
+});
+
+fn json_canned(v: Value) -> common::mock_http::Canned {
+    common::mock_http::Canned {
+        status: 200,
+        content_type: Some("application/json".into()),
+        body: serde_json::to_vec(&v).unwrap(),
+    }
+}
+
+/// A Matterport GraphQL mock: answers each alias `mN: model(id: "X")` from a table.
+fn graphql(rec: &common::mock_http::Recorded) -> common::mock_http::Canned {
+    let body: Value = serde_json::from_slice(&rec.body).unwrap_or(Value::Null);
+    let q = body["query"].as_str().unwrap_or("");
+    let re = regex::Regex::new(r#"(m\d+): model\(id: "([^"]+)"\)"#).unwrap();
+    let mut data = serde_json::Map::new();
+    for c in re.captures_iter(q) {
+        let entry = match &c[2] {
+            "MODEL1" => {
+                json!({"id": "MODEL1", "name": "Suite 101", "dimensions": {"areaFloor": 105.0}, "floors": [{"id": "f"}]})
+            }
+            "MODEL2" => {
+                json!({"id": "MODEL2", "name": "Lobby", "dimensions": {"areaFloor": 40.0}, "floors": [{"id": "f"}]})
+            }
+            _ => Value::Null,
+        };
+        data.insert(c[1].to_owned(), entry);
+    }
+    json_canned(json!({"data": data}))
+}
+
+both_backends!(live_search_enriches_from_matterport_and_vexcel, |db| {
+    let mp = common::mock_http::MockServer::start_with(graphql);
+    let vx = common::mock_http::MockServer::start_with(|rec| {
+        if rec.path.ends_with("/property/extract") {
+            json_canned(json!({"features": [{"properties": {
+                "structures": [{"primary-structure": true, "footprint.area": 812.4,
+                                "roof-objects.ac-unit.count": 6}],
+                "metadata.ortho-date-estimate": "2025-12-01T10:00:00",
+                "metadata.collection": "us-ca-losangeles-2025"}}]}))
+        } else {
+            json_canned(json!({"features": []}))
+        }
+    });
+    let kit = repo_root().join("apps/backend/tests-golden/costar_kit_synthetic");
+    let kit_s = kit.to_string_lossy().into_owned();
+    let graph = format!("{}/graph", mp.base);
+    let vbase = format!("{}/v2", vx.base);
+    let t = TestApp::new(
+        db,
+        &[
+            ("PROPERTY_PROVIDER_MODE", "live"),
+            ("COSTAR_KIT_DIR", kit_s.as_str()),
+            ("MATTERPORT_PROVIDER_MODE", "live"),
+            ("MATTERPORT_GRAPH_URL", graph.as_str()),
+            ("MATTERPORT_API_KEY", "tid"),
+            ("MATTERPORT_API_TOKEN", "tsecret"),
+            ("VEXCEL_PROVIDER_MODE", "live"),
+            ("VEXCEL_BASE_URL", vbase.as_str()),
+            ("VEXCEL_API_KEY", "vk"),
+            ("PUBLIC_BASE_URL", "http://api.test"),
+        ],
+    );
+    let (tok, _) = t.dev_token().await;
+    let pid = t
+        .create_project(&tok, &json!({"project_name": "kit", "market": {"city": "Los Angeles", "state": "CA"},
+                                      "business_profile": read_json("fixtures/projects/facial_studio.json")["business_profile"]}))
+        .await["project"]["project_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = t
+        .post(
+            &format!("/api/v1/projects/{pid}/properties/search"),
+            Some(&tok),
+            &json!({"limit": 3}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::ACCEPTED, "{}", r.text);
+    assert_eq!(r.body["task"]["status"], "COMPLETED", "{}", r.text);
+    let props = t
+        .get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok))
+        .await
+        .body;
+    let props = props.as_array().unwrap();
+    assert!(!props.is_empty());
+    for p in props {
+        assert_conforms("PropertyDigitalProfile", p);
+        // Kit records keep their label: CoStar data kit, a snapshot, never "live CoStar".
+        assert_eq!(p["commercial_listing"]["provider"], "costar");
+        assert_eq!(p["commercial_listing"]["data_origin"], "FIXTURE_REAL");
+        let manifest: std::collections::HashMap<&str, &str> = p["source_manifest"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| {
+                (
+                    m["provider"].as_str().unwrap(),
+                    m["status"].as_str().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(manifest["costar"], "SNAPSHOT");
+        assert_eq!(manifest["vexcel"], "LIVE");
+        // Aerial detections are visual evidence of the building.
+        let obs = p["building_observations"].as_array().unwrap();
+        assert!(obs
+            .iter()
+            .any(|o| o["observation_type"] == "rooftop_hvac_units" && o["value"] == json!(6.0)));
+        assert!(obs
+            .iter()
+            .all(|o| o["classification"] == "VISUALLY_OBSERVED"));
+        let ortho = p["exterior_assets"].as_array().unwrap().last().unwrap();
+        assert_eq!(
+            ortho["url"],
+            format!(
+                "http://api.test/api/v1/media/vexcel/ortho/{}",
+                p["property_id"].as_str().unwrap()
+            )
+        );
+        assert_eq!(ortho["captured_at"], "2025-12-01");
+    }
+    let summary: Vec<String> = props
+        .iter()
+        .map(|p| {
+            format!(
+                "{} suite={} assets={}",
+                p["commercial_listing"]["provider_listing_id"],
+                p["property_identity"]["unit_or_suite"],
+                p["interior_assets"]
+            )
+        })
+        .collect();
+    // The listing whose suite has a scan comes first, its scan marked; the lobby scan is context.
+    let first = &props[0];
+    let scans: Vec<&Value> = first["interior_assets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|a| a["provider"] == "matterport")
+        .collect();
+    // With the demo profile's limits the kit offers 2:21 (suite A, no scans) and 1:11 (suite 101,
+    // scans MODEL1 and MODEL2); the suite-matched candidate is preferred and stored first.
+    assert_eq!(
+        first["property_identity"]["unit_or_suite"], "101",
+        "{summary:#?}"
+    );
+    {
+        assert_eq!(scans[0]["asset_id"], "MODEL1");
+        assert_eq!(scans[0]["matches_listing_unit"], true);
+        assert_eq!(scans[0]["has_measured_geometry"], true);
+        // The scan's area is not the listing's area.
+        assert_ne!(
+            scans[0]["area_sqm"],
+            first["commercial_listing"]["available_area_sqm"]
+        );
+    }
+    assert!(
+        props.iter().any(|p| p["interior_assets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["matches_listing_unit"] == true)),
+        "{summary:#?}"
+    );
+    // Matterport was called with HTTP Basic auth; the key never reaches a response.
+    let reqs = mp.requests();
+    assert!(!reqs.is_empty());
+    assert!(reqs
+        .iter()
+        .all(|r| r.headers["authorization"] == "Basic dGlkOnRzZWNyZXQ="));
+    assert!(vx.requests().iter().all(|r| r.headers["x-api-key"] == "vk"));
+    let all = t
+        .get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok))
+        .await
+        .text;
+    assert!(!all.contains("tsecret") && !all.contains("dGlkOnRzZWNyZXQ"));
+});
+
+both_backends!(missing_fixtures_are_reported_not_hidden, |db| {
+    let t = TestApp::new(db, &[("FIXTURES_DIR", "/nonexistent-fixtures")]);
+    let ready = t.get("/ready", None).await.body;
+    let permits = ready["providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["provider"] == "la_open_data")
+        .unwrap()
+        .clone();
+    assert_eq!(permits["status"], "BLOCKED", "{permits}");
+    let (tok, _) = t.dev_token().await;
+    let pid = project_with_demo_profile(&t, &tok).await;
+    let r = t
+        .post(
+            &format!("/api/v1/projects/{pid}/properties/search"),
+            Some(&tok),
+            &json!({}),
+        )
+        .await;
+    // A provider failure is a failed task naming the provider, never an empty result.
+    assert_eq!(r.body["task"]["status"], "FAILED", "{}", r.text);
+    assert_eq!(r.body["task"]["error_code"], "ProviderError");
+    assert!(r.body["task"]["error_message"]
+        .as_str()
+        .unwrap()
+        .starts_with("[costar] NOT_CONFIGURED: fixture listings /nonexistent-fixtures/properties/la_candidates.json"));
+    assert_eq!(
+        t.get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok))
+            .await
+            .body,
+        json!([])
+    );
 });

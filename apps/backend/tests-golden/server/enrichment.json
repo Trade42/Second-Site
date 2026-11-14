@@ -92,7 +92,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -204,7 +204,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -212,7 +212,7 @@
       "dataset": "model_api",
       "status": "LIVE",
       "record_count": 2,
-      "retrieved_at": "2026-11-14T21:40:01.586254Z",
+      "retrieved_at": "2026-11-14T21:51:02.560075Z",
       "note": "1 scan(s) of the listed suite"
      }
     ],
@@ -307,7 +307,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -420,7 +420,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -428,7 +428,7 @@
       "dataset": "model_api",
       "status": "LIVE",
       "record_count": 2,
-      "retrieved_at": "2026-11-14T21:40:01.586371Z",
+      "retrieved_at": "2026-11-14T21:51:02.560233Z",
       "note": "building scans only; listed suite not scanned"
      }
     ],
@@ -523,7 +523,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -619,7 +619,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -627,7 +627,7 @@
       "dataset": "model_api",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.586426Z",
+      "retrieved_at": "2026-11-14T21:51:02.560308Z",
       "note": "1 scan(s) of the listed suite"
      }
     ],
@@ -722,7 +722,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -824,7 +824,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -919,7 +919,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -1016,7 +1016,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -1111,7 +1111,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -1208,7 +1208,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -1216,7 +1216,7 @@
       "dataset": "model_api",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.586650Z",
+      "retrieved_at": "2026-11-14T21:51:02.560584Z",
       "note": "building scans only; listed suite not scanned"
      }
     ],
@@ -1784,7 +1784,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -2194,7 +2194,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -2202,7 +2202,7 @@
       "dataset": "model_api",
       "status": "LIVE",
       "record_count": 40,
-      "retrieved_at": "2026-11-14T21:40:01.586997Z",
+      "retrieved_at": "2026-11-14T21:51:02.561037Z",
       "note": "building scans only; listed suite not scanned"
      }
     ],
@@ -2299,7 +2299,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -2409,7 +2409,7 @@
     "permit_records": [],
     "building_observations": [
      {
-      "observation_id": "0326a535-a20c-4dca-b33c-09af1d43ec05",
+      "observation_id": "b73dbdb6-ef33-4fef-bea7-68065d160aed",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "building_footprint_area",
       "value": 812.4,
@@ -2422,7 +2422,7 @@
       "description": "Building footprint from Vexcel us-ca-losangeles-2025 2025-12-01"
      },
      {
-      "observation_id": "b1538841-bd6f-4f67-af71-771df69a08e9",
+      "observation_id": "7cb9cbd9-e146-45fa-b313-20625bd7c1d9",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_condition",
       "value": 4.0,
@@ -2435,7 +2435,7 @@
       "description": "Roof condition score (1 poor - 5 excellent) from Vexcel us-ca-losangeles-2025 2025-12-01"
      },
      {
-      "observation_id": "f9f652b3-756c-4254-9345-4f339c0addd2",
+      "observation_id": "3583bc21-db69-4a4b-9ea1-c1f4389ccfc5",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_material",
       "value": "membrane",
@@ -2448,7 +2448,7 @@
       "description": "Roof material (detector score 0.8)"
      },
      {
-      "observation_id": "8f533a28-6ea3-40ea-8538-47cdb7820373",
+      "observation_id": "03d5aa8c-e037-4c3a-87ae-b7caa432e713",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "rooftop_hvac_units",
       "value": 6.0,
@@ -2461,7 +2461,7 @@
       "description": "Rooftop HVAC/AC units detected (existing equipment, not spare capacity)"
      },
      {
-      "observation_id": "af5a363c-2ab2-4be2-8b6d-497c185d99c6",
+      "observation_id": "d76f7a7b-8c28-456d-acaa-f96c655eeb7f",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_defects",
       "value": "water pooling",
@@ -2485,7 +2485,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -2493,7 +2493,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 6,
-      "retrieved_at": "2026-11-14T21:40:01.587163Z",
+      "retrieved_at": "2026-11-14T21:51:02.561266Z",
       "note": "Imagery 2025-12-01"
      }
     ],
@@ -2583,7 +2583,7 @@
     "permit_records": [],
     "building_observations": [
      {
-      "observation_id": "747a7e56-1efc-4296-a6a8-b65e569724fe",
+      "observation_id": "9005c9c3-7722-4f0c-a1d0-c76172298b9b",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "building_footprint_area",
       "value": 812.4,
@@ -2596,7 +2596,7 @@
       "description": "Building footprint from Vexcel us-ca-losangeles-2025 2025-12-01"
      },
      {
-      "observation_id": "36e2ea7e-88fa-45d8-8ce8-f653135ce979",
+      "observation_id": "16e5bdd0-e5dc-4753-a58f-f9247d187574",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_condition",
       "value": 4.0,
@@ -2609,7 +2609,7 @@
       "description": "Roof condition score (1 poor - 5 excellent) from Vexcel us-ca-losangeles-2025 2025-12-01"
      },
      {
-      "observation_id": "70c9d4a6-dc7d-4456-b3a0-a9c32f877ba3",
+      "observation_id": "fc5ba47f-37ea-4d4f-895d-1426f6532b9a",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_material",
       "value": "membrane",
@@ -2622,7 +2622,7 @@
       "description": "Roof material (detector score 0.8)"
      },
      {
-      "observation_id": "64873e39-3a5a-41c8-87e0-1f9f850497d5",
+      "observation_id": "bdc79980-1267-4a3f-99a0-2da54dd99fad",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "rooftop_hvac_units",
       "value": 6.0,
@@ -2635,7 +2635,7 @@
       "description": "Rooftop HVAC/AC units detected (existing equipment, not spare capacity)"
      },
      {
-      "observation_id": "693388fe-422b-4849-a810-1ac41b2975ff",
+      "observation_id": "cfa7eafe-e7e0-451f-b64a-91b3504e4e43",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_defects",
       "value": "water pooling",
@@ -2659,7 +2659,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -2667,7 +2667,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 6,
-      "retrieved_at": "2026-11-14T21:40:01.587233Z",
+      "retrieved_at": "2026-11-14T21:51:02.561349Z",
       "note": "Imagery 2025-12-01"
      }
     ],
@@ -2762,7 +2762,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -2857,7 +2857,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -2949,7 +2949,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3044,7 +3044,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3156,7 +3156,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3248,7 +3248,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3343,7 +3343,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3438,7 +3438,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3531,7 +3531,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3626,7 +3626,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -3746,7 +3746,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -3754,7 +3754,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.587477Z",
+      "retrieved_at": "2026-11-14T21:51:02.561664Z",
       "note": "Imagery 2025-01-20"
      }
     ],
@@ -3854,7 +3854,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -3862,7 +3862,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.587498Z",
+      "retrieved_at": "2026-11-14T21:51:02.561692Z",
       "note": "Imagery 2025-01-20"
      }
     ],
@@ -3957,7 +3957,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -4061,7 +4061,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -4069,7 +4069,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.587558Z",
+      "retrieved_at": "2026-11-14T21:51:02.561777Z",
       "note": "Imagery date unknown"
      }
     ],
@@ -4169,7 +4169,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -4177,7 +4177,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.587578Z",
+      "retrieved_at": "2026-11-14T21:51:02.561799Z",
       "note": "Imagery date unknown"
      }
     ],
@@ -4272,7 +4272,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -4381,7 +4381,7 @@
     "permit_records": [],
     "building_observations": [
      {
-      "observation_id": "eb5351c6-fd03-44b8-8b51-7e38b339935a",
+      "observation_id": "bda1bb97-b2a3-48ad-b83a-070fcfce1b07",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "building_footprint_area",
       "value": 300.0,
@@ -4395,7 +4395,7 @@
       "description": "Building footprint from Vexcel"
      },
      {
-      "observation_id": "5a6bcdf1-fcce-40e0-938f-e5433378139c",
+      "observation_id": "fd3cc01e-eba1-46dc-8d27-bc8b8df62d59",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_material",
       "value": "tile",
@@ -4409,7 +4409,7 @@
       "description": "Roof material (detector score None)"
      },
      {
-      "observation_id": "45db4573-f22d-4023-bbd2-2820014f61ab",
+      "observation_id": "a7223083-c23f-4e3a-95bd-f1e5d53eae82",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_defects",
       "value": "structural damage; water pooling",
@@ -4434,7 +4434,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -4442,7 +4442,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 4,
-      "retrieved_at": "2026-11-14T21:40:01.587666Z",
+      "retrieved_at": "2026-11-14T21:51:02.561906Z",
       "note": "Imagery date unknown"
      }
     ],
@@ -4532,7 +4532,7 @@
     "permit_records": [],
     "building_observations": [
      {
-      "observation_id": "bb482f5d-cea7-47d1-99f5-0b98df1d2b80",
+      "observation_id": "713a0fbc-e39d-4fa3-a2e5-b68a203936a5",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "building_footprint_area",
       "value": 300.0,
@@ -4546,7 +4546,7 @@
       "description": "Building footprint from Vexcel"
      },
      {
-      "observation_id": "452aa0ac-4ce8-41a3-9d85-bc73af75c865",
+      "observation_id": "ee9cc77c-3ade-4a8c-a045-da545f5aca77",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_material",
       "value": "tile",
@@ -4560,7 +4560,7 @@
       "description": "Roof material (detector score None)"
      },
      {
-      "observation_id": "ff5f8df6-8cc0-44ce-87ec-803fb24d27c9",
+      "observation_id": "5c20360c-6258-4883-9c77-967ca277ba81",
       "property_id": "a82a8700-0000-4000-8000-0000000000c1",
       "observation_type": "roof_defects",
       "value": "structural damage; water pooling",
@@ -4585,7 +4585,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -4593,7 +4593,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 4,
-      "retrieved_at": "2026-11-14T21:40:01.587707Z",
+      "retrieved_at": "2026-11-14T21:51:02.561956Z",
       "note": "Imagery date unknown"
      }
     ],
@@ -4688,7 +4688,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      }
     ],
@@ -4794,7 +4794,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -4802,7 +4802,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.587818Z",
+      "retrieved_at": "2026-11-14T21:51:02.562083Z",
       "note": "Imagery 2025-07-04"
      }
     ],
@@ -4902,7 +4902,7 @@
       "dataset": "listings",
       "status": "SNAPSHOT",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.585768Z",
+      "retrieved_at": "2026-11-14T21:51:02.559486Z",
       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
      },
      {
@@ -4910,7 +4910,7 @@
       "dataset": "ortho+property",
       "status": "LIVE",
       "record_count": 1,
-      "retrieved_at": "2026-11-14T21:40:01.587845Z",
+      "retrieved_at": "2026-11-14T21:51:02.562112Z",
       "note": "Imagery 2025-07-04"
      }
     ],

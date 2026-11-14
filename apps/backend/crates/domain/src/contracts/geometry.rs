@@ -149,7 +149,11 @@ impl Validate for SiteGeometry {
         }
         check_rings(c, "fixed_obstacles", &self.fixed_obstacles);
         check_rings(c, "restricted_areas", &self.restricted_areas);
-        c.ge_opt("measurement_uncertainty_m", self.measurement_uncertainty_m, 0.0);
+        c.ge_opt(
+            "measurement_uncertainty_m",
+            self.measurement_uncertainty_m,
+            0.0,
+        );
         c.model_rules(mark, |c| {
             if self.geometry_source == GeometrySource::PhotoEstimate && self.scale_verified {
                 c.value_error(PHOTO_NOT_VERIFIED);
@@ -476,7 +480,10 @@ impl Validate for DesignRevisionRequest {
                 "List should have at least 1 item after validation, not 0",
             );
         }
-        c.each("room_requirement_overrides", &self.room_requirement_overrides);
+        c.each(
+            "room_requirement_overrides",
+            &self.room_requirement_overrides,
+        );
     }
 }
 

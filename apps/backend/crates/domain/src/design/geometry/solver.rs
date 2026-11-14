@@ -181,6 +181,11 @@ pub struct SolveReport {
     pub objective: Option<i64>,
     pub placements: Vec<Placement>,
     pub alternatives: Vec<Vec<Placement>>,
+    /// Work done: DP cells (positions x states) for the exact search with plumbing terms,
+    /// sub-multiset transitions for the one without, room-gap checks for the constructive method.
+    /// Never above the bound that selected the method ([`POSITION_CELL_LIMIT`],
+    /// [`ASSIGNMENT_STATE_LIMIT`], or `MAX_ROOMS` x gaps).
+    pub work: usize,
 }
 
 impl SolveReport {
@@ -190,6 +195,7 @@ impl SolveReport {
             objective: None,
             placements: vec![],
             alternatives: vec![],
+            work: 0,
         }
     }
 
@@ -411,9 +417,10 @@ fn build_model(
     prefs: &LayoutPreferences,
 ) -> Built {
     // Fast infeasibility: the program exceeds the usable strip area (Python's float sums).
-    let capacity = py::sum_floats(strips.iter().map(|st| {
-        st.depth * (st.span - py::sum_floats(st.reserved.iter().map(|(a, b)| b - a)))
-    }));
+    let capacity =
+        py::sum_floats(strips.iter().map(|st| {
+            st.depth * (st.span - py::sum_floats(st.reserved.iter().map(|(a, b)| b - a)))
+        }));
     if py::sum_floats(rooms.iter().map(|r| r.min_area_sqm)) > capacity {
         return Built::Status(SolveStatus::CapacityExceeded);
     }
@@ -448,7 +455,7 @@ fn build_model(
                 r.min_width_m
             };
             let lo_f = (min_len * CM as f64).ceil();
-            if !(lo_f <= hi[s] as f64) {
+            if lo_f.is_nan() || lo_f > hi[s] as f64 {
                 continue;
             }
             let lo = lo_f as i64;
@@ -619,6 +626,7 @@ fn assignment_dp(
     model: &Model,
     cls: &[Class],
     st: &States,
+    work_done: &mut usize,
 ) -> Option<Option<Vec<ClassPlacements>>> {
     // Work bound: sum over states of the sub-multisets per gap.
     let mut work = 1usize;
@@ -638,8 +646,8 @@ fn assignment_dp(
         let len = g.hi - g.lo;
         let mut next = w.clone();
         let mut bk: Vec<(usize, usize)> = (0..l).map(|s| (s, 0)).collect();
-        for r_in in 0..l {
-            if w[r_in] <= NEG / 2 {
+        for (r_in, &w_in) in w.iter().enumerate() {
+            if w_in <= NEG / 2 {
                 continue;
             }
             // Odometer over sub-multisets of r_in restricted to classes allowed in this strip.
@@ -667,6 +675,7 @@ fn assignment_dp(
                 if k == take.len() {
                     break;
                 }
+                *work_done += 1;
                 let (mut sum_lo, mut sum_max, mut n) = (0i64, 0i64, 0i64);
                 for (k, t) in take.iter().enumerate() {
                     if *t > 0 {
@@ -687,7 +696,7 @@ fn assignment_dp(
                     .map(|(k, t)| t * st.strides[k])
                     .sum();
                 let out = r_in - subset;
-                let cand = w[r_in] + val;
+                let cand = w_in + val;
                 if cand > next[out] {
                     next[out] = cand;
                     bk[out] = (r_in, subset);
@@ -825,15 +834,14 @@ fn position_dp(
     model: &Model,
     cls: &[Class],
     st: &States,
+    work_done: &mut usize,
 ) -> Option<Option<Vec<ClassPlacements>>> {
-    let positions: usize = model
-        .gaps
-        .iter()
-        .map(|g| (g.hi - g.lo + 1) as usize)
-        .sum();
-    if positions.checked_mul(st.total)? > POSITION_CELL_LIMIT {
+    let positions: usize = model.gaps.iter().map(|g| (g.hi - g.lo + 1) as usize).sum();
+    let cells = positions.checked_mul(st.total)?;
+    if cells > POSITION_CELL_LIMIT {
         return None;
     }
+    *work_done = cells;
     let l = st.total;
     let mut tables: Vec<Vec<i64>> = Vec::with_capacity(model.gaps.len());
     let mut carry = vec![NEG; l];
@@ -1003,7 +1011,8 @@ fn position_dp(
 
 /// Constructive method (bounded): largest minimum length first into the allowed gap with the most
 /// room left, then lengths widened in placement order.
-fn constructive(model: &Model, rooms: usize) -> Option<Vec<Placement>> {
+fn constructive(model: &Model, rooms: usize, work_done: &mut usize) -> Option<Vec<Placement>> {
+    *work_done = rooms * model.gaps.len();
     let min_lo = |i: usize| {
         model.allowed[i]
             .iter()
@@ -1076,7 +1085,10 @@ fn check_against(model: &Model, placements: &[Placement]) -> Result<i64, String>
         let hi = model.hi[pl.strip];
         let (start, end) = (pl.start_cm, pl.start_cm + pl.length_cm);
         if pl.length_cm < p.lo || pl.length_cm > p.max {
-            return Err(format!("room {i} length {} outside [{}, {}]", pl.length_cm, p.lo, p.max));
+            return Err(format!(
+                "room {i} length {} outside [{}, {}]",
+                pl.length_cm, p.lo, p.max
+            ));
         }
         if start < 0 || end > hi {
             return Err(format!("room {i} [{start}, {end}) outside [0, {hi}]"));
@@ -1132,11 +1144,12 @@ pub fn solve(
     let plumbing = cls
         .iter()
         .any(|c| c.place.iter().flatten().any(|p| p.target2.is_some()));
+    let mut work = 0usize;
     let exact = States::new(cls.iter().map(|c| c.rooms.len()).collect()).and_then(|st| {
         let r = if plumbing {
-            position_dp(&model, &cls, &st)
+            position_dp(&model, &cls, &st, &mut work)
         } else {
-            assignment_dp(&model, &cls, &st)
+            assignment_dp(&model, &cls, &st, &mut work)
         };
         r.map(|res| (res, st))
     });
@@ -1163,14 +1176,24 @@ pub fn solve(
         out
     };
     let (variants, status) = match exact {
-        Some((None, _)) => return SolveReport::none(SolveStatus::Infeasible),
+        Some((None, _)) => {
+            return SolveReport {
+                work,
+                ..SolveReport::none(SolveStatus::Infeasible)
+            }
+        }
         Some((Some(per_variant), _)) => (
             per_variant.into_iter().map(to_rooms).collect::<Vec<_>>(),
             SolveStatus::Optimal,
         ),
-        None => match constructive(&model, rooms.len()) {
+        None => match constructive(&model, rooms.len(), &mut work) {
             Some(p) => (vec![p], SolveStatus::Feasible),
-            None => return SolveReport::none(SolveStatus::Unknown),
+            None => {
+                return SolveReport {
+                    work,
+                    ..SolveReport::none(SolveStatus::Unknown)
+                }
+            }
         },
     };
     let mut checked: Vec<(i64, Vec<Placement>)> = Vec::new();
@@ -1185,10 +1208,14 @@ pub fn solve(
     }
     let mut it = checked.into_iter();
     let Some((objective, placements)) = it.next() else {
-        return SolveReport::none(SolveStatus::Unknown);
+        return SolveReport {
+            work,
+            ..SolveReport::none(SolveStatus::Unknown)
+        };
     };
     SolveReport {
         status,
+        work,
         objective: Some(objective),
         placements,
         alternatives: it
@@ -1264,6 +1291,9 @@ pub struct StripChoice {
     pub solution: Option<SolveReport>,
 }
 
+/// Strips, circulation and the corridor offset they were built for.
+type StripsAt = (Vec<Strip>, Vec<Vec<Coord>>, Option<f64>);
+
 /// `_best_strips(site, topology, rooms, prefs)`: the first corridor offset with a solution, or
 /// the first offset's strips with none.
 pub fn best_strips(
@@ -1277,7 +1307,7 @@ pub fn best_strips(
         Topology::Spine => corridor_offsets(site, corridor, rooms)?,
         Topology::Front => vec![None],
     };
-    let mut first: Option<(Vec<Strip>, Vec<Vec<Coord>>, Option<f64>)> = None;
+    let mut first: Option<StripsAt> = None;
     let mut attempts = Vec::new();
     for off in offsets {
         let (st, circ) = strips(site, topology, corridor, off)?;

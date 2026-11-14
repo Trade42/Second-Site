@@ -11,9 +11,7 @@
 use serde_json::{Map, Value};
 use ss_core::{DataOrigin, IntegrationStatus};
 use ss_domain::contracts::ProviderStatusEntry;
-use ss_domain::integrations::base::{
-    status_entry, ProviderError, ProviderErrorKind, RetryPolicy,
-};
+use ss_domain::integrations::base::{status_entry, ProviderError, ProviderErrorKind, RetryPolicy};
 use ss_domain::integrations::la_permits::{
     address_prefix, soql_escape, LaPermitProvider, RawPermit, PROVIDER,
 };
@@ -70,7 +68,11 @@ impl LiveLaPermitProvider {
     }
 
     /// `_query`: every page of one dataset.
-    fn query(&self, dataset: &str, params: &[(&str, String)]) -> Result<Vec<RawPermit>, ProviderError> {
+    fn query(
+        &self,
+        dataset: &str,
+        params: &[(&str, String)],
+    ) -> Result<Vec<RawPermit>, ProviderError> {
         let url = format!("{}/resource/{dataset}.json", self.base_url);
         let mut out = Vec::new();
         let mut offset = 0usize;

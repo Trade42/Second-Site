@@ -6,7 +6,8 @@ records every request the adapter sends: method, path, decoded query pairs in or
 headers and the JSON body. No network, no database.
 
 Run:   (cd apps/api && .venv/bin/python -I ../backend/tests-golden/server/gen_providers.py)
-Output: provider_requests.json (deterministic; regenerates byte-identically).
+Output: provider_requests.json and matterport_geometry.json (floor_geometry_from_model, a pure
+function, over a few wall graphs); both deterministic, they regenerate byte-identically.
 """
 
 from __future__ import annotations
@@ -204,7 +205,62 @@ def client_for(kind, args, tr):
     return httpx.Client(transport=tr, headers={"X-API-KEY": args["key"] or ""})
 
 
+def _model(floors, rooms=None, mid="GEOM0001", name="Suite 1"):
+    return {"id": mid, "name": name, "floors": floors, "rooms": rooms or []}
+
+
+def _floor(fid, pts, edges, area=None, label="Floor 1"):
+    return {"id": fid, "label": label, "dimensions": {"areaFloor": area} if area is not None else None,
+            "vertices": [{"id": k, "position": {"x": x, "y": y}} for k, (x, y) in pts.items()],
+            "edges": [{"id": f"e{i}", "type": t, "thickness": 0.1, "vertices": [{"id": a}, {"id": b}],
+                       "openings": ops} for i, (a, b, ops, t) in enumerate(edges)]}
+
+
+def geometry_cases():
+    """Models for floor_geometry_from_model alone (a pure function)."""
+    yield "l_shaped_suite", l_shaped_model()
+    pts = {"a": (0.12345678, 0.0), "b": (9.87654321, 0.0), "c": (9.87654321, 6.5), "d": (0.12345678, 6.5),
+           "m": (5.0, 0.0), "n": (5.0, 6.5), "p": (2.0, 3.0), "q": (2.0, 6.5)}
+    edges = [("a", "m", [{"type": "window", "width": 1.2, "relativeCenter": 0.5}], "wall"),
+             ("m", "b", [{"type": "opening", "width": 0, "relativeCenter": 0}], "wall"),
+             ("b", "c", [], "wall"), ("c", "n", [], "wall"), ("n", "d", [], "wall"), ("d", "a", [], "wall"),
+             ("m", "n", [{"type": "doorway", "width": 0.9, "relativeCenter": 0.25},
+                         {"type": "window", "width": 1.0}], "wall"),
+             ("p", "q", [{"type": "doorway"}], "railing")]
+    rooms = [{"id": "r1", "floor": {"id": "g"}, "label": None,
+              "classifications": [{"label": "Treatment", "confidence": 0.9}], "dimensions": {"areaFloor": 30.1}},
+             {"id": "r2", "floor": {"id": "g"}, "label": "", "classifications": [], "dimensions": None},
+             {"id": "r3", "floor": {"id": "other"}, "label": "Elsewhere"}]
+    yield "windows_doors_rounding_rooms", _model([_floor("g", pts, edges, 63.2)], rooms)
+    small = {"a": (0, 0), "b": (4, 0), "c": (4, 4), "d": (0, 4)}
+    big = {"a": (0, 0), "b": (8, 0), "c": (8, 5), "d": (0, 5)}
+    ring = [("a", "b", [], "wall"), ("b", "c", [], "wall"), ("c", "d", [], "wall"), ("d", "a", [], "wall")]
+    yield "largest_floor_by_area", _model([_floor("f1", small, ring, 16.0, "Ground"), _floor("f2", big, ring, 40.0, "Upper")])
+    yield "floor_area_tie_most_edges", _model([
+        _floor("f1", big, ring, 40.0, "A"),
+        _floor("f2", {**big, "m": (4, 0), "n": (4, 5)},
+               [("a", "m", [], "wall"), ("m", "b", [], "wall")] + ring[1:3] + [("d", "a", [], "wall"), ("m", "n", [], "wall")],
+               40.0, "B")])
+    yield "too_small", _model([_floor("f", {"a": (0, 0), "b": (1.5, 0), "c": (1.5, 2), "d": (0, 2)}, ring, 3.0)])
+    yield "open_walls_no_face", _model([_floor("f", big, ring[:3], 40.0)])
+    yield "no_usable_floor", _model([{"id": "f", "vertices": [], "edges": []}])
+    rot = {"a": (0.0, 0.0), "b": (7.0710678, 7.0710678), "c": (2.8284271, 11.3137085), "d": (-4.2426407, 4.2426407),
+           "m": (3.5355339, 3.5355339), "n": (-0.7071068, 7.7781746), "x": (1.0, 1.0)}
+    yield "rotated_with_partition_and_bad_edges", _model([_floor("f", rot, [
+        ("a", "m", [{"type": "doorway", "width": 0.8, "relativeCenter": 0.5}], "wall"), ("m", "b", [], "wall"),
+        ("b", "c", [], "wall"), ("c", "n", [], "wall"), ("n", "d", [], "wall"), ("d", "a", [], "wall"),
+        ("m", "n", [{"type": "opening", "width": 1.1, "relativeCenter": 0.4}], "wall"),
+        ("a", "zzz", [], "wall"), ("x", "x", [], "wall")], None)])
+    near = {**big, "i": (0.5, 0.08), "j": (7.5, 0.08), "k": (0.5, 0.3), "l": (7.5, 0.3)}
+    yield "walls_near_the_boundary", _model([_floor("f", near, ring + [("i", "j", [], "wall"), ("k", "l", [], "wall")], 40.0)])
+
+
 def main() -> None:
+    from app.integrations.matterport import floor_geometry_from_model
+
+    geometry = [{"name": n, "model": m, "result": floor_geometry_from_model(m)} for n, m in geometry_cases()]
+    (HERE / "matterport_geometry.json").write_text(json.dumps(geometry, indent=1, ensure_ascii=False) + "\n")
+    print(f"wrote matterport_geometry.json: {len(geometry)} models")
     out = []
     for name, kind, args, (method, call_args), responses, render in scenarios():
         seen: list = []

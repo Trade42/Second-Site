@@ -47,7 +47,11 @@ impl MatterportProvider for FakeMp {
     ) -> Result<IndexMap<String, ModelSummary>, ProviderError> {
         self.calls.lock().unwrap().push(ids.to_vec());
         if let Some(k) = self.spec["error"].as_str() {
-            return Err(ProviderError::new("matterport", kind(k), "scripted failure"));
+            return Err(ProviderError::new(
+                "matterport",
+                kind(k),
+                "scripted failure",
+            ));
         }
         let mut out = IndexMap::new();
         for (k, v) in self.spec["summaries"].as_object().unwrap() {
@@ -77,7 +81,13 @@ impl VexcelProvider for FakeVx {
     fn mode(&self) -> &str {
         self.spec["mode"].as_str().unwrap_or("live")
     }
-    fn ortho_image(&self, _: f64, _: f64, _: i64, _: i64) -> Result<Option<Vec<u8>>, ProviderError> {
+    fn ortho_image(
+        &self,
+        _: f64,
+        _: f64,
+        _: i64,
+        _: i64,
+    ) -> Result<Option<Vec<u8>>, ProviderError> {
         Ok(None)
     }
     fn capture_dates(&self, _: f64, _: f64) -> Result<Vec<Map<String, Value>>, ProviderError> {
@@ -89,13 +99,15 @@ impl VexcelProvider for FakeVx {
             .map(|a| a.iter().map(|c| c.as_object().unwrap().clone()).collect())
             .unwrap_or_default())
     }
-    fn property_elements(&self, _: f64, _: f64) -> Result<Option<Map<String, Value>>, ProviderError> {
+    fn property_elements(
+        &self,
+        _: f64,
+        _: f64,
+    ) -> Result<Option<Map<String, Value>>, ProviderError> {
         if let Some(k) = self.spec["elements_error"].as_str() {
             return Err(ProviderError::new("vexcel", kind(k), "scripted failure"));
         }
-        Ok(self.spec["properties"]
-            .as_object()
-            .map(summarize_property))
+        Ok(self.spec["properties"].as_object().map(summarize_property))
     }
     fn status(&self) -> ProviderStatusEntry {
         unreachable!("not used")
@@ -162,7 +174,11 @@ fn exterior_enrichment_matches_python() {
         let once = enrich_exterior(input, &fake, media);
         once.validate().unwrap();
         let got = serde_json::to_value(&once).unwrap();
-        assert_eq!(blank(&got, &c["input"]), blank(&c["output"], &c["input"]), "{name}");
+        assert_eq!(
+            blank(&got, &c["input"]),
+            blank(&c["output"], &c["input"]),
+            "{name}"
+        );
         let twice = serde_json::to_value(enrich_exterior(once, &fake, media)).unwrap();
         assert_eq!(
             blank(&twice, &c["input"]),
@@ -191,7 +207,11 @@ fn sponsor_enrichment_assertions() {
         .iter()
         .filter(|a| a.provider == "matterport")
         .collect();
-    assert!(mp[0].asset_id == "MODEL1" && mp[0].matches_listing_unit == Some(true) && mp[0].has_measured_geometry);
+    assert!(
+        mp[0].asset_id == "MODEL1"
+            && mp[0].matches_listing_unit == Some(true)
+            && mp[0].has_measured_geometry
+    );
     assert!(mp[1].label.as_deref() == Some("Lobby") && !mp[1].has_measured_geometry);
     assert!(out
         .source_manifest
@@ -229,8 +249,16 @@ fn sponsor_enrichment_assertions() {
         .iter()
         .find(|o| o.observation_type == "roof_defects")
         .unwrap();
-    assert!(defects.value.as_ref().and_then(|v| v.as_str()).unwrap().contains("water pooling"));
-    assert!(!out.missing_information.iter().any(|m| m == "No exterior imagery"));
+    assert!(defects
+        .value
+        .as_ref()
+        .and_then(|v| v.as_str())
+        .unwrap()
+        .contains("water pooling"));
+    assert!(!out
+        .missing_information
+        .iter()
+        .any(|m| m == "No exterior imagery"));
     // Aerial detections are visual evidence about the building, never measured capacity.
     assert!(out
         .building_observations
@@ -267,6 +295,12 @@ fn missing_net_lease_opex_is_estimated_and_flagged() {
     assert_eq!(s16["nnn_is_estimate"], Value::Bool(true));
     assert!(s16["disclaimer"].as_str().unwrap().contains("median CAM"));
     assert_eq!(s16["nnn_charges_monthly"], serde_json::json!(105417));
-    assert_eq!(res["900:900"].listing["nnn_is_estimate"], Value::Bool(false));
-    assert_eq!(res["1:12"].listing["nnn_charges_monthly"], serde_json::json!(0));
+    assert_eq!(
+        res["900:900"].listing["nnn_is_estimate"],
+        Value::Bool(false)
+    );
+    assert_eq!(
+        res["1:12"].listing["nnn_charges_monthly"],
+        serde_json::json!(0)
+    );
 }

@@ -41,7 +41,10 @@ async fn a_panic_with_an_open_transaction_does_not_hang_or_leak() {
     let outcome = tokio::time::timeout(std::time::Duration::from_secs(60), async move {
         let mut tx = store.begin().await.expect("begin");
         let _ = tx
-            .select(&ss_server::store::schema::PROJECTS, &ss_server::store::Query::new())
+            .select(
+                &ss_server::store::schema::PROJECTS,
+                &ss_server::store::Query::new(),
+            )
             .await
             .expect("select");
         // The transaction is dropped uncommitted, then the "test" panics.

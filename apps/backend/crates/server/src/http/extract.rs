@@ -324,19 +324,28 @@ pub fn body_errors(e: ValidationError) -> AppError {
 /// field), and for the numeric bound errors `ctx` with the bound, read back from the message
 /// Pydantic formats from the same literal (`Input should be less than or equal to 50` ->
 /// `{"le": 50}`).
-pub fn body_errors_with_input(e: ValidationError, body: &serde_json::Map<String, Value>) -> AppError {
+pub fn body_errors_with_input(
+    e: ValidationError,
+    body: &serde_json::Map<String, Value>,
+) -> AppError {
     let AppError::RequestValidation(mut errors) = body_errors(e) else {
         return AppError::internal("unexpected validation error shape");
     };
     let root = Value::Object(body.clone());
     for err in &mut errors {
-        let Some(obj) = err.as_object_mut() else { continue };
+        let Some(obj) = err.as_object_mut() else {
+            continue;
+        };
         let loc: Vec<Value> = obj
             .get("loc")
             .and_then(Value::as_array)
             .map(|a| a.iter().skip(1).cloned().collect())
             .unwrap_or_default();
-        let kind = obj.get("type").and_then(Value::as_str).unwrap_or("").to_owned();
+        let kind = obj
+            .get("type")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_owned();
         let mut cur = Some(&root);
         let mut parent = Some(&root);
         for l in &loc {

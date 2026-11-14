@@ -168,24 +168,39 @@ both_backends!(property_slice_matches_python, |db| {
             .await;
         let status = s["status"].as_u64().unwrap() as u16;
         if r.status.as_u16() != status {
-            status_mismatches.push(format!("{name}: python {status} != rust {} ({})", r.status, r.text));
+            status_mismatches.push(format!(
+                "{name}: python {status} != rust {} ({})",
+                r.status, r.text
+            ));
         }
         // The references the Python script records, recorded the same way.
         match name {
             "dev_token" => token = r.body["access_token"].as_str().map(str::to_owned),
             "create_project" => {
-                refs.insert("project".into(), r.body["project"]["project_id"].as_str().unwrap().into());
+                refs.insert(
+                    "project".into(),
+                    r.body["project"]["project_id"].as_str().unwrap().into(),
+                );
             }
             "create_project_without_profile" => {
-                refs.insert("project_bare".into(), r.body["project"]["project_id"].as_str().unwrap().into());
+                refs.insert(
+                    "project_bare".into(),
+                    r.body["project"]["project_id"].as_str().unwrap().into(),
+                );
             }
             "search" => {
-                refs.insert("status_url".into(), r.body["status_url"].as_str().unwrap().into());
+                refs.insert(
+                    "status_url".into(),
+                    r.body["status_url"].as_str().unwrap().into(),
+                );
             }
             "properties" => {
                 for p in r.body.as_array().unwrap() {
                     refs.insert(
-                        format!("property:{}", p["property_identity"]["street_address"].as_str().unwrap()),
+                        format!(
+                            "property:{}",
+                            p["property_identity"]["street_address"].as_str().unwrap()
+                        ),
                         p["property_id"].as_str().unwrap().into(),
                     );
                 }

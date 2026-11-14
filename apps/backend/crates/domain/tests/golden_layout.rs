@@ -63,7 +63,10 @@ fn diff(a: &Value, b: &Value, tol: f64, path: &str) -> Option<String> {
                 .find_map(|(i, (p, q))| diff(p, q, tol, &format!("{path}[{i}]")))
         }
         (Value::Number(p), Value::Number(q)) if tol > 0.0 => {
-            let (p, q) = (p.as_f64().unwrap_or(f64::NAN), q.as_f64().unwrap_or(f64::NAN));
+            let (p, q) = (
+                p.as_f64().unwrap_or(f64::NAN),
+                q.as_f64().unwrap_or(f64::NAN),
+            );
             ((p - q).abs() > tol).then(|| format!("{path}: {p} vs {q}"))
         }
         _ if a == b => None,
@@ -108,7 +111,10 @@ fn shapely_primitives_match_python() {
         } else {
             // Several invalid intersections: GEOS's pick depends on its index traversal; it must
             // be one of the ring's invalid intersections.
-            assert!(cands.iter().any(|x| x == theirs), "{p:?}: {theirs} not in {cands:?}");
+            assert!(
+                cands.iter().any(|x| x == theirs),
+                "{p:?}: {theirs} not in {cands:?}"
+            );
             multi += 1;
             if ours == theirs {
                 exact += 1;
@@ -124,26 +130,42 @@ fn shapely_primitives_match_python() {
     for c in doc["min_dimension"].as_array().unwrap() {
         let p = pts(&c["points"]);
         let (ours, theirs) = (min_dimension(&p), f(&c["min_dimension"]));
-        assert!((ours - theirs).abs() <= 1e-9, "min_dimension({p:?}): {ours} vs {theirs}");
+        assert!(
+            (ours - theirs).abs() <= 1e-9,
+            "min_dimension({p:?}): {ours} vs {theirs}"
+        );
     }
     let outers = &doc["outer_shapes"];
     for c in doc["contains"].as_array().unwrap() {
         let outer = pts(&outers[c["outer"].as_str().unwrap()]);
         let inner = pts(&c["inner"]);
         let ours = geometry::contains_with_tolerance(&outer, &inner, f(&c["eps"]));
-        assert_eq!(ours, c["contains"].as_bool().unwrap(), "{} contains {inner:?}", c["outer"]);
+        assert_eq!(
+            ours,
+            c["contains"].as_bool().unwrap(),
+            "{} contains {inner:?}",
+            c["outer"]
+        );
     }
     for c in doc["segment_length"].as_array().unwrap() {
         let p = pts(&c["polygon"]);
         let a: Coord = serde_json::from_value(c["start"].clone()).unwrap();
         let b: Coord = serde_json::from_value(c["end"].clone()).unwrap();
         let ours = geometry::segment_length_inside(&p, a, b);
-        assert!((ours - f(&c["length"])).abs() <= 1e-9, "{p:?} ∩ {a:?}-{b:?}: {ours} vs {}", c["length"]);
+        assert!(
+            (ours - f(&c["length"])).abs() <= 1e-9,
+            "{p:?} ∩ {a:?}-{b:?}: {ours} vs {}",
+            c["length"]
+        );
     }
     for c in doc["intersection_area"].as_array().unwrap() {
         let (a, b) = (pts(&c["a"]), pts(&c["b"]));
         let ours = geometry::intersection_area(&a, &b);
-        assert!((ours - f(&c["area"])).abs() <= 1e-9, "{a:?} ∩ {b:?}: {ours} vs {}", c["area"]);
+        assert!(
+            (ours - f(&c["area"])).abs() <= 1e-9,
+            "{a:?} ∩ {b:?}: {ours} vs {}",
+            c["area"]
+        );
     }
     for c in doc["validate_ring"].as_array().unwrap() {
         let p = pts(&c["points"]);
@@ -232,7 +254,10 @@ fn contract_validation_matches_pydantic() {
                         let (om, tm) = (o["msg"].as_str().unwrap(), t["msg"].as_str().unwrap());
                         assert_eq!(o["loc"], t["loc"], "{name}");
                         assert_eq!(o["type"], t["type"], "{name}");
-                        assert!(om == tm || (multi_crossing(om) && multi_crossing(tm)), "{name}: {om} vs {tm}");
+                        assert!(
+                            om == tm || (multi_crossing(om) && multi_crossing(tm)),
+                            "{name}: {om} vs {tm}"
+                        );
                     }
                 }
             }
@@ -279,7 +304,11 @@ fn framing_matches_python() {
     let doc = g("part3_framing.json");
     for c in doc["dominant_angle"].as_array().unwrap() {
         let p = pts(&c["coords"]);
-        assert_eq!(dominant_angle(&p).to_bits(), f(&c["angle"]).to_bits(), "{p:?}");
+        assert_eq!(
+            dominant_angle(&p).to_bits(),
+            f(&c["angle"]).to_bits(),
+            "{p:?}"
+        );
     }
     for c in doc["normalize_plan"].as_array().unwrap() {
         let name = c["name"].as_str().unwrap();
@@ -295,8 +324,16 @@ fn framing_matches_python() {
     for c in cases {
         let name = c["name"].as_str().unwrap();
         let site = SiteGeometry::from_json_value(c["site"].clone()).expect("site");
-        assert_eq!(dominant_angle(&site.floor_boundary), f(&c["dominant_angle"]), "{name}");
-        assert_eq!(is_solver_ready(&site), c["solver_ready"].as_bool().unwrap(), "{name}");
+        assert_eq!(
+            dominant_angle(&site.floor_boundary),
+            f(&c["dominant_angle"]),
+            "{name}"
+        );
+        assert_eq!(
+            is_solver_ready(&site),
+            c["solver_ready"].as_bool().unwrap(),
+            "{name}"
+        );
         let rect = largest_inner_rectangle(&site.floor_boundary, 0.2);
         let theirs: Option<(f64, f64, f64, f64)> =
             serde_json::from_value(c["largest_inner_rectangle"].clone()).unwrap();
@@ -392,7 +429,11 @@ fn solver_matches_cp_sat_model() {
             let theirs = topo["attempts"].as_array().unwrap();
             // Python moves to the next offset only when an attempt has no solution; Rust is exact
             // here, so it stops at the same offset whenever Python's statuses are proofs.
-            assert_eq!(choice.attempts.len(), theirs.len(), "{name} {topology:?}: attempts");
+            assert_eq!(
+                choice.attempts.len(),
+                theirs.len(),
+                "{name} {topology:?}: attempts"
+            );
             for ((off, rep), py) in choice.attempts.iter().zip(theirs) {
                 st.attempts += 1;
                 let ctx = format!("{name} {topology:?} offset {off:?}");
@@ -431,7 +472,12 @@ fn solver_matches_cp_sat_model() {
                 }
                 let python_has = !py["solution"].is_null();
                 if proof || python_has {
-                    assert_eq!(rep.status.has_solution(), python_has, "{ctx}: Rust {:?}, Python {status}", rep.status);
+                    assert_eq!(
+                        rep.status.has_solution(),
+                        python_has,
+                        "{ctx}: Rust {:?}, Python {status}",
+                        rep.status
+                    );
                 }
                 if matches!(status, "CAPACITY") {
                     assert_eq!(rep.status, SolveStatus::CapacityExceeded, "{ctx}");
@@ -446,17 +492,25 @@ fn solver_matches_cp_sat_model() {
                 }
                 if rep.status.has_solution() {
                     // Every hard constraint holds and the reported objective is the model's.
-                    let obj = check_solution(&strips_now.0, &rooms, framed, &prefs, &rep.placements)
-                        .unwrap_or_else(|e| panic!("{ctx}: Rust solution breaks the model: {e}"));
+                    let obj =
+                        check_solution(&strips_now.0, &rooms, framed, &prefs, &rep.placements)
+                            .unwrap_or_else(|e| {
+                                panic!("{ctx}: Rust solution breaks the model: {e}")
+                            });
                     assert_eq!(Some(obj), rep.objective, "{ctx}");
                 }
                 if python_has {
                     // Python's solution satisfies the Rust model, with CP-SAT's objective value.
                     let py_pl = placements_from(&py["solution_cm"]);
                     let py_obj = check_solution(&strips_now.0, &rooms, framed, &prefs, &py_pl)
-                        .unwrap_or_else(|e| panic!("{ctx}: Python's solution fails the Rust model: {e}"));
+                        .unwrap_or_else(|e| {
+                            panic!("{ctx}: Python's solution fails the Rust model: {e}")
+                        });
                     let cp_obj = f(&py["objective"]);
-                    assert_eq!(py_obj as f64, cp_obj, "{ctx}: objective of Python's solution");
+                    assert_eq!(
+                        py_obj as f64, cp_obj,
+                        "{ctx}: objective of Python's solution"
+                    );
                     let ours = rep.objective.expect("Rust solution");
                     if status == "OPTIMAL" {
                         assert_eq!(ours, py_obj, "{ctx}: both optimal");
@@ -478,7 +532,12 @@ fn solver_matches_cp_sat_model() {
         for (o, t) in ours.iter().zip(theirs) {
             st.candidates += 1;
             assert_eq!(o.name, t["name"], "{name}");
-            assert_eq!(o.rooms.len(), t["rooms"].as_array().unwrap().len(), "{name} {}", o.name);
+            assert_eq!(
+                o.rooms.len(),
+                t["rooms"].as_array().unwrap().len(),
+                "{name} {}",
+                o.name
+            );
             let t_valid = t["report"]["valid"].as_bool().unwrap();
             if t_valid {
                 st.python_valid_candidates += 1;
@@ -499,7 +558,11 @@ fn solver_matches_cp_sat_model() {
                 assert_same(&report_json(&o.report), &t["report"], 0.0, name);
             } else {
                 assert_eq!(o.report.disclaimer, t["report"]["disclaimer"], "{name}");
-                assert_eq!(common::to_value(&o.circulation), t["circulation"], "{name} circulation");
+                assert_eq!(
+                    common::to_value(&o.circulation),
+                    t["circulation"],
+                    "{name} circulation"
+                );
                 for r in &o.rooms {
                     r.validate().unwrap();
                 }

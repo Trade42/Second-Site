@@ -30,9 +30,9 @@ use crate::app::AppState;
 use crate::contracts::plain_contract;
 use crate::error::{AppError, AppResult};
 use crate::http::extract::{AuthUser, PathParams};
+use crate::integrations::blocking;
 use crate::integrations::storage::StorageError;
 use crate::integrations::vexcel::{ORTHO_PIXELS, ORTHO_SIZE_M};
-use crate::integrations::blocking;
 use crate::security;
 use crate::store::repo::PROPERTIES;
 
@@ -74,7 +74,9 @@ pub fn router() -> Router<AppState> {
 }
 
 fn missing_file() -> AppError {
-    AppError::request_validation("missing", vec![json!("body"), json!("file")], "Field required")
+    AppError::RequestValidation(vec![json!({
+        "type": "missing", "loc": ["body", "file"], "msg": "Field required", "input": null,
+    })])
 }
 
 fn bad_multipart(e: &axum::extract::multipart::MultipartError) -> AppError {
@@ -195,11 +197,9 @@ async fn upload(
         .unwrap_or_else(|| "upload".to_owned());
     let size = part.data.len() as i64;
     let ct = content_type.clone();
-    let key = blocking(move || {
-        storage.put(&project_id.to_string(), &filename, &part.data, &ct)
-    })
-    .await?
-    .map_err(|e| AppError::internal_kind("OSError", e.to_string()))?;
+    let key = blocking(move || storage.put(&project_id.to_string(), &filename, &part.data, &ct))
+        .await?
+        .map_err(|e| AppError::internal_kind("OSError", e.to_string()))?;
     Ok((
         StatusCode::CREATED,
         Json(MediaStored {
@@ -246,10 +246,12 @@ async fn signed_object(State(app): State<AppState>, params: PathParams) -> AppRe
     let key = security::verify_media_key(app.settings.auth_secret.expose(), &token)?;
     let storage = app.integrations().storage.clone();
     let k = key.clone();
-    let data = blocking(move || storage.get(&k)).await?.map_err(|e| match e {
-        StorageError::NotFound => AppError::not_found("object not found"),
-        StorageError::Io(m) => AppError::internal_kind("OSError", m),
-    })?;
+    let data = blocking(move || storage.get(&k))
+        .await?
+        .map_err(|e| match e {
+            StorageError::NotFound => AppError::not_found("object not found"),
+            StorageError::Io(m) => AppError::internal_kind("OSError", m),
+        })?;
     let media = if key.ends_with(".mp3") {
         "audio/mpeg"
     } else if key.ends_with(".wav") {

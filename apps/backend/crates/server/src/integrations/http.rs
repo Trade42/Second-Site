@@ -152,7 +152,11 @@ fn read_body(provider: &str, resp: ureq::Response) -> Result<HttpResponse, Provi
 
 impl HttpClient {
     /// `httpx.Client(timeout=policy.timeout_s, headers=headers)`.
-    pub fn new(provider: &'static str, policy: RetryPolicy, headers: Vec<(String, String)>) -> Self {
+    pub fn new(
+        provider: &'static str,
+        policy: RetryPolicy,
+        headers: Vec<(String, String)>,
+    ) -> Self {
         let t = timeout(&policy);
         let agent = ureq::AgentBuilder::new()
             .timeout_connect(t)
@@ -205,7 +209,10 @@ impl HttpClient {
         }))
     }
 
-    fn finish(&self, r: Result<ureq::Response, ureq::Error>) -> Result<HttpResponse, ProviderError> {
+    fn finish(
+        &self,
+        r: Result<ureq::Response, ureq::Error>,
+    ) -> Result<HttpResponse, ProviderError> {
         match r {
             Ok(resp) if (200..300).contains(&resp.status()) => read_body(self.provider, resp),
             Ok(resp) => Err(status_error(self.provider, resp.status())),
@@ -223,7 +230,11 @@ impl HttpClient {
     }
 
     /// One `GET url?params` attempt (no retries).
-    pub fn get_once(&self, url: &str, params: &[(&str, &str)]) -> Result<HttpResponse, ProviderError> {
+    pub fn get_once(
+        &self,
+        url: &str,
+        params: &[(&str, &str)],
+    ) -> Result<HttpResponse, ProviderError> {
         let mut req = self.request("GET", url);
         for (k, v) in params {
             req = req.query(k, v);
@@ -273,7 +284,11 @@ mod tests {
         let mut n = 0;
         let r: Result<(), _> = c.with_retries(|| {
             n += 1;
-            Err(ProviderError::new("test", ProviderErrorKind::Unavailable, "x"))
+            Err(ProviderError::new(
+                "test",
+                ProviderErrorKind::Unavailable,
+                "x",
+            ))
         });
         assert_eq!(n, 3);
         assert_eq!(r.unwrap_err().kind, ProviderErrorKind::Unavailable);
@@ -288,7 +303,11 @@ mod tests {
         let r = c.with_retries(|| {
             n += 1;
             if n < 2 {
-                Err(ProviderError::new("test", ProviderErrorKind::RateLimited, "x"))
+                Err(ProviderError::new(
+                    "test",
+                    ProviderErrorKind::RateLimited,
+                    "x",
+                ))
             } else {
                 Ok(n)
             }

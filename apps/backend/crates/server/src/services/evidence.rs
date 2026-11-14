@@ -44,7 +44,10 @@ impl EvidenceService {
                 .push(e.clone());
         }
         groups.retain(|_, v| {
-            let mut values: Vec<String> = v.iter().map(|e| py::value_str(&e.extracted_value)).collect();
+            let mut values: Vec<String> = v
+                .iter()
+                .map(|e| py::value_str(&e.extracted_value))
+                .collect();
             values.sort();
             values.dedup();
             values.len() > 1

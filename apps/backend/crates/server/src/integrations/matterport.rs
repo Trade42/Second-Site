@@ -22,9 +22,7 @@ use regex::Regex;
 use serde_json::{json, Map, Value};
 use ss_core::IntegrationStatus;
 use ss_domain::contracts::ProviderStatusEntry;
-use ss_domain::integrations::base::{
-    status_entry, ProviderError, ProviderErrorKind, RetryPolicy,
-};
+use ss_domain::integrations::base::{status_entry, ProviderError, ProviderErrorKind, RetryPolicy};
 use ss_domain::py;
 
 use super::http::HttpClient;
@@ -105,11 +103,13 @@ impl MatterportProvider for FixtureMatterportProvider {
     /// The first `*.json` document whose `source_id` is `asset_id` (files in name order; Python
     /// takes directory order).
     fn get_floor_geometry(&self, asset_id: &str) -> Result<Option<Value>, ProviderError> {
-        let not_configured = |m: String| {
-            ProviderError::new(PROVIDER, ProviderErrorKind::NotConfigured, m)
-        };
+        let not_configured =
+            |m: String| ProviderError::new(PROVIDER, ProviderErrorKind::NotConfigured, m);
         let entries = std::fs::read_dir(&self.geometry_dir).map_err(|e| {
-            not_configured(format!("geometry fixtures {}: {e}", self.geometry_dir.display()))
+            not_configured(format!(
+                "geometry fixtures {}: {e}",
+                self.geometry_dir.display()
+            ))
         })?;
         let mut files: Vec<PathBuf> = entries
             .filter_map(Result::ok)
@@ -202,7 +202,11 @@ impl LiveMatterportProvider {
     }
 
     /// `_gql`: the `data` object of a GraphQL response.
-    pub fn gql(&self, query: &str, variables: Option<Value>) -> Result<Map<String, Value>, ProviderError> {
+    pub fn gql(
+        &self,
+        query: &str,
+        variables: Option<Value>,
+    ) -> Result<Map<String, Value>, ProviderError> {
         if !self.configured {
             return Err(ProviderError::new(
                 PROVIDER,
@@ -395,10 +399,7 @@ pub fn suite_matches(model_name: Option<&str>, suite: Option<&str>) -> bool {
     if name.replace(' ', "") == token {
         return true;
     }
-    let pattern = format!(
-        r"(?:\b(?:SUITE|STE|UNIT)|#)\s*{}\b",
-        regex::escape(&token)
-    );
+    let pattern = format!(r"(?:\b(?:SUITE|STE|UNIT)|#)\s*{}\b", regex::escape(&token));
     Regex::new(&pattern).is_ok_and(|re| re.is_match(name))
 }
 

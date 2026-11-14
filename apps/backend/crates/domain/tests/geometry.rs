@@ -144,7 +144,10 @@ fn test_obstacles_reduce_usable_area() {
     one.count = 1;
     let issues = validate_layout(&s, &rooms, &[one], None).issues;
     // 10.24 - 0.36 column < 10
-    assert!(issues.iter().any(|i| i.code == "BELOW_MIN_AREA"), "{issues:?}");
+    assert!(
+        issues.iter().any(|i| i.code == "BELOW_MIN_AREA"),
+        "{issues:?}"
+    );
 }
 
 /// The framing half of `test_floor_geometry_from_model_and_framing`: the input is the document
@@ -196,12 +199,99 @@ fn test_floor_geometry_framing() {
     ];
     let cands = generate_candidates(&site, &reqs, &LayoutPreferences::default(), 2).unwrap();
     let valid: Vec<_> = cands.iter().filter(|c| c.report.valid).collect();
-    assert!(!valid.is_empty(), "{:?}", cands.iter().map(|c| &c.report.issues).collect::<Vec<_>>());
+    assert!(
+        !valid.is_empty(),
+        "{:?}",
+        cands.iter().map(|c| &c.report.issues).collect::<Vec<_>>()
+    );
     for c in valid {
         for r in &c.rooms {
             // mapped back onto the real plan
-            assert!(geometry::contains_with_tolerance(&site.floor_boundary, &r.polygon, 0.01));
+            assert!(geometry::contains_with_tolerance(
+                &site.floor_boundary,
+                &r.polygon,
+                0.01
+            ));
         }
         assert!(c.report.disclaimer.contains("largest rectangular area"));
+    }
+}
+
+fn many_kinds(n: usize, plumbing: bool) -> Vec<RoomRequirement> {
+    // Distinct sizes, so no two rooms are interchangeable and the exact search's state space is
+    // 2^n.
+    (0..n)
+        .map(|k| RoomRequirement {
+            room_type: format!("kind{k}"),
+            count: 1,
+            min_area_sqm: 3.0 + k as f64 * 0.41,
+            min_width_m: 0.3,
+            needs_plumbing: plumbing,
+        })
+        .collect()
+}
+
+fn big_site() -> SiteGeometry {
+    SiteGeometry::from_json_value(serde_json::json!({
+        "property_id": Uuid::new_v4(),
+        "source_id": "synthetic",
+        "geometry_source": "FIXTURE",
+        "data_origin": "FIXTURE_SYNTHETIC",
+        "floor_boundary": [[0, 0], [24, 0], [24, 14], [0, 14]],
+        "entrances": [{"kind": "entrance", "start": [11.4, 0], "end": [12.6, 0]}],
+        "fixture_locations": [{"kind": "sink", "location": [20, 12]}],
+    }))
+    .unwrap()
+}
+
+#[test]
+fn large_programs_use_the_constructive_method_within_the_model() {
+    use ss_domain::design::geometry::solver::{
+        best_strips, check_solution, expand, SolveStatus, Topology,
+    };
+    let s = big_site();
+    let prefs = LayoutPreferences::default();
+    for plumbing in [true, false] {
+        let reqs = many_kinds(16, plumbing);
+        let rooms = expand(&reqs).unwrap();
+        let choice = best_strips(&s, Topology::Spine, &rooms, &prefs).unwrap();
+        let rep = choice.solution.expect("a constructive solution");
+        assert_eq!(rep.status, SolveStatus::Feasible, "plumbing {plumbing}");
+        let obj = check_solution(&choice.strips, &rooms, &s, &prefs, &rep.placements).unwrap();
+        assert_eq!(Some(obj), rep.objective);
+        let cands = generate_candidates(&s, &reqs, &prefs, 2).unwrap();
+        assert!(cands.iter().any(|c| c.rooms.len() == 16));
+    }
+}
+
+#[test]
+fn programs_above_the_room_limit_are_infeasible_not_searched() {
+    use ss_domain::design::geometry::solver::MAX_ROOMS;
+    let reqs = vec![RoomRequirement {
+        room_type: "pod".into(),
+        count: MAX_ROOMS as i64 + 1,
+        min_area_sqm: 0.01,
+        min_width_m: 0.05,
+        needs_plumbing: false,
+    }];
+    let cands = generate_candidates(&site(), &reqs, &LayoutPreferences::default(), 2).unwrap();
+    assert_eq!(cands.len(), 2);
+    for c in cands {
+        assert!(c.rooms.is_empty() && !c.report.valid);
+        assert_eq!(c.report.issues[0].code, "INFEASIBLE");
+        assert_eq!(
+            c.report.issues[0].message,
+            format!("No {} layout satisfies the room program", c.name)
+        );
+    }
+}
+
+#[test]
+fn layouts_are_never_presented_as_approved_plans() {
+    // Truthfulness: every report carries the "not an approved plan" disclaimer.
+    for c in generate_candidates(&site(), &reqs(), &LayoutPreferences::default(), 2).unwrap() {
+        assert!(c.report.disclaimer.starts_with(
+            "Automated geometric check only. Not a code-compliance review or professionally approved plan."
+        ));
     }
 }

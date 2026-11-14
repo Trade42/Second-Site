@@ -173,9 +173,9 @@ pub fn normalize_plan(doc: &Value) -> Result<Value, DomainError> {
                 .cloned()
                 .ok_or_else(|| DomainError::BadRecord(format!("{key} entry is not an object")))?;
             for end in ["start", "end"] {
-                let p = m.get(end).ok_or_else(|| {
-                    DomainError::BadRecord(format!("{key} entry has no {end}"))
-                })?;
+                let p = m
+                    .get(end)
+                    .ok_or_else(|| DomainError::BadRecord(format!("{key} entry has no {end}")))?;
                 let v = f(point_of(p, end)?);
                 m.insert(end.into(), v);
             }
@@ -469,13 +469,7 @@ pub fn frame_for_solver(site: &SiteGeometry, min_area: f64) -> Option<Frame> {
     framed.restricted_areas = vec![];
     Some(Frame {
         site: framed,
-        map: FrameMap::Rect {
-            side,
-            x0,
-            y0,
-            w,
-            h,
-        },
+        map: FrameMap::Rect { side, x0, y0, w, h },
         notes,
     })
 }

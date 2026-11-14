@@ -202,7 +202,9 @@ pub async fn drop_schema_forcefully(schema: &str) {
     else {
         return;
     };
-    let Ok(mut c) = opts.connect().await else { return };
+    let Ok(mut c) = opts.connect().await else {
+        return;
+    };
     let _ = sqlx::query(
         "SELECT pg_terminate_backend(pid) FROM pg_stat_activity \
          WHERE application_name = $1 AND pid <> pg_backend_pid()",
@@ -238,13 +240,12 @@ pub async fn schema_exists(schema: &str) -> bool {
     let opts = PgConnectOptions::from_str(&ss_server::config::normalize_database_url(&url))
         .expect("TEST_DATABASE_URL");
     let mut c = opts.connect().await.expect("connect");
-    let row: (i64,) = sqlx::query_as(
-        "SELECT count(*) FROM information_schema.schemata WHERE schema_name = $1",
-    )
-    .bind(schema)
-    .fetch_one(&mut c)
-    .await
-    .expect("query");
+    let row: (i64,) =
+        sqlx::query_as("SELECT count(*) FROM information_schema.schemata WHERE schema_name = $1")
+            .bind(schema)
+            .fetch_one(&mut c)
+            .await
+            .expect("query");
     row.0 == 1
 }
 

@@ -29,11 +29,9 @@ pub mod vexcel;
 use std::sync::Arc;
 
 use ss_core::IntegrationStatus;
-use ss_domain::contracts::{PropertySearchRequest, ProviderStatusEntry};
-use ss_domain::integrations::base::{status_entry, ProviderError, ProviderErrorKind};
-use ss_domain::integrations::costar::{
-    CoStarProvider, FixtureCoStarProvider, KitCoStarProvider, RawListing,
-};
+use ss_domain::contracts::ProviderStatusEntry;
+use ss_domain::integrations::base::{status_entry, ProviderError};
+use ss_domain::integrations::costar::{CoStarProvider, FixtureCoStarProvider, KitCoStarProvider};
 use ss_domain::integrations::la_permits::{FixtureLaPermitProvider, LaPermitProvider, RawPermit};
 
 use crate::app::{App, ProviderStatus};
@@ -224,17 +222,4 @@ where
     tokio::task::spawn_blocking(f)
         .await
         .map_err(|e| AppError::internal(format!("provider task failed: {e}")))
-}
-
-/// `PropertyScoutService(c.costar).search(...)` raw listings, on the blocking pool.
-pub async fn costar_search(
-    provider: Arc<dyn CoStarProvider>,
-    req: PropertySearchRequest,
-) -> AppResult<Result<Vec<RawListing>, ProviderError>> {
-    blocking(move || provider.search(&req)).await
-}
-
-/// A provider error that is not one: used where a provider is missing.
-pub fn not_configured(provider: &str, msg: &str) -> ProviderError {
-    ProviderError::new(provider, ProviderErrorKind::NotConfigured, msg)
 }

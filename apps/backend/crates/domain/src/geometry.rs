@@ -310,10 +310,16 @@ fn dd_line_intersection(p1: Pt, p2: Pt, q1: Pt, q2: Pt) -> Option<Pt> {
     let pdy = p2y.sub(p1y);
     let pdx = p2x.sub(p1x);
     let denom = qdy.mul(pdx).sub(qdx.mul(pdy));
-    let numx = q2x.sub(q1x).mul(p1y.sub(q1y)).sub(q2y.sub(q1y).mul(p1x.sub(q1x)));
+    let numx = q2x
+        .sub(q1x)
+        .mul(p1y.sub(q1y))
+        .sub(q2y.sub(q1y).mul(p1x.sub(q1x)));
     let frac_p = numx.div(denom);
     let x = p1x.add(p2x.sub(p1x).mul(frac_p)).value();
-    let numy = p2x.sub(p1x).mul(p1y.sub(q1y)).sub(p2y.sub(p1y).mul(p1x.sub(q1x)));
+    let numy = p2x
+        .sub(p1x)
+        .mul(p1y.sub(q1y))
+        .sub(p2y.sub(p1y).mul(p1x.sub(q1x)));
     let frac_q = numy.div(denom);
     let y = q1y.add(q2y.sub(q1y).mul(frac_q)).value();
     (x.is_finite() && y.is_finite()).then_some((x, y))
@@ -335,9 +341,14 @@ fn envs_intersect(p1: Pt, p2: Pt, q1: Pt, q2: Pt) -> bool {
 enum SegInter {
     None,
     /// One point; `proper` when it is interior to both segments.
-    Point { at: Pt, proper: bool },
+    Point {
+        at: Pt,
+        proper: bool,
+    },
     /// A collinear overlap; `first` is GEOS's `getIntersection(0)`.
-    Collinear { first: Pt },
+    Collinear {
+        first: Pt,
+    },
 }
 
 fn nearest_endpoint(p1: Pt, p2: Pt, q1: Pt, q2: Pt) -> Pt {
@@ -958,7 +969,11 @@ fn triangulate(ring: &[Pt]) -> Option<Vec<Vec<Pt>>> {
         let m = idx.len();
         let mut clipped = false;
         for k in 0..m {
-            let (a, b, c) = (pts[idx[(k + m - 1) % m]], pts[idx[k]], pts[idx[(k + 1) % m]]);
+            let (a, b, c) = (
+                pts[idx[(k + m - 1) % m]],
+                pts[idx[k]],
+                pts[idx[(k + 1) % m]],
+            );
             match orientation(a, b, c) {
                 o if o < 0 => continue,
                 0 => {
@@ -1040,8 +1055,7 @@ fn intersection_area_of(first: &[Pt], rest: &[&[Pt]]) -> Option<f64> {
 
 /// `Polygon(a).intersection(Polygon(b)).area` for two simple polygons.
 pub fn intersection_area(a: &[Pt], b: &[Pt]) -> f64 {
-    intersection_area_of(a, &[b])
-        .unwrap_or_else(|| multi_area(&to_geo(a).intersection(&to_geo(b))))
+    intersection_area_of(a, &[b]).unwrap_or_else(|| multi_area(&to_geo(a).intersection(&to_geo(b))))
 }
 
 /// Largest family size for which unions are evaluated by inclusion-exclusion.
@@ -1165,14 +1179,18 @@ fn convex_hull(points: &[Pt]) -> Vec<Pt> {
     }
     let mut lower: Vec<Pt> = Vec::new();
     for p in &pts {
-        while lower.len() >= 2 && orientation(lower[lower.len() - 2], lower[lower.len() - 1], *p) <= 0 {
+        while lower.len() >= 2
+            && orientation(lower[lower.len() - 2], lower[lower.len() - 1], *p) <= 0
+        {
             lower.pop();
         }
         lower.push(*p);
     }
     let mut upper: Vec<Pt> = Vec::new();
     for p in pts.iter().rev() {
-        while upper.len() >= 2 && orientation(upper[upper.len() - 2], upper[upper.len() - 1], *p) <= 0 {
+        while upper.len() >= 2
+            && orientation(upper[upper.len() - 2], upper[upper.len() - 1], *p) <= 0
+        {
             upper.pop();
         }
         upper.push(*p);
@@ -1333,7 +1351,9 @@ fn reinsert_vertices(ring: &[Pt], source: &[Pt]) -> Vec<Pt> {
         out.push(a);
         let mut on: Vec<(f64, Pt)> = source
             .iter()
-            .filter(|v| **v != a && **v != b && orientation(a, b, **v) == 0 && env_contains(a, b, **v))
+            .filter(|v| {
+                **v != a && **v != b && orientation(a, b, **v) == 0 && env_contains(a, b, **v)
+            })
             .map(|v| ((v.0 - a.0).hypot(v.1 - a.1), *v))
             .collect();
         on.sort_by(|x, y| x.0.total_cmp(&y.0));
@@ -1458,6 +1478,9 @@ mod tests {
         assert_eq!(intersection_area(&sq, &other), 1.0);
         let door = segment_length_inside(&sq, (1.0, 0.0), (2.5, 0.0));
         assert!((door - 1.5).abs() < 1e-12);
-        assert_eq!(min_rotated_rectangle_min_side(&[(0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (0.0, 2.0)]), 2.0);
+        assert_eq!(
+            min_rotated_rectangle_min_side(&[(0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (0.0, 2.0)]),
+            2.0
+        );
     }
 }

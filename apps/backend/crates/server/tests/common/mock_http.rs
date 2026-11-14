@@ -58,18 +58,16 @@ pub fn decode_component(s: &str) -> String {
                 out.push(b' ');
                 i += 1;
             }
-            b'%' if i + 2 < b.len() => {
-                match (hex(b[i + 1]), hex(b[i + 2])) {
-                    (Some(h), Some(l)) => {
-                        out.push(h * 16 + l);
-                        i += 3;
-                    }
-                    _ => {
-                        out.push(b'%');
-                        i += 1;
-                    }
+            b'%' if i + 2 < b.len() => match (hex(b[i + 1]), hex(b[i + 2])) {
+                (Some(h), Some(l)) => {
+                    out.push(h * 16 + l);
+                    i += 3;
                 }
-            }
+                _ => {
+                    out.push(b'%');
+                    i += 1;
+                }
+            },
             c => {
                 out.push(c);
                 i += 1;
@@ -101,7 +99,14 @@ fn reason(status: u16) -> &'static str {
     }
 }
 
-fn serve(mut stream: TcpStream, responses: &Mutex<Vec<Canned>>, requests: &Mutex<Vec<Recorded>>) {
+type Handler = dyn Fn(&Recorded) -> Canned + Send + Sync;
+
+enum Script {
+    InOrder(Mutex<Vec<Canned>>),
+    Handler(Box<Handler>),
+}
+
+fn serve(mut stream: TcpStream, script: &Script, requests: &Mutex<Vec<Recorded>>) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
     let mut buf = Vec::new();
     let mut chunk = [0u8; 8192];
@@ -141,25 +146,29 @@ fn serve(mut stream: TcpStream, responses: &Mutex<Vec<Canned>>, requests: &Mutex
         Some((p, q)) => (p.to_owned(), decode_query(q)),
         None => (target.clone(), Vec::new()),
     };
-    requests.lock().unwrap().push(Recorded {
+    let rec = Recorded {
         method,
         path,
         query,
         headers,
         body,
-    });
-    let canned = {
-        let mut r = responses.lock().unwrap();
-        if r.is_empty() {
-            Canned {
-                status: 599,
-                content_type: None,
-                body: b"no scripted response left".to_vec(),
+    };
+    let canned = match script {
+        Script::Handler(h) => h(&rec),
+        Script::InOrder(responses) => {
+            let mut r = responses.lock().unwrap();
+            if r.is_empty() {
+                Canned {
+                    status: 599,
+                    content_type: None,
+                    body: b"no scripted response left".to_vec(),
+                }
+            } else {
+                r.remove(0)
             }
-        } else {
-            r.remove(0)
         }
     };
+    requests.lock().unwrap().push(rec);
     let mut out = format!(
         "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\n",
         canned.status,
@@ -176,12 +185,21 @@ fn serve(mut stream: TcpStream, responses: &Mutex<Vec<Canned>>, requests: &Mutex
 }
 
 impl MockServer {
+    /// Answer the requests with `responses`, in order.
     pub fn start(responses: Vec<Canned>) -> MockServer {
+        Self::spawn(Script::InOrder(Mutex::new(responses)))
+    }
+
+    /// Answer every request with `handler(request)`.
+    pub fn start_with(handler: impl Fn(&Recorded) -> Canned + Send + Sync + 'static) -> MockServer {
+        Self::spawn(Script::Handler(Box::new(handler)))
+    }
+
+    fn spawn(script: Script) -> MockServer {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
         let addr = listener.local_addr().expect("addr");
         let requests = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
-        let responses = Arc::new(Mutex::new(responses));
         let (r2, s2) = (requests.clone(), stop.clone());
         let handle = std::thread::spawn(move || {
             for stream in listener.incoming() {
@@ -189,7 +207,7 @@ impl MockServer {
                     break;
                 }
                 if let Ok(s) = stream {
-                    serve(s, &responses, &r2);
+                    serve(s, &script, &r2);
                 }
             }
         });

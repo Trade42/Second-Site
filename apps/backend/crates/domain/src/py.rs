@@ -501,9 +501,8 @@ pub fn decimal_and_space_to_ascii(s: &str) -> String {
 fn unicode_decimal(c: char) -> Option<u8> {
     static ND: std::sync::LazyLock<Regex> =
         std::sync::LazyLock::new(|| Regex::new(r"^\p{Nd}$").expect("static regex is valid"));
-    let is_nd = |cp: u32| {
-        char::from_u32(cp).is_some_and(|ch| ND.is_match(ch.encode_utf8(&mut [0; 4])))
-    };
+    let is_nd =
+        |cp: u32| char::from_u32(cp).is_some_and(|ch| ND.is_match(ch.encode_utf8(&mut [0; 4])));
     let cp = c as u32;
     if !is_nd(cp) {
         return None;

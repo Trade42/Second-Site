@@ -25,7 +25,9 @@ use uuid::Uuid;
 use crate::app::{App, AppState};
 use crate::contracts::{JsonMap, Subsystem, TaskAccepted, TaskRecord, TaskType};
 use crate::error::AppResult;
-use crate::http::extract::{bearer_user, body_errors_with_input, early_json_body, AuthUser, PathParams};
+use crate::http::extract::{
+    bearer_user, body_errors_with_input, early_json_body, AuthUser, PathParams,
+};
 use crate::store::repo::{ASSESSMENTS, COST_SCENARIOS, PERMITS, PROPERTIES, RANKINGS};
 use crate::store::{Query, Tx};
 use crate::workflows::property_analysis::PropertyAnalysisWorkflow;
@@ -36,7 +38,10 @@ pub fn router() -> Router<AppState> {
             "/api/v1/projects/{project_id}/properties/search",
             post(search),
         )
-        .route("/api/v1/projects/{project_id}/properties", get(list_properties))
+        .route(
+            "/api/v1/projects/{project_id}/properties",
+            get(list_properties),
+        )
         .route(
             "/api/v1/projects/{project_id}/properties/{property_id}",
             get(get_property),
@@ -193,7 +198,10 @@ async fn analyze(
                     .map(|a| a.assessment_id.to_string())
                     .collect::<Vec<_>>()),
             );
-            out.insert("scenario_id".into(), json!(scenario.scenario_id.to_string()));
+            out.insert(
+                "scenario_id".into(),
+                json!(scenario.scenario_id.to_string()),
+            );
             out.insert("ranking_id".into(), json!(ranking.ranking_id.to_string()));
             Ok(out)
         }

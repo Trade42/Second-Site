@@ -134,7 +134,9 @@ mod tests {
     fn put_get_and_key_layout() {
         let root = tmp();
         let s = LocalObjectStorage::new(&root);
-        let key = s.put("p1", "../../etc/pass wd.mp3", b"abc", "audio/mpeg").unwrap();
+        let key = s
+            .put("p1", "../../etc/pass wd.mp3", b"abc", "audio/mpeg")
+            .unwrap();
         // sha256("abc") = ba7816bf8f01cfea...
         assert_eq!(key, "p1/ba7816bf8f01cfea-....etcpasswd.mp3");
         assert_eq!(s.get(&key).unwrap(), b"abc");
@@ -168,7 +170,8 @@ mod tests {
         }
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(root.join("secret.txt"), inner.join("p1").join("link")).unwrap();
+            std::os::unix::fs::symlink(root.join("secret.txt"), inner.join("p1").join("link"))
+                .unwrap();
             assert!(matches!(s.get("p1/link"), Err(StorageError::NotFound)));
         }
         std::fs::remove_dir_all(root).unwrap();

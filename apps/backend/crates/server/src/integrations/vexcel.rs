@@ -20,9 +20,7 @@ use std::sync::Mutex;
 use serde_json::{Map, Value};
 use ss_core::IntegrationStatus;
 use ss_domain::contracts::ProviderStatusEntry;
-use ss_domain::integrations::base::{
-    status_entry, ProviderError, ProviderErrorKind, RetryPolicy,
-};
+use ss_domain::integrations::base::{status_entry, ProviderError, ProviderErrorKind, RetryPolicy};
 use ss_domain::py;
 
 use super::http::HttpClient;
@@ -49,8 +47,11 @@ pub trait VexcelProvider: Send + Sync {
     /// `properties` of each ortho collection covering the point.
     fn capture_dates(&self, lat: f64, lon: f64) -> Result<Vec<Map<String, Value>>, ProviderError>;
     /// [`summarize_property`] of the first parcel at the point, or `None`.
-    fn property_elements(&self, lat: f64, lon: f64)
-        -> Result<Option<Map<String, Value>>, ProviderError>;
+    fn property_elements(
+        &self,
+        lat: f64,
+        lon: f64,
+    ) -> Result<Option<Map<String, Value>>, ProviderError>;
     fn status(&self) -> ProviderStatusEntry;
 }
 
@@ -87,7 +88,11 @@ impl VexcelProvider for FixtureVexcelProvider {
         Ok(None)
     }
 
-    fn capture_dates(&self, _lat: f64, _lon: f64) -> Result<Vec<Map<String, Value>>, ProviderError> {
+    fn capture_dates(
+        &self,
+        _lat: f64,
+        _lon: f64,
+    ) -> Result<Vec<Map<String, Value>>, ProviderError> {
         Ok(Vec::new())
     }
 
@@ -275,7 +280,10 @@ impl VexcelProvider for LiveVexcelProvider {
             "/ortho/collections",
             &[
                 ("wkt", &wkt),
-                ("include", "layer,collection,first-capture-date,last-capture-date"),
+                (
+                    "include",
+                    "layer,collection,first-capture-date,last-capture-date",
+                ),
             ],
         )?;
         self.features(&r)?.iter().map(feature_properties).collect()
@@ -291,7 +299,10 @@ impl VexcelProvider for LiveVexcelProvider {
             return Ok(e);
         }
         let wkt = wkt_point(lat, lon)?;
-        let r = self.get("/property/extract", &[("wkt", &wkt), ("total-records", "1")])?;
+        let r = self.get(
+            "/property/extract",
+            &[("wkt", &wkt), ("total-records", "1")],
+        )?;
         let feats = self.features(&r)?;
         let out = match feats.first() {
             Some(f) => Some(summarize_property(&feature_properties(f)?)),
@@ -339,7 +350,10 @@ pub fn summarize_property(props: &Map<String, Value>) -> Map<String, Value> {
     let mut out = Map::new();
     out.insert("footprint_area_sqm".into(), s("footprint.area"));
     out.insert("roof_condition".into(), s("roof-characteristics.condition"));
-    out.insert("roof_material".into(), s("roof-characteristics.material.class"));
+    out.insert(
+        "roof_material".into(),
+        s("roof-characteristics.material.class"),
+    );
     out.insert(
         "roof_material_score".into(),
         s("roof-characteristics.material.score"),

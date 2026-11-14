@@ -14,7 +14,10 @@ pub const STYLE_PRESETS: &[(Option<&str>, &str, &str)] = &[
 
 /// `finish_specifications(rooms, style)`: one floor finish per room, sized to the room's area,
 /// from the style's preset (an unknown or absent style uses the fallback preset).
-pub fn finish_specifications(rooms: &[RoomPolygon], style: Option<&str>) -> Vec<FinishSpecification> {
+pub fn finish_specifications(
+    rooms: &[RoomPolygon],
+    style: Option<&str>,
+) -> Vec<FinishSpecification> {
     let preset = STYLE_PRESETS
         .iter()
         .find(|(s, _, _)| *s == style)
