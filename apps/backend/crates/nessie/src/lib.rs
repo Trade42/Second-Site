@@ -13,9 +13,12 @@
 //!   real balance, payment, paid deposit or signed commitment. Amounts are integer minor units
 //!   (US cents).
 //! - A simulated payment is still a consequential action: [`NessieBank::execute`] takes a
-//!   [`PaymentAuthorization`], which can only be built from an APPROVED, unexpired approval for
-//!   exactly the payload being sent, and is consumed by the call. The Nessie request body is
-//!   derived from the approved payload itself.
+//!   [`PaymentAuthorization`], which [`PaymentAuthorization::verify`] builds only from
+//!   [`ApprovalEvidence`] of an APPROVED, unexpired approval for exactly the payload being sent,
+//!   and which the call consumes. The Nessie request body is derived from the approved payload
+//!   itself. `verify` checks the evidence it is given; that the evidence is the stored approval
+//!   is proven only by the server's `require_approved` and `mark_executed` in the same
+//!   transaction as the call (see [`approval`]).
 //! - A Nessie `pending` answer is recorded as pending ([`SimulatedOutcome::SimulatedPending`]),
 //!   never as completed unless Nessie reports `completed`.
 //! - Without an API key, or in fixture mode, [`select_bank`] returns the [`FixtureBank`], whose

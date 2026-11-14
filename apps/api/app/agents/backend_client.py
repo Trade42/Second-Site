@@ -41,6 +41,8 @@ DEFAULT_TIMEOUT = httpx.Timeout(20.0, connect=5.0)
 # The search route runs the whole analysis inline (listings, permits, enrichment, ranking) before it answers.
 SEARCH_TIMEOUT = httpx.Timeout(120.0, connect=5.0)
 MAX_MESSAGE_CHARS = 300
+# `status` of a tool error text (`BackendAPIError.tool_text`); the model-free supervisor detects errors by it.
+TOOL_ERROR_STATUS = "ERROR"
 
 _ID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 _PROJECT = rf"/api/v1/projects/{_ID}"
@@ -84,7 +86,7 @@ class BackendAPIError(ToolException):
 
     def tool_text(self) -> str:
         out: dict[str, Any] = {
-            "status": "ERROR",
+            "status": TOOL_ERROR_STATUS,
             "error_code": self.error_code,
             "message": self.message,
             "http_status": self.http_status,
@@ -174,7 +176,11 @@ class BackendClient:
             raise RouteNotAllowed(f"{method} {path} is not a supervisor tool route")
         token = issue_token(self._secret, self.owner_id, ttl_s=TOKEN_TTL_S)
         try:
-            with httpx.Client(base_url=self.base_url, transport=self._transport, timeout=timeout) as client:
+            # trust_env=False: proxy variables never apply, so the owner's token goes only to the Rust API. It also
+            # ignores SSL_CERT_FILE / SSL_CERT_DIR: an https origin with a private CA needs explicit configuration.
+            with httpx.Client(
+                base_url=self.base_url, transport=self._transport, timeout=timeout, trust_env=False
+            ) as client:
                 resp = client.request(
                     method,
                     path,

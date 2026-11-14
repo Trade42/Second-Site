@@ -84,3 +84,20 @@ def test_tool_categories_gate_external_actions(db, container):
     assert not any(
         cat == ToolCategory.CONSEQUENTIAL for cat in TOOL_CATEGORIES.values()
     )  # no purchase tool exposed
+
+
+def test_harness_keeps_the_tools_in_process_whatever_the_environment_says(db, container, tmp_path):
+    # conftest forces BACKEND_API_URL to "" (R7): neither an exported URL nor a .env entry may switch this suite to
+    # HTTP mode, and an empty value must mean "unset" (in-process tools, no HTTP client).
+    import os
+
+    from app.agents.backend_client import backend_client
+    from app.core.config import Settings
+
+    assert os.environ.get("BACKEND_API_URL") == ""
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("BACKEND_API_URL=http://from-dotenv.invalid\n")
+    assert Settings(_env_file=dotenv).backend_api_url == ""  # the environment wins over .env
+    assert container.settings.backend_api_url == ""
+    assert backend_client(container.settings, uuid4()) is None
+    assert not any(t.handle_tool_error for t in build_tools(_ctx(db, container)))

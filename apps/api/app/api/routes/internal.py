@@ -11,6 +11,12 @@ which calls the existing `notify_owner` unchanged.
   repeated key answers with that earlier record and sends nothing. The check and the send run under a
   transaction-scoped PostgreSQL advisory lock on a SHA-256 of the event key, so two concurrent requests with one key
   text once: the second waits until the first commits, then finds its event.
+- When the answer is sent: only after this request's transaction has committed. The route commits itself (the
+  advisory lock is released by that commit, and nothing after it depends on the lock), so a 200 always names a
+  stored communication and event. A failed commit is a 500, which the caller must treat as "not notified"; when
+  PostgreSQL refuses the commit nothing is stored (only a connection lost during COMMIT itself leaves the outcome
+  unknown). The text may still have gone out before the commit failed, and the key is then not consumed: a retry
+  with the same key texts again.
 - `delivery`: 'accepted' means Photon took the message, NOT that it was delivered (only a later provider event says
   that); 'recorded' is the fixture provider; 'not_linked' means nothing was sent because the owner has not texted
   the agent yet; 'failed' means the send failed. A failed send is still a 200 with delivery 'failed', so the caller
@@ -121,7 +127,7 @@ def owner_notify(
 
     401 without a valid `service` token, 403 when the token is for another owner, 404 unless the project exists and
     belongs to that owner, 409 when the key was used by another project or record. A repeated key returns the earlier
-    `{communication_id, delivery}` and sends nothing.
+    `{communication_id, delivery}` and sends nothing. Every 200 is sent after the commit; a failed commit is a 500.
     """
     if caller != body.owner_id:
         raise ForbiddenError("service token was issued for another owner")
@@ -130,6 +136,7 @@ def owner_notify(
     _lock(db, event_key)
     earlier = _recorded(db, event_key, body.project_id)
     if earlier is not None:
+        db.commit()  # releases the lock; nothing was written
         return earlier
     comm = notify_owner(
         db,
@@ -146,4 +153,6 @@ def owner_notify(
         raise ConflictError(
             "idempotency_key was used concurrently by another writer", error_code="IDEMPOTENCY_KEY_REUSED"
         )
+    # Commit before answering (get_db would commit only after the response is sent). This also releases the lock.
+    db.commit()
     return result
