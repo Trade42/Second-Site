@@ -16,6 +16,7 @@ from app.api.routes import (
     dev,
     events,
     health,
+    internal,
     media,
     projects,
     properties,
@@ -113,5 +114,6 @@ for r in (
     tasks.router,
     events.router,
     webhooks.router,
+    internal.router,
 ):
     app.include_router(r)
