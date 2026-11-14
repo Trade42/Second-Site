@@ -13,6 +13,7 @@
 //! - Python built-in semantics the port depends on -> [`py`]
 
 pub mod contracts;
+pub mod design;
 pub mod error;
 pub mod evidence;
 pub mod feasibility;
