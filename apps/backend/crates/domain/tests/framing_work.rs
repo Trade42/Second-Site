@@ -30,7 +30,9 @@ fn bits(r: Option<(f64, f64, f64, f64)>) -> Option<[u64; 4]> {
 
 fn site_with(boundary: Vec<Coord>, door: Option<(Coord, Coord)>) -> SiteGeometry {
     let entrances: Vec<Value> = door
-        .map(|(a, b)| vec![serde_json::json!({"kind": "entrance", "start": [a.0, a.1], "end": [b.0, b.1]})])
+        .map(|(a, b)| {
+            vec![serde_json::json!({"kind": "entrance", "start": [a.0, a.1], "end": [b.0, b.1]})]
+        })
         .unwrap_or_default();
     SiteGeometry::from_json_value(serde_json::json!({
         "property_id": "1afeb98f-0000-4000-8000-0000000000f3",
@@ -80,11 +82,19 @@ fn many_vertex_floors_match_python_and_are_fast() {
         let frame = frame_for_solver(&site, MIN_FRAME_AREA);
         let elapsed = t.elapsed();
         timings.push((name.to_owned(), elapsed));
-        assert_eq!(bits(rect), bits(theirs), "{name}: {rect:?} vs Python {theirs:?}");
+        assert_eq!(
+            bits(rect),
+            bits(theirs),
+            "{name}: {rect:?} vs Python {theirs:?}"
+        );
         let theirs = c["frame"].as_object().expect("Python frames every case");
         let fr = frame.expect("frame");
         assert_eq!(common::to_value(&fr.notes), theirs["notes"], "{name} notes");
-        assert_eq!(common::to_value(&fr.site), theirs["site"], "{name} framed site");
+        assert_eq!(
+            common::to_value(&fr.site),
+            theirs["site"],
+            "{name} framed site"
+        );
         for probe in theirs["to_site"].as_array().unwrap() {
             let p: Coord = serde_json::from_value(probe["p"].clone()).unwrap();
             let q: Coord = serde_json::from_value(probe["q"].clone()).unwrap();
@@ -115,7 +125,11 @@ fn outlines_beyond_the_vertex_row_bound_get_no_frame_and_a_note() {
     let site = site_with(boundary, Some(((0.0, 5.0), (0.0, 6.0))));
     let t = Instant::now();
     let err = frame_for_solver_checked(&site, MIN_FRAME_AREA).expect_err("bounded");
-    assert!(t.elapsed() < Duration::from_millis(500), "{:?}", t.elapsed());
+    assert!(
+        t.elapsed() < Duration::from_millis(500),
+        "{:?}",
+        t.elapsed()
+    );
     assert!(
         err.note.starts_with("Floor outline too detailed to frame: 14404 boundary segments x 300 grid rows exceeds the bound of 4000000"),
         "{}",
@@ -145,8 +159,17 @@ fn densely_packed_vertices_hit_the_near_work_bound() {
     assert!(boundary.len() * 150 <= MAX_FRAME_VERTEX_ROWS);
     let t = Instant::now();
     let err = largest_inner_rectangle_checked(&boundary, 0.2).expect_err("bounded");
-    assert!(t.elapsed() < Duration::from_millis(1000), "{:?}", t.elapsed());
-    assert!(err.note.contains(&format!("work bound {MAX_FRAME_NEAR_WORK}")), "{}", err.note);
+    assert!(
+        t.elapsed() < Duration::from_millis(1000),
+        "{:?}",
+        t.elapsed()
+    );
+    assert!(
+        err.note
+            .contains(&format!("work bound {MAX_FRAME_NEAR_WORK}")),
+        "{}",
+        err.note
+    );
 }
 
 #[test]
@@ -190,15 +213,18 @@ impl Rng {
         self.next() % n
     }
     /// A length that is sometimes an exact multiple of the 0.2 m grid, sometimes just off it
-    /// (within or beyond the 1e-6 tolerance), sometimes arbitrary.
+    /// (within or beyond the 1e-6 tolerance), sometimes on a cell centre line (where the scan
+    /// takes its row parity), sometimes arbitrary.
     fn grid_len(&mut self, lo: f64, hi: f64) -> f64 {
         let base = (self.range(lo, hi) / 0.2).round() * 0.2;
-        match self.below(6) {
+        match self.below(8) {
             0 => base,
             1 => base + 5e-7,
             2 => base - 5e-7,
             3 => base + 2e-6,
             4 => base - 3e-6,
+            5 => base + 0.1,
+            6 => base + 0.1 - 4e-7,
             _ => self.range(lo, hi),
         }
     }
@@ -251,7 +277,14 @@ fn outline(rng: &mut Rng, kind: u64) -> Vec<Coord> {
             let base = if rng.below(2) == 0 {
                 vec![(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
             } else {
-                vec![(0.0, 0.0), (w, 0.0), (w, h / 2.0), (w / 2.0, h / 2.0), (w / 2.0, h), (0.0, h)]
+                vec![
+                    (0.0, 0.0),
+                    (w, 0.0),
+                    (w, h / 2.0),
+                    (w / 2.0, h / 2.0),
+                    (w / 2.0, h),
+                    (0.0, h),
+                ]
             };
             rotate(&base, ang, (w / 3.0, h / 4.0))
         }
@@ -307,15 +340,38 @@ fn outline(rng: &mut Rng, kind: u64) -> Vec<Coord> {
         }
         // Degenerate rings: repeated points, collinear vertices, a spike, a bowtie.
         7 => match rng.below(4) {
-            0 => vec![(0.0, 0.0), (0.0, 0.0), (w / 2.0, 0.0), (w, 0.0), (w, h), (w, h), (0.0, h)],
-            1 => vec![(0.0, 0.0), (w, 0.0), (w, h), (w / 2.0, h), (w / 2.0, h + 2.0), (w / 2.0, h), (0.0, h)],
+            0 => vec![
+                (0.0, 0.0),
+                (0.0, 0.0),
+                (w / 2.0, 0.0),
+                (w, 0.0),
+                (w, h),
+                (w, h),
+                (0.0, h),
+            ],
+            1 => vec![
+                (0.0, 0.0),
+                (w, 0.0),
+                (w, h),
+                (w / 2.0, h),
+                (w / 2.0, h + 2.0),
+                (w / 2.0, h),
+                (0.0, h),
+            ],
             2 => vec![(0.0, 0.0), (w, h), (w, 0.0), (0.0, h)],
             _ => vec![(0.0, 0.0), (w, 0.0), (w, h), (0.0, h), (0.0, 0.0)],
         },
         // Floor far from the origin (projected-coordinate style).
         _ => {
             let (ox, oy) = (rng.range(1e5, 6e5), rng.range(3.7e6, 3.8e6));
-            let base = vec![(0.0, 0.0), (w, 0.0), (w, h * 0.6), (w * 0.4, h * 0.6), (w * 0.4, h), (0.0, h)];
+            let base = [
+                (0.0, 0.0),
+                (w, 0.0),
+                (w, h * 0.6),
+                (w * 0.4, h * 0.6),
+                (w * 0.4, h),
+                (0.0, h),
+            ];
             base.iter().map(|&(x, y)| (x + ox, y + oy)).collect()
         }
     }
@@ -371,7 +427,11 @@ fn prepared_scan_matches_the_pre_f3_scan_on_360_outlines() {
             }
         };
         let entrances: Vec<Value> = door
-            .map(|(a, c)| vec![serde_json::json!({"kind": "entrance", "start": [a.0, a.1], "end": [c.0, c.1]})])
+            .map(|(a, c)| {
+                vec![
+                    serde_json::json!({"kind": "entrance", "start": [a.0, a.1], "end": [c.0, c.1]}),
+                ]
+            })
             .unwrap_or_default();
         let sink = b[rng.below(b.len() as u64) as usize];
         let site = SiteGeometry::from_json_value(serde_json::json!({
@@ -409,7 +469,14 @@ fn prepared_scan_matches_the_pre_f3_scan_on_360_outlines() {
 fn opening_contract_is_unchanged() {
     // The frame's entrance is still the measured one clamped to the layout wall.
     let site = site_with(
-        vec![(0.0, 0.0), (12.0, 0.0), (12.0, 7.0), (8.0, 7.0), (8.0, 10.0), (0.0, 10.0)],
+        vec![
+            (0.0, 0.0),
+            (12.0, 0.0),
+            (12.0, 7.0),
+            (8.0, 7.0),
+            (8.0, 10.0),
+            (0.0, 10.0),
+        ],
         Some(((5.0, 0.0), (6.2, 0.0))),
     );
     let fr = frame_for_solver(&site, MIN_FRAME_AREA).expect("frame");
@@ -421,4 +488,67 @@ fn opening_contract_is_unchanged() {
             end: (6.2, 0.0)
         }]
     );
+}
+
+#[test]
+fn vertices_on_row_centre_lines_match_the_pre_f3_scan() {
+    // Cells away from the boundary are decided by the ray-crossing parity at their row's centre
+    // line, so a vertex exactly on that line exercises GEOS's half-open straddle rule. Notches
+    // whose corners sit on centre lines (computed as the scan computes them), in four turns.
+    let cy = |miny: f64, j: usize| (miny + j as f64 * 0.2 + (miny + (j + 1) as f64 * 0.2)) / 2.0;
+    let mut checked = 0;
+    for j in [3usize, 20, 21, 34] {
+        for (miny, w) in [(0.0, 10.0), (-0.05, 9.3), (2.7, 12.1)] {
+            let y = cy(miny, j);
+            let top = miny + 10.0;
+            let shapes = [
+                // Notch at the top right, its lower corners on the centre line of row j.
+                vec![
+                    (0.0, miny),
+                    (w, miny),
+                    (w, y),
+                    (w - 2.0, y),
+                    (w - 2.0, top),
+                    (0.0, top),
+                ],
+                // A step: the right wall ends on the centre line.
+                vec![
+                    (0.0, miny),
+                    (w, miny),
+                    (w, y),
+                    (w + 1.5, y),
+                    (w + 1.5, top),
+                    (0.0, top),
+                ],
+                // A slot cut into the right wall between two centre lines.
+                vec![
+                    (0.0, miny),
+                    (w, miny),
+                    (w, y),
+                    (w - 3.0, y),
+                    (w - 3.0, cy(miny, j + 4)),
+                    (w, cy(miny, j + 4)),
+                    (w, top),
+                    (0.0, top),
+                ],
+            ];
+            for shape in shapes {
+                for turns in 0..4 {
+                    let mut pts = shape.clone();
+                    for _ in 0..turns {
+                        pts = rotate(&pts, 90.0, (0.0, 0.0));
+                    }
+                    for p in [&pts, &shape] {
+                        assert_eq!(
+                            bits(largest_inner_rectangle(p, 0.2)),
+                            bits(largest_inner_rectangle_reference(p, 0.2)),
+                            "{p:?}"
+                        );
+                        checked += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(checked, 288);
 }

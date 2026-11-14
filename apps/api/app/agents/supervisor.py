@@ -120,7 +120,9 @@ def _failure_reply(what: str, failure: UnusableToolAnswer, analysis_ran: bool) -
         head = f"No {what} to show: the backend could not be reached or returned an error."
     else:
         head = f"No {what} to show: the backend returned an answer without the expected content."
-    reply = f"{head} {failure.tool}: {failure.error_code}: {failure.message}"
+    reply = f"{head} {failure.tool}: {failure.error_code}: {failure.message}".rstrip()
+    if not reply.endswith((".", "!", "?")):
+        reply += "."
     if analysis_ran:
         reply += " The property analysis ran before this failure."
     return reply

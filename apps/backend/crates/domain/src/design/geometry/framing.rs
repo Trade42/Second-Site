@@ -490,7 +490,7 @@ fn fenwick_toggle(tree: &mut [bool], k: usize) {
     let mut i = k + 1;
     while i < tree.len() {
         tree[i] = !tree[i];
-        i += i & i.wrapping_neg();
+        i += i.isolate_lowest_one();
     }
 }
 
@@ -500,7 +500,7 @@ fn fenwick_prefix(tree: &[bool], n: usize) -> bool {
     let mut i = n.min(tree.len().saturating_sub(1));
     while i > 0 {
         acc ^= tree[i];
-        i -= i & i.wrapping_neg();
+        i -= i.isolate_lowest_one();
     }
     acc
 }

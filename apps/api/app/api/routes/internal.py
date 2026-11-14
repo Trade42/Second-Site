@@ -13,9 +13,10 @@ which calls the existing `notify_owner` unchanged.
   text once: the second waits until the first commits, then finds its event.
 - When the answer is sent: only after this request's transaction has committed. The route commits itself (the
   advisory lock is released by that commit, and nothing after it depends on the lock), so a 200 always names a
-  stored communication and event. A failed commit is a non-2xx (500) with nothing stored, which the caller must treat
-  as "not notified". The text may still have gone out before the commit failed, and the key is then not consumed:
-  a retry with the same key texts again.
+  stored communication and event. A failed commit is a 500, which the caller must treat as "not notified"; when
+  PostgreSQL refuses the commit nothing is stored (only a connection lost during COMMIT itself leaves the outcome
+  unknown). The text may still have gone out before the commit failed, and the key is then not consumed: a retry
+  with the same key texts again.
 - `delivery`: 'accepted' means Photon took the message, NOT that it was delivered (only a later provider event says
   that); 'recorded' is the fixture provider; 'not_linked' means nothing was sent because the owner has not texted
   the agent yet; 'failed' means the send failed. A failed send is still a 200 with delivery 'failed', so the caller
