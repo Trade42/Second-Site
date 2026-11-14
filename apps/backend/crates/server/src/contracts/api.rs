@@ -125,3 +125,41 @@ plain_contract!(
     ReadyResponse,
     DevTokenResponse,
 );
+
+fn web() -> String {
+    "web".into()
+}
+
+/// `RevisionBody` (`api/routes/design.py`): the body of `POST .../layouts/{id}/revisions`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RevisionBody {
+    /// At least one entry.
+    pub requested_changes: Vec<String>,
+    #[serde(default)]
+    pub room_requirement_overrides: Vec<ss_domain::contracts::RoomRequirement>,
+    #[serde(default)]
+    pub preserved_constraints: Vec<String>,
+    #[serde(default = "web")]
+    pub source_channel: String,
+}
+
+impl Validate for RevisionBody {
+    fn check(&self, c: &mut Checker) {
+        if self.requested_changes.is_empty() {
+            c.push(
+                Some("requested_changes"),
+                "too_short",
+                "List should have at least 1 item after validation, not 0",
+            );
+        }
+        c.each(
+            "room_requirement_overrides",
+            &self.room_requirement_overrides,
+        );
+    }
+}
+
+impl Contract for RevisionBody {
+    const NAME: &'static str = "RevisionBody";
+}
