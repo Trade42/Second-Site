@@ -1245,9 +1245,18 @@ pub fn min_rotated_rectangle_min_side(points: &[Pt]) -> f64 {
         }
         let width = smax - smin;
         let area = width * hmax;
-        if best.is_none_or(|(ba, _)| area < ba) {
-            best = Some((area, width.min(hmax)));
-        }
+        let side = width.min(hmax);
+        best = match best {
+            // Rectangles of equal area (exact ties, as for every acute triangle) are told apart by
+            // rounding inside GEOS, so Shapely's side is any of theirs: take the narrowest, so the
+            // port never reports a room wider than Shapely does.
+            Some((ba, bs)) if (area - ba).abs() <= 1e-9 * ba.max(area) => {
+                Some((ba.min(area), bs.min(side)))
+            }
+            Some((ba, _)) if area < ba => Some((area, side)),
+            None => Some((area, side)),
+            keep => keep,
+        };
     }
     best.map_or(0.0, |(_, side)| side)
 }

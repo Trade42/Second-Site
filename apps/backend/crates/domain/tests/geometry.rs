@@ -424,6 +424,50 @@ fn concave_obstacles_inside_the_layout_rectangle_keep_their_vertices() {
 }
 
 #[test]
+fn room_count_sum_does_not_overflow() {
+    // Reviewer regression (rust-domain-3 review): the i64 sum of requirement counts panicked
+    // (debug) or wrapped and lost MISSING_ROOMS (release). Python prints the exact sum.
+    let req = |t: &str, count: i64| RoomRequirement {
+        room_type: t.into(),
+        count,
+        min_area_sqm: 1.0,
+        min_width_m: 1.0,
+        needs_plumbing: false,
+    };
+    let s = SiteGeometry::from_json_value(serde_json::json!({
+        "property_id": Uuid::new_v4(),
+        "source_id": "synthetic",
+        "geometry_source": "FIXTURE",
+        "data_origin": "FIXTURE_SYNTHETIC",
+        "floor_boundary": [[0, 0], [12, 0], [12, 9], [0, 9]],
+    }))
+    .unwrap();
+    let rep = validate_layout(&s, &[], &[req("a", i64::MAX), req("b", 1)], None);
+    assert!(!rep.valid);
+    assert_eq!(rep.issues.len(), 1);
+    assert_eq!(rep.issues[0].code, "MISSING_ROOMS");
+    assert_eq!(
+        rep.issues[0].message,
+        "0 of 9223372036854775808 required rooms placed"
+    );
+}
+
+#[test]
+fn min_dimension_of_tied_rectangles_is_never_wider_than_shapely() {
+    // Reviewer regression (rust-domain-3 review): the three edge-flush rectangles of an acute
+    // triangle have the same area; GEOS picked the one with side 2.2356401719514274 (Shapely
+    // `min_dimension`), the port another with 2.562155320749101, so a 2.4 m minimum width
+    // passed in Rust and failed in Python.
+    let tri = vec![
+        (15.45539192279028, -3.8367874318885256),
+        (11.075994291738324, -2.6938676261017287),
+        (14.792991589657687, -6.311887281152712),
+    ];
+    let side = ss_domain::spatial::validation::min_dimension(&tri);
+    assert!((side - 2.2356401719514274).abs() < 1e-9, "{side}");
+}
+
+#[test]
 fn huge_floors_are_bounded_not_scanned() {
     // 1 km x 1 km at 0.2 m would be 25 million cells; the scan is refused (no frame).
     let ring = vec![

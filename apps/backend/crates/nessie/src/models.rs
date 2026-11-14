@@ -614,6 +614,7 @@ impl BillPaymentCreate {
 
 /// `ListResponse<X>DTOBody`: one page and an opaque cursor.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "T: Deserialize<'de>"))]
 pub struct Page<T> {
     #[serde(default, deserialize_with = "null_as_empty")]
     pub items: Vec<T>,

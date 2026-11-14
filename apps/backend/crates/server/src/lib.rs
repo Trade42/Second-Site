@@ -18,6 +18,9 @@
 //! | `services/approvals.py`                          | `services::approvals`                     |
 //! | `contracts/{api,approvals,tasks,events}.py`      | `contracts::{api,approvals,tasks,events}` |
 //! | `api/routes/{health,dev,projects,tasks,events,approvals}.py` | `http::routes::*`             |
+//! | `api/routes/{properties,media,design}.py`        | `http::routes::{properties,media,design}` |
+//! | `domains/design/service.py`                      | `services::design`                        |
+//! | `workflows/property_analysis.py`                 | `workflows::property_analysis`            |
 
 pub mod app;
 pub mod config;

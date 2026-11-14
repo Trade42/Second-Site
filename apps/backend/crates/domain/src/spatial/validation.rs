@@ -144,8 +144,9 @@ pub fn validate_layout(
             ));
         }
     }
-    let expected: i64 = requirements.iter().map(|r| r.count).sum();
-    if (rooms.len() as i64) < expected {
+    // Python's ints are unbounded; i128 cannot overflow on a list of i64 counts.
+    let expected: i128 = requirements.iter().map(|r| i128::from(r.count)).sum();
+    if (rooms.len() as i128) < expected {
         issues.push(ValidationIssue::new(
             "MISSING_ROOMS",
             format!("{} of {expected} required rooms placed", rooms.len()),

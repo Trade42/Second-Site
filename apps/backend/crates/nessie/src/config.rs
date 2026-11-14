@@ -85,7 +85,7 @@ impl fmt::Display for ApiKey {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NessieConfig {
     pub mode: ProviderMode,
     pub api_key: Option<ApiKey>,

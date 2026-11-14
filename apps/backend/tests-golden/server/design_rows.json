@@ -1,0 +1,1883 @@
+{
+ "site_geometries": [
+  {
+   "id": "2f21f78c-014c-4caf-a8bb-579ef2d1af36",
+   "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+   "scale_verified": false,
+   "data": {
+    "exits": [
+     {
+      "end": [
+       6.2,
+       0.0
+      ],
+      "kind": "exit",
+      "start": [
+       5.0,
+       0.0
+      ]
+     }
+    ],
+    "units": "m",
+    "windows": [
+     {
+      "end": [
+       0.0,
+       8.0
+      ],
+      "kind": "window",
+      "start": [
+       0.0,
+       3.0
+      ]
+     }
+    ],
+    "entrances": [
+     {
+      "end": [
+       6.2,
+       0.0
+      ],
+      "kind": "entrance",
+      "start": [
+       5.0,
+       0.0
+      ]
+     }
+    ],
+    "source_id": "fixture-matterport-hollywood-302",
+    "data_origin": "FIXTURE_SYNTHETIC",
+    "fixed_walls": [],
+    "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+    "floor_boundary": [
+     [
+      0.0,
+      0.0
+     ],
+     [
+      12.0,
+      0.0
+     ],
+     [
+      12.0,
+      11.6
+     ],
+     [
+      0.0,
+      11.6
+     ]
+    ],
+    "scale_verified": false,
+    "fixed_obstacles": [
+     [
+      [
+       0.2,
+       0.2
+      ],
+      [
+       0.8,
+       0.2
+      ],
+      [
+       0.8,
+       0.8
+      ],
+      [
+       0.2,
+       0.8
+      ]
+     ]
+    ],
+    "geometry_source": "FIXTURE",
+    "restricted_areas": [],
+    "site_geometry_id": "2f21f78c-014c-4caf-a8bb-579ef2d1af36",
+    "fixture_locations": [
+     {
+      "kind": "sink",
+      "location": [
+       11.5,
+       10.8
+      ],
+      "evidence_ids": []
+     }
+    ],
+    "coordinate_reference": "local_floor_origin",
+    "measurement_uncertainty_m": 0.15
+   },
+   "schema_version": "1.0",
+   "record_version": 1
+  }
+ ],
+ "design_versions": [
+  {
+   "id": "091b3825-372d-4349-96a5-d15437d00242",
+   "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+   "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+   "parent_version_id": null,
+   "version_number": 1,
+   "approval_status": "PROPOSED",
+   "valid": true,
+   "data": {
+    "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+    "geometry_id": "2f21f78c-014c-4caf-a8bb-579ef2d1af36",
+    "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+    "room_polygons": [
+     {
+      "polygon": [
+       [
+        6.2,
+        7.12
+       ],
+       [
+        12.0,
+        7.12
+       ],
+       [
+        12.0,
+        11.6
+       ],
+       [
+        6.2,
+        11.6
+       ]
+      ],
+      "room_id": "treatment-1",
+      "area_sqm": 25.98,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        8.8
+       ],
+       [
+        5.0,
+        8.8
+       ],
+       [
+        5.0,
+        11.6
+       ],
+       [
+        0.0,
+        11.6
+       ]
+      ],
+      "room_id": "treatment-2",
+      "area_sqm": 14.0,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        6.0
+       ],
+       [
+        5.0,
+        6.0
+       ],
+       [
+        5.0,
+        8.8
+       ],
+       [
+        0.0,
+        8.8
+       ]
+      ],
+      "room_id": "treatment-3",
+      "area_sqm": 14.0,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        0.0
+       ],
+       [
+        5.0,
+        0.0
+       ],
+       [
+        5.0,
+        4.8
+       ],
+       [
+        0.0,
+        4.8
+       ]
+      ],
+      "room_id": "reception-1",
+      "area_sqm": 24.0,
+      "room_type": "reception"
+     },
+     {
+      "polygon": [
+       [
+        6.2,
+        0.0
+       ],
+       [
+        12.0,
+        0.0
+       ],
+       [
+        12.0,
+        2.4
+       ],
+       [
+        6.2,
+        2.4
+       ]
+      ],
+      "room_id": "storage-1",
+      "area_sqm": 13.92,
+      "room_type": "storage"
+     }
+    ],
+    "proposed_walls": [],
+    "version_number": 1,
+    "approval_status": "PROPOSED",
+    "design_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+    "parent_version_id": null,
+    "validation_report": {
+     "valid": true,
+     "issues": [],
+     "checked_at": "2026-11-14T22:56:00.647618Z",
+     "disclaimer": "Automated geometric check only. Not a code-compliance review or professionally approved plan."
+    },
+    "furniture_placements": [],
+    "finish_specifications": [
+     {
+      "room_id": "treatment-1",
+      "surface": "floor",
+      "area_sqm": 25.98,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "treatment-2",
+      "surface": "floor",
+      "area_sqm": 14.0,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "treatment-3",
+      "surface": "floor",
+      "area_sqm": 14.0,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "reception-1",
+      "surface": "floor",
+      "area_sqm": 24.0,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "storage-1",
+      "surface": "floor",
+      "area_sqm": 13.92,
+      "material": "neutral LVP"
+     }
+    ],
+    "estimated_construction_cost": null,
+    "created_from_revision_request": null
+   },
+   "schema_version": "1.0",
+   "record_version": 1
+  },
+  {
+   "id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+   "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+   "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+   "parent_version_id": null,
+   "version_number": 2,
+   "approval_status": "PROPOSED",
+   "valid": true,
+   "data": {
+    "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+    "geometry_id": "2f21f78c-014c-4caf-a8bb-579ef2d1af36",
+    "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+    "room_polygons": [
+     {
+      "polygon": [
+       [
+        9.2,
+        5.2
+       ],
+       [
+        12.0,
+        5.2
+       ],
+       [
+        12.0,
+        11.6
+       ],
+       [
+        9.2,
+        11.6
+       ]
+      ],
+      "room_id": "treatment-1",
+      "area_sqm": 17.92,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        8.33,
+        0.0
+       ],
+       [
+        12.0,
+        0.0
+       ],
+       [
+        12.0,
+        4.0
+       ],
+       [
+        8.33,
+        4.0
+       ]
+      ],
+      "room_id": "treatment-2",
+      "area_sqm": 14.68,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        1.6,
+        0.0
+       ],
+       [
+        4.7,
+        0.0
+       ],
+       [
+        4.7,
+        4.0
+       ],
+       [
+        1.6,
+        4.0
+       ]
+      ],
+      "room_id": "treatment-3",
+      "area_sqm": 12.4,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        4.4,
+        5.2
+       ],
+       [
+        9.2,
+        5.2
+       ],
+       [
+        9.2,
+        11.6
+       ],
+       [
+        4.4,
+        11.6
+       ]
+      ],
+      "room_id": "reception-1",
+      "area_sqm": 30.72,
+      "room_type": "reception"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        5.2
+       ],
+       [
+        2.4,
+        5.2
+       ],
+       [
+        2.4,
+        11.6
+       ],
+       [
+        0.0,
+        11.6
+       ]
+      ],
+      "room_id": "storage-1",
+      "area_sqm": 15.36,
+      "room_type": "storage"
+     }
+    ],
+    "proposed_walls": [],
+    "version_number": 2,
+    "approval_status": "PROPOSED",
+    "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+    "parent_version_id": null,
+    "validation_report": {
+     "valid": true,
+     "issues": [],
+     "checked_at": "2026-11-14T22:56:01.800567Z",
+     "disclaimer": "Automated geometric check only. Not a code-compliance review or professionally approved plan."
+    },
+    "furniture_placements": [],
+    "finish_specifications": [
+     {
+      "room_id": "treatment-1",
+      "surface": "floor",
+      "area_sqm": 17.92,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "treatment-2",
+      "surface": "floor",
+      "area_sqm": 14.68,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "treatment-3",
+      "surface": "floor",
+      "area_sqm": 12.4,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "reception-1",
+      "surface": "floor",
+      "area_sqm": 30.72,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "storage-1",
+      "surface": "floor",
+      "area_sqm": 15.36,
+      "material": "neutral LVP"
+     }
+    ],
+    "estimated_construction_cost": null,
+    "created_from_revision_request": null
+   },
+   "schema_version": "1.0",
+   "record_version": 1
+  },
+  {
+   "id": "4e65c04c-2ab4-4456-8c04-dbf7c4e36133",
+   "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+   "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+   "parent_version_id": null,
+   "version_number": 3,
+   "approval_status": "PROPOSED",
+   "valid": true,
+   "data": {
+    "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+    "geometry_id": "2f21f78c-014c-4caf-a8bb-579ef2d1af36",
+    "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+    "room_polygons": [
+     {
+      "polygon": [
+       [
+        6.2,
+        7.12
+       ],
+       [
+        12.0,
+        7.12
+       ],
+       [
+        12.0,
+        11.6
+       ],
+       [
+        6.2,
+        11.6
+       ]
+      ],
+      "room_id": "treatment-1",
+      "area_sqm": 25.98,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        8.8
+       ],
+       [
+        5.0,
+        8.8
+       ],
+       [
+        5.0,
+        11.6
+       ],
+       [
+        0.0,
+        11.6
+       ]
+      ],
+      "room_id": "treatment-2",
+      "area_sqm": 14.0,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        6.0
+       ],
+       [
+        5.0,
+        6.0
+       ],
+       [
+        5.0,
+        8.8
+       ],
+       [
+        0.0,
+        8.8
+       ]
+      ],
+      "room_id": "treatment-3",
+      "area_sqm": 14.0,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        0.0
+       ],
+       [
+        5.0,
+        0.0
+       ],
+       [
+        5.0,
+        4.8
+       ],
+       [
+        0.0,
+        4.8
+       ]
+      ],
+      "room_id": "reception-1",
+      "area_sqm": 24.0,
+      "room_type": "reception"
+     },
+     {
+      "polygon": [
+       [
+        6.2,
+        0.0
+       ],
+       [
+        12.0,
+        0.0
+       ],
+       [
+        12.0,
+        2.4
+       ],
+       [
+        6.2,
+        2.4
+       ]
+      ],
+      "room_id": "storage-1",
+      "area_sqm": 13.92,
+      "room_type": "storage"
+     }
+    ],
+    "proposed_walls": [],
+    "version_number": 3,
+    "approval_status": "PROPOSED",
+    "design_version_id": "4e65c04c-2ab4-4456-8c04-dbf7c4e36133",
+    "parent_version_id": null,
+    "validation_report": {
+     "valid": true,
+     "issues": [],
+     "checked_at": "2026-11-14T22:56:02.856903Z",
+     "disclaimer": "Automated geometric check only. Not a code-compliance review or professionally approved plan."
+    },
+    "furniture_placements": [],
+    "finish_specifications": [
+     {
+      "room_id": "treatment-1",
+      "surface": "floor",
+      "area_sqm": 25.98,
+      "material": "light oak-look LVP"
+     },
+     {
+      "room_id": "treatment-2",
+      "surface": "floor",
+      "area_sqm": 14.0,
+      "material": "light oak-look LVP"
+     },
+     {
+      "room_id": "treatment-3",
+      "surface": "floor",
+      "area_sqm": 14.0,
+      "material": "light oak-look LVP"
+     },
+     {
+      "room_id": "reception-1",
+      "surface": "floor",
+      "area_sqm": 24.0,
+      "material": "light oak-look LVP"
+     },
+     {
+      "room_id": "storage-1",
+      "surface": "floor",
+      "area_sqm": 13.92,
+      "material": "light oak-look LVP"
+     }
+    ],
+    "estimated_construction_cost": null,
+    "created_from_revision_request": null
+   },
+   "schema_version": "1.0",
+   "record_version": 1
+  },
+  {
+   "id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+   "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+   "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+   "parent_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+   "version_number": 4,
+   "approval_status": "PROPOSED",
+   "valid": true,
+   "data": {
+    "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+    "geometry_id": "2f21f78c-014c-4caf-a8bb-579ef2d1af36",
+    "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+    "room_polygons": [
+     {
+      "polygon": [
+       [
+        0.0,
+        8.8
+       ],
+       [
+        5.0,
+        8.8
+       ],
+       [
+        5.0,
+        11.6
+       ],
+       [
+        0.0,
+        11.6
+       ]
+      ],
+      "room_id": "treatment-1",
+      "area_sqm": 14.0,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        0.0
+       ],
+       [
+        5.0,
+        0.0
+       ],
+       [
+        5.0,
+        4.48
+       ],
+       [
+        0.0,
+        4.48
+       ]
+      ],
+      "room_id": "treatment-2",
+      "area_sqm": 22.4,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        6.2,
+        7.2
+       ],
+       [
+        12.0,
+        7.2
+       ],
+       [
+        12.0,
+        11.6
+       ],
+       [
+        6.2,
+        11.6
+       ]
+      ],
+      "room_id": "treatment-3",
+      "area_sqm": 25.52,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        0.0,
+        6.0
+       ],
+       [
+        5.0,
+        6.0
+       ],
+       [
+        5.0,
+        8.8
+       ],
+       [
+        0.0,
+        8.8
+       ]
+      ],
+      "room_id": "treatment-4",
+      "area_sqm": 14.0,
+      "room_type": "treatment"
+     },
+     {
+      "polygon": [
+       [
+        6.2,
+        0.0
+       ],
+       [
+        12.0,
+        0.0
+       ],
+       [
+        12.0,
+        4.8
+       ],
+       [
+        6.2,
+        4.8
+       ]
+      ],
+      "room_id": "reception-1",
+      "area_sqm": 27.84,
+      "room_type": "reception"
+     },
+     {
+      "polygon": [
+       [
+        6.2,
+        4.8
+       ],
+       [
+        12.0,
+        4.8
+       ],
+       [
+        12.0,
+        7.2
+       ],
+       [
+        6.2,
+        7.2
+       ]
+      ],
+      "room_id": "storage-1",
+      "area_sqm": 13.92,
+      "room_type": "storage"
+     }
+    ],
+    "proposed_walls": [],
+    "version_number": 4,
+    "approval_status": "PROPOSED",
+    "design_version_id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+    "parent_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+    "validation_report": {
+     "valid": true,
+     "issues": [],
+     "checked_at": "2026-11-14T22:56:03.849718Z",
+     "disclaimer": "Automated geometric check only. Not a code-compliance review or professionally approved plan."
+    },
+    "furniture_placements": [],
+    "finish_specifications": [
+     {
+      "room_id": "treatment-1",
+      "surface": "floor",
+      "area_sqm": 14.0,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "treatment-2",
+      "surface": "floor",
+      "area_sqm": 22.4,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "treatment-3",
+      "surface": "floor",
+      "area_sqm": 25.52,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "treatment-4",
+      "surface": "floor",
+      "area_sqm": 14.0,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "reception-1",
+      "surface": "floor",
+      "area_sqm": 27.84,
+      "material": "neutral LVP"
+     },
+     {
+      "room_id": "storage-1",
+      "surface": "floor",
+      "area_sqm": 13.92,
+      "material": "neutral LVP"
+     }
+    ],
+    "estimated_construction_cost": null,
+    "created_from_revision_request": "b008d74e-f8f8-4e3d-a0ab-68a3b4091a7a"
+   },
+   "schema_version": "1.0",
+   "record_version": 1
+  }
+ ],
+ "rooms": [
+  {
+   "id": "b22a5de4-8016-4426-bdec-990cb7a3430f",
+   "design_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+   "room_key": "reception-1",
+   "room_type": "reception",
+   "area_sqm": 24.0,
+   "polygon": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     5.0,
+     0.0
+    ],
+    [
+     5.0,
+     4.8
+    ],
+    [
+     0.0,
+     4.8
+    ]
+   ]
+  },
+  {
+   "id": "9af2eb03-bab1-429a-b063-a4d8ba23ffd5",
+   "design_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+   "room_key": "storage-1",
+   "room_type": "storage",
+   "area_sqm": 13.92,
+   "polygon": [
+    [
+     6.2,
+     0.0
+    ],
+    [
+     12.0,
+     0.0
+    ],
+    [
+     12.0,
+     2.4
+    ],
+    [
+     6.2,
+     2.4
+    ]
+   ]
+  },
+  {
+   "id": "0c5028b9-f603-4db1-8324-dd98b10f638a",
+   "design_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+   "room_key": "treatment-1",
+   "room_type": "treatment",
+   "area_sqm": 25.98,
+   "polygon": [
+    [
+     6.2,
+     7.12
+    ],
+    [
+     12.0,
+     7.12
+    ],
+    [
+     12.0,
+     11.6
+    ],
+    [
+     6.2,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "daee5018-ad11-43d6-8b11-2572705bd20d",
+   "design_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+   "room_key": "treatment-2",
+   "room_type": "treatment",
+   "area_sqm": 14.0,
+   "polygon": [
+    [
+     0.0,
+     8.8
+    ],
+    [
+     5.0,
+     8.8
+    ],
+    [
+     5.0,
+     11.6
+    ],
+    [
+     0.0,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "e77cbc75-8820-4208-935e-22f49181b7aa",
+   "design_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+   "room_key": "treatment-3",
+   "room_type": "treatment",
+   "area_sqm": 14.0,
+   "polygon": [
+    [
+     0.0,
+     6.0
+    ],
+    [
+     5.0,
+     6.0
+    ],
+    [
+     5.0,
+     8.8
+    ],
+    [
+     0.0,
+     8.8
+    ]
+   ]
+  },
+  {
+   "id": "b45dfa45-e64f-45a7-87e7-3c6be4faaa8f",
+   "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+   "room_key": "reception-1",
+   "room_type": "reception",
+   "area_sqm": 30.72,
+   "polygon": [
+    [
+     4.4,
+     5.2
+    ],
+    [
+     9.2,
+     5.2
+    ],
+    [
+     9.2,
+     11.6
+    ],
+    [
+     4.4,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "7fbd3efd-ca3f-4622-a751-86f3430eef11",
+   "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+   "room_key": "storage-1",
+   "room_type": "storage",
+   "area_sqm": 15.36,
+   "polygon": [
+    [
+     0.0,
+     5.2
+    ],
+    [
+     2.4,
+     5.2
+    ],
+    [
+     2.4,
+     11.6
+    ],
+    [
+     0.0,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "ac5be184-93b1-425a-b434-f700556f3a2e",
+   "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+   "room_key": "treatment-1",
+   "room_type": "treatment",
+   "area_sqm": 17.92,
+   "polygon": [
+    [
+     9.2,
+     5.2
+    ],
+    [
+     12.0,
+     5.2
+    ],
+    [
+     12.0,
+     11.6
+    ],
+    [
+     9.2,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "501fe1b9-982f-48a9-aa8b-7e6c7f6cdb0a",
+   "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+   "room_key": "treatment-2",
+   "room_type": "treatment",
+   "area_sqm": 14.68,
+   "polygon": [
+    [
+     8.33,
+     0.0
+    ],
+    [
+     12.0,
+     0.0
+    ],
+    [
+     12.0,
+     4.0
+    ],
+    [
+     8.33,
+     4.0
+    ]
+   ]
+  },
+  {
+   "id": "ac1178a6-4a26-41a4-985b-677fcca4952a",
+   "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+   "room_key": "treatment-3",
+   "room_type": "treatment",
+   "area_sqm": 12.4,
+   "polygon": [
+    [
+     1.6,
+     0.0
+    ],
+    [
+     4.7,
+     0.0
+    ],
+    [
+     4.7,
+     4.0
+    ],
+    [
+     1.6,
+     4.0
+    ]
+   ]
+  },
+  {
+   "id": "9f557652-aeb3-4a6a-8ed9-e58797a517de",
+   "design_version_id": "4e65c04c-2ab4-4456-8c04-dbf7c4e36133",
+   "room_key": "reception-1",
+   "room_type": "reception",
+   "area_sqm": 24.0,
+   "polygon": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     5.0,
+     0.0
+    ],
+    [
+     5.0,
+     4.8
+    ],
+    [
+     0.0,
+     4.8
+    ]
+   ]
+  },
+  {
+   "id": "df030ae7-a566-420b-97e5-f2c01f86d905",
+   "design_version_id": "4e65c04c-2ab4-4456-8c04-dbf7c4e36133",
+   "room_key": "storage-1",
+   "room_type": "storage",
+   "area_sqm": 13.92,
+   "polygon": [
+    [
+     6.2,
+     0.0
+    ],
+    [
+     12.0,
+     0.0
+    ],
+    [
+     12.0,
+     2.4
+    ],
+    [
+     6.2,
+     2.4
+    ]
+   ]
+  },
+  {
+   "id": "404d9783-13ce-47bc-9445-83cf4a9b7685",
+   "design_version_id": "4e65c04c-2ab4-4456-8c04-dbf7c4e36133",
+   "room_key": "treatment-1",
+   "room_type": "treatment",
+   "area_sqm": 25.98,
+   "polygon": [
+    [
+     6.2,
+     7.12
+    ],
+    [
+     12.0,
+     7.12
+    ],
+    [
+     12.0,
+     11.6
+    ],
+    [
+     6.2,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "72d5fc5a-55d7-42c8-b12d-eb9a8089c8d0",
+   "design_version_id": "4e65c04c-2ab4-4456-8c04-dbf7c4e36133",
+   "room_key": "treatment-2",
+   "room_type": "treatment",
+   "area_sqm": 14.0,
+   "polygon": [
+    [
+     0.0,
+     8.8
+    ],
+    [
+     5.0,
+     8.8
+    ],
+    [
+     5.0,
+     11.6
+    ],
+    [
+     0.0,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "e830043e-335f-44a1-b563-5174f15746b9",
+   "design_version_id": "4e65c04c-2ab4-4456-8c04-dbf7c4e36133",
+   "room_key": "treatment-3",
+   "room_type": "treatment",
+   "area_sqm": 14.0,
+   "polygon": [
+    [
+     0.0,
+     6.0
+    ],
+    [
+     5.0,
+     6.0
+    ],
+    [
+     5.0,
+     8.8
+    ],
+    [
+     0.0,
+     8.8
+    ]
+   ]
+  },
+  {
+   "id": "4f761170-e971-4603-8c63-0f90b3016a17",
+   "design_version_id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+   "room_key": "reception-1",
+   "room_type": "reception",
+   "area_sqm": 27.84,
+   "polygon": [
+    [
+     6.2,
+     0.0
+    ],
+    [
+     12.0,
+     0.0
+    ],
+    [
+     12.0,
+     4.8
+    ],
+    [
+     6.2,
+     4.8
+    ]
+   ]
+  },
+  {
+   "id": "9ca60335-f6fd-4e31-981a-25ac43667cbe",
+   "design_version_id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+   "room_key": "storage-1",
+   "room_type": "storage",
+   "area_sqm": 13.92,
+   "polygon": [
+    [
+     6.2,
+     4.8
+    ],
+    [
+     12.0,
+     4.8
+    ],
+    [
+     12.0,
+     7.2
+    ],
+    [
+     6.2,
+     7.2
+    ]
+   ]
+  },
+  {
+   "id": "0c8b3871-dc9f-4bb7-87cb-33e97b12db46",
+   "design_version_id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+   "room_key": "treatment-1",
+   "room_type": "treatment",
+   "area_sqm": 14.0,
+   "polygon": [
+    [
+     0.0,
+     8.8
+    ],
+    [
+     5.0,
+     8.8
+    ],
+    [
+     5.0,
+     11.6
+    ],
+    [
+     0.0,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "f8931c3a-4b70-42b9-9828-13af92015274",
+   "design_version_id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+   "room_key": "treatment-2",
+   "room_type": "treatment",
+   "area_sqm": 22.4,
+   "polygon": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     5.0,
+     0.0
+    ],
+    [
+     5.0,
+     4.48
+    ],
+    [
+     0.0,
+     4.48
+    ]
+   ]
+  },
+  {
+   "id": "36949dfc-8a7f-46fa-93fc-312a738dea3d",
+   "design_version_id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+   "room_key": "treatment-3",
+   "room_type": "treatment",
+   "area_sqm": 25.52,
+   "polygon": [
+    [
+     6.2,
+     7.2
+    ],
+    [
+     12.0,
+     7.2
+    ],
+    [
+     12.0,
+     11.6
+    ],
+    [
+     6.2,
+     11.6
+    ]
+   ]
+  },
+  {
+   "id": "31a867d5-82d3-4850-b6fa-8b48df4b2d64",
+   "design_version_id": "ba453a8c-441c-463b-9306-c5d0b52fca05",
+   "room_key": "treatment-4",
+   "room_type": "treatment",
+   "area_sqm": 14.0,
+   "polygon": [
+    [
+     0.0,
+     6.0
+    ],
+    [
+     5.0,
+     6.0
+    ],
+    [
+     5.0,
+     8.8
+    ],
+    [
+     0.0,
+     8.8
+    ]
+   ]
+  }
+ ],
+ "bills_of_materials": [
+  {
+   "id": "92b15331-e64d-4142-90af-1597015b9c96",
+   "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+   "design_version_id": "091b3825-372d-4349-96a5-d15437d00242",
+   "status": "DRAFT",
+   "data": {
+    "items": [
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "treatment_bed",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "0f1057cd-a294-4294-920a-4e8d635ac72c",
+      "description": "treatment bed for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 120000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "storage_cabinet",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "0da9399b-7d78-4e84-865f-2aab58de8fef",
+      "description": "storage cabinet for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 35000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "task_lighting",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "cbd84a9a-1374-4e48-98c3-fe65b8eb3a65",
+      "description": "task lighting for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 18000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "hand_sink",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "a352fbc1-6c3a-48e8-bb9c-842969ff41d1",
+      "description": "hand sink for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 60000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "treatment_bed",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "03f8d0ae-5e46-4343-ac12-ae79b2c3a27a",
+      "description": "treatment bed for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 120000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "storage_cabinet",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "e05ddbfe-9f30-4f4c-b60b-dc1036cad56f",
+      "description": "storage cabinet for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 35000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "task_lighting",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "5afcba01-013a-4864-8ea7-35b880a863a9",
+      "description": "task lighting for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 18000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "hand_sink",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "a28ce760-252c-47df-a4d9-481f5b5c0c89",
+      "description": "hand sink for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 60000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "treatment_bed",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "d263f195-21e5-4942-a1f1-5f38b958e490",
+      "description": "treatment bed for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 120000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "storage_cabinet",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "2a9a1c09-6cf0-48c3-aca4-6e1ff2a38be0",
+      "description": "storage cabinet for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 35000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "task_lighting",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "0ab75952-6759-4ef2-9f3b-6b9d57fb8b49",
+      "description": "task lighting for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 18000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "hand_sink",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "ffba1d50-bd74-46d8-abef-0296ea3123f0",
+      "description": "hand sink for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 60000
+     },
+     {
+      "unit": "ea",
+      "room_id": "reception-1",
+      "quantity": "1",
+      "item_type": "reception_desk",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "0e249561-29c8-4b2e-b875-d1e475db2073",
+      "description": "reception desk for reception-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:reception-1",
+      "unit_price_estimate": 150000
+     },
+     {
+      "unit": "ea",
+      "room_id": "storage-1",
+      "quantity": "2",
+      "item_type": "shelving_unit",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "2f2f6cfa-937b-40ad-93da-22df911b77c9",
+      "description": "shelving unit for storage-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:storage-1",
+      "unit_price_estimate": 22000
+     },
+     {
+      "unit": "m2",
+      "room_id": "treatment-1",
+      "quantity": "28.6",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "375d1084-ccaa-4206-9bc4-e76668480343",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:treatment-1:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "treatment-2",
+      "quantity": "15.4",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "80481663-27b8-4357-9361-14f7c523e846",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:treatment-2:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "treatment-3",
+      "quantity": "15.4",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "a1f13e2f-6514-4f4f-989a-2ea6589544eb",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:treatment-3:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "reception-1",
+      "quantity": "26.4",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "0acdbe64-1827-4319-84ec-963edea369ab",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:reception-1:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "storage-1",
+      "quantity": "15.3",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "7cb9007e-a3eb-419b-9b53-f1c83735ea0c",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:storage-1:floor",
+      "unit_price_estimate": 4500
+     }
+    ],
+    "bom_id": "92b15331-e64d-4142-90af-1597015b9c96",
+    "status": "DRAFT",
+    "currency": "USD",
+    "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+    "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+    "approved_total": null,
+    "estimated_total": 1347950,
+    "design_version_id": "091b3825-372d-4349-96a5-d15437d00242"
+   },
+   "schema_version": "1.0",
+   "record_version": 1
+  },
+  {
+   "id": "b3f97120-e936-426d-9639-bc81ca3fd1d6",
+   "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+   "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400",
+   "status": "DRAFT",
+   "data": {
+    "items": [
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "treatment_bed",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "073ed554-debd-4dcd-af01-3561978a76d6",
+      "description": "treatment bed for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 120000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "storage_cabinet",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "631837e4-0d09-4b90-98a1-6139691ea3e1",
+      "description": "storage cabinet for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 35000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "task_lighting",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "4b84708f-e59b-477e-831c-abb47ec8cf59",
+      "description": "task lighting for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 18000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-1",
+      "quantity": "1",
+      "item_type": "hand_sink",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "f636ce22-43df-4991-ab6a-0b6aae89d137",
+      "description": "hand sink for treatment-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-1",
+      "unit_price_estimate": 60000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "treatment_bed",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "32e88bb6-75ea-4fce-9d30-c0ab945cb98d",
+      "description": "treatment bed for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 120000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "storage_cabinet",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "9d8e5713-d57b-4b1c-aa1d-59345cd32298",
+      "description": "storage cabinet for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 35000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "task_lighting",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "7021bb9d-b9ae-4a7f-9488-8ea1f34db9b3",
+      "description": "task lighting for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 18000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-2",
+      "quantity": "1",
+      "item_type": "hand_sink",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "0d60be49-5073-4b39-ad07-98aba6746690",
+      "description": "hand sink for treatment-2",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-2",
+      "unit_price_estimate": 60000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "treatment_bed",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "3dbaf4fa-49a7-4863-abe5-29b2479e9181",
+      "description": "treatment bed for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 120000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "storage_cabinet",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "394744f5-08fa-4428-91a9-dd130110974f",
+      "description": "storage cabinet for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 35000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "task_lighting",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "c2b070a0-cf9e-43bb-87b8-d1a4a33879bc",
+      "description": "task lighting for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 18000
+     },
+     {
+      "unit": "ea",
+      "room_id": "treatment-3",
+      "quantity": "1",
+      "item_type": "hand_sink",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "892b634e-6750-43df-947a-49903372abd7",
+      "description": "hand sink for treatment-3",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:treatment-3",
+      "unit_price_estimate": 60000
+     },
+     {
+      "unit": "ea",
+      "room_id": "reception-1",
+      "quantity": "1",
+      "item_type": "reception_desk",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "f5bec94a-a0a8-40c6-a516-5914f2aed4b7",
+      "description": "reception desk for reception-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:reception-1",
+      "unit_price_estimate": 150000
+     },
+     {
+      "unit": "ea",
+      "room_id": "storage-1",
+      "quantity": "2",
+      "item_type": "shelving_unit",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote.",
+      "bom_item_id": "46cff1bf-0303-4e6c-b09a-0dbb8da67812",
+      "description": "shelving unit for storage-1",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "room:storage-1",
+      "unit_price_estimate": 22000
+     },
+     {
+      "unit": "m2",
+      "room_id": "treatment-1",
+      "quantity": "19.7",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "9835ac7d-31df-4000-b119-ead717d4a740",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:treatment-1:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "treatment-2",
+      "quantity": "16.1",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "0ca70bdf-84f8-41a8-83c8-e0273662af69",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:treatment-2:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "treatment-3",
+      "quantity": "13.6",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "81f8a6f3-d87e-4b48-95c2-10b5e6725953",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:treatment-3:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "reception-1",
+      "quantity": "33.8",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "5ebb5703-de93-4fd4-81dd-5ed968cf7429",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:reception-1:floor",
+      "unit_price_estimate": 4500
+     },
+     {
+      "unit": "m2",
+      "room_id": "storage-1",
+      "quantity": "16.9",
+      "item_type": "flooring_lvp_sqm",
+      "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste.",
+      "bom_item_id": "4e969713-b64a-40a8-b066-bee64d64dc98",
+      "description": "neutral LVP (floor)",
+      "price_origin": "FIXTURE_SYNTHETIC",
+      "design_element_ref": "finish:storage-1:floor",
+      "unit_price_estimate": 4500
+     }
+    ],
+    "bom_id": "b3f97120-e936-426d-9639-bc81ca3fd1d6",
+    "status": "DRAFT",
+    "currency": "USD",
+    "project_id": "8ce7c78a-1a8f-4097-8a1b-58e7a89a108b",
+    "property_id": "6917a610-fe4c-4303-a5e9-44fa13955de7",
+    "approved_total": null,
+    "estimated_total": 1343450,
+    "design_version_id": "ca624d47-730f-422c-90e0-1dca2c3ed400"
+   },
+   "schema_version": "1.0",
+   "record_version": 1
+  }
+ ]
+}

@@ -272,8 +272,8 @@ fn spawn_request(
 
 fn new_profile_body() -> serde_json::Value {
     let mut profile = demo_project_body()["business_profile"].clone();
+    // No `profile_id`: the PUT creates a new profile and points the project at it.
     profile["confirmation_status"] = json!("CONFIRMED");
-    profile["business_name"] = json!("Overlapping update");
     profile
 }
 
