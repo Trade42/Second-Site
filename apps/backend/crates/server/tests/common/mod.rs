@@ -175,11 +175,50 @@ impl TestDb {
         }
     }
 
-    pub async fn finish(self) {
-        if let Some(s) = self.schema {
+    pub async fn finish(mut self) {
+        if let Some(s) = self.schema.take() {
             drop_schema(&s).await;
         }
     }
+
+    /// The PostgreSQL schema of this test (`None` on the in-memory store).
+    pub fn schema_name(&self) -> Option<&str> {
+        self.schema.as_deref()
+    }
+}
+
+/// A test that panics never reaches [`TestDb::finish`]: drop its schema here instead, on a
+/// separate thread with its own runtime (this may run during unwinding, inside a runtime).
+impl Drop for TestDb {
+    fn drop(&mut self) {
+        if let Some(s) = self.schema.take() {
+            let _ = std::thread::spawn(move || {
+                if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    rt.block_on(drop_schema(&s));
+                }
+            })
+            .join();
+        }
+    }
+}
+
+/// Does this schema exist in the `TEST_DATABASE_URL` database?
+pub async fn schema_exists(schema: &str) -> bool {
+    let url = pg_url().expect("TEST_DATABASE_URL");
+    let opts = PgConnectOptions::from_str(&ss_server::config::normalize_database_url(&url))
+        .expect("TEST_DATABASE_URL");
+    let mut c = opts.connect().await.expect("connect");
+    let row: (i64,) = sqlx::query_as(
+        "SELECT count(*) FROM information_schema.schemata WHERE schema_name = $1",
+    )
+    .bind(schema)
+    .fetch_one(&mut c)
+    .await
+    .expect("query");
+    row.0 == 1
 }
 
 /// The application plus an in-process client.
