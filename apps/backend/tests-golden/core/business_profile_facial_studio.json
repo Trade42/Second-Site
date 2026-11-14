@@ -1,0 +1,106 @@
+{
+  "source": "fixtures/projects/facial_studio.json business_profile + project_id + profile_id",
+  "input": {
+    "business_type": "facial_studio",
+    "business_description": "Facial and skincare studio opening its second location.",
+    "current_location_count": 1,
+    "target_market": {
+      "city": "Los Angeles",
+      "state": "CA"
+    },
+    "opening_capital": 18000000,
+    "monthly_rent_limit": 750000,
+    "working_capital_reserve": 3000000,
+    "space_requirements": {
+      "required_rooms": {
+        "treatment": 3,
+        "reception": 1,
+        "storage": 1
+      },
+      "min_area_sqm": 110
+    },
+    "infrastructure_requirements": {
+      "minimize_plumbing_changes": true,
+      "sinks_per_treatment_room": 1
+    },
+    "design_preferences": {
+      "interior_style": "warm_minimalist"
+    },
+    "ranking_priorities": {
+      "total_cost": 0.5,
+      "infrastructure_fit": 0.3,
+      "evidence_certainty": 0.2,
+      "comparison_horizon_months": 36
+    },
+    "confirmation_status": "CONFIRMED",
+    "source_references": [
+      {
+        "field": "*",
+        "source": "fixture:facial_studio.json",
+        "confirmation_status": "CONFIRMED",
+        "note": "Demo inputs"
+      }
+    ],
+    "project_id": "6b1727f7-0000-4000-8000-000000000001",
+    "profile_id": "6b1727f7-0000-4000-8000-000000000002"
+  },
+  "expected": {
+    "profile_id": "6b1727f7-0000-4000-8000-000000000002",
+    "project_id": "6b1727f7-0000-4000-8000-000000000001",
+    "business_type": "facial_studio",
+    "business_description": "Facial and skincare studio opening its second location.",
+    "current_location_count": 1,
+    "target_market": {
+      "city": "Los Angeles",
+      "state": "CA"
+    },
+    "preferred_neighborhoods": [],
+    "currency": "USD",
+    "opening_capital": 18000000,
+    "monthly_rent_limit": 750000,
+    "working_capital_reserve": 3000000,
+    "space_requirements": {
+      "min_area_sqm": 110.0,
+      "max_area_sqm": null,
+      "required_rooms": {
+        "treatment": 3,
+        "reception": 1,
+        "storage": 1
+      },
+      "ground_floor_required": null
+    },
+    "infrastructure_requirements": {
+      "minimize_plumbing_changes": true,
+      "sinks_per_treatment_room": 1,
+      "min_electrical_service_amps": null,
+      "needs_dedicated_hvac_zoning": null,
+      "notes": []
+    },
+    "operational_requirements": {
+      "operating_hours": null,
+      "staff_count": null,
+      "parking_required": null,
+      "ada_accessible_required": true
+    },
+    "target_opening_date": null,
+    "design_preferences": {
+      "interior_style": "warm_minimalist",
+      "notes": []
+    },
+    "ranking_priorities": {
+      "total_cost": 0.5,
+      "infrastructure_fit": 0.3,
+      "evidence_certainty": 0.2,
+      "comparison_horizon_months": 36
+    },
+    "confirmation_status": "CONFIRMED",
+    "source_references": [
+      {
+        "field": "*",
+        "source": "fixture:facial_studio.json",
+        "confirmation_status": "CONFIRMED",
+        "note": "Demo inputs"
+      }
+    ]
+  }
+}

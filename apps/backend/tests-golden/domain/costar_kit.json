@@ -1,0 +1,4515 @@
+{
+ "kit": {
+  "la": {
+   "request": {
+    "city": "Los Angeles",
+    "state": "CA",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [],
+    "limit": 10
+   },
+   "skipped_no_rate": 1,
+   "listings": [
+    {
+     "provider": "costar",
+     "provider_listing_id": "2:21",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 200
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:12",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "5:53",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "12 Spring St",
+      "unit_or_suite": null,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90013",
+      "parcel_id": null,
+      "latitude": null,
+      "longitude": null
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:53",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 93.8,
+      "asking_rent_monthly": 555500,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 36,
+      "available_from": "2026-12-01",
+      "existing_buildout": "office_buildout",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes.",
+      "costar_property_id": 500
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL5"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "5:51",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "7B",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:51",
+      "listing_type": "LEASE",
+      "property_type": "Medical",
+      "available_area_sqm": 83.6,
+      "asking_rent_monthly": 225000,
+      "nnn_charges_monthly": 48750,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "open_shell",
+      "lease_service_type": "ModifiedGross",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes.",
+      "costar_property_id": 500
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL5"
+      },
+      {
+       "provider": "costar",
+       "asset_id": "floorplan-51",
+       "asset_type": "floor_plan_image",
+       "url": "https://cdn.example/fp/113/plan.png"
+      }
+     ],
+     "exterior_assets": []
+    }
+   ],
+   "profiles": [
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "2:21",
+       "costar_property": "200"
+      },
+      "normalized_address": "100 W MAIN ST STE A, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "currency": "USD",
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:16",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "currency": "USD",
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:12",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 102, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "currency": "USD",
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "5:53",
+       "costar_property": "500"
+      },
+      "normalized_address": "12 SPRING ST, LOS ANGELES, CA 90013",
+      "street_address": "12 SPRING ST",
+      "unit_or_suite": null,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90013",
+      "parcel_id": null,
+      "latitude": null,
+      "longitude": null,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:53",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 93.8,
+      "currency": "USD",
+      "asking_rent_monthly": 555500,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 36,
+      "available_from": "2026-12-01",
+      "existing_buildout": "office_buildout",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL5",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "5:51",
+       "costar_property": "500"
+      },
+      "normalized_address": "100 W MAIN ST STE 7B, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "7B",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:51",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Medical",
+      "available_area_sqm": 83.6,
+      "currency": "USD",
+      "asking_rent_monthly": 225000,
+      "nnn_charges_monthly": 48750,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "open_shell",
+      "lease_service_type": "ModifiedGross",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL5",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "costar",
+       "asset_id": "floorplan-51",
+       "asset_type": "floor_plan_image",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://cdn.example/fp/113/plan.png",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    }
+   ]
+  },
+  "houston": {
+   "request": {
+    "city": "Houston",
+    "state": "TX",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [],
+    "limit": 10
+   },
+   "skipped_no_rate": 0,
+   "listings": [
+    {
+     "provider": "costar",
+     "provider_listing_id": "3:31",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "9",
+      "city": "Houston",
+      "state": "TX",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "3:31",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "asking_rent_monthly": 150000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $1/SF/mo (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 300
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    }
+   ],
+   "profiles": [
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "3:31",
+       "costar_property": "300"
+      },
+      "normalized_address": "100 W MAIN ST STE 9, HOUSTON, TX 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "9",
+      "city": "Houston",
+      "state": "TX",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "3:31",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "currency": "USD",
+      "asking_rent_monthly": 150000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $1/SF/mo (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $1/SF/mo (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    }
+   ]
+  },
+  "budget_area": {
+   "request": {
+    "city": "Los Angeles",
+    "state": "CA",
+    "max_monthly_rent": 400000,
+    "min_area_sqm": 90.0,
+    "neighborhoods": [],
+    "limit": 10
+   },
+   "skipped_no_rate": 1,
+   "listings": [
+    {
+     "provider": "costar",
+     "provider_listing_id": "2:21",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 200
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:12",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    }
+   ],
+   "profiles": [
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "2:21",
+       "costar_property": "200"
+      },
+      "normalized_address": "100 W MAIN ST STE A, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "currency": "USD",
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:16",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "currency": "USD",
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:12",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 102, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "currency": "USD",
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    }
+   ]
+  },
+  "limit_1": {
+   "request": {
+    "city": "Los Angeles",
+    "state": "CA",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [],
+    "limit": 1
+   },
+   "skipped_no_rate": 1,
+   "listings": [
+    {
+     "provider": "costar",
+     "provider_listing_id": "2:21",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 200
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    }
+   ],
+   "profiles": [
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "2:21",
+       "costar_property": "200"
+      },
+      "normalized_address": "100 W MAIN ST STE A, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "currency": "USD",
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    }
+   ]
+  },
+  "neighborhood_hit": {
+   "request": {
+    "city": "Los Angeles",
+    "state": "CA",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [
+     "angeles"
+    ],
+    "limit": 10
+   },
+   "skipped_no_rate": 1,
+   "listings": [
+    {
+     "provider": "costar",
+     "provider_listing_id": "2:21",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 200
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:12",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "5:53",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "12 Spring St",
+      "unit_or_suite": null,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90013",
+      "parcel_id": null,
+      "latitude": null,
+      "longitude": null
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:53",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 93.8,
+      "asking_rent_monthly": 555500,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 36,
+      "available_from": "2026-12-01",
+      "existing_buildout": "office_buildout",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes.",
+      "costar_property_id": 500
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL5"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "5:51",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "7B",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:51",
+      "listing_type": "LEASE",
+      "property_type": "Medical",
+      "available_area_sqm": 83.6,
+      "asking_rent_monthly": 225000,
+      "nnn_charges_monthly": 48750,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "open_shell",
+      "lease_service_type": "ModifiedGross",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes.",
+      "costar_property_id": 500
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL5"
+      },
+      {
+       "provider": "costar",
+       "asset_id": "floorplan-51",
+       "asset_type": "floor_plan_image",
+       "url": "https://cdn.example/fp/113/plan.png"
+      }
+     ],
+     "exterior_assets": []
+    }
+   ],
+   "profiles": [
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "2:21",
+       "costar_property": "200"
+      },
+      "normalized_address": "100 W MAIN ST STE A, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "currency": "USD",
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:16",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "currency": "USD",
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:12",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 102, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "currency": "USD",
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "5:53",
+       "costar_property": "500"
+      },
+      "normalized_address": "12 SPRING ST, LOS ANGELES, CA 90013",
+      "street_address": "12 SPRING ST",
+      "unit_or_suite": null,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90013",
+      "parcel_id": null,
+      "latitude": null,
+      "longitude": null,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:53",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 93.8,
+      "currency": "USD",
+      "asking_rent_monthly": 555500,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 36,
+      "available_from": "2026-12-01",
+      "existing_buildout": "office_buildout",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL5",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "5:51",
+       "costar_property": "500"
+      },
+      "normalized_address": "100 W MAIN ST STE 7B, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "7B",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:51",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Medical",
+      "available_area_sqm": 83.6,
+      "currency": "USD",
+      "asking_rent_monthly": 225000,
+      "nnn_charges_monthly": 48750,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "open_shell",
+      "lease_service_type": "ModifiedGross",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL5",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "costar",
+       "asset_id": "floorplan-51",
+       "asset_type": "floor_plan_image",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://cdn.example/fp/113/plan.png",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    }
+   ]
+  },
+  "neighborhood_miss": {
+   "request": {
+    "city": "Los Angeles",
+    "state": "CA",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [
+     "Pasadena"
+    ],
+    "limit": 10
+   },
+   "skipped_no_rate": 0,
+   "listings": [],
+   "profiles": []
+  },
+  "other_city": {
+   "request": {
+    "city": "Pasadena",
+    "state": "CA",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [],
+    "limit": 10
+   },
+   "skipped_no_rate": 0,
+   "listings": [],
+   "profiles": []
+  },
+  "unsupported_state": {
+   "request": {
+    "city": "New York",
+    "state": "NY",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [],
+    "limit": 10
+   },
+   "skipped_no_rate": 0,
+   "listings": [],
+   "profiles": []
+  },
+  "min_area_100": {
+   "request": {
+    "city": "Los Angeles",
+    "state": "CA",
+    "max_monthly_rent": null,
+    "min_area_sqm": 100.0,
+    "neighborhoods": [],
+    "limit": 10
+   },
+   "skipped_no_rate": 1,
+   "listings": [
+    {
+     "provider": "costar",
+     "provider_listing_id": "2:21",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 200
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:11",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "101",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:11",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 480000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $4/SF/mo (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    }
+   ],
+   "profiles": [
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "2:21",
+       "costar_property": "200"
+      },
+      "normalized_address": "100 W MAIN ST STE A, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "currency": "USD",
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:16",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "currency": "USD",
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:11",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 101, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "101",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:11",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 480000,
+      "nnn_charges_monthly": null,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $4/SF/mo (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease)",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $4/SF/mo (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    }
+   ]
+  },
+  "status": {
+   "provider": "costar",
+   "mode": "live",
+   "status": "LIVE",
+   "credentials_present": true,
+   "note": "CoStar hackathon data kit (snapshot of genuine records) read from COSTAR_KIT_DIR."
+  }
+ },
+ "opex": {
+  "limit_50": {
+   "request": {
+    "city": "Los Angeles",
+    "state": "CA",
+    "max_monthly_rent": null,
+    "min_area_sqm": null,
+    "neighborhoods": [],
+    "limit": 50
+   },
+   "skipped_no_rate": 1,
+   "listings": [
+    {
+     "provider": "costar",
+     "provider_listing_id": "2:21",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": 137500,
+      "nnn_is_estimate": true,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit.",
+      "costar_property_id": 200
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:16",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": 105417,
+      "nnn_is_estimate": true,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "900:900",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q0",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "900:900",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 100000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 900
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "901:901",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q1",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "901:901",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 110000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 901
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "902:902",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q2",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "902:902",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 120000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 902
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "903:903",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q3",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "903:903",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 120000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 903
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "904:904",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q4",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "904:904",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 120000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 904
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "905:905",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q5",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "905:905",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 130000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 905
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "906:906",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q6",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "906:906",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 140000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 906
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "907:907",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q7",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "907:907",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 907
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "908:908",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q8",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "908:908",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 908
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "909:909",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q9",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "909:909",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 909
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "910:910",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "Q10",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "910:910",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent.",
+      "costar_property_id": 910
+     },
+     "interior_assets": [],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "1:12",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent.",
+      "costar_property_id": 100
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL1"
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL2"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "5:53",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "12 Spring St",
+      "unit_or_suite": null,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90013",
+      "parcel_id": null,
+      "latitude": null,
+      "longitude": null
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:53",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 93.8,
+      "asking_rent_monthly": 555500,
+      "nnn_charges_monthly": 92583,
+      "nnn_is_estimate": true,
+      "lease_term_months": 36,
+      "available_from": "2026-12-01",
+      "existing_buildout": "office_buildout",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit.",
+      "costar_property_id": 500
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL5"
+      }
+     ],
+     "exterior_assets": []
+    },
+    {
+     "provider": "costar",
+     "provider_listing_id": "5:51",
+     "data_origin": "FIXTURE_REAL",
+     "address": {
+      "street_address": "100 W Main St",
+      "unit_or_suite": "7B",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25
+     },
+     "listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:51",
+      "listing_type": "LEASE",
+      "property_type": "Medical",
+      "available_area_sqm": 83.6,
+      "asking_rent_monthly": 225000,
+      "nnn_charges_monthly": 48750,
+      "nnn_is_estimate": false,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "open_shell",
+      "lease_service_type": "ModifiedGross",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes.",
+      "costar_property_id": 500
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "has_measured_geometry": false,
+       "url": "https://my.matterport.com/show/?m=MODEL5"
+      },
+      {
+       "provider": "costar",
+       "asset_id": "floorplan-51",
+       "asset_type": "floor_plan_image",
+       "url": "https://cdn.example/fp/113/plan.png"
+      }
+     ],
+     "exterior_assets": []
+    }
+   ],
+   "profiles": [
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "2:21",
+       "costar_property": "200"
+      },
+      "normalized_address": "100 W MAIN ST STE A, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "A",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "2:21",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 139.4,
+      "currency": "USD",
+      "asking_rent_monthly": 300000,
+      "nnn_charges_monthly": 137500,
+      "nnn_is_estimate": true,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "Operating-expense charges not quoted (TripleNet lease); estimated from comparable listings",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $2/SF/mo (TripleNet). Asking terms, not achieved rent. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:16",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 106, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "106",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:16",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 106.8,
+      "currency": "USD",
+      "asking_rent_monthly": 345000,
+      "nnn_charges_monthly": 105417,
+      "nnn_is_estimate": true,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "second_generation_salon",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease); estimated from comparable listings",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $3/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'second_generation_salon' inferred from listing notes. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "900:900",
+       "costar_property": "900"
+      },
+      "normalized_address": "100 W MAIN ST STE Q0, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q0",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "900:900",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 100000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "901:901",
+       "costar_property": "901"
+      },
+      "normalized_address": "100 W MAIN ST STE Q1, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q1",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "901:901",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 110000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "902:902",
+       "costar_property": "902"
+      },
+      "normalized_address": "100 W MAIN ST STE Q2, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q2",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "902:902",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 120000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "903:903",
+       "costar_property": "903"
+      },
+      "normalized_address": "100 W MAIN ST STE Q3, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q3",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "903:903",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 120000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "904:904",
+       "costar_property": "904"
+      },
+      "normalized_address": "100 W MAIN ST STE Q4, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q4",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "904:904",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 120000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "905:905",
+       "costar_property": "905"
+      },
+      "normalized_address": "100 W MAIN ST STE Q5, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q5",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "905:905",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 130000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "906:906",
+       "costar_property": "906"
+      },
+      "normalized_address": "100 W MAIN ST STE Q6, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q6",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "906:906",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 140000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "907:907",
+       "costar_property": "907"
+      },
+      "normalized_address": "100 W MAIN ST STE Q7, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q7",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "907:907",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "908:908",
+       "costar_property": "908"
+      },
+      "normalized_address": "100 W MAIN ST STE Q8, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q8",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "908:908",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "909:909",
+       "costar_property": "909"
+      },
+      "normalized_address": "100 W MAIN ST STE Q9, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q9",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "909:909",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "910:910",
+       "costar_property": "910"
+      },
+      "normalized_address": "100 W MAIN ST STE Q10, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "Q10",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "910:910",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 111.5,
+      "currency": "USD",
+      "asking_rent_monthly": 360000,
+      "nnn_charges_monthly": 10000,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+     },
+     "interior_assets": [],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No interior model or measured floor plan",
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $36/SF/yr (TripleNet). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "1:12",
+       "costar_property": "100"
+      },
+      "normalized_address": "100 W MAIN ST STE 102, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "102",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "1:12",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 92.9,
+      "currency": "USD",
+      "asking_rent_monthly": 400000,
+      "nnn_charges_monthly": 0,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": null,
+      "lease_service_type": "FullService",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": null,
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL1",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL1",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL2",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL2",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No exterior imagery",
+      "Existing build-out unknown"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $48/SF/yr (FullService). Asking terms, not achieved rent."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "5:53",
+       "costar_property": "500"
+      },
+      "normalized_address": "12 SPRING ST, LOS ANGELES, CA 90013",
+      "street_address": "12 SPRING ST",
+      "unit_or_suite": null,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90013",
+      "parcel_id": null,
+      "latitude": null,
+      "longitude": null,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:53",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Retail",
+      "available_area_sqm": 93.8,
+      "currency": "USD",
+      "asking_rent_monthly": 555500,
+      "nnn_charges_monthly": 92583,
+      "nnn_is_estimate": true,
+      "security_deposit": null,
+      "lease_term_months": 36,
+      "available_from": "2026-12-01",
+      "existing_buildout": "office_buildout",
+      "lease_service_type": "TripleNet",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL5",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "Operating-expense charges not quoted (TripleNet lease); estimated from comparable listings",
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $5.5/SF/mo (TripleNet). Asking terms, not achieved rent. Build-out 'office_buildout' inferred from listing notes. Operating costs not quoted; estimated at $11/SF/yr, the median CAM quoted by 11 CA net-lease spaces in the kit."
+      }
+     ],
+     "last_analyzed_at": null
+    },
+    {
+     "property_id": "<property_id>",
+     "project_id": "6b1727f7-0000-4000-8000-0000000000a1",
+     "property_identity": {
+      "property_id": "<property_id>",
+      "provider_property_ids": {
+       "costar": "5:51",
+       "costar_property": "500"
+      },
+      "normalized_address": "100 W MAIN ST STE 7B, LOS ANGELES, CA 90012",
+      "street_address": "100 W MAIN ST",
+      "unit_or_suite": "7B",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90012",
+      "parcel_id": null,
+      "latitude": 34.05,
+      "longitude": -118.25,
+      "identity_match_status": "NEEDS_REVIEW",
+      "identity_match_confidence": 0.5
+     },
+     "commercial_listing": {
+      "provider": "costar",
+      "provider_listing_id": "5:51",
+      "data_origin": "FIXTURE_REAL",
+      "listing_type": "LEASE",
+      "property_type": "Medical",
+      "available_area_sqm": 83.6,
+      "currency": "USD",
+      "asking_rent_monthly": 225000,
+      "nnn_charges_monthly": 48750,
+      "nnn_is_estimate": false,
+      "security_deposit": null,
+      "lease_term_months": 60,
+      "available_from": "2026-12-01",
+      "existing_buildout": "open_shell",
+      "lease_service_type": "ModifiedGross",
+      "building_name": "Test Plaza",
+      "brokerage_company": "Example Brokerage",
+      "broker_contact": {
+       "name": "Sam Doe",
+       "company": "Example Brokerage",
+       "phone": "+15555550100",
+       "role": "broker"
+      },
+      "photo_urls": [
+       "https://cdn.example/i/abc/113/image.jpg"
+      ],
+      "source_record_date": "2026-10-01",
+      "listing_url": null,
+      "disclaimer": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes."
+     },
+     "interior_assets": [
+      {
+       "provider": "matterport",
+       "asset_id": "MODEL5",
+       "asset_type": "matterport_model",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://my.matterport.com/show/?m=MODEL5",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      },
+      {
+       "provider": "costar",
+       "asset_id": "floorplan-51",
+       "asset_type": "floor_plan_image",
+       "data_origin": "FIXTURE_REAL",
+       "url": "https://cdn.example/fp/113/plan.png",
+       "label": null,
+       "area_sqm": null,
+       "matches_listing_unit": null,
+       "has_measured_geometry": false
+      }
+     ],
+     "exterior_assets": [],
+     "permit_records": [],
+     "building_observations": [],
+     "geometry_reference": null,
+     "infrastructure_assessments": [],
+     "missing_information": [
+      "No exterior imagery"
+     ],
+     "source_manifest": [
+      {
+       "provider": "costar",
+       "dataset": "listings",
+       "status": "SNAPSHOT",
+       "record_count": 1,
+       "retrieved_at": "<timestamp>",
+       "note": "CoStar data kit snapshot (certified 2026-10-01); asking $30/SF/yr (ModifiedGross). Asking terms, not achieved rent. Build-out 'open_shell' inferred from listing notes."
+      }
+     ],
+     "last_analyzed_at": null
+    }
+   ]
+  },
+  "status": {
+   "provider": "costar",
+   "mode": "live",
+   "status": "LIVE",
+   "credentials_present": true,
+   "note": "CoStar hackathon data kit (snapshot of genuine records) read from COSTAR_KIT_DIR."
+  }
+ },
+ "missing_status": {
+  "provider": "costar",
+  "mode": "live",
+  "status": "BLOCKED",
+  "credentials_present": false,
+  "note": "CoStar data kit not extracted; set COSTAR_KIT_DIR."
+ }
+}

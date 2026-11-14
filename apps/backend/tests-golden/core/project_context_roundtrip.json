@@ -1,0 +1,70 @@
+[
+  {
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "x",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.5Z"
+    },
+    "expected": {
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_name": "x",
+      "business_profile_id": null,
+      "project_status": "ONBOARDING",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA",
+        "country": "US"
+      },
+      "selected_property_id": null,
+      "selected_design_version_id": null,
+      "current_budget_revision": 0,
+      "schema_version": "1.0",
+      "record_version": 1,
+      "created_at": "2026-11-14T12:00:00Z",
+      "updated_at": "2026-11-14T12:00:00.500000Z"
+    }
+  },
+  {
+    "input": {
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "project_name": "Facial studio — second location",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA"
+      },
+      "project_status": "COMPARING",
+      "business_profile_id": "6b1727f7-0000-4000-8000-000000000002",
+      "current_budget_revision": 3,
+      "record_version": 7,
+      "created_at": "2026-01-01T00:00:00.123+02:00",
+      "updated_at": "2026-11-14T18:53:19.128932-08:00"
+    },
+    "expected": {
+      "project_id": "6b1727f7-0000-4000-8000-000000000001",
+      "owner_id": "6b1727f7-0000-4000-8000-000000000003",
+      "project_name": "Facial studio — second location",
+      "business_profile_id": "6b1727f7-0000-4000-8000-000000000002",
+      "project_status": "COMPARING",
+      "market": {
+        "city": "Los Angeles",
+        "state": "CA",
+        "country": "US"
+      },
+      "selected_property_id": null,
+      "selected_design_version_id": null,
+      "current_budget_revision": 3,
+      "schema_version": "1.0",
+      "record_version": 7,
+      "created_at": "2025-12-31T22:00:00.123000Z",
+      "updated_at": "2026-11-15T02:53:19.128932Z"
+    }
+  }
+]

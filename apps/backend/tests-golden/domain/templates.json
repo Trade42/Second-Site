@@ -1,0 +1,1007 @@
+{
+ "facial_studio": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 3,
+     "reception": 1,
+     "storage": 1
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 5.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.treatment_sinks",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Hand/treatment sink in each treatment room (supply + drain)",
+    "required_value": 3.0,
+    "required_unit": "sinks",
+    "severity": "SOFT",
+    "verification_method": "Plumber confirms supply/drain locations and capacity"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.water_service",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Domestic water service to the building",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Plumber / utility records"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "no_rooms": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {},
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 0.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "no_treatment": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "reception": 1,
+     "office": 2
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 3.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "large_min_area": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 3,
+     "reception": 1,
+     "storage": 1
+    },
+    "min_area_sqm": 500
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 500.0,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 500.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 5.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.treatment_sinks",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Hand/treatment sink in each treatment room (supply + drain)",
+    "required_value": 3.0,
+    "required_unit": "sinks",
+    "severity": "SOFT",
+    "verification_method": "Plumber confirms supply/drain locations and capacity"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.water_service",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Domestic water service to the building",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Plumber / utility records"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "restaurant": {
+  "profile": {
+   "business_type": "restaurant",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 3,
+     "reception": 1,
+     "storage": 1
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "restaurant.space.min_area",
+    "business_type": "restaurant",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "restaurant.space.enclosed_rooms",
+    "business_type": "restaurant",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 5.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "restaurant.electrical.tenant_service",
+    "business_type": "restaurant",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "restaurant.plumbing.treatment_sinks",
+    "business_type": "restaurant",
+    "requirement_category": "PLUMBING",
+    "description": "Hand/treatment sink in each treatment room (supply + drain)",
+    "required_value": 3.0,
+    "required_unit": "sinks",
+    "severity": "SOFT",
+    "verification_method": "Plumber confirms supply/drain locations and capacity"
+   },
+   {
+    "requirement_id": "restaurant.plumbing.water_service",
+    "business_type": "restaurant",
+    "requirement_category": "PLUMBING",
+    "description": "Domestic water service to the building",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Plumber / utility records"
+   }
+  ]
+ },
+ "salon_200a": {
+  "profile": {
+   "business_type": "salon",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 3,
+     "reception": 1,
+     "storage": 1
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1,
+    "min_electrical_service_amps": 200
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "salon.space.min_area",
+    "business_type": "salon",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "salon.space.enclosed_rooms",
+    "business_type": "salon",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 5.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "salon.electrical.tenant_service",
+    "business_type": "salon",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 200.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "salon.plumbing.treatment_sinks",
+    "business_type": "salon",
+    "requirement_category": "PLUMBING",
+    "description": "Hand/treatment sink in each treatment room (supply + drain)",
+    "required_value": 3.0,
+    "required_unit": "sinks",
+    "severity": "SOFT",
+    "verification_method": "Plumber confirms supply/drain locations and capacity"
+   },
+   {
+    "requirement_id": "salon.plumbing.water_service",
+    "business_type": "salon",
+    "requirement_category": "PLUMBING",
+    "description": "Domestic water service to the building",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Plumber / utility records"
+   },
+   {
+    "requirement_id": "salon.hvac.ventilation",
+    "business_type": "salon",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "two_sinks_each": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 3,
+     "reception": 1,
+     "storage": 1
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 2
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 5.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.treatment_sinks",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Hand/treatment sink in each treatment room (supply + drain)",
+    "required_value": 6.0,
+    "required_unit": "sinks",
+    "severity": "SOFT",
+    "verification_method": "Plumber confirms supply/drain locations and capacity"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.water_service",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Domestic water service to the building",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Plumber / utility records"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "zero_sinks": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 3,
+     "reception": 1,
+     "storage": 1
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 0
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 5.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "unknown_room": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 2,
+     "lab": 3,
+     "restroom": 1
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 110.0,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 110.0,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 6.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.treatment_sinks",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Hand/treatment sink in each treatment room (supply + drain)",
+    "required_value": 2.0,
+    "required_unit": "sinks",
+    "severity": "SOFT",
+    "verification_method": "Plumber confirms supply/drain locations and capacity"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.water_service",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Domestic water service to the building",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Plumber / utility records"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ },
+ "fractional": {
+  "profile": {
+   "business_type": "facial_studio",
+   "business_description": "Facial and skincare studio opening its second location.",
+   "current_location_count": 1,
+   "target_market": {
+    "city": "Los Angeles",
+    "state": "CA"
+   },
+   "opening_capital": 18000000,
+   "monthly_rent_limit": 750000,
+   "working_capital_reserve": 3000000,
+   "space_requirements": {
+    "required_rooms": {
+     "treatment": 7,
+     "storage": 3
+    },
+    "min_area_sqm": 110
+   },
+   "infrastructure_requirements": {
+    "minimize_plumbing_changes": true,
+    "sinks_per_treatment_room": 1
+   },
+   "design_preferences": {
+    "interior_style": "warm_minimalist"
+   },
+   "ranking_priorities": {
+    "total_cost": 0.5,
+    "infrastructure_fit": 0.3,
+    "evidence_certainty": 0.2,
+    "comparison_horizon_months": 36
+   },
+   "confirmation_status": "CONFIRMED",
+   "source_references": [
+    {
+     "field": "*",
+     "source": "fixture:facial_studio.json",
+     "confirmation_status": "CONFIRMED",
+     "note": "Demo inputs"
+    }
+   ],
+   "project_id": "6b1727f7-0000-4000-8000-0000000000a1"
+  },
+  "min_area_sqm": 119.6,
+  "requirements": [
+   {
+    "requirement_id": "facial_studio.space.min_area",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Usable area for required rooms plus circulation",
+    "required_value": 119.6,
+    "required_unit": "m2",
+    "severity": "HARD",
+    "verification_method": "Measured floor plan / site visit"
+   },
+   {
+    "requirement_id": "facial_studio.space.enclosed_rooms",
+    "business_type": "facial_studio",
+    "requirement_category": "SPACE",
+    "description": "Enclosed rooms matching the program",
+    "required_value": 10.0,
+    "required_unit": "rooms",
+    "severity": "SOFT",
+    "verification_method": "Floor plan review"
+   },
+   {
+    "requirement_id": "facial_studio.electrical.tenant_service",
+    "business_type": "facial_studio",
+    "requirement_category": "ELECTRICAL",
+    "description": "Electrical service available to the tenant space for treatment equipment and lighting",
+    "required_value": 100.0,
+    "required_unit": "A",
+    "severity": "SOFT",
+    "verification_method": "Licensed electrician inspects tenant subpanel rating and load"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.treatment_sinks",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Hand/treatment sink in each treatment room (supply + drain)",
+    "required_value": 7.0,
+    "required_unit": "sinks",
+    "severity": "SOFT",
+    "verification_method": "Plumber confirms supply/drain locations and capacity"
+   },
+   {
+    "requirement_id": "facial_studio.plumbing.water_service",
+    "business_type": "facial_studio",
+    "requirement_category": "PLUMBING",
+    "description": "Domestic water service to the building",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Plumber / utility records"
+   },
+   {
+    "requirement_id": "facial_studio.hvac.ventilation",
+    "business_type": "facial_studio",
+    "requirement_category": "HVAC",
+    "description": "Conditioned air and ventilation zoned to treatment rooms",
+    "required_value": true,
+    "required_unit": null,
+    "severity": "SOFT",
+    "verification_method": "Mechanical contractor review of supply/return per room"
+   }
+  ]
+ }
+}
