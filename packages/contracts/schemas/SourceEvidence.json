@@ -1,0 +1,212 @@
+{
+  "$defs": {
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    },
+    "EvidenceClassification": {
+      "description": "How an assertion is known. Never collapsed into a single confidence score.",
+      "enum": [
+        "DOCUMENTED_HISTORICAL",
+        "VISUALLY_OBSERVED",
+        "GEOMETRY_MEASURED",
+        "OWNER_REPORTED",
+        "PROFESSIONALLY_VERIFIED",
+        "DERIVED_ESTIMATE",
+        "UNKNOWN",
+        "CONFLICTING"
+      ],
+      "title": "EvidenceClassification",
+      "type": "string"
+    },
+    "VerificationStatus": {
+      "enum": [
+        "UNVERIFIED",
+        "SOURCE_CONFIRMED",
+        "CORROBORATED",
+        "PROFESSIONALLY_VERIFIED",
+        "DISPUTED"
+      ],
+      "title": "VerificationStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/SourceEvidence.json",
+  "additionalProperties": false,
+  "description": "One sourced observation. Conflicting evidence coexists; nothing is overwritten.",
+  "properties": {
+    "data_origin": {
+      "$ref": "#/$defs/DataOrigin"
+    },
+    "dataset": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "e.g. 'ysqd-apz7'",
+      "title": "Dataset"
+    },
+    "evidence_classification": {
+      "$ref": "#/$defs/EvidenceClassification"
+    },
+    "evidence_id": {
+      "format": "uuid",
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "extracted_value": {
+      "default": null,
+      "title": "Extracted Value"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "match_confidence": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Match Confidence"
+    },
+    "observation_type": {
+      "description": "e.g. 'electrical_service', 'water_service', 'sink_present'",
+      "title": "Observation Type",
+      "type": "string"
+    },
+    "project_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Id"
+    },
+    "property_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Property Id"
+    },
+    "provider": {
+      "description": "e.g. 'la_open_data', 'costar', 'matterport', 'owner', 'ifc_bench'",
+      "title": "Provider",
+      "type": "string"
+    },
+    "retrieved_at": {
+      "format": "date-time",
+      "title": "Retrieved At",
+      "type": "string"
+    },
+    "source_asset_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Asset Reference"
+    },
+    "source_effective_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "When the fact was true at the source (e.g. permit final date).",
+      "title": "Source Effective At"
+    },
+    "source_record_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Provider-native ID, e.g. permit number.",
+      "title": "Source Record Id"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit"
+    },
+    "verification_status": {
+      "$ref": "#/$defs/VerificationStatus",
+      "default": "UNVERIFIED"
+    }
+  },
+  "required": [
+    "provider",
+    "data_origin",
+    "observation_type",
+    "evidence_classification"
+  ],
+  "title": "SourceEvidence",
+  "type": "object"
+}

@@ -1,0 +1,116 @@
+{
+  "$defs": {
+    "LayoutPreferences": {
+      "additionalProperties": false,
+      "properties": {
+        "circulation_width_m": {
+          "default": 1.2,
+          "exclusiveMinimum": 0,
+          "title": "Circulation Width M",
+          "type": "number"
+        },
+        "prefer_rooms_near_plumbing": {
+          "default": true,
+          "title": "Prefer Rooms Near Plumbing",
+          "type": "boolean"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Style"
+        }
+      },
+      "title": "LayoutPreferences",
+      "type": "object"
+    },
+    "RoomRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "min_area_sqm": {
+          "exclusiveMinimum": 0,
+          "title": "Min Area Sqm",
+          "type": "number"
+        },
+        "min_width_m": {
+          "exclusiveMinimum": 0,
+          "title": "Min Width M",
+          "type": "number"
+        },
+        "needs_plumbing": {
+          "default": false,
+          "title": "Needs Plumbing",
+          "type": "boolean"
+        },
+        "room_type": {
+          "title": "Room Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_type",
+        "count",
+        "min_area_sqm",
+        "min_width_m"
+      ],
+      "title": "RoomRequirement",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/LayoutGenerationRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_count": {
+      "default": 2,
+      "maximum": 5,
+      "minimum": 1,
+      "title": "Candidate Count",
+      "type": "integer"
+    },
+    "preferences": {
+      "$ref": "#/$defs/LayoutPreferences"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "room_requirements": {
+      "items": {
+        "$ref": "#/$defs/RoomRequirement"
+      },
+      "title": "Room Requirements",
+      "type": "array"
+    },
+    "site_geometry_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Site Geometry Id"
+    }
+  },
+  "required": [
+    "property_id",
+    "room_requirements"
+  ],
+  "title": "LayoutGenerationRequest",
+  "type": "object"
+}

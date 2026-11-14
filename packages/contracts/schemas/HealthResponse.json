@@ -1,0 +1,20 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/HealthResponse.json",
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "version"
+  ],
+  "title": "HealthResponse",
+  "type": "object"
+}

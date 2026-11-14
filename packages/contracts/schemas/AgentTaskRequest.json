@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "TaskType": {
+      "enum": [
+        "confirm_requirements",
+        "search_properties",
+        "resolve_identity",
+        "ingest_permits",
+        "analyze_property",
+        "evaluate_infrastructure",
+        "calculate_costs",
+        "rank_properties",
+        "generate_layout",
+        "revise_layout",
+        "generate_bom",
+        "outreach",
+        "place_call",
+        "supervisor_chat"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/AgentTaskRequest.json",
+  "additionalProperties": false,
+  "description": "Structured delegation from the supervisor to a specialist. Free text is NOT the contract.",
+  "properties": {
+    "constraints": {
+      "additionalProperties": true,
+      "title": "Constraints",
+      "type": "object"
+    },
+    "correlation_id": {
+      "format": "uuid",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "expected_output_schema": {
+      "description": "Contract name, e.g. 'InfrastructureAssessment'",
+      "title": "Expected Output Schema",
+      "type": "string"
+    },
+    "input_schema_version": {
+      "default": "1.0",
+      "title": "Input Schema Version",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "source_record_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Source Record Ids",
+      "type": "array"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_type": {
+      "$ref": "#/$defs/TaskType"
+    }
+  },
+  "required": [
+    "project_id",
+    "task_type",
+    "expected_output_schema"
+  ],
+  "title": "AgentTaskRequest",
+  "type": "object"
+}

@@ -1,0 +1,38 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/RoomRequirement.json",
+  "additionalProperties": false,
+  "properties": {
+    "count": {
+      "minimum": 1,
+      "title": "Count",
+      "type": "integer"
+    },
+    "min_area_sqm": {
+      "exclusiveMinimum": 0,
+      "title": "Min Area Sqm",
+      "type": "number"
+    },
+    "min_width_m": {
+      "exclusiveMinimum": 0,
+      "title": "Min Width M",
+      "type": "number"
+    },
+    "needs_plumbing": {
+      "default": false,
+      "title": "Needs Plumbing",
+      "type": "boolean"
+    },
+    "room_type": {
+      "title": "Room Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "room_type",
+    "count",
+    "min_area_sqm",
+    "min_width_m"
+  ],
+  "title": "RoomRequirement",
+  "type": "object"
+}

@@ -1,0 +1,339 @@
+{
+  "$defs": {
+    "DesignApprovalStatus": {
+      "enum": [
+        "DRAFT",
+        "PROPOSED",
+        "APPROVED",
+        "SUPERSEDED",
+        "REJECTED"
+      ],
+      "title": "DesignApprovalStatus",
+      "type": "string"
+    },
+    "FinishSpecification": {
+      "additionalProperties": false,
+      "properties": {
+        "area_sqm": {
+          "exclusiveMinimum": 0,
+          "title": "Area Sqm",
+          "type": "number"
+        },
+        "material": {
+          "title": "Material",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "surface": {
+          "description": "'floor' | 'wall' | 'ceiling'",
+          "title": "Surface",
+          "type": "string"
+        }
+      },
+      "required": [
+        "surface",
+        "material",
+        "area_sqm"
+      ],
+      "title": "FinishSpecification",
+      "type": "object"
+    },
+    "FurniturePlacement": {
+      "additionalProperties": false,
+      "properties": {
+        "footprint": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Footprint",
+          "type": "array"
+        },
+        "item_type": {
+          "title": "Item Type",
+          "type": "string"
+        },
+        "placement_id": {
+          "title": "Placement Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "placement_id",
+        "room_id",
+        "item_type",
+        "footprint"
+      ],
+      "title": "FurniturePlacement",
+      "type": "object"
+    },
+    "GeometryValidationReport": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_at": {
+          "format": "date-time",
+          "title": "Checked At",
+          "type": "string"
+        },
+        "disclaimer": {
+          "default": "Automated geometric check only. Not a code-compliance review or professionally approved plan.",
+          "title": "Disclaimer",
+          "type": "string"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/ValidationIssue"
+          },
+          "title": "Issues",
+          "type": "array"
+        },
+        "valid": {
+          "title": "Valid",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "valid"
+      ],
+      "title": "GeometryValidationReport",
+      "type": "object"
+    },
+    "RoomPolygon": {
+      "additionalProperties": false,
+      "properties": {
+        "area_sqm": {
+          "exclusiveMinimum": 0,
+          "title": "Area Sqm",
+          "type": "number"
+        },
+        "polygon": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Polygon",
+          "type": "array"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "room_type": {
+          "title": "Room Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_id",
+        "room_type",
+        "polygon",
+        "area_sqm"
+      ],
+      "title": "RoomPolygon",
+      "type": "object"
+    },
+    "ValidationIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "room_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Room Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ValidationIssue",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/DesignVersion.json",
+  "additionalProperties": false,
+  "properties": {
+    "approval_status": {
+      "$ref": "#/$defs/DesignApprovalStatus",
+      "default": "DRAFT"
+    },
+    "created_from_revision_request": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created From Revision Request"
+    },
+    "design_version_id": {
+      "format": "uuid",
+      "title": "Design Version Id",
+      "type": "string"
+    },
+    "estimated_construction_cost": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Construction Cost"
+    },
+    "finish_specifications": {
+      "items": {
+        "$ref": "#/$defs/FinishSpecification"
+      },
+      "title": "Finish Specifications",
+      "type": "array"
+    },
+    "furniture_placements": {
+      "items": {
+        "$ref": "#/$defs/FurniturePlacement"
+      },
+      "title": "Furniture Placements",
+      "type": "array"
+    },
+    "geometry_id": {
+      "format": "uuid",
+      "title": "Geometry Id",
+      "type": "string"
+    },
+    "parent_version_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Version Id"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "proposed_walls": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Proposed Walls",
+      "type": "array"
+    },
+    "room_polygons": {
+      "items": {
+        "$ref": "#/$defs/RoomPolygon"
+      },
+      "title": "Room Polygons",
+      "type": "array"
+    },
+    "validation_report": {
+      "$ref": "#/$defs/GeometryValidationReport"
+    },
+    "version_number": {
+      "minimum": 1,
+      "title": "Version Number",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "project_id",
+    "property_id",
+    "version_number",
+    "geometry_id",
+    "room_polygons",
+    "validation_report"
+  ],
+  "title": "DesignVersion",
+  "type": "object"
+}

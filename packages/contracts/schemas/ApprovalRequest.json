@@ -1,0 +1,139 @@
+{
+  "$defs": {
+    "ActionType": {
+      "enum": [
+        "SEND_MESSAGE",
+        "PLACE_CALL",
+        "CONTACT_SUPPLIER",
+        "PURCHASE",
+        "FINANCIAL_COMMITMENT",
+        "APPROVE_LAYOUT",
+        "APPROVE_BOM"
+      ],
+      "title": "ActionType",
+      "type": "string"
+    },
+    "ApprovalStatus": {
+      "enum": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "EXPIRED",
+        "CANCELLED",
+        "EXECUTED"
+      ],
+      "title": "ApprovalStatus",
+      "type": "string"
+    },
+    "RiskCategory": {
+      "enum": [
+        "EXTERNAL_COMMUNICATION",
+        "CONSEQUENTIAL",
+        "INTERNAL"
+      ],
+      "title": "RiskCategory",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/ApprovalRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "action_payload": {
+      "additionalProperties": true,
+      "title": "Action Payload",
+      "type": "object"
+    },
+    "action_payload_hash": {
+      "default": "",
+      "title": "Action Payload Hash",
+      "type": "string"
+    },
+    "action_type": {
+      "$ref": "#/$defs/ActionType"
+    },
+    "approval_id": {
+      "format": "uuid",
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "approval_status": {
+      "$ref": "#/$defs/ApprovalStatus",
+      "default": "PENDING"
+    },
+    "authorized_owner_id": {
+      "format": "uuid",
+      "title": "Authorized Owner Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "decided_by": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decided By"
+    },
+    "decision_timestamp": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision Timestamp"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "requested_by_agent": {
+      "title": "Requested By Agent",
+      "type": "string"
+    },
+    "risk_category": {
+      "$ref": "#/$defs/RiskCategory"
+    },
+    "summary": {
+      "description": "What the owner is approving, in plain language.",
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_id",
+    "requested_by_agent",
+    "action_type",
+    "action_payload",
+    "risk_category",
+    "summary",
+    "expires_at",
+    "authorized_owner_id",
+    "idempotency_key"
+  ],
+  "title": "ApprovalRequest",
+  "type": "object"
+}

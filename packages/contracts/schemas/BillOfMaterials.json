@@ -1,0 +1,192 @@
+{
+  "$defs": {
+    "BomItem": {
+      "additionalProperties": false,
+      "properties": {
+        "bom_item_id": {
+          "format": "uuid",
+          "title": "Bom Item Id",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "design_element_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Design Element Ref"
+        },
+        "item_type": {
+          "title": "Item Type",
+          "type": "string"
+        },
+        "price_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Note"
+        },
+        "price_origin": {
+          "$ref": "#/$defs/DataOrigin",
+          "default": "FIXTURE_SYNTHETIC"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Quantity"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Source room in the design version (or null for project-wide).",
+          "title": "Room Id"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "unit_price_estimate": {
+          "anyOf": [
+            {
+              "description": "Non-negative integer minor currency units.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Price Estimate"
+        }
+      },
+      "required": [
+        "item_type",
+        "description",
+        "quantity",
+        "unit",
+        "room_id"
+      ],
+      "title": "BomItem",
+      "type": "object"
+    },
+    "BomStatus": {
+      "enum": [
+        "DRAFT",
+        "RECALCULATION_REQUIRED",
+        "PENDING_APPROVAL",
+        "APPROVED"
+      ],
+      "title": "BomStatus",
+      "type": "string"
+    },
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/BillOfMaterials.json",
+  "additionalProperties": false,
+  "properties": {
+    "approved_total": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approved Total"
+    },
+    "bom_id": {
+      "format": "uuid",
+      "title": "Bom Id",
+      "type": "string"
+    },
+    "currency": {
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "design_version_id": {
+      "format": "uuid",
+      "title": "Design Version Id",
+      "type": "string"
+    },
+    "estimated_total": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Estimated Total",
+      "type": "integer"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/BomItem"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/BomStatus",
+      "default": "DRAFT"
+    }
+  },
+  "required": [
+    "project_id",
+    "property_id",
+    "design_version_id",
+    "items",
+    "estimated_total"
+  ],
+  "title": "BillOfMaterials",
+  "type": "object"
+}

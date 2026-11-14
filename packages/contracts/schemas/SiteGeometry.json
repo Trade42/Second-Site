@@ -1,0 +1,296 @@
+{
+  "$defs": {
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    },
+    "Fixture": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "kind": {
+          "description": "e.g. 'sink', 'water_heater', 'electrical_panel', 'drain'",
+          "title": "Kind",
+          "type": "string"
+        },
+        "location": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Location",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "location"
+      ],
+      "title": "Fixture",
+      "type": "object"
+    },
+    "GeometrySource": {
+      "enum": [
+        "MATTERPORT_MEASURED",
+        "CAD_OR_IFC",
+        "OWNER_MEASURED",
+        "PHOTO_ESTIMATE",
+        "FIXTURE"
+      ],
+      "title": "GeometrySource",
+      "type": "string"
+    },
+    "Opening": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "End",
+          "type": "array"
+        },
+        "kind": {
+          "description": "'entrance' | 'exit' | 'window'",
+          "title": "Kind",
+          "type": "string"
+        },
+        "start": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Start",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "start",
+        "end"
+      ],
+      "title": "Opening",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/SiteGeometry.json",
+  "additionalProperties": false,
+  "properties": {
+    "coordinate_reference": {
+      "default": "local_floor_origin",
+      "title": "Coordinate Reference",
+      "type": "string"
+    },
+    "data_origin": {
+      "$ref": "#/$defs/DataOrigin"
+    },
+    "entrances": {
+      "items": {
+        "$ref": "#/$defs/Opening"
+      },
+      "title": "Entrances",
+      "type": "array"
+    },
+    "exits": {
+      "items": {
+        "$ref": "#/$defs/Opening"
+      },
+      "title": "Exits",
+      "type": "array"
+    },
+    "fixed_obstacles": {
+      "items": {
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "title": "Fixed Obstacles",
+      "type": "array"
+    },
+    "fixed_walls": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Fixed Walls",
+      "type": "array"
+    },
+    "fixture_locations": {
+      "items": {
+        "$ref": "#/$defs/Fixture"
+      },
+      "title": "Fixture Locations",
+      "type": "array"
+    },
+    "floor_boundary": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Floor Boundary",
+      "type": "array"
+    },
+    "geometry_source": {
+      "$ref": "#/$defs/GeometrySource"
+    },
+    "measurement_uncertainty_m": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Measurement Uncertainty M"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "restricted_areas": {
+      "items": {
+        "items": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "title": "Restricted Areas",
+      "type": "array"
+    },
+    "scale_verified": {
+      "default": false,
+      "title": "Scale Verified",
+      "type": "boolean"
+    },
+    "site_geometry_id": {
+      "format": "uuid",
+      "title": "Site Geometry Id",
+      "type": "string"
+    },
+    "source_id": {
+      "description": "Provider asset id the geometry was derived from.",
+      "title": "Source Id",
+      "type": "string"
+    },
+    "units": {
+      "default": "m",
+      "description": "Internal geometry is always meters.",
+      "pattern": "^m$",
+      "title": "Units",
+      "type": "string"
+    },
+    "windows": {
+      "items": {
+        "$ref": "#/$defs/Opening"
+      },
+      "title": "Windows",
+      "type": "array"
+    }
+  },
+  "required": [
+    "property_id",
+    "source_id",
+    "geometry_source",
+    "data_origin",
+    "floor_boundary"
+  ],
+  "title": "SiteGeometry",
+  "type": "object"
+}

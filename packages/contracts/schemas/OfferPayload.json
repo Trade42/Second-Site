@@ -1,0 +1,22 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/OfferPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "bom_item_id": {
+      "format": "uuid",
+      "title": "Bom Item Id",
+      "type": "string"
+    },
+    "offer_id": {
+      "format": "uuid",
+      "title": "Offer Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "offer_id",
+    "bom_item_id"
+  ],
+  "title": "OfferPayload",
+  "type": "object"
+}

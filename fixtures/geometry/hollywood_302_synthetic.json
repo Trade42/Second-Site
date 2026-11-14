@@ -1,0 +1,96 @@
+{
+ "_meta": {
+  "data_origin": "FIXTURE_SYNTHETIC",
+  "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+  "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+ },
+ "fixture_key": "la-hollywood-6922-302",
+ "source_id": "fixture-matterport-hollywood-302",
+ "floor_boundary": [
+  [
+   0,
+   0
+  ],
+  [
+   12.0,
+   0
+  ],
+  [
+   12.0,
+   11.6
+  ],
+  [
+   0,
+   11.6
+  ]
+ ],
+ "fixed_obstacles": [
+  [
+   [
+    0.2,
+    0.2
+   ],
+   [
+    0.8,
+    0.2
+   ],
+   [
+    0.8,
+    0.8
+   ],
+   [
+    0.2,
+    0.8
+   ]
+  ]
+ ],
+ "entrances": [
+  {
+   "kind": "entrance",
+   "start": [
+    5.0,
+    0
+   ],
+   "end": [
+    6.2,
+    0
+   ]
+  }
+ ],
+ "exits": [
+  {
+   "kind": "exit",
+   "start": [
+    5.0,
+    0
+   ],
+   "end": [
+    6.2,
+    0
+   ]
+  }
+ ],
+ "windows": [
+  {
+   "kind": "window",
+   "start": [
+    0,
+    3
+   ],
+   "end": [
+    0,
+    8
+   ]
+  }
+ ],
+ "fixture_locations": [
+  {
+   "kind": "sink",
+   "location": [
+    11.5,
+    10.8
+   ]
+  }
+ ],
+ "measurement_uncertainty_m": 0.15
+}

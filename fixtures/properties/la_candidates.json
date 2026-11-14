@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "data_origin": "FIXTURE_SYNTHETIC",
+    "warning": "Listing terms (rent, area, deposits, build-out) are INVENTED demo values. They are NOT CoStar records and must never be presented as such. Addresses are real and were chosen because public LADBS permits exist for them; permit data comes from fixtures/permits (real snapshot).",
+    "teammate_claims_unverified": [
+      "A CoStar listing exists for both addresses (not yet reconciled to a CoStar ID).",
+      "A Matterport model with usable geometry exists for 6922 W Hollywood Blvd Suite 302 (asset id not yet supplied)."
+    ]
+  },
+  "properties": [
+    {
+      "fixture_key": "la-alhambra-5380",
+      "street_address": "5380 E Alhambra Ave",
+      "unit_or_suite": null,
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90032",
+      "parcel_id": "5220031007",
+      "latitude": 34.07668,
+      "longitude": -118.16837,
+      "listing": {
+        "provider": "fixture",
+        "provider_listing_id": "fixture-alhambra-1",
+        "listing_type": "LEASE",
+        "property_type": "Flex / converted R&D",
+        "available_area_sqm": 148.6,
+        "asking_rent_monthly": 400000,
+        "nnn_charges_monthly": 70000,
+        "security_deposit": 800000,
+        "lease_term_months": 60,
+        "existing_buildout": "open_shell",
+        "disclaimer": "Synthetic demo listing. Not a CoStar record."
+      },
+      "interior_assets": [],
+      "exterior_assets": [
+        {"provider": "fixture", "asset_id": "fixture-vexcel-alhambra", "asset_type": "oblique", "note": "Placeholder until Vexcel access is verified."}
+      ]
+    },
+    {
+      "fixture_key": "la-hollywood-6922-302",
+      "street_address": "6922 W Hollywood Blvd",
+      "unit_or_suite": "302",
+      "city": "Los Angeles",
+      "state": "CA",
+      "postal_code": "90028",
+      "parcel_id": "5548006011",
+      "latitude": 34.10137,
+      "longitude": -118.34103,
+      "listing": {
+        "provider": "fixture",
+        "provider_listing_id": "fixture-hollywood-302",
+        "listing_type": "LEASE",
+        "property_type": "Office suite (built out)",
+        "available_area_sqm": 139.4,
+        "asking_rent_monthly": 600000,
+        "nnn_charges_monthly": 90000,
+        "security_deposit": 1200000,
+        "lease_term_months": 60,
+        "existing_buildout": "office_buildout",
+        "disclaimer": "Synthetic demo listing. Not a CoStar record."
+      },
+      "interior_assets": [
+        {"provider": "fixture", "asset_id": "fixture-matterport-hollywood-302", "asset_type": "matterport_model", "has_measured_geometry": true, "note": "Stand-in for the teammate-reported Matterport model; geometry in fixtures/geometry is synthetic."}
+      ],
+      "exterior_assets": []
+    }
+  ]
+}

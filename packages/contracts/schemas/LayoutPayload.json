@@ -1,0 +1,41 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/LayoutPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "design_version_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Design Version Id"
+    },
+    "issue_codes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Issue Codes",
+      "type": "array"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "valid": {
+      "title": "Valid",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "design_version_id",
+    "property_id",
+    "valid"
+  ],
+  "title": "LayoutPayload",
+  "type": "object"
+}

@@ -1,59 +1,111 @@
-# Hackathon agent board
+# Second Site
 
-![The hacking floor at Cal Hacks](docs/banner.jpg)
+**Your next location, from search to opening.** HackPrinceton Fall 2026 · Main track: Business and Enterprise.
 
-One pinned GitHub issue that every teammate's coding agent posts to. Agents tag each other by GitHub username, and each one waits for its own tag, so my agent can hand work to my teammate's agent without either of us sending a text.
+Second Site helps a business owner open location #2: find commercial properties, check whether the building can
+actually host the business (using public permit history plus interior/exterior data), compare **total** cost rather
+than rent, contact brokers through an approval-gated assistant, generate geometry-validated layouts, and turn the
+chosen layout into a room-by-room bill of materials. Every step writes to the same project records.
 
-Full walkthrough with the templates and an FAQ: **[marvelous-relative-5de.notion.site/hack](https://marvelous-relative-5de.notion.site/hack)**
+> Status: **foundation**. The end-to-end slice runs on real LA permit records and clearly labeled fixtures.
+> Sponsor data (CoStar/Matterport/Vexcel), Photon, Telnyx and xAI are adapters awaiting credentials — see
+> [Provider status](docs/PROVIDER_STATUS.md). Nothing here claims a live integration it doesn't have.
 
-## How it works
+![Overview](docs/demo/overview.png)
+
+## Architecture
 
 ```mermaid
-sequenceDiagram
-    participant A as Sam's agent
-    participant B as Board (pinned issue)
-    participant C as Priya's agent
-    A->>B: [Sam's Claude] login page is merged, @priya-dev can you add the API route?
-    Note over C: tools/board wait wakes up on the @priya-dev tag
-    B->>C: new post, flagged MENTION
-    C->>B: [Priya's Codex] @sam-dev the route is up on main
+flowchart LR
+  W[Next.js web<br/>typed client] -->|REST + SSE| A[FastAPI]
+  A --> S[Deep Agents supervisor]
+  A --> D[Domains: property · permits · feasibility · finance · ranking · design · procurement · communications]
+  S -. tools .-> D
+  D --> I[Adapters: CoStar · Matterport · Vexcel · LA permits · IFC · Photon · Telnyx · xAI]
+  D --> P[(PostgreSQL)]
+  D --> E[activity_events] --> W
+  P -. redis mode .-> R[(Redis)] --> K[worker]
 ```
+Details: [ARCHITECTURE](docs/ARCHITECTURE.md) · [DATA_FLOW](docs/DATA_FLOW.md) · [AGENT_ARCHITECTURE](docs/AGENT_ARCHITECTURE.md) · [CONTRACTS](docs/CONTRACTS.md) · [EVENTS](docs/EVENTS.md) · [API](docs/API_SPECIFICATION.md)
 
-1. Split the project up at kickoff and give each person their own folders. The owner table in `AGENTS.md` says whose folders are whose, and every agent reads it.
-2. Pin one issue as the board. Every agent posts there when it finishes something or needs something.
-3. Tag the teammate. Each agent keeps `tools/board wait` running, which wakes it up when someone else posts and flags the post when it tags you.
-
-## Used at
-
-My teams ran this at two hackathons, and both boards are public if you want to scroll through them.
-
-- **Knight Hacks**, UCF's hackathon. The [Farsight board](https://github.com/azizu06/farsight/issues/24) hit 1,182 posts, and Farsight won four sponsor tracks.
-- **Cal Hacks**, UC Berkeley's hackathon. The [Backrooms board](https://github.com/azizu06/backrooms/issues/1) hit 988 posts, and Backrooms won a Hyphenate track prize.
-
-## Setup in 5 minutes
-
-1. Click **Use this template** to make your hackathon repo from this one.
-2. Open a new issue from the **Message board** template and pin it. If it's the first issue in the repo it's #1 and you can skip the next step.
-3. If it isn't issue #1, every teammate sets `export BOARD_ISSUE=<number>`.
-4. Fill in your team's GitHub logins and the owner table in `AGENTS.md`.
-5. Every teammate runs `gh auth login` once, then `tools/board whoami` to check it works.
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `tools/board post "[Sam's Claude] ..."` | Posts to the board. Every post starts with whose agent it is. |
-| `tools/board unread` | Shows posts since your last check and flags the ones that tag you. |
-| `tools/board wait` | Blocks until someone else posts, then prints it. |
-| `tools/board read -n 20` | Shows the last 20 posts. |
-| `tools/board whoami` | Prints your GitHub login so you can check `gh` is set up. |
-
-`tools/board wait` checks once every 30 seconds, and when nothing is new that check is one API call, so a whole team stays well under GitHub's rate limit. Use `--interval 60` if a lot of agents share one account.
-
-## Works with any coding agent
-
-The script only needs `bash` and `gh`, so any agent that can run a shell command can use it. Claude Code also gets the hooks in `.claude/`, which show unread posts when a session starts and on every prompt, and `CLAUDE.md` pulls in the rules from `AGENTS.md`. Every other agent reads `AGENTS.md` and runs `tools/board unread` before each task.
+## Stack
+Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic · PostgreSQL 16 · Redis · LangChain Deep Agents / LangGraph ·
+Shapely · OR-Tools CP-SAT · Next.js 16 · React 19 · TypeScript · Tailwind v4 · react-konva · openapi-typescript · Docker Compose.
 
 ## Requirements
+`uv`, Node ≥ 20.9 + `pnpm` (`corepack enable`), Docker (or local PostgreSQL 16 + Redis), `gh` (for the agent board).
 
-`bash`, `git`, and the [GitHub CLI](https://cli.github.com) logged in with `gh auth login`.
+## Quickstart
+```bash
+scripts/bootstrap.sh
+```
+```bash
+scripts/dev.sh
+```
+Open http://localhost:3000 and click **Seed demo project**. API docs: http://localhost:8000/docs.
+Without Docker: [runbooks/local-without-docker.md](docs/runbooks/local-without-docker.md). Full stack in containers: `make up`.
+
+## Environment
+Copy `.env.example` → `.env`. Every provider defaults to **fixture** mode; real calls, messages and purchases are off
+(`ALLOW_LIVE_OUTBOUND_CALLS=false`, `ALLOW_LIVE_PURCHASES=false`). `PERMIT_PROVIDER_MODE=live` uses the public LA API with no key.
+`SUPERVISOR_MODEL` empty → deterministic supervisor; set e.g. `anthropic:claude-sonnet-5-5` + `ANTHROPIC_API_KEY` for the LLM.
+
+## Commands
+| Task | Command |
+|---|---|
+| All checks | `scripts/test.sh` |
+| Backend tests | `cd apps/api && uv run pytest -q` |
+| Regenerate contracts (Pydantic → OpenAPI → TS) | `scripts/generate-contracts.sh` |
+| Contract drift check | `scripts/check-contracts.sh` |
+| Migrations | `make migrate` |
+| Smoke test (running API) | `scripts/smoke-test.sh` |
+| Web typecheck / lint / build | `pnpm web:typecheck` · `pnpm web:lint` · `pnpm web:build` |
+
+## Project structure
+```
+apps/api/        FastAPI app: contracts/ (source of truth), domains/, integrations/, agents/, workflows/, services/, db/, alembic/, tests/
+apps/web/        Next.js app (six destinations)
+packages/contracts/  GENERATED OpenAPI, JSON Schemas, TypeScript types
+fixtures/        real LADBS permit snapshot + clearly labeled synthetic fixtures
+scripts/  infra/  docs/  tools/board  .claude/
+```
+
+## Team branches and responsibilities
+| Branch | Workstream | Start here |
+|---|---|---|
+| `dev/agents-finance` | Deep Agents supervisor, requirements, feasibility, finance, ranking, evidence | [onboarding](docs/onboarding/agents-finance.md) |
+| `dev/property-spatial` | CoStar/Matterport/Vexcel, LA permits, identity, IFC, geometry solver | [onboarding](docs/onboarding/property-spatial.md) |
+| `dev/frontend-product` | Web app, design studio, interior, procurement, approvals UI | [onboarding](docs/onboarding/frontend-product.md) |
+| `dev/communications` | Photon, Telnyx, xAI voice, handoff, webhooks | [onboarding](docs/onboarding/communications.md) |
+
+All four start at the same foundation commit. Workflow: [TEAM_WORKFLOW](docs/TEAM_WORKFLOW.md) · [MERGE_STRATEGY](docs/MERGE_STRATEGY.md) · [OWNERSHIP_MATRIX](docs/OWNERSHIP_MATRIX.md).
+
+## Agent message board
+Teammates' coding agents coordinate on pinned issue #1 via `tools/board` (`whoami`, `unread`, `read -n 20`, `post`, `wait`).
+Rules live in [AGENTS.md](AGENTS.md); the original template docs are in [docs/AGENT_BOARD.md](docs/AGENT_BOARD.md).
+
+## Provider status (summary)
+| CoStar | Matterport | Vexcel | LA permits | IFC-Bench | Deep Agents | Photon | Telnyx | xAI voice | Oracle | Sourcing |
+|---|---|---|---|---|---|---|---|---|---|---|
+| BLOCKED | BLOCKED | BLOCKED | LIVE-capable | PARTIAL | PARTIAL | PARTIAL | PARTIAL | NOT_STARTED | NOT_STARTED | MOCK |
+
+## Security and truthfulness
+Secrets only in `.env` (gitignored). Approvals bind the exact payload hash and are enforced at the action boundary.
+Webhooks are signature-verified on the raw body and deduplicated. Historical permits are shown as historical with
+limitations; unknown infrastructure stays UNKNOWN; synthetic listings say so; layouts carry a "not a code review" disclaimer.
+The calling assistant is presented as the owner's assistant, discloses automation where required, and never impersonates a human.
+
+## Hackathon tracks
+CoStar "Inside and Out" · LangChain Deep Agents · Photon 2.0 (incl. Best Voice Agent) · Peri Forward Deployed ([evidence form](docs/PERI_CONSULTATION.md)) · Amazon Practical AI.
+Deadline **8:00 am ET, Sunday Nov 15, 2026**; demo ≤ 2 minutes; repository must be public.
+
+## Demo
+1. Seed demo project → ranking shows Hollywood #302 beating the lower-rent Alhambra building over 36 months, with reasons.
+2. Property Intelligence → real LADBS permits (800A service, 2" water service, suite-302 sink) with scope, match status and "historical ≠ current" limitations.
+3. Design Studio → generate two validated layouts → Procurement → room-linked BOM.
+4. Activity → every agent step as a persisted event; approvals panel for outreach.
+Data notes: [DEMO_DATA](docs/DEMO_DATA.md).
+
+## Known limitations
+Sponsor data, messaging and voice are not connected yet; listing terms and geometry are synthetic; LA permit datasets
+start in 2020; the layout solver handles rectangular floors with the entrance on one wall; dev auth only.

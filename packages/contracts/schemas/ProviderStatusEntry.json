@@ -1,0 +1,47 @@
+{
+  "$defs": {
+    "IntegrationStatus": {
+      "enum": [
+        "LIVE",
+        "MOCK",
+        "PARTIAL",
+        "BLOCKED",
+        "NOT_STARTED"
+      ],
+      "title": "IntegrationStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/ProviderStatusEntry.json",
+  "additionalProperties": false,
+  "properties": {
+    "credentials_present": {
+      "title": "Credentials Present",
+      "type": "boolean"
+    },
+    "mode": {
+      "title": "Mode",
+      "type": "string"
+    },
+    "note": {
+      "title": "Note",
+      "type": "string"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/IntegrationStatus"
+    }
+  },
+  "required": [
+    "provider",
+    "mode",
+    "status",
+    "credentials_present",
+    "note"
+  ],
+  "title": "ProviderStatusEntry",
+  "type": "object"
+}

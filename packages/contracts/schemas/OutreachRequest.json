@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "Channel": {
+      "enum": [
+        "PHOTON_IMESSAGE",
+        "PHOTON_SMS",
+        "EMAIL",
+        "VOICE",
+        "WEB"
+      ],
+      "title": "Channel",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/OutreachRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "channel": {
+      "$ref": "#/$defs/Channel"
+    },
+    "intro_recording_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Intro Recording Reference"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "purpose": {
+      "title": "Purpose",
+      "type": "string"
+    },
+    "questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Questions",
+      "type": "array"
+    },
+    "recipient": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Recipient",
+      "type": "object"
+    }
+  },
+  "required": [
+    "property_id",
+    "channel",
+    "recipient",
+    "purpose"
+  ],
+  "title": "OutreachRequest",
+  "type": "object"
+}

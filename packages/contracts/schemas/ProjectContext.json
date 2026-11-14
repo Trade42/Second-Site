@@ -1,0 +1,145 @@
+{
+  "$defs": {
+    "Market": {
+      "additionalProperties": false,
+      "properties": {
+        "city": {
+          "title": "City",
+          "type": "string"
+        },
+        "country": {
+          "default": "US",
+          "title": "Country",
+          "type": "string"
+        },
+        "state": {
+          "maxLength": 2,
+          "minLength": 2,
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "city",
+        "state"
+      ],
+      "title": "Market",
+      "type": "object"
+    },
+    "ProjectStatus": {
+      "enum": [
+        "ONBOARDING",
+        "SEARCHING",
+        "ANALYZING",
+        "COMPARING",
+        "DESIGNING",
+        "PROCURING",
+        "OPENING",
+        "ARCHIVED"
+      ],
+      "title": "ProjectStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/ProjectContext.json",
+  "additionalProperties": false,
+  "properties": {
+    "business_profile_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Business Profile Id"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "current_budget_revision": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Current Budget Revision",
+      "type": "integer"
+    },
+    "market": {
+      "$ref": "#/$defs/Market"
+    },
+    "owner_id": {
+      "format": "uuid",
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "project_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Project Name",
+      "type": "string"
+    },
+    "project_status": {
+      "$ref": "#/$defs/ProjectStatus",
+      "default": "ONBOARDING"
+    },
+    "record_version": {
+      "default": 1,
+      "description": "Optimistic concurrency counter.",
+      "minimum": 1,
+      "title": "Record Version",
+      "type": "integer"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "selected_design_version_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Selected Design Version Id"
+    },
+    "selected_property_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Selected Property Id"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "owner_id",
+    "project_name",
+    "market"
+  ],
+  "title": "ProjectContext",
+  "type": "object"
+}

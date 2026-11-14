@@ -1,0 +1,42 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ProblemDetail.json",
+  "additionalProperties": false,
+  "properties": {
+    "details": {
+      "additionalProperties": true,
+      "title": "Details",
+      "type": "object"
+    },
+    "error_code": {
+      "title": "Error Code",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Id"
+    },
+    "retryable": {
+      "default": false,
+      "title": "Retryable",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "error_code",
+    "message"
+  ],
+  "title": "ProblemDetail",
+  "type": "object"
+}

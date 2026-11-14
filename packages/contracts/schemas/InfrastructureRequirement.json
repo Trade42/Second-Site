@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "RequirementCategory": {
+      "enum": [
+        "ELECTRICAL",
+        "PLUMBING",
+        "HVAC",
+        "SPACE",
+        "ACCESSIBILITY",
+        "FIRE_LIFE_SAFETY",
+        "ZONING"
+      ],
+      "title": "RequirementCategory",
+      "type": "string"
+    },
+    "Severity": {
+      "enum": [
+        "HARD",
+        "SOFT"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/InfrastructureRequirement.json",
+  "additionalProperties": false,
+  "properties": {
+    "business_type": {
+      "title": "Business Type",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "required_unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Required Unit"
+    },
+    "required_value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Required Value"
+    },
+    "requirement_category": {
+      "$ref": "#/$defs/RequirementCategory"
+    },
+    "requirement_id": {
+      "description": "Stable template key, e.g. 'facial_studio.plumbing.treatment_sinks'",
+      "title": "Requirement Id",
+      "type": "string"
+    },
+    "severity": {
+      "$ref": "#/$defs/Severity"
+    },
+    "verification_method": {
+      "description": "How a professional would verify it.",
+      "title": "Verification Method",
+      "type": "string"
+    }
+  },
+  "required": [
+    "requirement_id",
+    "business_type",
+    "requirement_category",
+    "description",
+    "severity",
+    "verification_method"
+  ],
+  "title": "InfrastructureRequirement",
+  "type": "object"
+}

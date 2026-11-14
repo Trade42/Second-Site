@@ -1,0 +1,27 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/Market.json",
+  "additionalProperties": false,
+  "properties": {
+    "city": {
+      "title": "City",
+      "type": "string"
+    },
+    "country": {
+      "default": "US",
+      "title": "Country",
+      "type": "string"
+    },
+    "state": {
+      "maxLength": 2,
+      "minLength": 2,
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "required": [
+    "city",
+    "state"
+  ],
+  "title": "Market",
+  "type": "object"
+}

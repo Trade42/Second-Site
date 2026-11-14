@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "WorkCategory": {
+      "enum": [
+        "PLUMBING",
+        "ELECTRICAL",
+        "HVAC",
+        "PARTITIONS",
+        "FINISHES",
+        "ACCESSIBILITY",
+        "PERMITS_FEES",
+        "DESIGN_PROFESSIONAL",
+        "OTHER"
+      ],
+      "title": "WorkCategory",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/RenovationWorkItem.json",
+  "additionalProperties": false,
+  "properties": {
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "category": {
+      "$ref": "#/$defs/WorkCategory"
+    },
+    "currency": {
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "quantity": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "Quantity"
+    },
+    "requires_professional_quote": {
+      "default": true,
+      "title": "Requires Professional Quote",
+      "type": "boolean"
+    },
+    "source_assessment_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Assessment Id"
+    },
+    "unit": {
+      "title": "Unit",
+      "type": "string"
+    },
+    "unit_cost_expected": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Unit Cost Expected",
+      "type": "integer"
+    },
+    "unit_cost_high": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Unit Cost High",
+      "type": "integer"
+    },
+    "unit_cost_low": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Unit Cost Low",
+      "type": "integer"
+    },
+    "work_item_id": {
+      "format": "uuid",
+      "title": "Work Item Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "property_id",
+    "category",
+    "description",
+    "quantity",
+    "unit",
+    "unit_cost_low",
+    "unit_cost_expected",
+    "unit_cost_high"
+  ],
+  "title": "RenovationWorkItem",
+  "type": "object"
+}

@@ -1,0 +1,21 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/Measurement.json",
+  "additionalProperties": false,
+  "properties": {
+    "unit": {
+      "description": "Explicit unit, e.g. 'A', 'V', 'in', 'm', 'm2', 'sqft'.",
+      "title": "Unit",
+      "type": "string"
+    },
+    "value": {
+      "title": "Value",
+      "type": "number"
+    }
+  },
+  "required": [
+    "value",
+    "unit"
+  ],
+  "title": "Measurement",
+  "type": "object"
+}

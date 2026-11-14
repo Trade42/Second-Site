@@ -1,0 +1,42 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/PermitsIngestedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "permit_record_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Permit Record Ids",
+      "type": "array"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "source_dataset_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Dataset Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "property_id",
+    "permit_record_ids",
+    "evidence_ids",
+    "source_dataset_ids"
+  ],
+  "title": "PermitsIngestedPayload",
+  "type": "object"
+}

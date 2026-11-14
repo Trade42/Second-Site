@@ -1,0 +1,59 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/PropertySearchRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "city": {
+      "default": "Los Angeles",
+      "title": "City",
+      "type": "string"
+    },
+    "limit": {
+      "default": 10,
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "max_monthly_rent": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Monthly Rent"
+    },
+    "min_area_sqm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Area Sqm"
+    },
+    "neighborhoods": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Neighborhoods",
+      "type": "array"
+    },
+    "state": {
+      "default": "CA",
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "title": "PropertySearchRequest",
+  "type": "object"
+}

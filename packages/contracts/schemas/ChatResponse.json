@@ -1,0 +1,37 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ChatResponse.json",
+  "additionalProperties": false,
+  "properties": {
+    "grounded_record_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Grounded Record Ids",
+      "type": "array"
+    },
+    "mode": {
+      "description": "'deep_agent' (live model) or 'deterministic' (no model configured)",
+      "title": "Mode",
+      "type": "string"
+    },
+    "reply": {
+      "title": "Reply",
+      "type": "string"
+    },
+    "task_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Task Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "reply",
+    "mode"
+  ],
+  "title": "ChatResponse",
+  "type": "object"
+}

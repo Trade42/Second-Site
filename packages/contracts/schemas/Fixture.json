@@ -1,0 +1,39 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/Fixture.json",
+  "additionalProperties": false,
+  "properties": {
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "kind": {
+      "description": "e.g. 'sink', 'water_heater', 'electrical_panel', 'drain'",
+      "title": "Kind",
+      "type": "string"
+    },
+    "location": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Location",
+      "type": "array"
+    }
+  },
+  "required": [
+    "kind",
+    "location"
+  ],
+  "title": "Fixture",
+  "type": "object"
+}

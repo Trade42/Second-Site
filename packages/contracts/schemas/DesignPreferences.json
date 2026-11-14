@@ -1,0 +1,27 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/DesignPreferences.json",
+  "additionalProperties": false,
+  "properties": {
+    "interior_style": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Interior Style"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "title": "DesignPreferences",
+  "type": "object"
+}

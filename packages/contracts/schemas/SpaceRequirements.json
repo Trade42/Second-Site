@@ -1,0 +1,54 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/SpaceRequirements.json",
+  "additionalProperties": false,
+  "properties": {
+    "ground_floor_required": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ground Floor Required"
+    },
+    "max_area_sqm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Area Sqm"
+    },
+    "min_area_sqm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Area Sqm"
+    },
+    "required_rooms": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "description": "Room type -> count, e.g. {'treatment': 3}.",
+      "title": "Required Rooms",
+      "type": "object"
+    }
+  },
+  "title": "SpaceRequirements",
+  "type": "object"
+}

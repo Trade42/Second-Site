@@ -1,0 +1,23 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/AuthorityScope.json",
+  "additionalProperties": false,
+  "description": "What the assistant may discuss without the owner. Everything else escalates.",
+  "properties": {
+    "may_ask_about": {
+      "items": {
+        "type": "string"
+      },
+      "title": "May Ask About",
+      "type": "array"
+    },
+    "may_not": {
+      "items": {
+        "type": "string"
+      },
+      "title": "May Not",
+      "type": "array"
+    }
+  },
+  "title": "AuthorityScope",
+  "type": "object"
+}

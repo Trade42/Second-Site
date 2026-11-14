@@ -1,0 +1,28 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/PropertyRefPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "summary": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Summary"
+    }
+  },
+  "required": [
+    "property_id"
+  ],
+  "title": "PropertyRefPayload",
+  "type": "object"
+}

@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "RevisionStatus": {
+      "enum": [
+        "RECEIVED",
+        "PROCESSING",
+        "APPLIED",
+        "INFEASIBLE",
+        "REJECTED"
+      ],
+      "title": "RevisionStatus",
+      "type": "string"
+    },
+    "RoomRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "min_area_sqm": {
+          "exclusiveMinimum": 0,
+          "title": "Min Area Sqm",
+          "type": "number"
+        },
+        "min_width_m": {
+          "exclusiveMinimum": 0,
+          "title": "Min Width M",
+          "type": "number"
+        },
+        "needs_plumbing": {
+          "default": false,
+          "title": "Needs Plumbing",
+          "type": "boolean"
+        },
+        "room_type": {
+          "title": "Room Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_type",
+        "count",
+        "min_area_sqm",
+        "min_width_m"
+      ],
+      "title": "RoomRequirement",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/DesignRevisionRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "base_design_version_id": {
+      "format": "uuid",
+      "title": "Base Design Version Id",
+      "type": "string"
+    },
+    "preserved_constraints": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Preserved Constraints",
+      "type": "array"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "requested_by": {
+      "format": "uuid",
+      "title": "Requested By",
+      "type": "string"
+    },
+    "requested_changes": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Requested Changes",
+      "type": "array"
+    },
+    "revision_request_id": {
+      "format": "uuid",
+      "title": "Revision Request Id",
+      "type": "string"
+    },
+    "room_requirement_overrides": {
+      "items": {
+        "$ref": "#/$defs/RoomRequirement"
+      },
+      "title": "Room Requirement Overrides",
+      "type": "array"
+    },
+    "source_channel": {
+      "description": "'web' | 'photon' | 'agent'",
+      "title": "Source Channel",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/RevisionStatus",
+      "default": "RECEIVED"
+    }
+  },
+  "required": [
+    "project_id",
+    "property_id",
+    "base_design_version_id",
+    "requested_changes",
+    "requested_by",
+    "source_channel"
+  ],
+  "title": "DesignRevisionRequest",
+  "type": "object"
+}

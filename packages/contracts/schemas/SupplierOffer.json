@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "AvailabilityStatus": {
+      "enum": [
+        "IN_STOCK",
+        "BACKORDERED",
+        "OUT_OF_STOCK",
+        "UNKNOWN"
+      ],
+      "title": "AvailabilityStatus",
+      "type": "string"
+    },
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/SupplierOffer.json",
+  "additionalProperties": false,
+  "properties": {
+    "availability_status": {
+      "$ref": "#/$defs/AvailabilityStatus",
+      "default": "UNKNOWN"
+    },
+    "bom_item_id": {
+      "format": "uuid",
+      "title": "Bom Item Id",
+      "type": "string"
+    },
+    "currency": {
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "data_origin": {
+      "$ref": "#/$defs/DataOrigin"
+    },
+    "dimensions_m": {
+      "anyOf": [
+        {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "W x D x H meters",
+      "title": "Dimensions M"
+    },
+    "offer_id": {
+      "format": "uuid",
+      "title": "Offer Id",
+      "type": "string"
+    },
+    "price": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Price",
+      "type": "integer"
+    },
+    "product_identifier": {
+      "title": "Product Identifier",
+      "type": "string"
+    },
+    "product_name": {
+      "title": "Product Name",
+      "type": "string"
+    },
+    "product_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Product Url"
+    },
+    "required_installation": {
+      "default": false,
+      "title": "Required Installation",
+      "type": "boolean"
+    },
+    "retrieved_at": {
+      "format": "date-time",
+      "title": "Retrieved At",
+      "type": "string"
+    },
+    "shipping_estimate_days": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Shipping Estimate Days"
+    },
+    "supplier": {
+      "title": "Supplier",
+      "type": "string"
+    },
+    "verification_status": {
+      "default": "UNVERIFIED",
+      "description": "UNVERIFIED | PROVIDER_CONFIRMED",
+      "title": "Verification Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "bom_item_id",
+    "supplier",
+    "product_identifier",
+    "product_name",
+    "price",
+    "data_origin"
+  ],
+  "title": "SupplierOffer",
+  "type": "object"
+}

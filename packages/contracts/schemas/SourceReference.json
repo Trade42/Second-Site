@@ -1,0 +1,41 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/SourceReference.json",
+  "additionalProperties": false,
+  "description": "Lightweight pointer used inside other contracts.",
+  "properties": {
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "evidence_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Id"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    }
+  },
+  "required": [
+    "description"
+  ],
+  "title": "SourceReference",
+  "type": "object"
+}

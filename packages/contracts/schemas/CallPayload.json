@@ -1,0 +1,33 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/CallPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "format": "uuid",
+      "title": "Call Id",
+      "type": "string"
+    },
+    "detail": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Detail"
+    },
+    "state": {
+      "title": "State",
+      "type": "string"
+    }
+  },
+  "required": [
+    "call_id",
+    "state"
+  ],
+  "title": "CallPayload",
+  "type": "object"
+}

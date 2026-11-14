@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "CostKind": {
+      "enum": [
+        "ONE_TIME",
+        "MONTHLY",
+        "REFUNDABLE_DEPOSIT"
+      ],
+      "title": "CostKind",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/CostLineItem.json",
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "title": "Category",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "expected": {
+      "description": "Integer minor currency units (e.g. cents).",
+      "title": "Expected",
+      "type": "integer"
+    },
+    "high": {
+      "description": "Integer minor currency units (e.g. cents).",
+      "title": "High",
+      "type": "integer"
+    },
+    "kind": {
+      "$ref": "#/$defs/CostKind"
+    },
+    "line_item_id": {
+      "description": "Deterministic key; duplicates are rejected.",
+      "title": "Line Item Id",
+      "type": "string"
+    },
+    "low": {
+      "description": "Integer minor currency units (e.g. cents).",
+      "title": "Low",
+      "type": "integer"
+    },
+    "source_work_item_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Work Item Id"
+    }
+  },
+  "required": [
+    "line_item_id",
+    "category",
+    "description",
+    "kind",
+    "low",
+    "expected",
+    "high"
+  ],
+  "title": "CostLineItem",
+  "type": "object"
+}

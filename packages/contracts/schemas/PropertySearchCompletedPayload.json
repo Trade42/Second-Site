@@ -1,0 +1,29 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/PropertySearchCompletedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "data_origin": {
+      "title": "Data Origin",
+      "type": "string"
+    },
+    "property_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Property Ids",
+      "type": "array"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    }
+  },
+  "required": [
+    "property_ids",
+    "provider",
+    "data_origin"
+  ],
+  "title": "PropertySearchCompletedPayload",
+  "type": "object"
+}

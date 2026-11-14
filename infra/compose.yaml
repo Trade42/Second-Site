@@ -1,0 +1,66 @@
+# Local stack: docker compose -f infra/compose.yaml up --build
+name: second-site
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: secondsite
+      POSTGRES_PASSWORD: secondsite
+      POSTGRES_DB: secondsite
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secondsite"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build: { context: .., dockerfile: infra/docker/api.Dockerfile }
+    env_file: [{ path: ../.env, required: false }]
+    environment:
+      DATABASE_URL: postgresql+psycopg://secondsite:secondsite@postgres:5432/secondsite
+      REDIS_URL: redis://redis:6379/0
+      TASK_EXECUTION_MODE: inline
+      CORS_ORIGINS: http://localhost:3000
+    command: sh -c "uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports: ["8000:8000"]
+    volumes: [objects:/repo/apps/api/.data]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 10
+
+  worker:
+    build: { context: .., dockerfile: infra/docker/api.Dockerfile }
+    env_file: [{ path: ../.env, required: false }]
+    environment:
+      DATABASE_URL: postgresql+psycopg://secondsite:secondsite@postgres:5432/secondsite
+      REDIS_URL: redis://redis:6379/0
+    command: uv run --no-sync python -m app.workers.worker
+    depends_on:
+      api: { condition: service_healthy }
+
+  web:
+    profiles: [web]
+    build: { context: .., dockerfile: infra/docker/web.Dockerfile }
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  objects: {}

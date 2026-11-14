@@ -1,0 +1,6 @@
+api.example.com {
+	encode gzip
+	reverse_proxy localhost:8000 {
+		flush_interval -1
+	}
+}

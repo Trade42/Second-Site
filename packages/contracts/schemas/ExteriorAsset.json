@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/ExteriorAsset.json",
+  "additionalProperties": false,
+  "properties": {
+    "asset_id": {
+      "title": "Asset Id",
+      "type": "string"
+    },
+    "asset_type": {
+      "description": "e.g. 'oblique', 'orthomosaic', 'roof_analysis'",
+      "title": "Asset Type",
+      "type": "string"
+    },
+    "captured_at": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Captured At"
+    },
+    "data_origin": {
+      "$ref": "#/$defs/DataOrigin"
+    },
+    "provider": {
+      "description": "'vexcel' or fixture",
+      "title": "Provider",
+      "type": "string"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    }
+  },
+  "required": [
+    "provider",
+    "asset_id",
+    "asset_type",
+    "data_origin"
+  ],
+  "title": "ExteriorAsset",
+  "type": "object"
+}

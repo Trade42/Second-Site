@@ -1,0 +1,407 @@
+{
+  "$defs": {
+    "ConfirmationStatus": {
+      "enum": [
+        "DRAFT",
+        "INFERRED",
+        "CONFIRMED"
+      ],
+      "title": "ConfirmationStatus",
+      "type": "string"
+    },
+    "DesignPreferences": {
+      "additionalProperties": false,
+      "properties": {
+        "interior_style": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interior Style"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "title": "DesignPreferences",
+      "type": "object"
+    },
+    "FieldProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation_status": {
+          "$ref": "#/$defs/ConfirmationStatus"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "source": {
+          "description": "e.g. 'owner_form', 'onboarding_agent', 'chat:<message_id>'",
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "field",
+        "source",
+        "confirmation_status"
+      ],
+      "title": "FieldProvenance",
+      "type": "object"
+    },
+    "InfrastructureNeeds": {
+      "additionalProperties": false,
+      "properties": {
+        "min_electrical_service_amps": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Electrical Service Amps"
+        },
+        "minimize_plumbing_changes": {
+          "default": false,
+          "title": "Minimize Plumbing Changes",
+          "type": "boolean"
+        },
+        "needs_dedicated_hvac_zoning": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Needs Dedicated Hvac Zoning"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "sinks_per_treatment_room": {
+          "default": 1,
+          "minimum": 0,
+          "title": "Sinks Per Treatment Room",
+          "type": "integer"
+        }
+      },
+      "title": "InfrastructureNeeds",
+      "type": "object"
+    },
+    "OperationalRequirements": {
+      "additionalProperties": false,
+      "properties": {
+        "ada_accessible_required": {
+          "default": true,
+          "title": "Ada Accessible Required",
+          "type": "boolean"
+        },
+        "operating_hours": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operating Hours"
+        },
+        "parking_required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parking Required"
+        },
+        "staff_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Staff Count"
+        }
+      },
+      "title": "OperationalRequirements",
+      "type": "object"
+    },
+    "RankingPriorities": {
+      "additionalProperties": false,
+      "description": "Relative weights. Normalized by the ranking service; must not all be zero.",
+      "properties": {
+        "comparison_horizon_months": {
+          "default": 36,
+          "exclusiveMinimum": 0,
+          "maximum": 240,
+          "title": "Comparison Horizon Months",
+          "type": "integer"
+        },
+        "evidence_certainty": {
+          "default": 0.2,
+          "minimum": 0,
+          "title": "Evidence Certainty",
+          "type": "number"
+        },
+        "infrastructure_fit": {
+          "default": 0.3,
+          "minimum": 0,
+          "title": "Infrastructure Fit",
+          "type": "number"
+        },
+        "total_cost": {
+          "default": 0.5,
+          "minimum": 0,
+          "title": "Total Cost",
+          "type": "number"
+        }
+      },
+      "title": "RankingPriorities",
+      "type": "object"
+    },
+    "SpaceRequirements": {
+      "additionalProperties": false,
+      "properties": {
+        "ground_floor_required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ground Floor Required"
+        },
+        "max_area_sqm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Area Sqm"
+        },
+        "min_area_sqm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Area Sqm"
+        },
+        "required_rooms": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Room type -> count, e.g. {'treatment': 3}.",
+          "title": "Required Rooms",
+          "type": "object"
+        }
+      },
+      "title": "SpaceRequirements",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/BusinessExpansionProfile.json",
+  "additionalProperties": false,
+  "properties": {
+    "business_description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Business Description"
+    },
+    "business_type": {
+      "description": "e.g. 'facial_studio'",
+      "minLength": 1,
+      "title": "Business Type",
+      "type": "string"
+    },
+    "confirmation_status": {
+      "$ref": "#/$defs/ConfirmationStatus",
+      "default": "DRAFT"
+    },
+    "currency": {
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "current_location_count": {
+      "minimum": 0,
+      "title": "Current Location Count",
+      "type": "integer"
+    },
+    "design_preferences": {
+      "$ref": "#/$defs/DesignPreferences"
+    },
+    "infrastructure_requirements": {
+      "$ref": "#/$defs/InfrastructureNeeds"
+    },
+    "monthly_rent_limit": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Monthly Rent Limit"
+    },
+    "opening_capital": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Opening Capital"
+    },
+    "operational_requirements": {
+      "$ref": "#/$defs/OperationalRequirements"
+    },
+    "preferred_neighborhoods": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Preferred Neighborhoods",
+      "type": "array"
+    },
+    "profile_id": {
+      "format": "uuid",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "ranking_priorities": {
+      "$ref": "#/$defs/RankingPriorities"
+    },
+    "source_references": {
+      "items": {
+        "$ref": "#/$defs/FieldProvenance"
+      },
+      "title": "Source References",
+      "type": "array"
+    },
+    "space_requirements": {
+      "$ref": "#/$defs/SpaceRequirements"
+    },
+    "target_market": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "{'city': 'Los Angeles', 'state': 'CA'}",
+      "title": "Target Market",
+      "type": "object"
+    },
+    "target_opening_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Opening Date"
+    },
+    "working_capital_reserve": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Working Capital Reserve"
+    }
+  },
+  "required": [
+    "project_id",
+    "business_type",
+    "current_location_count",
+    "target_market",
+    "space_requirements"
+  ],
+  "title": "BusinessExpansionProfile",
+  "type": "object"
+}

@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "EvidenceClassification": {
+      "description": "How an assertion is known. Never collapsed into a single confidence score.",
+      "enum": [
+        "DOCUMENTED_HISTORICAL",
+        "VISUALLY_OBSERVED",
+        "GEOMETRY_MEASURED",
+        "OWNER_REPORTED",
+        "PROFESSIONALLY_VERIFIED",
+        "DERIVED_ESTIMATE",
+        "UNKNOWN",
+        "CONFLICTING"
+      ],
+      "title": "EvidenceClassification",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/InfrastructureObservation.json",
+  "additionalProperties": false,
+  "properties": {
+    "classification": {
+      "$ref": "#/$defs/EvidenceClassification"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "observation_id": {
+      "format": "uuid",
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "observation_type": {
+      "title": "Observation Type",
+      "type": "string"
+    },
+    "property_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Property Id"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value"
+    }
+  },
+  "required": [
+    "observation_type",
+    "classification",
+    "description"
+  ],
+  "title": "InfrastructureObservation",
+  "type": "object"
+}

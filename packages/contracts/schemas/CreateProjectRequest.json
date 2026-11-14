@@ -1,0 +1,63 @@
+{
+  "$defs": {
+    "Market": {
+      "additionalProperties": false,
+      "properties": {
+        "city": {
+          "title": "City",
+          "type": "string"
+        },
+        "country": {
+          "default": "US",
+          "title": "Country",
+          "type": "string"
+        },
+        "state": {
+          "maxLength": 2,
+          "minLength": 2,
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "city",
+        "state"
+      ],
+      "title": "Market",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/CreateProjectRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "business_profile": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional BusinessExpansionProfile fields (project_id/profile_id assigned).",
+      "title": "Business Profile"
+    },
+    "market": {
+      "$ref": "#/$defs/Market"
+    },
+    "project_name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Project Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project_name",
+    "market"
+  ],
+  "title": "CreateProjectRequest",
+  "type": "object"
+}

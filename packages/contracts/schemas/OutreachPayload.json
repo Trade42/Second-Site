@@ -1,0 +1,42 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/OutreachPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "approval_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approval Id"
+    },
+    "communication_id": {
+      "format": "uuid",
+      "title": "Communication Id",
+      "type": "string"
+    },
+    "property_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Property Id"
+    }
+  },
+  "required": [
+    "communication_id"
+  ],
+  "title": "OutreachPayload",
+  "type": "object"
+}

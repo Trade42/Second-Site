@@ -1,0 +1,39 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/FinishSpecification.json",
+  "additionalProperties": false,
+  "properties": {
+    "area_sqm": {
+      "exclusiveMinimum": 0,
+      "title": "Area Sqm",
+      "type": "number"
+    },
+    "material": {
+      "title": "Material",
+      "type": "string"
+    },
+    "room_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Room Id"
+    },
+    "surface": {
+      "description": "'floor' | 'wall' | 'ceiling'",
+      "title": "Surface",
+      "type": "string"
+    }
+  },
+  "required": [
+    "surface",
+    "material",
+    "area_sqm"
+  ],
+  "title": "FinishSpecification",
+  "type": "object"
+}

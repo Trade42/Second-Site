@@ -1,1 +1,31 @@
+# agent board local state
 .board/
+
+# secrets and local data
+.env
+.env.*
+!.env.example
+apps/web/.env.local
+.data/
+*.pem
+*.key
+recordings/
+uploads/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# node / next
+node_modules/
+.next/
+apps/web/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# misc
+.DS_Store
+worktrees/

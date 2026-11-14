@@ -1,0 +1,32 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/UnknownDetectedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "requirement_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Requirement Ids",
+      "type": "array"
+    },
+    "verification_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Verification Questions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "property_id",
+    "requirement_ids",
+    "verification_questions"
+  ],
+  "title": "UnknownDetectedPayload",
+  "type": "object"
+}

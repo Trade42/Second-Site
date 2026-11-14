@@ -1,0 +1,65 @@
+name: CI
+on:
+  push:
+    branches: [main, "dev/**"]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: secondsite, POSTGRES_PASSWORD: secondsite, POSTGRES_DB: secondsite_test }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U secondsite" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test
+      DATABASE_URL: postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test
+    defaults: { run: { working-directory: apps/api } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.11.32" }
+      - run: uv sync --frozen
+      - name: Lint and format
+        run: uv run ruff check app tests && uv run ruff format --check app tests
+      - name: Tests (contracts, domain, API, events, approvals, webhooks)
+        run: uv run pytest -q
+      - name: Migrations apply cleanly and match models
+        run: uv run alembic upgrade head && uv run alembic check
+
+  contracts-and-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.11.32" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: (cd apps/api && uv sync --frozen)
+      - run: pnpm install --frozen-lockfile
+      - name: Generated contracts are up to date
+        run: scripts/check-contracts.sh
+      - name: Web typecheck
+        run: pnpm --filter @second-site/web typecheck
+      - name: Web lint
+        run: pnpm --filter @second-site/web lint
+      - name: Web build
+        run: pnpm --filter @second-site/web build
+        env: { NEXT_TELEMETRY_DISABLED: "1" }
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f infra/compose.yaml config -q
+
+  board-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n tools/board && bash -n .claude/hooks/board-prompt.sh && bash -n .claude/hooks/board-session-start.sh
+      - run: python3 -m json.tool .claude/settings.json > /dev/null

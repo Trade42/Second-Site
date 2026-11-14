@@ -1,0 +1,39 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/HardConstraintResult.json",
+  "additionalProperties": false,
+  "properties": {
+    "constraint": {
+      "title": "Constraint",
+      "type": "string"
+    },
+    "detail": {
+      "title": "Detail",
+      "type": "string"
+    },
+    "passed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "None when it cannot be determined (unknown).",
+      "title": "Passed"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "property_id",
+    "constraint",
+    "passed",
+    "detail"
+  ],
+  "title": "HardConstraintResult",
+  "type": "object"
+}

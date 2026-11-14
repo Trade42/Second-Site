@@ -1,0 +1,15 @@
+{
+  "_meta": {"data_origin": "FIXTURE_SYNTHETIC", "note": "Shape modeled on Photon 2.0 beta message objects (platform, status, sentBy, receivedBy, space, content). Exact webhook event catalog must be confirmed per API version in the Photon dashboard."},
+  "id": "evt_fixture_0001",
+  "type": "message.received",
+  "data": {
+    "id": "msg_fixture_0001",
+    "platform": "imessage",
+    "status": "received",
+    "createdAt": "2026-11-14T12:00:00.000Z",
+    "sentBy": {"id": "usr_owner", "kind": "human", "handle": "+15555550100"},
+    "receivedBy": {"id": "usr_agent", "kind": "agent", "handle": "+15555550199"},
+    "space": {"id": "spc_fixture", "kind": "direct"},
+    "content": {"type": "text", "format": "plain", "text": "Can we fit a fourth treatment room?"}
+  }
+}

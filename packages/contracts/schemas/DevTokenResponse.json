@@ -1,0 +1,26 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/DevTokenResponse.json",
+  "additionalProperties": false,
+  "properties": {
+    "access_token": {
+      "title": "Access Token",
+      "type": "string"
+    },
+    "token_type": {
+      "default": "bearer",
+      "title": "Token Type",
+      "type": "string"
+    },
+    "user_id": {
+      "format": "uuid",
+      "title": "User Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "access_token"
+  ],
+  "title": "DevTokenResponse",
+  "type": "object"
+}

@@ -1,0 +1,31 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/LayoutPreferences.json",
+  "additionalProperties": false,
+  "properties": {
+    "circulation_width_m": {
+      "default": 1.2,
+      "exclusiveMinimum": 0,
+      "title": "Circulation Width M",
+      "type": "number"
+    },
+    "prefer_rooms_near_plumbing": {
+      "default": true,
+      "title": "Prefer Rooms Near Plumbing",
+      "type": "boolean"
+    },
+    "style": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Style"
+    }
+  },
+  "title": "LayoutPreferences",
+  "type": "object"
+}

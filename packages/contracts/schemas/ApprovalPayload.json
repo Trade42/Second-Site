@@ -1,0 +1,26 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ApprovalPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "action_type": {
+      "title": "Action Type",
+      "type": "string"
+    },
+    "approval_id": {
+      "format": "uuid",
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "approval_status": {
+      "title": "Approval Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approval_id",
+    "action_type",
+    "approval_status"
+  ],
+  "title": "ApprovalPayload",
+  "type": "object"
+}

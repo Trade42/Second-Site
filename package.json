@@ -1,0 +1,13 @@
+{
+  "name": "second-site",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=20.9.0" },
+  "scripts": {
+    "contracts:generate": "pnpm --filter @second-site/contracts generate",
+    "web:dev": "pnpm --filter @second-site/web dev",
+    "web:build": "pnpm --filter @second-site/web build",
+    "web:typecheck": "pnpm --filter @second-site/web typecheck",
+    "web:lint": "pnpm --filter @second-site/web lint"
+  }
+}

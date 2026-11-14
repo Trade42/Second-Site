@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "AssessmentStatus": {
+      "enum": [
+        "MEETS",
+        "MAY_REQUIRE_WORK",
+        "FAILS",
+        "UNKNOWN"
+      ],
+      "title": "AssessmentStatus",
+      "type": "string"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "AUTOMATED",
+        "NEEDS_REVIEW",
+        "REVIEWED"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/InfrastructureAssessment.json",
+  "additionalProperties": false,
+  "properties": {
+    "assessment_id": {
+      "format": "uuid",
+      "title": "Assessment Id",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "observed_value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observed Value"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "proposed_work": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Proposed Work",
+      "type": "array"
+    },
+    "required_value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Required Value"
+    },
+    "requirement_id": {
+      "title": "Requirement Id",
+      "type": "string"
+    },
+    "review_status": {
+      "$ref": "#/$defs/ReviewStatus",
+      "default": "AUTOMATED"
+    },
+    "status": {
+      "$ref": "#/$defs/AssessmentStatus"
+    },
+    "uncertainty": {
+      "description": "Plain-language statement of what is not known.",
+      "title": "Uncertainty",
+      "type": "string"
+    },
+    "verification_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Verification Questions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "project_id",
+    "property_id",
+    "requirement_id",
+    "status",
+    "uncertainty"
+  ],
+  "title": "InfrastructureAssessment",
+  "type": "object"
+}

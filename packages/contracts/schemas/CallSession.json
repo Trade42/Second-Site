@@ -1,0 +1,243 @@
+{
+  "$defs": {
+    "AuthorityScope": {
+      "additionalProperties": false,
+      "description": "What the assistant may discuss without the owner. Everything else escalates.",
+      "properties": {
+        "may_ask_about": {
+          "items": {
+            "type": "string"
+          },
+          "title": "May Ask About",
+          "type": "array"
+        },
+        "may_not": {
+          "items": {
+            "type": "string"
+          },
+          "title": "May Not",
+          "type": "array"
+        }
+      },
+      "title": "AuthorityScope",
+      "type": "object"
+    },
+    "CallState": {
+      "enum": [
+        "CREATED",
+        "DIALING",
+        "INTRO",
+        "ACTIVE",
+        "HANDOFF_PENDING",
+        "OWNER_JOINING",
+        "HUMAN_JOINED",
+        "AI_RESUMED",
+        "COMPLETED",
+        "FAILED",
+        "DECLINED",
+        "CANCELLED"
+      ],
+      "title": "CallState",
+      "type": "string"
+    },
+    "ParticipantState": {
+      "additionalProperties": false,
+      "properties": {
+        "leg_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leg Id"
+        },
+        "role": {
+          "description": "'assistant' | 'counterparty' | 'owner'",
+          "title": "Role",
+          "type": "string"
+        },
+        "state": {
+          "description": "'dialing' | 'joined' | 'left' | 'failed'",
+          "title": "State",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "state"
+      ],
+      "title": "ParticipantState",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/CallSession.json",
+  "additionalProperties": false,
+  "properties": {
+    "approval_id": {
+      "format": "uuid",
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "authority_scope": {
+      "$ref": "#/$defs/AuthorityScope"
+    },
+    "automation_disclosure": {
+      "default": "This call is being handled by an automated assistant on the owner's behalf.",
+      "description": "Disclosure played/stated per applicable law and provider rules.",
+      "title": "Automation Disclosure",
+      "type": "string"
+    },
+    "call_id": {
+      "format": "uuid",
+      "title": "Call Id",
+      "type": "string"
+    },
+    "conference_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Conference Id"
+    },
+    "ended_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Ended At"
+    },
+    "failure_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Failure Reason"
+    },
+    "handoff_request_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Handoff Request Id"
+    },
+    "intro_recording_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Owner's genuine recorded intro (object storage key). Never synthesized.",
+      "title": "Intro Recording Reference"
+    },
+    "owner_id": {
+      "format": "uuid",
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "participant_states": {
+      "items": {
+        "$ref": "#/$defs/ParticipantState"
+      },
+      "title": "Participant States",
+      "type": "array"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "property_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Property Id"
+    },
+    "provider_call_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Call Id"
+    },
+    "recipient": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "{'role':'broker','name':'...','phone':'+1...'}",
+      "title": "Recipient",
+      "type": "object"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Started At"
+    },
+    "state": {
+      "$ref": "#/$defs/CallState",
+      "default": "CREATED"
+    }
+  },
+  "required": [
+    "project_id",
+    "owner_id",
+    "recipient",
+    "approval_id"
+  ],
+  "title": "CallSession",
+  "type": "object"
+}

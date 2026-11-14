@@ -1,0 +1,30 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/EvidenceUpdatedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "property_id",
+    "evidence_ids",
+    "reason"
+  ],
+  "title": "EvidenceUpdatedPayload",
+  "type": "object"
+}

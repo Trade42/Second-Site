@@ -1,0 +1,27 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/HandoffRequestedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "format": "uuid",
+      "title": "Call Id",
+      "type": "string"
+    },
+    "handoff_request_id": {
+      "format": "uuid",
+      "title": "Handoff Request Id",
+      "type": "string"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "call_id",
+    "handoff_request_id",
+    "reason"
+  ],
+  "title": "HandoffRequestedPayload",
+  "type": "object"
+}

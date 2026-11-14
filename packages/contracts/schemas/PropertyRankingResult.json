@@ -1,0 +1,185 @@
+{
+  "$defs": {
+    "HardConstraintResult": {
+      "additionalProperties": false,
+      "properties": {
+        "constraint": {
+          "title": "Constraint",
+          "type": "string"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "None when it cannot be determined (unknown).",
+          "title": "Passed"
+        },
+        "property_id": {
+          "format": "uuid",
+          "title": "Property Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "property_id",
+        "constraint",
+        "passed",
+        "detail"
+      ],
+      "title": "HardConstraintResult",
+      "type": "object"
+    },
+    "RankedProperty": {
+      "additionalProperties": false,
+      "properties": {
+        "disqualified": {
+          "default": false,
+          "title": "Disqualified",
+          "type": "boolean"
+        },
+        "long_term_cost": {
+          "anyOf": [
+            {
+              "description": "Non-negative integer minor currency units.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Long Term Cost"
+        },
+        "property_id": {
+          "format": "uuid",
+          "title": "Property Id",
+          "type": "string"
+        },
+        "rank": {
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "total_score": {
+          "title": "Total Score",
+          "type": "number"
+        },
+        "unknown_requirement_count": {
+          "default": 0,
+          "title": "Unknown Requirement Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rank",
+        "property_id",
+        "total_score"
+      ],
+      "title": "RankedProperty",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/PropertyRankingResult.json",
+  "additionalProperties": false,
+  "properties": {
+    "calculated_at": {
+      "format": "date-time",
+      "title": "Calculated At",
+      "type": "string"
+    },
+    "cost_scenario_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Cost Scenario Ids",
+      "type": "array"
+    },
+    "criteria_weights": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Criteria Weights",
+      "type": "object"
+    },
+    "explanations": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "property_id -> plain-language explanation",
+      "title": "Explanations",
+      "type": "object"
+    },
+    "hard_constraint_results": {
+      "items": {
+        "$ref": "#/$defs/HardConstraintResult"
+      },
+      "title": "Hard Constraint Results",
+      "type": "array"
+    },
+    "normalized_scores": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "type": "number"
+        },
+        "type": "object"
+      },
+      "description": "property_id -> criterion -> score in [0,1]",
+      "title": "Normalized Scores",
+      "type": "object"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "ranked_properties": {
+      "items": {
+        "$ref": "#/$defs/RankedProperty"
+      },
+      "title": "Ranked Properties",
+      "type": "array"
+    },
+    "ranking_id": {
+      "format": "uuid",
+      "title": "Ranking Id",
+      "type": "string"
+    },
+    "ranking_version": {
+      "minimum": 1,
+      "title": "Ranking Version",
+      "type": "integer"
+    },
+    "uncertainty_penalties": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "property_id -> penalty in [0,1]",
+      "title": "Uncertainty Penalties",
+      "type": "object"
+    }
+  },
+  "required": [
+    "project_id",
+    "ranking_version",
+    "criteria_weights",
+    "hard_constraint_results",
+    "ranked_properties",
+    "normalized_scores",
+    "uncertainty_penalties",
+    "cost_scenario_ids",
+    "explanations"
+  ],
+  "title": "PropertyRankingResult",
+  "type": "object"
+}

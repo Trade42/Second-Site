@@ -5,7 +5,7 @@
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (needs only `gh`, logged in). Set `BOARD_ISSUE` if it is not issue #1.
 
 - Start every post with `[<human>'s <agent>]`, e.g. `[Sam's Codex]`. Keep it short: what changed, which files or contracts, what you need, from whom.
-- Mention by GitHub login. Fill in your team: `@login1` (Name), `@login2` (Name), `@login3` (Name), `@login4` (Name), `@all` (everyone).
+- Mention by GitHub login. Team logins seen on this repo: `@mihirmalaviya`, `@tiwari-ira` (Ira), `@jasleenkgarcha`; add the fourth teammate and names here. `@all` (everyone).
 - **Mentions you or `@all`:** act on it and reply promptly.
 - **Not addressed to you:** still read it. Reassess your own work only if it is affected (a contract, a file you own, something already done). Do not redo finished work, and do not reply just to acknowledge.
 - Before editing another teammate's files, ask for a handoff on the board and wait for the owner or the team lead.
@@ -22,17 +22,33 @@ Humans over agents. Only the team lead reassigns work between teammates. If anyo
 
 ## 3. Workflow
 
-1. Pick or file an issue. Comment on it or post on the board when you take it.
-2. Branch `<issue#>-<slug>` from fresh `main`.
+Second Site uses **four long-lived workstream branches**, all created from the same foundation commit on `main`:
+`dev/agents-finance`, `dev/property-spatial`, `dev/frontend-product`, `dev/communications`.
+
+1. Pick or file an issue (optional for small slices). Comment on it or post on the board when you take it.
+2. Work on your workstream branch. Optional short-lived branches `feature/<issue#>-<slug>` start from your `dev/*` branch.
 3. Small commits. Stage only your own files (no `git add -A`).
-4. Open a PR with `Closes #N`. The author merges their own PR once it works locally.
-5. Always `git fetch` and rebase before pushing. Never force-push shared branches.
-6. If a merge changes something other teammates depend on (an API, a schema, an env var), post on the board when it lands.
+4. Open small, frequent PRs `dev/<stream>` → `main` (use `Closes #N` when there is an issue). CI must pass. The author merges their own PR once it works locally.
+5. Always `git fetch` and merge `origin/main` into your `dev/*` branch before pushing. Never force-push shared branches.
+6. If a merge changes something other teammates depend on (an API, a schema, an event, an env var), post on the board when it lands.
+7. **Contracts** (`apps/api/app/contracts/`, generated `packages/contracts/`) belong to the shared foundation: propose on the board, update the model, run `scripts/generate-contracts.sh`, update tests, PR to `main`, notify affected owners. Details: `docs/TEAM_WORKFLOW.md`.
+
+Start here: `docs/onboarding/<your-stream>.md` and `docs/onboarding/claude-prompts/<your-stream>.md`. Checks: `scripts/test.sh`.
 
 ## 4. Who owns what
 
-Fill this in at kickoff so every agent knows whose files are whose.
+Humans fill in the Owner column at kickoff (full paths in `docs/OWNERSHIP_MATRIX.md`).
 
 | Area | Owner (GitHub login) | Folders |
 |---|---|---|
-| | | |
+| Agent systems & financial intelligence (`dev/agents-finance`) | _UNASSIGNED_ | `apps/api/app/agents/`, `apps/api/app/workflows/`, `apps/api/app/domains/{requirements,feasibility,finance,ranking,evidence}/` |
+| Property, permits & spatial (`dev/property-spatial`) | _UNASSIGNED_ | `apps/api/app/domains/{property,permits,spatial}/`, `apps/api/app/domains/design/geometry/`, `apps/api/app/domains/design/service.py`, `apps/api/app/integrations/{costar,matterport,vexcel,la_permits,ifc}/`, `fixtures/{properties,permits,geometry,ifc}/` |
+| Frontend, interior & procurement (`dev/frontend-product`) | _UNASSIGNED_ | `apps/web/`, `apps/api/app/domains/design/interior/`, `apps/api/app/domains/{procurement,logistics}/`, `apps/api/app/integrations/catalog/` |
+| Communications, voice & execution (`dev/communications`) | _UNASSIGNED_ | `apps/api/app/domains/communications/`, `apps/api/app/services/call_orchestration/`, `apps/api/app/api/routes/{communications,webhooks}.py`, `apps/api/app/integrations/{photon,telnyx,xai_voice,storage}/`, `infra/voice/` |
+| Shared foundation (board + PR to `main`) | team lead | `apps/api/app/{contracts,services,db,core,repositories}/`, `apps/api/alembic/`, `packages/contracts/`, `scripts/`, `infra/compose.yaml`, `.github/`, `tools/board`, `.claude/`, `AGENTS.md` |
+
+## 5. Truthfulness rules (all agents)
+
+Never present synthetic listings as CoStar records, historical permits as current capacity, approximate layouts as approved plans,
+or a provider "accepted" response as a completed action. Unknown stays UNKNOWN. External messages, calls and purchases need an
+APPROVED owner approval enforced in code. Never commit secrets or personal recordings.

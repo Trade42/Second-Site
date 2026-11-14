@@ -1,0 +1,32 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/AnalysisCompletedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "assessment_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Assessment Ids",
+      "type": "array"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "unknown_requirement_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unknown Requirement Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "property_id",
+    "assessment_ids"
+  ],
+  "title": "AnalysisCompletedPayload",
+  "type": "object"
+}

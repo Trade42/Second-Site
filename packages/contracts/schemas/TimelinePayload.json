@@ -1,0 +1,27 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/TimelinePayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "detail": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Detail"
+    },
+    "milestone": {
+      "title": "Milestone",
+      "type": "string"
+    }
+  },
+  "required": [
+    "milestone"
+  ],
+  "title": "TimelinePayload",
+  "type": "object"
+}

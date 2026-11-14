@@ -1,0 +1,159 @@
+{
+  "$defs": {
+    "Subsystem": {
+      "enum": [
+        "agents-finance",
+        "property-spatial",
+        "frontend-product",
+        "communications",
+        "foundation"
+      ],
+      "title": "Subsystem",
+      "type": "string"
+    },
+    "TaskRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "assigned_subsystem": {
+          "$ref": "#/$defs/Subsystem"
+        },
+        "attempt_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Attempt Count",
+          "type": "integer"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "dependencies": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "error_message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Message"
+        },
+        "input_reference": {
+          "additionalProperties": true,
+          "title": "Input Reference",
+          "type": "object"
+        },
+        "output_reference": {
+          "additionalProperties": true,
+          "title": "Output Reference",
+          "type": "object"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/TaskStatus",
+          "default": "QUEUED"
+        },
+        "task_id": {
+          "format": "uuid",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "task_type": {
+          "$ref": "#/$defs/TaskType"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project_id",
+        "task_type",
+        "assigned_subsystem"
+      ],
+      "title": "TaskRecord",
+      "type": "object"
+    },
+    "TaskStatus": {
+      "enum": [
+        "QUEUED",
+        "RUNNING",
+        "WAITING_APPROVAL",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "TaskStatus",
+      "type": "string"
+    },
+    "TaskType": {
+      "enum": [
+        "confirm_requirements",
+        "search_properties",
+        "resolve_identity",
+        "ingest_permits",
+        "analyze_property",
+        "evaluate_infrastructure",
+        "calculate_costs",
+        "rank_properties",
+        "generate_layout",
+        "revise_layout",
+        "generate_bom",
+        "outreach",
+        "place_call",
+        "supervisor_chat"
+      ],
+      "title": "TaskType",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/TaskAccepted.json",
+  "additionalProperties": false,
+  "properties": {
+    "status_url": {
+      "title": "Status Url",
+      "type": "string"
+    },
+    "task": {
+      "$ref": "#/$defs/TaskRecord"
+    }
+  },
+  "required": [
+    "task",
+    "status_url"
+  ],
+  "title": "TaskAccepted",
+  "type": "object"
+}

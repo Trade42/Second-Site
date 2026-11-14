@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "CostKind": {
+      "enum": [
+        "ONE_TIME",
+        "MONTHLY",
+        "REFUNDABLE_DEPOSIT"
+      ],
+      "title": "CostKind",
+      "type": "string"
+    },
+    "CostLineItem": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "expected": {
+          "description": "Integer minor currency units (e.g. cents).",
+          "title": "Expected",
+          "type": "integer"
+        },
+        "high": {
+          "description": "Integer minor currency units (e.g. cents).",
+          "title": "High",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/CostKind"
+        },
+        "line_item_id": {
+          "description": "Deterministic key; duplicates are rejected.",
+          "title": "Line Item Id",
+          "type": "string"
+        },
+        "low": {
+          "description": "Integer minor currency units (e.g. cents).",
+          "title": "Low",
+          "type": "integer"
+        },
+        "source_work_item_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Work Item Id"
+        }
+      },
+      "required": [
+        "line_item_id",
+        "category",
+        "description",
+        "kind",
+        "low",
+        "expected",
+        "high"
+      ],
+      "title": "CostLineItem",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/CostScenario.json",
+  "additionalProperties": false,
+  "properties": {
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "calculated_at": {
+      "format": "date-time",
+      "title": "Calculated At",
+      "type": "string"
+    },
+    "comparison_horizon_months": {
+      "exclusiveMinimum": 0,
+      "title": "Comparison Horizon Months",
+      "type": "integer"
+    },
+    "contingency": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Contingency",
+      "type": "integer"
+    },
+    "currency": {
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "design_version_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Design Version Id"
+    },
+    "excluded_costs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Excluded Costs",
+      "type": "array"
+    },
+    "line_items": {
+      "items": {
+        "$ref": "#/$defs/CostLineItem"
+      },
+      "title": "Line Items",
+      "type": "array"
+    },
+    "long_term_cost": {
+      "description": "opening_cost_expected + monthly_operating_cost * horizon (deposits excluded).",
+      "minimum": 0,
+      "title": "Long Term Cost",
+      "type": "integer"
+    },
+    "monthly_operating_cost": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Monthly Operating Cost",
+      "type": "integer"
+    },
+    "opening_cost_expected": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Opening Cost Expected",
+      "type": "integer"
+    },
+    "opening_cost_high": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Opening Cost High",
+      "type": "integer"
+    },
+    "opening_cost_low": {
+      "description": "Non-negative integer minor currency units.",
+      "minimum": 0,
+      "title": "Opening Cost Low",
+      "type": "integer"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "scenario_id": {
+      "format": "uuid",
+      "title": "Scenario Id",
+      "type": "string"
+    },
+    "source_evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Source Evidence Ids",
+      "type": "array"
+    },
+    "upfront_cash_expected": {
+      "description": "Opening cost + refundable deposits: cash needed before opening.",
+      "minimum": 0,
+      "title": "Upfront Cash Expected",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "project_id",
+    "property_id",
+    "opening_cost_low",
+    "opening_cost_expected",
+    "opening_cost_high",
+    "upfront_cash_expected",
+    "monthly_operating_cost",
+    "comparison_horizon_months",
+    "long_term_cost",
+    "contingency",
+    "line_items"
+  ],
+  "title": "CostScenario",
+  "type": "object"
+}

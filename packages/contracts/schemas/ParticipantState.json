@@ -1,0 +1,39 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ParticipantState.json",
+  "additionalProperties": false,
+  "properties": {
+    "leg_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Leg Id"
+    },
+    "role": {
+      "description": "'assistant' | 'counterparty' | 'owner'",
+      "title": "Role",
+      "type": "string"
+    },
+    "state": {
+      "description": "'dialing' | 'joined' | 'left' | 'failed'",
+      "title": "State",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "role",
+    "state"
+  ],
+  "title": "ParticipantState",
+  "type": "object"
+}

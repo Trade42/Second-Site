@@ -1,0 +1,51 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/RankedProperty.json",
+  "additionalProperties": false,
+  "properties": {
+    "disqualified": {
+      "default": false,
+      "title": "Disqualified",
+      "type": "boolean"
+    },
+    "long_term_cost": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Long Term Cost"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "rank": {
+      "minimum": 1,
+      "title": "Rank",
+      "type": "integer"
+    },
+    "total_score": {
+      "title": "Total Score",
+      "type": "number"
+    },
+    "unknown_requirement_count": {
+      "default": 0,
+      "title": "Unknown Requirement Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "rank",
+    "property_id",
+    "total_score"
+  ],
+  "title": "RankedProperty",
+  "type": "object"
+}

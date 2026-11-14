@@ -1,0 +1,34 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/BomPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "bom_id": {
+      "format": "uuid",
+      "title": "Bom Id",
+      "type": "string"
+    },
+    "design_version_id": {
+      "format": "uuid",
+      "title": "Design Version Id",
+      "type": "string"
+    },
+    "estimated_total": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Total"
+    }
+  },
+  "required": [
+    "bom_id",
+    "design_version_id"
+  ],
+  "title": "BomPayload",
+  "type": "object"
+}

@@ -1,0 +1,20 @@
+{
+  "_meta": {"data_origin": "FIXTURE_SYNTHETIC", "note": "Demonstration inputs from the product spec; not confirmed project facts."},
+  "project_name": "Facial studio — second location",
+  "market": {"city": "Los Angeles", "state": "CA"},
+  "business_profile": {
+    "business_type": "facial_studio",
+    "business_description": "Facial and skincare studio opening its second location.",
+    "current_location_count": 1,
+    "target_market": {"city": "Los Angeles", "state": "CA"},
+    "opening_capital": 18000000,
+    "monthly_rent_limit": 750000,
+    "working_capital_reserve": 3000000,
+    "space_requirements": {"required_rooms": {"treatment": 3, "reception": 1, "storage": 1}, "min_area_sqm": 110},
+    "infrastructure_requirements": {"minimize_plumbing_changes": true, "sinks_per_treatment_room": 1},
+    "design_preferences": {"interior_style": "warm_minimalist"},
+    "ranking_priorities": {"total_cost": 0.5, "infrastructure_fit": 0.3, "evidence_certainty": 0.2, "comparison_horizon_months": 36},
+    "confirmation_status": "CONFIRMED",
+    "source_references": [{"field": "*", "source": "fixture:facial_studio.json", "confirmation_status": "CONFIRMED", "note": "Demo inputs"}]
+  }
+}

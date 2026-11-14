@@ -1,0 +1,144 @@
+{
+  "$defs": {
+    "MatchStatus": {
+      "enum": [
+        "EXACT",
+        "PROBABLE",
+        "AMBIGUOUS",
+        "UNMATCHED",
+        "CONFLICTING",
+        "NEEDS_REVIEW"
+      ],
+      "title": "MatchStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/PropertyIdentity.json",
+  "additionalProperties": false,
+  "description": "Canonical identity. Providers (CoStar, Matterport, Vexcel, LADBS) do NOT share IDs.",
+  "properties": {
+    "city": {
+      "title": "City",
+      "type": "string"
+    },
+    "identity_match_confidence": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Identity Match Confidence"
+    },
+    "identity_match_status": {
+      "$ref": "#/$defs/MatchStatus",
+      "default": "UNMATCHED"
+    },
+    "latitude": {
+      "anyOf": [
+        {
+          "maximum": 90,
+          "minimum": -90,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latitude"
+    },
+    "longitude": {
+      "anyOf": [
+        {
+          "maximum": 180,
+          "minimum": -180,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Longitude"
+    },
+    "normalized_address": {
+      "description": "Canonical uppercase form incl. direction and unit.",
+      "title": "Normalized Address",
+      "type": "string"
+    },
+    "parcel_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "APN when known.",
+      "title": "Parcel Id"
+    },
+    "postal_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Postal Code"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "provider_property_ids": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "provider -> provider-native id, e.g. {'costar': '...'}",
+      "title": "Provider Property Ids",
+      "type": "object"
+    },
+    "state": {
+      "maxLength": 2,
+      "minLength": 2,
+      "title": "State",
+      "type": "string"
+    },
+    "street_address": {
+      "title": "Street Address",
+      "type": "string"
+    },
+    "unit_or_suite": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit Or Suite"
+    }
+  },
+  "required": [
+    "normalized_address",
+    "street_address",
+    "city",
+    "state"
+  ],
+  "title": "PropertyIdentity",
+  "type": "object"
+}

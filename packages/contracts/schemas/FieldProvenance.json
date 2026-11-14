@@ -1,0 +1,48 @@
+{
+  "$defs": {
+    "ConfirmationStatus": {
+      "enum": [
+        "DRAFT",
+        "INFERRED",
+        "CONFIRMED"
+      ],
+      "title": "ConfirmationStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/FieldProvenance.json",
+  "additionalProperties": false,
+  "properties": {
+    "confirmation_status": {
+      "$ref": "#/$defs/ConfirmationStatus"
+    },
+    "field": {
+      "title": "Field",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    },
+    "source": {
+      "description": "e.g. 'owner_form', 'onboarding_agent', 'chat:<message_id>'",
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "field",
+    "source",
+    "confirmation_status"
+  ],
+  "title": "FieldProvenance",
+  "type": "object"
+}

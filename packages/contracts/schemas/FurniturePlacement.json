@@ -1,0 +1,43 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/FurniturePlacement.json",
+  "additionalProperties": false,
+  "properties": {
+    "footprint": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "type": "number"
+          },
+          {
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Footprint",
+      "type": "array"
+    },
+    "item_type": {
+      "title": "Item Type",
+      "type": "string"
+    },
+    "placement_id": {
+      "title": "Placement Id",
+      "type": "string"
+    },
+    "room_id": {
+      "title": "Room Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "placement_id",
+    "room_id",
+    "item_type",
+    "footprint"
+  ],
+  "title": "FurniturePlacement",
+  "type": "object"
+}

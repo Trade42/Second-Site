@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/InteriorAsset.json",
+  "additionalProperties": false,
+  "properties": {
+    "asset_id": {
+      "title": "Asset Id",
+      "type": "string"
+    },
+    "asset_type": {
+      "description": "e.g. 'matterport_model', 'floor_plan_image', 'photo'",
+      "title": "Asset Type",
+      "type": "string"
+    },
+    "data_origin": {
+      "$ref": "#/$defs/DataOrigin"
+    },
+    "has_measured_geometry": {
+      "default": false,
+      "title": "Has Measured Geometry",
+      "type": "boolean"
+    },
+    "provider": {
+      "description": "'matterport' or fixture",
+      "title": "Provider",
+      "type": "string"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    }
+  },
+  "required": [
+    "provider",
+    "asset_id",
+    "asset_type",
+    "data_origin"
+  ],
+  "title": "InteriorAsset",
+  "type": "object"
+}

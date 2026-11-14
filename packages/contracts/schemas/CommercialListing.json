@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    },
+    "ListingType": {
+      "enum": [
+        "LEASE",
+        "SALE"
+      ],
+      "title": "ListingType",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/CommercialListing.json",
+  "additionalProperties": false,
+  "properties": {
+    "asking_rent_monthly": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Asking Rent Monthly"
+    },
+    "available_area_sqm": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Available Area Sqm"
+    },
+    "available_from": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Available From"
+    },
+    "currency": {
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    },
+    "data_origin": {
+      "$ref": "#/$defs/DataOrigin"
+    },
+    "disclaimer": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Disclaimer"
+    },
+    "existing_buildout": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "'open_shell' | 'office_buildout' | 'second_generation_salon' | null (unknown)",
+      "title": "Existing Buildout"
+    },
+    "lease_term_months": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lease Term Months"
+    },
+    "listing_type": {
+      "$ref": "#/$defs/ListingType",
+      "default": "LEASE"
+    },
+    "listing_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Listing Url"
+    },
+    "nnn_charges_monthly": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Nnn Charges Monthly"
+    },
+    "property_type": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Property Type"
+    },
+    "provider": {
+      "description": "'costar' only when sourced from CoStar; fixtures say 'fixture'.",
+      "title": "Provider",
+      "type": "string"
+    },
+    "provider_listing_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Listing Id"
+    },
+    "security_deposit": {
+      "anyOf": [
+        {
+          "description": "Non-negative integer minor currency units.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Security Deposit"
+    }
+  },
+  "required": [
+    "provider",
+    "data_origin"
+  ],
+  "title": "CommercialListing",
+  "type": "object"
+}

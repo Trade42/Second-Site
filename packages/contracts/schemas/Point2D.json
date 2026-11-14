@@ -1,0 +1,20 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/Point2D.json",
+  "additionalProperties": false,
+  "properties": {
+    "x": {
+      "title": "X",
+      "type": "number"
+    },
+    "y": {
+      "title": "Y",
+      "type": "number"
+    }
+  },
+  "required": [
+    "x",
+    "y"
+  ],
+  "title": "Point2D",
+  "type": "object"
+}

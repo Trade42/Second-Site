@@ -1,0 +1,47 @@
+{
+  "$defs": {
+    "ApprovalStatus": {
+      "enum": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED",
+        "EXPIRED",
+        "CANCELLED",
+        "EXECUTED"
+      ],
+      "title": "ApprovalStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/ApprovalDecision.json",
+  "additionalProperties": false,
+  "properties": {
+    "action_payload_hash": {
+      "description": "Hash of the payload the owner saw; must match.",
+      "title": "Action Payload Hash",
+      "type": "string"
+    },
+    "decision": {
+      "$ref": "#/$defs/ApprovalStatus",
+      "description": "APPROVED or REJECTED"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    }
+  },
+  "required": [
+    "decision",
+    "action_payload_hash"
+  ],
+  "title": "ApprovalDecision",
+  "type": "object"
+}

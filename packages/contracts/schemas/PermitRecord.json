@@ -1,0 +1,316 @@
+{
+  "$defs": {
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    },
+    "EvidenceClassification": {
+      "description": "How an assertion is known. Never collapsed into a single confidence score.",
+      "enum": [
+        "DOCUMENTED_HISTORICAL",
+        "VISUALLY_OBSERVED",
+        "GEOMETRY_MEASURED",
+        "OWNER_REPORTED",
+        "PROFESSIONALLY_VERIFIED",
+        "DERIVED_ESTIMATE",
+        "UNKNOWN",
+        "CONFLICTING"
+      ],
+      "title": "EvidenceClassification",
+      "type": "string"
+    },
+    "ExtractedInfrastructureFact": {
+      "additionalProperties": false,
+      "description": "A technical value parsed from a permit description. Permit status != verification.",
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/EvidenceClassification",
+          "default": "DOCUMENTED_HISTORICAL"
+        },
+        "fact_type": {
+          "description": "e.g. 'electrical_service_amps', 'water_service_diameter'",
+          "title": "Fact Type",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "source_text": {
+          "description": "Exact substring the value was extracted from.",
+          "title": "Source Text",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "fact_type",
+        "value",
+        "source_text"
+      ],
+      "title": "ExtractedInfrastructureFact",
+      "type": "object"
+    },
+    "MatchStatus": {
+      "enum": [
+        "EXACT",
+        "PROBABLE",
+        "AMBIGUOUS",
+        "UNMATCHED",
+        "CONFLICTING",
+        "NEEDS_REVIEW"
+      ],
+      "title": "MatchStatus",
+      "type": "string"
+    },
+    "PermitCategory": {
+      "enum": [
+        "ELECTRICAL",
+        "PLUMBING",
+        "HVAC",
+        "FIRE_SPRINKLER",
+        "BUILDING",
+        "OTHER_MECHANICAL",
+        "OTHER"
+      ],
+      "title": "PermitCategory",
+      "type": "string"
+    },
+    "PermitScope": {
+      "enum": [
+        "BUILDING",
+        "UNIT",
+        "FLOOR",
+        "UNKNOWN"
+      ],
+      "title": "PermitScope",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/PermitRecord.json",
+  "additionalProperties": false,
+  "properties": {
+    "data_origin": {
+      "$ref": "#/$defs/DataOrigin"
+    },
+    "extracted_infrastructure_facts": {
+      "items": {
+        "$ref": "#/$defs/ExtractedInfrastructureFact"
+      },
+      "title": "Extracted Infrastructure Facts",
+      "type": "array"
+    },
+    "finaled_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "status_date when status is finaled; otherwise null.",
+      "title": "Finaled Date"
+    },
+    "issued_date": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Issued Date"
+    },
+    "match_confidence": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Match Confidence"
+    },
+    "match_explanation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Match Explanation"
+    },
+    "match_status": {
+      "$ref": "#/$defs/MatchStatus",
+      "default": "UNMATCHED"
+    },
+    "matched_property_identity": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Matched Property Identity"
+    },
+    "normalized_address": {
+      "title": "Normalized Address",
+      "type": "string"
+    },
+    "original_address": {
+      "title": "Original Address",
+      "type": "string"
+    },
+    "parcel_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parcel Id"
+    },
+    "permit_category": {
+      "$ref": "#/$defs/PermitCategory"
+    },
+    "permit_number": {
+      "title": "Permit Number",
+      "type": "string"
+    },
+    "permit_record_id": {
+      "format": "uuid",
+      "title": "Permit Record Id",
+      "type": "string"
+    },
+    "permit_status": {
+      "description": "Source status verbatim, e.g. 'Permit Finaled'.",
+      "title": "Permit Status",
+      "type": "string"
+    },
+    "property_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Property Id"
+    },
+    "scope": {
+      "$ref": "#/$defs/PermitScope",
+      "default": "UNKNOWN"
+    },
+    "source_dataset": {
+      "title": "Source Dataset",
+      "type": "string"
+    },
+    "source_evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Source Evidence Ids",
+      "type": "array"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "unit_or_suite": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit Or Suite"
+    },
+    "work_description": {
+      "title": "Work Description",
+      "type": "string"
+    }
+  },
+  "required": [
+    "permit_number",
+    "permit_category",
+    "permit_status",
+    "work_description",
+    "original_address",
+    "normalized_address",
+    "source_dataset",
+    "data_origin"
+  ],
+  "title": "PermitRecord",
+  "type": "object"
+}

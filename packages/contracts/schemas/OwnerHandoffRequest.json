@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "HandoffReason": {
+      "enum": [
+        "BINDING_COMMITMENT",
+        "FINANCIAL_DETAILS",
+        "GUARANTOR_REQUESTED",
+        "SENSITIVE_PERSONAL_INFO",
+        "COUNTERPARTY_REQUESTED_OWNER",
+        "INSUFFICIENT_EVIDENCE",
+        "EXCEEDS_AUTHORITY"
+      ],
+      "title": "HandoffReason",
+      "type": "string"
+    },
+    "HandoffStatus": {
+      "enum": [
+        "PENDING",
+        "NOTIFIED",
+        "ACCEPTED",
+        "DECLINED",
+        "DEFERRED",
+        "EXPIRED"
+      ],
+      "title": "HandoffStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/OwnerHandoffRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "call_id": {
+      "format": "uuid",
+      "title": "Call Id",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "handoff_request_id": {
+      "format": "uuid",
+      "title": "Handoff Request Id",
+      "type": "string"
+    },
+    "join_token_reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Opaque reference to a short-lived join token held server-side. Never the raw token.",
+      "title": "Join Token Reference"
+    },
+    "owner_id": {
+      "format": "uuid",
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    },
+    "reason": {
+      "$ref": "#/$defs/HandoffReason"
+    },
+    "status": {
+      "$ref": "#/$defs/HandoffStatus",
+      "default": "PENDING"
+    },
+    "urgency": {
+      "default": "HIGH",
+      "description": "'HIGH' | 'NORMAL'",
+      "title": "Urgency",
+      "type": "string"
+    }
+  },
+  "required": [
+    "call_id",
+    "project_id",
+    "reason",
+    "question",
+    "owner_id",
+    "expires_at"
+  ],
+  "title": "OwnerHandoffRequest",
+  "type": "object"
+}

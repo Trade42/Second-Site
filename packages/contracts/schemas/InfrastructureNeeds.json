@@ -1,0 +1,51 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/InfrastructureNeeds.json",
+  "additionalProperties": false,
+  "properties": {
+    "min_electrical_service_amps": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Electrical Service Amps"
+    },
+    "minimize_plumbing_changes": {
+      "default": false,
+      "title": "Minimize Plumbing Changes",
+      "type": "boolean"
+    },
+    "needs_dedicated_hvac_zoning": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Needs Dedicated Hvac Zoning"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "sinks_per_treatment_room": {
+      "default": 1,
+      "minimum": 0,
+      "title": "Sinks Per Treatment Room",
+      "type": "integer"
+    }
+  },
+  "title": "InfrastructureNeeds",
+  "type": "object"
+}

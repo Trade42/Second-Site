@@ -1,0 +1,34 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/RankingUpdatedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "ranking_id": {
+      "format": "uuid",
+      "title": "Ranking Id",
+      "type": "string"
+    },
+    "ranking_version": {
+      "title": "Ranking Version",
+      "type": "integer"
+    },
+    "top_property_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Top Property Id"
+    }
+  },
+  "required": [
+    "ranking_id",
+    "ranking_version",
+    "top_property_id"
+  ],
+  "title": "RankingUpdatedPayload",
+  "type": "object"
+}

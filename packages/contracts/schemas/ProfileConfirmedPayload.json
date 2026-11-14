@@ -1,0 +1,16 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ProfileConfirmedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "profile_id": {
+      "format": "uuid",
+      "title": "Profile Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile_id"
+  ],
+  "title": "ProfileConfirmedPayload",
+  "type": "object"
+}

@@ -1,0 +1,50 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/OperationalRequirements.json",
+  "additionalProperties": false,
+  "properties": {
+    "ada_accessible_required": {
+      "default": true,
+      "title": "Ada Accessible Required",
+      "type": "boolean"
+    },
+    "operating_hours": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Operating Hours"
+    },
+    "parking_required": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parking Required"
+    },
+    "staff_count": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Staff Count"
+    }
+  },
+  "title": "OperationalRequirements",
+  "type": "object"
+}

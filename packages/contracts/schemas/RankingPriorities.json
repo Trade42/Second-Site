@@ -1,0 +1,34 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/RankingPriorities.json",
+  "additionalProperties": false,
+  "description": "Relative weights. Normalized by the ranking service; must not all be zero.",
+  "properties": {
+    "comparison_horizon_months": {
+      "default": 36,
+      "exclusiveMinimum": 0,
+      "maximum": 240,
+      "title": "Comparison Horizon Months",
+      "type": "integer"
+    },
+    "evidence_certainty": {
+      "default": 0.2,
+      "minimum": 0,
+      "title": "Evidence Certainty",
+      "type": "number"
+    },
+    "infrastructure_fit": {
+      "default": 0.3,
+      "minimum": 0,
+      "title": "Infrastructure Fit",
+      "type": "number"
+    },
+    "total_cost": {
+      "default": 0.5,
+      "minimum": 0,
+      "title": "Total Cost",
+      "type": "number"
+    }
+  },
+  "title": "RankingPriorities",
+  "type": "object"
+}

@@ -1,0 +1,38 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/TaskPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "error_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_type": {
+      "title": "Task Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "task_type",
+    "status"
+  ],
+  "title": "TaskPayload",
+  "type": "object"
+}

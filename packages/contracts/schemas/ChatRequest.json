@@ -1,0 +1,17 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ChatRequest.json",
+  "additionalProperties": false,
+  "properties": {
+    "message": {
+      "maxLength": 8000,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    }
+  },
+  "required": [
+    "message"
+  ],
+  "title": "ChatRequest",
+  "type": "object"
+}

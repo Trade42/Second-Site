@@ -1,0 +1,1115 @@
+{
+  "$defs": {
+    "AssessmentStatus": {
+      "enum": [
+        "MEETS",
+        "MAY_REQUIRE_WORK",
+        "FAILS",
+        "UNKNOWN"
+      ],
+      "title": "AssessmentStatus",
+      "type": "string"
+    },
+    "CommercialListing": {
+      "additionalProperties": false,
+      "properties": {
+        "asking_rent_monthly": {
+          "anyOf": [
+            {
+              "description": "Non-negative integer minor currency units.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asking Rent Monthly"
+        },
+        "available_area_sqm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Available Area Sqm"
+        },
+        "available_from": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Available From"
+        },
+        "currency": {
+          "default": "USD",
+          "title": "Currency",
+          "type": "string"
+        },
+        "data_origin": {
+          "$ref": "#/$defs/DataOrigin"
+        },
+        "disclaimer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disclaimer"
+        },
+        "existing_buildout": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'open_shell' | 'office_buildout' | 'second_generation_salon' | null (unknown)",
+          "title": "Existing Buildout"
+        },
+        "lease_term_months": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lease Term Months"
+        },
+        "listing_type": {
+          "$ref": "#/$defs/ListingType",
+          "default": "LEASE"
+        },
+        "listing_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listing Url"
+        },
+        "nnn_charges_monthly": {
+          "anyOf": [
+            {
+              "description": "Non-negative integer minor currency units.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nnn Charges Monthly"
+        },
+        "property_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Property Type"
+        },
+        "provider": {
+          "description": "'costar' only when sourced from CoStar; fixtures say 'fixture'.",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_listing_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Listing Id"
+        },
+        "security_deposit": {
+          "anyOf": [
+            {
+              "description": "Non-negative integer minor currency units.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Security Deposit"
+        }
+      },
+      "required": [
+        "provider",
+        "data_origin"
+      ],
+      "title": "CommercialListing",
+      "type": "object"
+    },
+    "DataOrigin": {
+      "description": "Where a record's content came from. Fixtures must never masquerade as live data.",
+      "enum": [
+        "LIVE",
+        "FIXTURE_REAL",
+        "FIXTURE_SYNTHETIC",
+        "USER_PROVIDED",
+        "DERIVED"
+      ],
+      "title": "DataOrigin",
+      "type": "string"
+    },
+    "EvidenceClassification": {
+      "description": "How an assertion is known. Never collapsed into a single confidence score.",
+      "enum": [
+        "DOCUMENTED_HISTORICAL",
+        "VISUALLY_OBSERVED",
+        "GEOMETRY_MEASURED",
+        "OWNER_REPORTED",
+        "PROFESSIONALLY_VERIFIED",
+        "DERIVED_ESTIMATE",
+        "UNKNOWN",
+        "CONFLICTING"
+      ],
+      "title": "EvidenceClassification",
+      "type": "string"
+    },
+    "ExteriorAsset": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "asset_type": {
+          "description": "e.g. 'oblique', 'orthomosaic', 'roof_analysis'",
+          "title": "Asset Type",
+          "type": "string"
+        },
+        "captured_at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Captured At"
+        },
+        "data_origin": {
+          "$ref": "#/$defs/DataOrigin"
+        },
+        "provider": {
+          "description": "'vexcel' or fixture",
+          "title": "Provider",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "provider",
+        "asset_id",
+        "asset_type",
+        "data_origin"
+      ],
+      "title": "ExteriorAsset",
+      "type": "object"
+    },
+    "ExtractedInfrastructureFact": {
+      "additionalProperties": false,
+      "description": "A technical value parsed from a permit description. Permit status != verification.",
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/EvidenceClassification",
+          "default": "DOCUMENTED_HISTORICAL"
+        },
+        "fact_type": {
+          "description": "e.g. 'electrical_service_amps', 'water_service_diameter'",
+          "title": "Fact Type",
+          "type": "string"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "source_text": {
+          "description": "Exact substring the value was extracted from.",
+          "title": "Source Text",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "fact_type",
+        "value",
+        "source_text"
+      ],
+      "title": "ExtractedInfrastructureFact",
+      "type": "object"
+    },
+    "InfrastructureAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {
+          "format": "uuid",
+          "title": "Assessment Id",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "observed_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Value"
+        },
+        "project_id": {
+          "format": "uuid",
+          "title": "Project Id",
+          "type": "string"
+        },
+        "property_id": {
+          "format": "uuid",
+          "title": "Property Id",
+          "type": "string"
+        },
+        "proposed_work": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Proposed Work",
+          "type": "array"
+        },
+        "required_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required Value"
+        },
+        "requirement_id": {
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "review_status": {
+          "$ref": "#/$defs/ReviewStatus",
+          "default": "AUTOMATED"
+        },
+        "status": {
+          "$ref": "#/$defs/AssessmentStatus"
+        },
+        "uncertainty": {
+          "description": "Plain-language statement of what is not known.",
+          "title": "Uncertainty",
+          "type": "string"
+        },
+        "verification_questions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Verification Questions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project_id",
+        "property_id",
+        "requirement_id",
+        "status",
+        "uncertainty"
+      ],
+      "title": "InfrastructureAssessment",
+      "type": "object"
+    },
+    "InfrastructureObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/EvidenceClassification"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "observation_id": {
+          "format": "uuid",
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "observation_type": {
+          "title": "Observation Type",
+          "type": "string"
+        },
+        "property_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Property Id"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "observation_type",
+        "classification",
+        "description"
+      ],
+      "title": "InfrastructureObservation",
+      "type": "object"
+    },
+    "InteriorAsset": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "asset_type": {
+          "description": "e.g. 'matterport_model', 'floor_plan_image', 'photo'",
+          "title": "Asset Type",
+          "type": "string"
+        },
+        "data_origin": {
+          "$ref": "#/$defs/DataOrigin"
+        },
+        "has_measured_geometry": {
+          "default": false,
+          "title": "Has Measured Geometry",
+          "type": "boolean"
+        },
+        "provider": {
+          "description": "'matterport' or fixture",
+          "title": "Provider",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "provider",
+        "asset_id",
+        "asset_type",
+        "data_origin"
+      ],
+      "title": "InteriorAsset",
+      "type": "object"
+    },
+    "ListingType": {
+      "enum": [
+        "LEASE",
+        "SALE"
+      ],
+      "title": "ListingType",
+      "type": "string"
+    },
+    "MatchStatus": {
+      "enum": [
+        "EXACT",
+        "PROBABLE",
+        "AMBIGUOUS",
+        "UNMATCHED",
+        "CONFLICTING",
+        "NEEDS_REVIEW"
+      ],
+      "title": "MatchStatus",
+      "type": "string"
+    },
+    "PermitCategory": {
+      "enum": [
+        "ELECTRICAL",
+        "PLUMBING",
+        "HVAC",
+        "FIRE_SPRINKLER",
+        "BUILDING",
+        "OTHER_MECHANICAL",
+        "OTHER"
+      ],
+      "title": "PermitCategory",
+      "type": "string"
+    },
+    "PermitRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "data_origin": {
+          "$ref": "#/$defs/DataOrigin"
+        },
+        "extracted_infrastructure_facts": {
+          "items": {
+            "$ref": "#/$defs/ExtractedInfrastructureFact"
+          },
+          "title": "Extracted Infrastructure Facts",
+          "type": "array"
+        },
+        "finaled_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "status_date when status is finaled; otherwise null.",
+          "title": "Finaled Date"
+        },
+        "issued_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issued Date"
+        },
+        "match_confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match Confidence"
+        },
+        "match_explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Match Explanation"
+        },
+        "match_status": {
+          "$ref": "#/$defs/MatchStatus",
+          "default": "UNMATCHED"
+        },
+        "matched_property_identity": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Matched Property Identity"
+        },
+        "normalized_address": {
+          "title": "Normalized Address",
+          "type": "string"
+        },
+        "original_address": {
+          "title": "Original Address",
+          "type": "string"
+        },
+        "parcel_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parcel Id"
+        },
+        "permit_category": {
+          "$ref": "#/$defs/PermitCategory"
+        },
+        "permit_number": {
+          "title": "Permit Number",
+          "type": "string"
+        },
+        "permit_record_id": {
+          "format": "uuid",
+          "title": "Permit Record Id",
+          "type": "string"
+        },
+        "permit_status": {
+          "description": "Source status verbatim, e.g. 'Permit Finaled'.",
+          "title": "Permit Status",
+          "type": "string"
+        },
+        "property_id": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Property Id"
+        },
+        "scope": {
+          "$ref": "#/$defs/PermitScope",
+          "default": "UNKNOWN"
+        },
+        "source_dataset": {
+          "title": "Source Dataset",
+          "type": "string"
+        },
+        "source_evidence_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Source Evidence Ids",
+          "type": "array"
+        },
+        "source_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Url"
+        },
+        "unit_or_suite": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Or Suite"
+        },
+        "work_description": {
+          "title": "Work Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "permit_number",
+        "permit_category",
+        "permit_status",
+        "work_description",
+        "original_address",
+        "normalized_address",
+        "source_dataset",
+        "data_origin"
+      ],
+      "title": "PermitRecord",
+      "type": "object"
+    },
+    "PermitScope": {
+      "enum": [
+        "BUILDING",
+        "UNIT",
+        "FLOOR",
+        "UNKNOWN"
+      ],
+      "title": "PermitScope",
+      "type": "string"
+    },
+    "PropertyIdentity": {
+      "additionalProperties": false,
+      "description": "Canonical identity. Providers (CoStar, Matterport, Vexcel, LADBS) do NOT share IDs.",
+      "properties": {
+        "city": {
+          "title": "City",
+          "type": "string"
+        },
+        "identity_match_confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identity Match Confidence"
+        },
+        "identity_match_status": {
+          "$ref": "#/$defs/MatchStatus",
+          "default": "UNMATCHED"
+        },
+        "latitude": {
+          "anyOf": [
+            {
+              "maximum": 90,
+              "minimum": -90,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latitude"
+        },
+        "longitude": {
+          "anyOf": [
+            {
+              "maximum": 180,
+              "minimum": -180,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Longitude"
+        },
+        "normalized_address": {
+          "description": "Canonical uppercase form incl. direction and unit.",
+          "title": "Normalized Address",
+          "type": "string"
+        },
+        "parcel_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "APN when known.",
+          "title": "Parcel Id"
+        },
+        "postal_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Postal Code"
+        },
+        "property_id": {
+          "format": "uuid",
+          "title": "Property Id",
+          "type": "string"
+        },
+        "provider_property_ids": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "provider -> provider-native id, e.g. {'costar': '...'}",
+          "title": "Provider Property Ids",
+          "type": "object"
+        },
+        "state": {
+          "maxLength": 2,
+          "minLength": 2,
+          "title": "State",
+          "type": "string"
+        },
+        "street_address": {
+          "title": "Street Address",
+          "type": "string"
+        },
+        "unit_or_suite": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Or Suite"
+        }
+      },
+      "required": [
+        "normalized_address",
+        "street_address",
+        "city",
+        "state"
+      ],
+      "title": "PropertyIdentity",
+      "type": "object"
+    },
+    "ReviewStatus": {
+      "enum": [
+        "AUTOMATED",
+        "NEEDS_REVIEW",
+        "REVIEWED"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    },
+    "SourceManifestEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "record_count": {
+          "default": 0,
+          "title": "Record Count",
+          "type": "integer"
+        },
+        "retrieved_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retrieved At"
+        },
+        "status": {
+          "description": "LIVE | MOCK | PARTIAL | BLOCKED | NOT_STARTED | NOT_FOUND",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "status"
+      ],
+      "title": "SourceManifestEntry",
+      "type": "object"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/PropertyDigitalProfile.json",
+  "additionalProperties": false,
+  "description": "Primary unified property intelligence object. Raw provider payloads are NOT embedded.",
+  "properties": {
+    "building_observations": {
+      "items": {
+        "$ref": "#/$defs/InfrastructureObservation"
+      },
+      "title": "Building Observations",
+      "type": "array"
+    },
+    "commercial_listing": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CommercialListing"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "exterior_assets": {
+      "items": {
+        "$ref": "#/$defs/ExteriorAsset"
+      },
+      "title": "Exterior Assets",
+      "type": "array"
+    },
+    "geometry_reference": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "SiteGeometry id if available.",
+      "title": "Geometry Reference"
+    },
+    "infrastructure_assessments": {
+      "items": {
+        "$ref": "#/$defs/InfrastructureAssessment"
+      },
+      "title": "Infrastructure Assessments",
+      "type": "array"
+    },
+    "interior_assets": {
+      "items": {
+        "$ref": "#/$defs/InteriorAsset"
+      },
+      "title": "Interior Assets",
+      "type": "array"
+    },
+    "last_analyzed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Analyzed At"
+    },
+    "missing_information": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Information",
+      "type": "array"
+    },
+    "permit_records": {
+      "items": {
+        "$ref": "#/$defs/PermitRecord"
+      },
+      "title": "Permit Records",
+      "type": "array"
+    },
+    "project_id": {
+      "format": "uuid",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "property_identity": {
+      "$ref": "#/$defs/PropertyIdentity"
+    },
+    "source_manifest": {
+      "items": {
+        "$ref": "#/$defs/SourceManifestEntry"
+      },
+      "title": "Source Manifest",
+      "type": "array"
+    }
+  },
+  "required": [
+    "property_id",
+    "project_id",
+    "property_identity"
+  ],
+  "title": "PropertyDigitalProfile",
+  "type": "object"
+}

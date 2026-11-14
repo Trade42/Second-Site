@@ -1,0 +1,21 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/Money.json",
+  "additionalProperties": false,
+  "properties": {
+    "amount_minor": {
+      "description": "Integer minor currency units (e.g. cents).",
+      "title": "Amount Minor",
+      "type": "integer"
+    },
+    "currency": {
+      "default": "USD",
+      "title": "Currency",
+      "type": "string"
+    }
+  },
+  "required": [
+    "amount_minor"
+  ],
+  "title": "Money",
+  "type": "object"
+}

@@ -1,0 +1,46 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/Opening.json",
+  "additionalProperties": false,
+  "properties": {
+    "end": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "End",
+      "type": "array"
+    },
+    "kind": {
+      "description": "'entrance' | 'exit' | 'window'",
+      "title": "Kind",
+      "type": "string"
+    },
+    "start": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Start",
+      "type": "array"
+    }
+  },
+  "required": [
+    "kind",
+    "start",
+    "end"
+  ],
+  "title": "Opening",
+  "type": "object"
+}

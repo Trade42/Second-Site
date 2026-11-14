@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "AgentTaskStatus": {
+      "enum": [
+        "COMPLETED",
+        "PARTIAL",
+        "FAILED",
+        "NEEDS_APPROVAL"
+      ],
+      "title": "AgentTaskStatus",
+      "type": "string"
+    }
+  },
+  "$id": "https://second-site.dev/contracts/1.0/AgentTaskResult.json",
+  "additionalProperties": false,
+  "properties": {
+    "completed_at": {
+      "format": "date-time",
+      "title": "Completed At",
+      "type": "string"
+    },
+    "errors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Errors",
+      "type": "array"
+    },
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "output_record_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Output Record Ids",
+      "type": "array"
+    },
+    "status": {
+      "$ref": "#/$defs/AgentTaskStatus"
+    },
+    "task_id": {
+      "format": "uuid",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "unresolved_questions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Questions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "task_id",
+    "status"
+  ],
+  "title": "AgentTaskResult",
+  "type": "object"
+}

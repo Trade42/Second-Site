@@ -1,0 +1,32 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ScenarioUpdatedPayload.json",
+  "additionalProperties": false,
+  "properties": {
+    "comparison_horizon_months": {
+      "title": "Comparison Horizon Months",
+      "type": "integer"
+    },
+    "long_term_cost": {
+      "title": "Long Term Cost",
+      "type": "integer"
+    },
+    "property_id": {
+      "format": "uuid",
+      "title": "Property Id",
+      "type": "string"
+    },
+    "scenario_id": {
+      "format": "uuid",
+      "title": "Scenario Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "property_id",
+    "scenario_id",
+    "long_term_cost",
+    "comparison_horizon_months"
+  ],
+  "title": "ScenarioUpdatedPayload",
+  "type": "object"
+}

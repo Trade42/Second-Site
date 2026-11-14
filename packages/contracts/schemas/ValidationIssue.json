@@ -1,0 +1,27 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/ValidationIssue.json",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "title": "Code",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "room_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Room Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "code",
+    "message"
+  ],
+  "title": "ValidationIssue",
+  "type": "object"
+}
