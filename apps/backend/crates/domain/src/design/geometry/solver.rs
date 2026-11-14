@@ -173,12 +173,14 @@ pub struct Placement {
 }
 
 /// The result of [`solve`]: status, CP-SAT-equivalent objective value and the placements
-/// (sorted by room index).
+/// (sorted by room index). `alternatives` holds other solutions with the same (optimal)
+/// objective, from the search's other tie-breaks, in order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SolveReport {
     pub status: SolveStatus,
     pub objective: Option<i64>,
     pub placements: Vec<Placement>,
+    pub alternatives: Vec<Vec<Placement>>,
 }
 
 impl SolveReport {
@@ -187,26 +189,31 @@ impl SolveReport {
             status,
             objective: None,
             placements: vec![],
+            alternatives: vec![],
         }
     }
 
     /// Python's `_solve` return value: `(room_idx, strip_idx, start_m, length_m)` sorted, or
     /// `None`.
     pub fn solution(&self) -> Option<Vec<(usize, usize, f64, f64)>> {
-        self.status.has_solution().then(|| {
-            self.placements
-                .iter()
-                .map(|p| {
-                    (
-                        p.room,
-                        p.strip,
-                        p.start_cm as f64 / CM as f64,
-                        p.length_cm as f64 / CM as f64,
-                    )
-                })
-                .collect()
-        })
+        self.status
+            .has_solution()
+            .then(|| in_meters(&self.placements))
     }
+}
+
+fn in_meters(placements: &[Placement]) -> Vec<(usize, usize, f64, f64)> {
+    placements
+        .iter()
+        .map(|p| {
+            (
+                p.room,
+                p.strip,
+                p.start_cm as f64 / CM as f64,
+                p.length_cm as f64 / CM as f64,
+            )
+        })
+        .collect()
 }
 
 fn not_rectangular() -> DomainError {
@@ -608,7 +615,11 @@ fn gain(p: &Place, hi: i64, start: i64, end: i64) -> Option<i64> {
 type ClassPlacements = Vec<(usize, usize, i64, i64)>;
 
 /// Exact search without plumbing terms: rooms to gaps.
-fn assignment_dp(model: &Model, cls: &[Class], st: &States) -> Option<Option<ClassPlacements>> {
+fn assignment_dp(
+    model: &Model,
+    cls: &[Class],
+    st: &States,
+) -> Option<Option<Vec<ClassPlacements>>> {
     // Work bound: sum over states of the sub-multisets per gap.
     let mut work = 1usize;
     for c in &st.counts {
@@ -689,12 +700,21 @@ fn assignment_dp(model: &Model, cls: &[Class], st: &States) -> Option<Option<Cla
     if w[0] <= NEG / 2 {
         return Some(None);
     }
-    // Reconstruct.
-    let mut placements: ClassPlacements = Vec::new();
+    // Reconstruct the assignment, then lay it out once per tie-break variant.
+    let mut chosen: Vec<(usize, usize)> = Vec::new(); // (gap, subset)
     let mut state = 0usize;
-    for (gi, g) in model.gaps.iter().enumerate().rev() {
+    for gi in (0..model.gaps.len()).rev() {
         let (r_in, subset) = back[gi][state];
         if subset != 0 {
+            chosen.push((gi, subset));
+        }
+        state = r_in;
+    }
+    let mut variants: Vec<ClassPlacements> = Vec::new();
+    for tie in Tie::ALL {
+        let mut placements: ClassPlacements = Vec::new();
+        for &(gi, subset) in &chosen {
+            let g = model.gaps[gi];
             let len = g.hi - g.lo;
             let mut rooms: Vec<(usize, Place)> = Vec::new();
             for (k, c) in cls.iter().enumerate() {
@@ -704,10 +724,14 @@ fn assignment_dp(model: &Model, cls: &[Class], st: &States) -> Option<Option<Cla
                     }
                 }
             }
+            if tie.reverse_classes {
+                rooms.reverse();
+            }
             let sum_lo: i64 = rooms.iter().map(|(_, p)| p.lo).sum();
             let sum_max: i64 = rooms.iter().map(|(_, p)| p.max).sum();
-            let mut extra = len.min(sum_max) - sum_lo;
-            let mut cursor = g.lo;
+            let used = len.min(sum_max);
+            let mut extra = used - sum_lo;
+            let mut cursor = if tie.pack_end { g.hi - used } else { g.lo };
             for (k, p) in rooms {
                 let add = extra.min(p.max - p.lo);
                 extra -= add;
@@ -716,9 +740,44 @@ fn assignment_dp(model: &Model, cls: &[Class], st: &States) -> Option<Option<Cla
                 cursor += length;
             }
         }
-        state = r_in;
+        if !variants.contains(&placements) {
+            variants.push(placements);
+        }
     }
-    Some(Some(placements))
+    Some(Some(variants))
+}
+
+/// Deterministic tie-breaks between optimal solutions. The search reconstructs one solution per
+/// variant, in this order; all have the optimal objective. `generate_candidates` keeps the first
+/// one the validator accepts (the model, like Python's, ignores openings other than the first
+/// entrance, so equally good layouts can differ in what they cover).
+#[derive(Debug, Clone, Copy)]
+struct Tie {
+    /// Within a gap, place classes in reverse order.
+    reverse_classes: bool,
+    /// Push rooms toward the end of their gap (otherwise toward its start).
+    pack_end: bool,
+}
+
+impl Tie {
+    const ALL: [Tie; 4] = [
+        Tie {
+            reverse_classes: false,
+            pack_end: false,
+        },
+        Tie {
+            reverse_classes: false,
+            pack_end: true,
+        },
+        Tie {
+            reverse_classes: true,
+            pack_end: false,
+        },
+        Tie {
+            reverse_classes: true,
+            pack_end: true,
+        },
+    ];
 }
 
 /// Range-maximum (sparse table) over a slice.
@@ -762,7 +821,11 @@ impl Sparse {
 }
 
 /// Exact search with plumbing terms: gaps x centimetre positions x class-count states.
-fn position_dp(model: &Model, cls: &[Class], st: &States) -> Option<Option<ClassPlacements>> {
+fn position_dp(
+    model: &Model,
+    cls: &[Class],
+    st: &States,
+) -> Option<Option<Vec<ClassPlacements>>> {
     let positions: usize = model
         .gaps
         .iter()
@@ -866,53 +929,76 @@ fn position_dp(model: &Model, cls: &[Class], st: &States) -> Option<Option<Class
     if carry[0] <= NEG / 2 {
         return Some(None);
     }
-    // Reconstruct from the last gap, no rooms remaining, last position.
-    let mut placements: ClassPlacements = Vec::new();
-    let mut state = 0usize;
-    let mut gi = model.gaps.len();
-    while gi > 0 {
-        gi -= 1;
-        let g = model.gaps[gi];
-        let n = (g.hi - g.lo + 1) as usize;
-        let hi = model.hi[g.strip];
-        let v = &tables[gi];
-        let mut x = g.hi;
-        while x > g.lo {
-            let cur = v[state * n + (x - g.lo) as usize];
-            if cur == v[state * n + (x - 1 - g.lo) as usize] {
-                x -= 1;
-                continue;
-            }
-            let mut found = None;
-            'search: for (k, c) in cls.iter().enumerate() {
-                let Some(p) = c.place[g.strip] else {
-                    continue;
-                };
-                if st.digit(state, k) >= st.counts[k] {
+    // Reconstruct from the last gap, no rooms remaining, last position: once per tie-break.
+    let reconstruct = |tie: Tie| -> Option<ClassPlacements> {
+        let mut placements: ClassPlacements = Vec::new();
+        let mut state = 0usize;
+        let mut gi = model.gaps.len();
+        let order: Vec<usize> = if tie.reverse_classes {
+            (0..cls.len()).rev().collect()
+        } else {
+            (0..cls.len()).collect()
+        };
+        while gi > 0 {
+            gi -= 1;
+            let g = model.gaps[gi];
+            let n = (g.hi - g.lo + 1) as usize;
+            let hi = model.hi[g.strip];
+            let v = &tables[gi];
+            let mut x = g.hi;
+            while x > g.lo {
+                let cur = v[state * n + (x - g.lo) as usize];
+                let slack = cur == v[state * n + (x - 1 - g.lo) as usize];
+                // Packing toward the start of a gap leaves slack at its end: take the slack first
+                // when walking back from the end. Packing toward the end does the opposite.
+                if slack && !tie.pack_end {
+                    x -= 1;
                     continue;
                 }
-                let src = state + st.strides[k];
-                let lo_y = g.lo.max(x - p.max);
-                for y in lo_y..=(x - p.lo) {
-                    let prev = v[src * n + (y - g.lo) as usize];
-                    if prev <= NEG / 2 {
+                let mut found = None;
+                'search: for &k in &order {
+                    let Some(p) = cls[k].place[g.strip] else {
+                        continue;
+                    };
+                    if st.digit(state, k) >= st.counts[k] {
                         continue;
                     }
-                    if let Some(gn) = gain(&p, hi, y, x) {
-                        if prev + gn == cur {
-                            found = Some((k, src, y));
-                            break 'search;
+                    let src = state + st.strides[k];
+                    let lo_y = g.lo.max(x - p.max);
+                    for y in lo_y..=(x - p.lo) {
+                        let prev = v[src * n + (y - g.lo) as usize];
+                        if prev <= NEG / 2 {
+                            continue;
+                        }
+                        if let Some(gn) = gain(&p, hi, y, x) {
+                            if prev + gn == cur {
+                                found = Some((k, src, y));
+                                break 'search;
+                            }
                         }
                     }
                 }
+                match found {
+                    Some((k, src, y)) => {
+                        placements.push((k, gi, y, x));
+                        state = src;
+                        x = y;
+                    }
+                    None if slack => x -= 1,
+                    None => return None,
+                }
             }
-            let (k, src, y) = found?;
-            placements.push((k, gi, y, x));
-            state = src;
-            x = y;
+        }
+        (state == st.full()).then_some(placements)
+    };
+    let mut variants: Vec<ClassPlacements> = Vec::new();
+    for tie in Tie::ALL {
+        let placements = reconstruct(tie)?;
+        if !variants.contains(&placements) {
+            variants.push(placements);
         }
     }
-    (state == st.full()).then_some(Some(placements))
+    Some(Some(variants))
 }
 
 /// Constructive method (bounded): largest minimum length first into the allowed gap with the most
@@ -1054,44 +1140,61 @@ pub fn solve(
         };
         r.map(|res| (res, st))
     });
-    let (placements, status) = match exact {
-        Some((None, _)) => return SolveReport::none(SolveStatus::Infeasible),
-        Some((Some(per_class), _)) => {
-            // Class placements to room indices: within a class, rooms in index order take the
-            // placements in (strip, start) order.
-            let mut by_class: Vec<Vec<(usize, i64, i64)>> = vec![Vec::new(); cls.len()];
-            for (k, gi, s, e) in per_class {
-                by_class[k].push((model.gaps[gi].strip, s, e));
-            }
-            let mut out = Vec::with_capacity(rooms.len());
-            for (k, c) in cls.iter().enumerate() {
-                by_class[k].sort_unstable();
-                for (room, (strip, s, e)) in c.rooms.iter().zip(&by_class[k]) {
-                    out.push(Placement {
-                        room: *room,
-                        strip: *strip,
-                        start_cm: *s,
-                        length_cm: e - s,
-                    });
-                }
-            }
-            out.sort_by_key(|p| p.room);
-            (out, SolveStatus::Optimal)
+    let to_rooms = |per_class: ClassPlacements| -> Vec<Placement> {
+        // Class placements to room indices: within a class, rooms in index order take the
+        // placements in (strip, start) order.
+        let mut by_class: Vec<Vec<(usize, i64, i64)>> = vec![Vec::new(); cls.len()];
+        for (k, gi, s, e) in per_class {
+            by_class[k].push((model.gaps[gi].strip, s, e));
         }
+        let mut out = Vec::with_capacity(rooms.len());
+        for (k, c) in cls.iter().enumerate() {
+            by_class[k].sort_unstable();
+            for (room, (strip, s, e)) in c.rooms.iter().zip(&by_class[k]) {
+                out.push(Placement {
+                    room: *room,
+                    strip: *strip,
+                    start_cm: *s,
+                    length_cm: e - s,
+                });
+            }
+        }
+        out.sort_by_key(|p| p.room);
+        out
+    };
+    let (variants, status) = match exact {
+        Some((None, _)) => return SolveReport::none(SolveStatus::Infeasible),
+        Some((Some(per_variant), _)) => (
+            per_variant.into_iter().map(to_rooms).collect::<Vec<_>>(),
+            SolveStatus::Optimal,
+        ),
         None => match constructive(&model, rooms.len()) {
-            Some(p) => (p, SolveStatus::Feasible),
+            Some(p) => (vec![p], SolveStatus::Feasible),
             None => return SolveReport::none(SolveStatus::Unknown),
         },
     };
-    match check_against(&model, &placements) {
-        Ok(objective) => SolveReport {
-            status,
-            objective: Some(objective),
-            placements,
-        },
+    let mut checked: Vec<(i64, Vec<Placement>)> = Vec::new();
+    for v in variants {
         // The constructive method can break the plumbing domain constraint; the exact searches
-        // cannot (a failure there would be a defect, reported as no solution).
-        Err(_) => SolveReport::none(SolveStatus::Unknown),
+        // cannot (a failure there would be a defect, and that variant is dropped).
+        if let Ok(objective) = check_against(&model, &v) {
+            if !checked.iter().any(|(_, w)| *w == v) {
+                checked.push((objective, v));
+            }
+        }
+    }
+    let mut it = checked.into_iter();
+    let Some((objective, placements)) = it.next() else {
+        return SolveReport::none(SolveStatus::Unknown);
+    };
+    SolveReport {
+        status,
+        objective: Some(objective),
+        placements,
+        alternatives: it
+            .filter(|(o, _)| *o == objective)
+            .map(|(_, v)| v)
+            .collect(),
     }
 }
 
@@ -1215,11 +1318,51 @@ fn infeasible(name: &str, circulation: Vec<Vec<Coord>>, message: String) -> Cand
     }
 }
 
+/// Room polygons for a solution: coordinates rounded to 3 decimals, areas to 2, ids
+/// `<room_type>-<n>` counted in room order. `Err` when a room fails its contract.
+fn room_polygons(
+    rooms: &[RoomRequirement],
+    strips: &[Strip],
+    placements: &[Placement],
+) -> Result<Vec<RoomPolygon>, DomainError> {
+    let mut counters: Vec<(String, usize)> = Vec::new();
+    let mut polys = Vec::with_capacity(placements.len());
+    for (i, s, start, length) in in_meters(placements) {
+        let rt = rooms[i].room_type.clone();
+        let n = match counters.iter_mut().find(|(t, _)| *t == rt) {
+            Some((_, c)) => {
+                *c += 1;
+                *c
+            }
+            None => {
+                counters.push((rt.clone(), 1));
+                1
+            }
+        };
+        let pts: Vec<Coord> = to_polygon(&strips[s], start, length)
+            .into_iter()
+            .map(|(x, y)| (py::round(x, 3), py::round(y, 3)))
+            .collect();
+        let area = py::round(geometry::polygon_area(&pts), 2);
+        let room = RoomPolygon {
+            room_id: format!("{rt}-{n}"),
+            room_type: rt,
+            polygon: pts,
+            area_sqm: area,
+        };
+        room.validate()?;
+        polys.push(room);
+    }
+    Ok(polys)
+}
+
 /// `generate_candidates(site, requirements, prefs, count)`: one candidate per topology
 /// (`("spine", "front")[:max(1, count)]`). A candidate with no solution carries an `INFEASIBLE`
 /// report and no rooms; otherwise its rooms (coordinates rounded to 3 decimals, areas to 2,
 /// ids `<room_type>-<n>`) and circulation are mapped back onto the measured plan and its report
-/// is `validate_layout`'s, with the framing notes appended to the disclaimer.
+/// is `validate_layout`'s, with the framing notes appended to the disclaimer. When the search has
+/// several optimal solutions, the first one the validator accepts is used (Python validates the
+/// one CP-SAT returns); when none is accepted, the first one and its failing report.
 ///
 /// `Err` only where Python raises: a generated room that fails its contract
 /// (`RoomPolygon` validation, e.g. a room thinner than the coordinate rounding).
@@ -1263,35 +1406,22 @@ pub fn generate_candidates(
             ));
             continue;
         };
-        let mut counters: Vec<(String, usize)> = Vec::new();
-        let mut polys = Vec::with_capacity(sol.placements.len());
-        for (i, s, start, length) in sol.solution().unwrap_or_default() {
-            let rt = rooms[i].room_type.clone();
-            let n = match counters.iter_mut().find(|(t, _)| *t == rt) {
-                Some((_, c)) => {
-                    *c += 1;
-                    *c
-                }
-                None => {
-                    counters.push((rt.clone(), 1));
-                    1
-                }
-            };
-            let pts: Vec<Coord> = to_polygon(&choice.strips[s], start, length)
-                .into_iter()
-                .map(|(x, y)| (py::round(x, 3), py::round(y, 3)))
-                .collect();
-            let area = py::round(geometry::polygon_area(&pts), 2);
-            let room = RoomPolygon {
-                room_id: format!("{rt}-{n}"),
-                room_type: rt,
-                polygon: pts,
-                area_sqm: area,
-            };
-            room.validate()?;
-            polys.push(room);
+        // The first solution the validator accepts; the first solution when none is accepted.
+        let mut chosen: Option<(Vec<RoomPolygon>, GeometryValidationReport)> = None;
+        for placements in std::iter::once(&sol.placements).chain(&sol.alternatives) {
+            let polys = room_polygons(rooms, &choice.strips, placements)?;
+            let report = validate_layout(framed, &polys, requirements, Some(&choice.circulation));
+            let valid = report.valid;
+            if chosen.is_none() || valid {
+                chosen = Some((polys, report));
+            }
+            if valid {
+                break;
+            }
         }
-        let mut report = validate_layout(framed, &polys, requirements, Some(&choice.circulation));
+        let Some((mut polys, mut report)) = chosen else {
+            continue;
+        };
         if !frame.notes.is_empty() {
             report.disclaimer = format!("{} {}", report.disclaimer, frame.notes.join(" "));
         }

@@ -15,6 +15,13 @@
 //! Everything else is compared strictly: JSON numbers keep their type (`5.0` is not `5`), lists
 //! keep their order. Object key order is not compared (JSON objects are unordered; `jsonb` does
 //! not keep it either).
+//!
+//! One store-dependent order: rows written in one transaction share `created_at`, and
+//! `ORDER BY created_at` returns such ties in the database's physical order. Python on
+//! PostgreSQL and this backend on PostgreSQL write the same rows and get the same order (compared
+//! strictly). The in-memory store returns ties in insertion order, which differs for the permit
+//! records of one property, so on the in-memory store permit lists are compared sorted by
+//! permit number (on both sides, before normalization).
 
 mod common;
 
@@ -104,6 +111,29 @@ fn diff(path: &str, py: &Value, rs: &Value, out: &mut Vec<String>) {
     }
 }
 
+/// Sort every list of permit records by permit number (in-memory comparison only, see above).
+fn sort_permit_lists(v: &mut Value) {
+    match v {
+        Value::Array(a) => {
+            for x in a.iter_mut() {
+                sort_permit_lists(x);
+            }
+            if !a.is_empty() && a.iter().all(|x| x.get("permit_number").is_some()) {
+                a.sort_by(|x, y| {
+                    let k = |v: &Value| v["permit_number"].as_str().unwrap_or("").to_owned();
+                    k(x).cmp(&k(y))
+                });
+            }
+        }
+        Value::Object(m) => {
+            for (_, x) in m.iter_mut() {
+                sort_permit_lists(x);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn resolve(path: &str, refs: &HashMap<String, String>) -> String {
     let mut p = path.to_owned();
     for (k, v) in refs {
@@ -170,6 +200,11 @@ both_backends!(property_slice_matches_python, |db| {
     let mut n_py = Normalizer::default();
     let mut n_rs = Normalizer::default();
     let mut problems = Vec::new();
+    if t.kind == Kind::Memory {
+        for v in py_all.iter_mut().chain(rs_all.iter_mut()) {
+            sort_permit_lists(v);
+        }
+    }
     for ((name, py), rs) in names.iter().zip(&py_all).zip(&rs_all) {
         let a = n_py.value(py);
         let b = n_rs.value(rs);

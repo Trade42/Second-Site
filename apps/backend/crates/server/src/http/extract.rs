@@ -319,6 +319,67 @@ pub fn body_errors(e: ValidationError) -> AppError {
     AppError::RequestValidation(errors)
 }
 
+/// `body_errors` plus what FastAPI also reports for each error (review item R6 of part 1, for
+/// the routes that use this): `input`, the offending value (the enclosing object for a missing
+/// field), and for the numeric bound errors `ctx` with the bound, read back from the message
+/// Pydantic formats from the same literal (`Input should be less than or equal to 50` ->
+/// `{"le": 50}`).
+pub fn body_errors_with_input(e: ValidationError, body: &serde_json::Map<String, Value>) -> AppError {
+    let AppError::RequestValidation(mut errors) = body_errors(e) else {
+        return AppError::internal("unexpected validation error shape");
+    };
+    let root = Value::Object(body.clone());
+    for err in &mut errors {
+        let Some(obj) = err.as_object_mut() else { continue };
+        let loc: Vec<Value> = obj
+            .get("loc")
+            .and_then(Value::as_array)
+            .map(|a| a.iter().skip(1).cloned().collect())
+            .unwrap_or_default();
+        let kind = obj.get("type").and_then(Value::as_str).unwrap_or("").to_owned();
+        let mut cur = Some(&root);
+        let mut parent = Some(&root);
+        for l in &loc {
+            parent = cur;
+            cur = match (cur, l) {
+                (Some(Value::Object(m)), Value::String(k)) => m.get(k),
+                (Some(Value::Array(a)), Value::Number(n)) => {
+                    n.as_u64().and_then(|i| a.get(i as usize))
+                }
+                _ => None,
+            };
+        }
+        let input = if kind == "missing" { parent } else { cur };
+        if let Some(v) = input {
+            obj.insert("input".into(), v.clone());
+        }
+        let bound = match kind.as_str() {
+            "greater_than" => Some("gt"),
+            "greater_than_equal" => Some("ge"),
+            "less_than" => Some("lt"),
+            "less_than_equal" => Some("le"),
+            _ => None,
+        };
+        if let Some(key) = bound {
+            let lit = obj
+                .get("msg")
+                .and_then(Value::as_str)
+                .and_then(|m| m.rsplit(' ').next())
+                .unwrap_or("")
+                .to_owned();
+            let n = if lit.contains(['.', 'e', 'E']) {
+                lit.parse::<f64>().ok().map(Value::from)
+            } else {
+                lit.parse::<i64>().ok().map(Value::from)
+            };
+            if let Some(n) = n {
+                obj.insert("ctx".into(), json!({ key: n }));
+            }
+        }
+    }
+    AppError::RequestValidation(errors)
+}
+
 /// A body declared as a Pydantic model.
 pub fn json_body<T: Contract>(headers: &HeaderMap, body: &[u8]) -> Result<T, AppError> {
     let obj = body_object(headers, body, BodyKind::Model)?;

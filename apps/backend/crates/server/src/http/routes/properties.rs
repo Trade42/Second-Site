@@ -25,7 +25,7 @@ use uuid::Uuid;
 use crate::app::{App, AppState};
 use crate::contracts::{JsonMap, Subsystem, TaskAccepted, TaskRecord, TaskType};
 use crate::error::AppResult;
-use crate::http::extract::{bearer_user, body_errors, early_json_body, AuthUser, PathParams};
+use crate::http::extract::{bearer_user, body_errors_with_input, early_json_body, AuthUser, PathParams};
 use crate::store::repo::{ASSESSMENTS, COST_SCENARIOS, PERMITS, PROPERTIES, RANKINGS};
 use crate::store::{Query, Tx};
 use crate::workflows::property_analysis::PropertyAnalysisWorkflow;
@@ -101,7 +101,8 @@ async fn search(
     let task = crate::in_tx!(app, |tx| {
         let project_id = owned(&app, tx, project_id, user).await?;
         let obj = decoded.into_object()?;
-        let req = PropertySearchRequest::from_json_value(Value::Object(obj)).map_err(body_errors)?;
+        let req = PropertySearchRequest::from_json_value(Value::Object(obj.clone()))
+            .map_err(|e| body_errors_with_input(e, &obj))?;
         let input: JsonMap = match serde_json::to_value(&req) {
             Ok(Value::Object(m)) => m,
             _ => JsonMap::new(),

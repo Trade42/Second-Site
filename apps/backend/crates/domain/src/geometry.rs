@@ -609,6 +609,45 @@ fn ring_intersection_error(pts: &[Pt]) -> Option<(&'static str, Pt)> {
     None
 }
 
+/// Every reason GEOS could report for a ring with several invalid intersections: one
+/// `explain_validity`-style string per invalid segment pair (in segment order, duplicates
+/// removed). GEOS reports one of these; [`explain_validity`] picks by chain order. For tests and
+/// diagnostics.
+pub fn invalidity_candidates(points: &[Pt]) -> Vec<String> {
+    let ring = closed_ring(points);
+    let mut pts: Vec<Pt> = Vec::with_capacity(ring.len());
+    for p in &ring {
+        if pts.last() != Some(p) {
+            pts.push(*p);
+        }
+    }
+    let mut out: Vec<String> = Vec::new();
+    if pts.len() < 4 {
+        return out;
+    }
+    let nseg = pts.len() - 1;
+    for i in 0..nseg {
+        for j in (i + 1)..nseg {
+            let found = match segment_intersection(pts[i], pts[i + 1], pts[j], pts[j + 1]) {
+                SegInter::None => None,
+                SegInter::Collinear { first } => Some(located("Self-intersection", first)),
+                SegInter::Point { at, proper: true } => Some(located("Self-intersection", at)),
+                SegInter::Point { at, proper: false } => {
+                    let delta = j - i;
+                    (delta > 1 && delta < pts.len() - 2)
+                        .then(|| located("Ring Self-intersection", at))
+                }
+            };
+            if let Some(f) = found {
+                if !out.contains(&f) {
+                    out.push(f);
+                }
+            }
+        }
+    }
+    out
+}
+
 /// `Polygon(points).is_valid`.
 pub fn is_valid(points: &[Pt]) -> bool {
     explain_validity(points) == "Valid Geometry"
@@ -894,18 +933,118 @@ fn multi_area(mp: &MultiPolygon<f64>) -> f64 {
         .sum()
 }
 
-/// `Polygon(a).intersection(Polygon(b)).area` for two simple polygons.
-pub fn intersection_area(a: &[Pt], b: &[Pt]) -> f64 {
-    if is_convex(b) {
-        ring_area(&clip_convex(a, b))
-    } else if is_convex(a) {
-        ring_area(&clip_convex(b, a))
+/// Ear-clipping triangulation of a valid simple ring (closed or not); `None` when the ring is
+/// invalid or the ears cannot be found.
+fn triangulate(ring: &[Pt]) -> Option<Vec<Vec<Pt>>> {
+    if !is_valid(ring) {
+        return None;
+    }
+    let mut pts: Vec<Pt> = Vec::new();
+    for p in closed_ring(ring) {
+        if pts.last() != Some(&p) {
+            pts.push(p);
+        }
+    }
+    pts.pop();
+    if signed_ring_area(&closed_ring(&pts)) < 0.0 {
+        pts.reverse();
+    }
+    let in_triangle = |p: Pt, a: Pt, b: Pt, c: Pt| {
+        orientation(a, b, p) >= 0 && orientation(b, c, p) >= 0 && orientation(c, a, p) >= 0
+    };
+    let mut idx: Vec<usize> = (0..pts.len()).collect();
+    let mut out = Vec::new();
+    while idx.len() > 3 {
+        let m = idx.len();
+        let mut clipped = false;
+        for k in 0..m {
+            let (a, b, c) = (pts[idx[(k + m - 1) % m]], pts[idx[k]], pts[idx[(k + 1) % m]]);
+            match orientation(a, b, c) {
+                o if o < 0 => continue,
+                0 => {
+                    idx.remove(k);
+                    clipped = true;
+                    break;
+                }
+                _ => {}
+            }
+            let blocked = idx.iter().any(|&j| {
+                let p = pts[j];
+                p != a && p != b && p != c && in_triangle(p, a, b, c)
+            });
+            if blocked {
+                continue;
+            }
+            out.push(vec![a, b, c]);
+            idx.remove(k);
+            clipped = true;
+            break;
+        }
+        if !clipped {
+            return None;
+        }
+    }
+    if idx.len() == 3 && orientation(pts[idx[0]], pts[idx[1]], pts[idx[2]]) > 0 {
+        out.push(vec![pts[idx[0]], pts[idx[1]], pts[idx[2]]]);
+    }
+    Some(out)
+}
+
+/// Interior-disjoint convex parts covering a polygon: the ring itself when convex, else its
+/// triangles.
+fn convex_parts(ring: &[Pt]) -> Option<Vec<Vec<Pt>>> {
+    if is_convex(ring) {
+        Some(vec![closed_ring(ring)])
     } else {
-        multi_area(&to_geo(a).intersection(&to_geo(b)))
+        triangulate(ring)
     }
 }
 
-/// Largest family size for which unions are evaluated by inclusion-exclusion over convex pieces.
+/// Upper bound on convex clips for one intersection-area evaluation before falling back to
+/// `geo` overlays.
+const MAX_CLIPS: usize = 50_000;
+
+/// Area of `first ∩ rest[0] ∩ rest[1] ∩ ...`: `first` is clipped by every combination of convex
+/// parts of the others (the parts of each polygon are interior-disjoint and cover it, so the
+/// areas add up). `None` when a polygon cannot be decomposed or the work exceeds [`MAX_CLIPS`].
+fn intersection_area_of(first: &[Pt], rest: &[&[Pt]]) -> Option<f64> {
+    let parts: Vec<Vec<Vec<Pt>>> = rest
+        .iter()
+        .map(|r| convex_parts(r))
+        .collect::<Option<_>>()?;
+    let mut combos = 1usize;
+    for p in &parts {
+        combos = combos.checked_mul(p.len().max(1))?;
+    }
+    if combos > MAX_CLIPS {
+        return None;
+    }
+    fn go(cur: &[Pt], parts: &[Vec<Vec<Pt>>]) -> f64 {
+        match parts.split_first() {
+            None => ring_area(cur),
+            Some((head, tail)) => head
+                .iter()
+                .map(|c| {
+                    let clipped = clip_convex(cur, c);
+                    if ring_area(&clipped) == 0.0 {
+                        0.0
+                    } else {
+                        go(&clipped, tail)
+                    }
+                })
+                .sum(),
+        }
+    }
+    Some(go(&closed_ring(first), &parts))
+}
+
+/// `Polygon(a).intersection(Polygon(b)).area` for two simple polygons.
+pub fn intersection_area(a: &[Pt], b: &[Pt]) -> f64 {
+    intersection_area_of(a, &[b])
+        .unwrap_or_else(|| multi_area(&to_geo(a).intersection(&to_geo(b))))
+}
+
+/// Largest family size for which unions are evaluated by inclusion-exclusion.
 const MAX_INCLUSION_EXCLUSION: usize = 8;
 
 /// `Polygon(target).intersection(unary_union([Polygon(p) for p in pieces])).area`.
@@ -915,47 +1054,32 @@ pub fn area_inside_union(target: &[Pt], pieces: &[Vec<Pt>]) -> f64 {
 
 /// `unary_union(a).intersection(unary_union(b)).area` for two families of simple polygons.
 ///
-/// When the families are small and the clips can all be done by convex rings (every piece of one
-/// family convex, and the other family a single polygon or all convex too), the area is computed
-/// by inclusion-exclusion: the sum over non-empty subsets S of `a` and T of `b` of
-/// `(-1)^(|S|+|T|) area(∩S ∩ ∩T)`. Otherwise it goes through `geo` overlays.
+/// For small families the area is computed by inclusion-exclusion: the sum over non-empty subsets
+/// S of `a` and T of `b` of `(-1)^(|S|+|T|) area(∩S ∩ ∩T)`, each term by convex clipping
+/// ([`intersection_area_of`]). Larger families, or shapes that cannot be decomposed, go through
+/// `geo` overlays.
 pub fn union_intersection_area(a: &[Vec<Pt>], b: &[Vec<Pt>]) -> f64 {
     if a.is_empty() || b.is_empty() {
         return 0.0;
     }
-    let all_convex = |f: &[Vec<Pt>]| f.iter().all(|p| is_convex(p));
-    let small = a.len() + b.len() <= MAX_INCLUSION_EXCLUSION;
-    let plan = if !small {
-        None
-    } else if all_convex(b) && (a.len() == 1 || all_convex(a)) {
-        Some((a, b))
-    } else if all_convex(a) && (b.len() == 1 || all_convex(b)) {
-        Some((b, a))
-    } else {
-        None
-    };
-    if let Some((base, clips)) = plan {
+    if a.len() + b.len() <= MAX_INCLUSION_EXCLUSION {
         let mut total = 0.0;
-        for smask in 1u32..(1 << base.len()) {
-            // ∩S: the first chosen base piece clipped by the other chosen ones (convex).
-            let mut chosen = (0..base.len())
-                .filter(|i| smask & (1 << i) != 0)
-                .map(|i| &base[i]);
-            let Some(first) = chosen.next() else {
-                continue;
-            };
-            let mut inter = closed_ring(first);
-            for c in chosen {
-                inter = clip_convex(&inter, c);
-            }
-            for tmask in 1u32..(1 << clips.len()) {
-                let mut cur = inter.clone();
-                for (i, c) in clips.iter().enumerate() {
-                    if tmask & (1 << i) != 0 {
-                        cur = clip_convex(&cur, c);
-                    }
-                }
-                let area = ring_area(&cur);
+        let mut ok = true;
+        'outer: for smask in 1u32..(1 << a.len()) {
+            for tmask in 1u32..(1 << b.len()) {
+                let mut chosen: Vec<&[Pt]> = (0..a.len())
+                    .filter(|i| smask & (1 << i) != 0)
+                    .map(|i| a[i].as_slice())
+                    .collect();
+                chosen.extend(
+                    (0..b.len())
+                        .filter(|i| tmask & (1 << i) != 0)
+                        .map(|i| b[i].as_slice()),
+                );
+                let Some(area) = intersection_area_of(chosen[0], &chosen[1..]) else {
+                    ok = false;
+                    break 'outer;
+                };
                 if (smask.count_ones() + tmask.count_ones()) % 2 == 0 {
                     total += area;
                 } else {
@@ -963,7 +1087,9 @@ pub fn union_intersection_area(a: &[Vec<Pt>], b: &[Vec<Pt>]) -> f64 {
                 }
             }
         }
-        return total;
+        if ok {
+            return total;
+        }
     }
     let ua = geo::unary_union(a.iter().map(|p| to_geo(p)).collect::<Vec<_>>().iter());
     let ub = geo::unary_union(b.iter().map(|p| to_geo(p)).collect::<Vec<_>>().iter());
@@ -975,8 +1101,7 @@ pub fn difference_area(target: &[Pt], holes: &[Vec<Pt>]) -> f64 {
     if holes.is_empty() {
         return polygon_area(target);
     }
-    let all_convex = holes.iter().all(|h| is_convex(h));
-    if all_convex && holes.len() < MAX_INCLUSION_EXCLUSION {
+    if holes.len() < MAX_INCLUSION_EXCLUSION {
         return polygon_area(target) - area_inside_union(target, holes);
     }
     let u = geo::unary_union(holes.iter().map(|p| to_geo(p)).collect::<Vec<_>>().iter());
@@ -1098,42 +1223,156 @@ pub fn min_rotated_rectangle_min_side(points: &[Pt]) -> f64 {
 
 // ---- clipping an obstacle to the layout rectangle -----------------------------------------------
 
-/// `Polygon(ring).intersection(box)` when the result is a single polygon, as its exterior ring
-/// without the closing point, clockwise (GEOS overlay output). `None` when the intersection is
-/// empty, has no area or has more than one part.
-///
-/// The starting vertex follows GEOS for the cases this code meets: the result starts at the first
-/// vertex of the clockwise-oriented input ring, counted from its second vertex, that survives the
-/// clip; when none does, it starts at the first vertex of the clipped ring in that traversal.
-pub fn clip_polygon_to_box(ring: &[Pt], bx: &Bounds) -> Option<Vec<Pt>> {
+/// Liang-Barsky: the parameter interval of segment `p q` inside the box, if any.
+fn box_interval(p: Pt, q: Pt, bx: &Bounds) -> Option<(f64, f64)> {
+    let (dx, dy) = (q.0 - p.0, q.1 - p.1);
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    for (pp, qq) in [
+        (-dx, p.0 - bx.minx),
+        (dx, bx.maxx - p.0),
+        (-dy, p.1 - bx.miny),
+        (dy, bx.maxy - p.1),
+    ] {
+        if pp == 0.0 {
+            if qq < 0.0 {
+                return None;
+            }
+        } else {
+            let r = qq / pp;
+            if pp < 0.0 {
+                if r > t1 {
+                    return None;
+                }
+                if r > t0 {
+                    t0 = r;
+                }
+            } else {
+                if r < t0 {
+                    return None;
+                }
+                if r < t1 {
+                    t1 = r;
+                }
+            }
+        }
+    }
+    Some((t0, t1))
+}
+
+/// The first vertex of GEOS's overlay output ring for `ring ∩ box`. GEOS splits the input ring
+/// (in its input order, from its first vertex) where it crosses the box boundary; the first
+/// piece inside the box is the first result edge, and the output ring starts at that piece's
+/// second point when the input is clockwise (the result orientation), or at its next-to-last
+/// point when the input is counter-clockwise (the edge is used backwards). A ring that never
+/// crosses the box is one closed piece; with no piece inside, the result is the box itself,
+/// which starts at its lower-left corner. (Matched against Shapely on 2,651 clipped polygons.)
+fn clip_start(ring: &[Pt], bx: &Bounds) -> Pt {
     let closed = closed_ring(ring);
     let ccw = signed_ring_area(&closed) > 0.0;
-    // Clockwise closed ring, then the traversal from its second vertex.
-    let mut cw: Vec<Pt> = if ccw {
-        let mut r = closed.clone();
-        r.reverse();
-        r
+    let mut pieces: Vec<Vec<Pt>> = Vec::new();
+    let mut cur: Option<Vec<Pt>> = None;
+    let mut any_node = false;
+    for w in closed.windows(2) {
+        let (p, q) = (w[0], w[1]);
+        let at = |t: f64| (p.0 + t * (q.0 - p.0), p.1 + t * (q.1 - p.1));
+        match box_interval(p, q, bx) {
+            Some((t0, t1)) if t1 > t0 => {
+                if t0 > 0.0 {
+                    any_node = true;
+                    if let Some(c) = cur.take() {
+                        pieces.push(c);
+                    }
+                    cur = Some(vec![at(t0)]);
+                } else if cur.is_none() {
+                    cur = Some(vec![p]);
+                }
+                if let Some(c) = cur.as_mut() {
+                    if t1 < 1.0 {
+                        any_node = true;
+                        c.push(at(t1));
+                        if let Some(c) = cur.take() {
+                            pieces.push(c);
+                        }
+                    } else {
+                        c.push(q);
+                    }
+                }
+            }
+            _ => {
+                if let Some(c) = cur.take() {
+                    pieces.push(c);
+                }
+            }
+        }
+    }
+    if let Some(c) = cur.take() {
+        pieces.push(c);
+    }
+    let first = if !any_node && !pieces.is_empty() {
+        closed
     } else {
-        closed.clone()
+        match pieces.into_iter().next() {
+            Some(p) => p,
+            None => return (bx.minx, bx.miny),
+        }
     };
-    cw.pop();
-    if cw.len() < 3 {
+    let k = if ccw {
+        first.len().saturating_sub(2)
+    } else {
+        1.min(first.len().saturating_sub(1))
+    };
+    first[k]
+}
+
+/// Insert into each edge of `ring` (closed) the vertices of `source` that lie strictly inside it,
+/// in order along the edge.
+fn reinsert_vertices(ring: &[Pt], source: &[Pt]) -> Vec<Pt> {
+    let mut out: Vec<Pt> = Vec::with_capacity(ring.len());
+    for w in ring.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        out.push(a);
+        let mut on: Vec<(f64, Pt)> = source
+            .iter()
+            .filter(|v| **v != a && **v != b && orientation(a, b, **v) == 0 && env_contains(a, b, **v))
+            .map(|v| ((v.0 - a.0).hypot(v.1 - a.1), *v))
+            .collect();
+        on.sort_by(|x, y| x.0.total_cmp(&y.0));
+        on.dedup_by(|x, y| x.1 == y.1);
+        out.extend(on.into_iter().map(|(_, v)| v));
+    }
+    if let Some(first) = ring.first() {
+        out.push(*first);
+    }
+    out
+}
+
+/// `Polygon(ring).intersection(box)` when the result is a single polygon: its exterior ring
+/// without the closing point, clockwise and starting where GEOS's overlay output starts
+/// ([`clip_start`]). `None` when the intersection is empty, has no area or has more than one
+/// part. Convex rings are clipped exactly (Sutherland-Hodgman); others go through `geo`.
+pub fn clip_polygon_to_box(ring: &[Pt], bx: &Bounds) -> Option<Vec<Pt>> {
+    let closed = closed_ring(ring);
+    if closed.len() < 4 {
         return None;
     }
-    cw.rotate_left(1);
-    let pieces: Vec<Vec<Pt>> = if is_convex(&cw) {
-        let clipped = clip_convex(&cw, &bx.ring());
+    let pieces: Vec<Vec<Pt>> = if is_convex(&closed) {
+        let clipped = clip_convex(&closed, &bx.ring());
         if ring_area(&clipped) > 0.0 {
             vec![clipped]
         } else {
             vec![]
         }
     } else {
-        to_geo(&cw)
+        to_geo(&closed)
             .intersection(&to_geo(&bx.ring()))
             .0
             .into_iter()
-            .map(|p| p.exterior().coords().map(|c| (c.x, c.y)).collect())
+            .map(|p| {
+                // `geo` drops collinear vertices; GEOS keeps every input vertex that lies on the
+                // result boundary, so put the obstacle's back.
+                let ring: Vec<Pt> = p.exterior().coords().map(|c| (c.x, c.y)).collect();
+                reinsert_vertices(&ring, &closed)
+            })
             .collect()
     };
     if pieces.len() != 1 {
@@ -1148,30 +1387,19 @@ pub fn clip_polygon_to_box(ring: &[Pt], bx: &Bounds) -> Option<Vec<Pt>> {
     if out.len() > 1 && out.first() == out.last() {
         out.pop();
     }
-    // Drop collinear vertices introduced by clipping along the box edges (GEOS merges them).
-    let mut changed = true;
-    while changed && out.len() > 3 {
-        changed = false;
-        let n = out.len();
-        for i in 0..n {
-            let (a, b, c) = (out[(i + n - 1) % n], out[i], out[(i + 1) % n]);
-            if orientation(a, b, c) == 0 && !cw.contains(&b) {
-                out.remove(i);
-                changed = true;
-                break;
-            }
-        }
-    }
     if out.len() < 3 {
         return None;
     }
     if signed_ring_area(&closed_ring(&out)) > 0.0 {
         out.reverse();
     }
-    let start = cw
+    let s = clip_start(ring, bx);
+    let start = out
         .iter()
-        .find_map(|v| out.iter().position(|p| p == v))
-        .unwrap_or(0);
+        .enumerate()
+        .map(|(i, p)| (i, (p.0 - s.0).hypot(p.1 - s.1)))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map_or(0, |(i, _)| i);
     out.rotate_left(start);
     Some(out)
 }
