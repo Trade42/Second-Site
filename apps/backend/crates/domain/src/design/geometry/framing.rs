@@ -16,7 +16,7 @@ use indexmap::IndexMap;
 use serde_json::{Map, Value};
 
 use crate::contracts::geometry::{Coord, Opening, SiteGeometry};
-use crate::geometry::{self, Bounds};
+use crate::geometry::{self, Bounds, Location, RayStep};
 use crate::py;
 use crate::DomainError;
 
@@ -199,20 +199,350 @@ pub const INNER_RECTANGLE_CELL: f64 = 0.2;
 /// Largest grid [`largest_inner_rectangle`] scans (cells).
 pub const MAX_GRID_CELLS: usize = 1_000_000;
 
+/// Work bound of [`largest_inner_rectangle`]: boundary segments (floor vertices) times grid rows.
+/// The prepared scan visits each segment once per grid row it reaches, so this caps that part
+/// of the work; a floor beyond it gets no rectangle (and [`frame_for_solver_checked`] says why).
+/// 4,000,000 admits, for example, 2,004 vertices on a 199 m floor (995 rows) or 13,000 vertices
+/// on a 60 m floor.
+pub const MAX_FRAME_VERTEX_ROWS: usize = 4_000_000;
+
+/// Second work bound of [`largest_inner_rectangle`]: the sum, over the grid cells that lie near
+/// the boundary, of the square of the number of boundary segments near the cell (the exact
+/// tolerance test of such a cell costs about that). Only outlines with many vertices packed
+/// within a few millimetres of each other reach it.
+pub const MAX_FRAME_NEAR_WORK: usize = 4_000_000;
+
+/// Tolerance of the containment test (Python's `poly.buffer(1e-6)`).
+const INNER_RECTANGLE_EPS: f64 = 1e-6;
+
+/// The framing work bound was exceeded: no rectangle was computed. `note` says which bound
+/// and is suitable for a validation issue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkBoundExceeded {
+    pub note: String,
+}
+
+/// An axis-aligned rectangle `(x0, y0, x1, y1)`.
+pub type Rect = (f64, f64, f64, f64);
+
 /// `largest_inner_rectangle(poly, cell)`: the largest axis-aligned rectangle on a `cell` grid
 /// (anchored at the polygon's lower-left bound) whose cells all lie inside
 /// `poly.buffer(1e-6)`, by the histogram method. `(x0, y0, x1, y1)`, or `None` when the grid has
-/// fewer than 2 cells in either direction, no cell fits, or the grid exceeds [`MAX_GRID_CELLS`]
-/// (a deliberate bound; Python has none).
-pub fn largest_inner_rectangle(poly: &[Coord], cell: f64) -> Option<(f64, f64, f64, f64)> {
+/// fewer than 2 cells in either direction, no cell fits, or a work bound is exceeded
+/// ([`MAX_GRID_CELLS`], [`MAX_FRAME_VERTEX_ROWS`], [`MAX_FRAME_NEAR_WORK`]; deliberate bounds,
+/// Python has none). [`largest_inner_rectangle_checked`] tells the two `None` cases apart.
+pub fn largest_inner_rectangle(poly: &[Coord], cell: f64) -> Option<Rect> {
+    largest_inner_rectangle_checked(poly, cell).ok().flatten()
+}
+
+/// [`largest_inner_rectangle`], with `Err` when a work bound stopped the scan.
+///
+/// Each cell's inside test is exactly `contains_with_tolerance(poly, cell, 1e-6)` (the
+/// reference, [`largest_inner_rectangle_reference`], calls it for every cell against the whole
+/// boundary). Here the boundary is prepared per grid row instead:
+///
+/// - the row's segments are those whose y-range meets the row band widened by a pad (the
+///   tolerance plus 1 mm plus a relative term for large coordinates, far above any rounding in
+///   the test); for each, the x-range of its part inside the widened band, widened by the pad;
+/// - a cell whose x-range meets no such x-range has no boundary within the pad, so the whole
+///   cell is on one side of the boundary and every point the exact test would locate gets the
+///   same answer: it is decided by the ray-crossing parity at the row centre of the segments to
+///   its right (each of those is crossed exactly when it straddles that height), kept up to date
+///   as the scan moves right;
+/// - a cell near the boundary runs the exact test ([`geometry::covers_ring_near`]) on the
+///   segments near it, with point location split the same way: the exact ray steps of the near
+///   segments plus the straddle parity, at the point's height, of the segments to the right
+///   (a Fenwick tree over the row's segment end heights).
+///
+/// The cost is about cells plus rows times vertices plus the near-cell tests, instead of cells
+/// times vertices. A non-finite vertex gives `Ok(None)` (contracts parsed from JSON cannot carry
+/// one).
+pub fn largest_inner_rectangle_checked(
+    poly: &[Coord],
+    cell: f64,
+) -> Result<Option<Rect>, WorkBoundExceeded> {
+    let Some(b) = Bounds::of(poly) else {
+        return Ok(None);
+    };
+    let nx_f = ((b.maxx - b.minx) / cell).trunc();
+    let ny_f = ((b.maxy - b.miny) / cell).trunc();
+    if !(nx_f >= 2.0 && ny_f >= 2.0) || !nx_f.is_finite() || !ny_f.is_finite() {
+        return Ok(None);
+    }
+    // Bounded work: Python would scan any grid; floors with more cells than this (about
+    // 200 m x 200 m at 0.2 m) get no rectangle.
+    if nx_f * ny_f > MAX_GRID_CELLS as f64 {
+        return Err(WorkBoundExceeded {
+            note: format!(
+                "Floor too large to frame: a {nx_f:.0} x {ny_f:.0} cell grid exceeds the bound of {MAX_GRID_CELLS} cells; no layout was generated."
+            ),
+        });
+    }
+    let (nx, ny) = (nx_f as usize, ny_f as usize);
+    let ring = geometry::closed_ring(poly);
+    // `contains_with_tolerance` is false for every cell when the ring has fewer than 4 points.
+    if ring.len() < 4 || ring.iter().any(|p| !p.0.is_finite() || !p.1.is_finite()) {
+        return Ok(None);
+    }
+    let nseg = ring.len() - 1;
+    if nseg.saturating_mul(ny) > MAX_FRAME_VERTEX_ROWS {
+        return Err(WorkBoundExceeded {
+            note: format!(
+                "Floor outline too detailed to frame: {nseg} boundary segments x {ny} grid rows exceeds the bound of {MAX_FRAME_VERTEX_ROWS}; no layout was generated. Simplify the measured outline."
+            ),
+        });
+    }
+    let eps = INNER_RECTANGLE_EPS;
+    let max_abs = ring
+        .iter()
+        .fold(0.0f64, |m, p| m.max(p.0.abs()).max(p.1.abs()));
+    let pad = eps + 1e-3 + 1e-9 * max_abs;
+    let cell_x = |i: usize| b.minx + i as f64 * cell;
+    let cell_y = |j: usize| b.miny + j as f64 * cell;
+    let xs: Vec<f64> = (0..=nx).map(cell_x).collect();
+
+    let mut segs: Vec<Seg> = ring
+        .windows(2)
+        .map(|w| Seg {
+            a: w[0],
+            b: w[1],
+            ymin: w[0].1.min(w[1].1),
+            ymax: w[0].1.max(w[1].1),
+        })
+        .collect();
+    segs.sort_by(|s, t| s.ymin.total_cmp(&t.ymin));
+    let mut next = 0usize;
+    let mut active: Vec<Seg> = Vec::new();
+    let mut near_work = 0usize;
+
+    let mut best = 0usize;
+    let mut best_rect: Option<(usize, usize, usize, usize)> = None;
+    let mut heights = vec![0usize; nx];
+    let mut row: Vec<RowSeg> = Vec::new();
+    let mut by_lo: Vec<usize> = Vec::new();
+    let mut by_xlo: Vec<usize> = Vec::new();
+    let mut levels: Vec<f64> = Vec::new();
+    let mut near: Vec<usize> = Vec::new();
+    let mut near_segs: Vec<(Coord, Coord)> = Vec::new();
+    for j in 0..ny {
+        let (y0, y1) = (cell_y(j), cell_y(j + 1));
+        let (band_lo, band_hi) = (y0 - pad, y1 + pad);
+        while next < segs.len() && segs[next].ymin <= band_hi {
+            active.push(segs[next]);
+            next += 1;
+        }
+        active.retain(|s| s.ymax >= band_lo);
+        row.clear();
+        for s in &active {
+            let (xlo, xhi) = x_range_in_band(s, band_lo, band_hi);
+            let (xlo, xhi) = (xlo - pad, xhi + pad);
+            // Cells i with xs[i + 1] >= xlo and xs[i] <= xhi are near (an empty range when
+            // i_lo > i_hi); cells left of i_lo have this segment on their right.
+            let i_lo = xs[1..].partition_point(|&x| x < xlo);
+            let i_hi_end = xs[..nx].partition_point(|&x| x <= xhi);
+            row.push(RowSeg {
+                seg: *s,
+                xlo,
+                i_lo,
+                i_hi_end,
+            });
+        }
+        // Straddle parity of the segments right of the current cell: a Fenwick tree (XOR) over
+        // the row's distinct end heights; a segment straddles height y (GEOS's half-open rule,
+        // ymin <= y < ymax) exactly when an odd number of its two end heights are <= y.
+        levels.clear();
+        for r in &row {
+            levels.push(r.seg.ymin);
+            levels.push(r.seg.ymax);
+        }
+        levels.sort_by(f64::total_cmp);
+        levels.dedup();
+        let mut fenwick = vec![false; levels.len() + 1];
+        let rank = |levels: &[f64], y: f64| levels.partition_point(|&v| v < y);
+        let y_ref = (y0 + y1) / 2.0;
+        let mut parity_ref = false;
+        for r in &row {
+            fenwick_toggle(&mut fenwick, rank(&levels, r.seg.ymin));
+            fenwick_toggle(&mut fenwick, rank(&levels, r.seg.ymax));
+            parity_ref ^= r.seg.straddles(y_ref);
+        }
+        by_xlo.clear();
+        by_xlo.extend(0..row.len());
+        by_xlo.sort_by(|&a, &c| row[a].xlo.total_cmp(&row[c].xlo));
+        by_lo.clear();
+        by_lo.extend((0..row.len()).filter(|&k| row[k].i_lo < row[k].i_hi_end));
+        by_lo.sort_by_key(|&k| row[k].i_lo);
+        let (mut q, mut p) = (0usize, 0usize);
+        near.clear();
+        for (i, h) in heights.iter_mut().enumerate() {
+            let (cx0, cx1) = (xs[i], xs[i + 1]);
+            // Segments that start (in x) before this cell's right edge are no longer to its right.
+            while q < by_xlo.len() && row[by_xlo[q]].xlo <= cx1 {
+                let s = row[by_xlo[q]].seg;
+                fenwick_toggle(&mut fenwick, rank(&levels, s.ymin));
+                fenwick_toggle(&mut fenwick, rank(&levels, s.ymax));
+                parity_ref ^= s.straddles(y_ref);
+                q += 1;
+            }
+            while p < by_lo.len() && row[by_lo[p]].i_lo <= i {
+                near.push(by_lo[p]);
+                p += 1;
+            }
+            near.retain(|&k| i < row[k].i_hi_end);
+            let cell_ring = [(cx0, y0), (cx1, y0), (cx1, y1), (cx0, y1)];
+            let degenerate = cx1 == cx0 || y1 == y0;
+            let inside = if near.is_empty() && !degenerate {
+                parity_ref
+                    && geometry::ring_area(&[(cx0, y0), (cx1, y0), (cx1, y1), (cx0, y1), (cx0, y0)])
+                        > 0.0
+            } else {
+                near_work = near_work.saturating_add(near.len().max(1).saturating_pow(2));
+                if near_work > MAX_FRAME_NEAR_WORK {
+                    return Err(WorkBoundExceeded {
+                        note: format!(
+                            "Floor outline too detailed to frame: boundary segments are packed too densely near the grid (work bound {MAX_FRAME_NEAR_WORK}); no layout was generated. Simplify the measured outline."
+                        ),
+                    });
+                }
+                near_segs.clear();
+                near_segs.extend(near.iter().map(|&k| (row[k].seg.a, row[k].seg.b)));
+                let mut locate = |m: Coord| -> Location {
+                    let mut odd = fenwick_prefix(&fenwick, levels.partition_point(|&v| v <= m.1));
+                    for &(a, c) in &near_segs {
+                        match geometry::ray_step(m, a, c) {
+                            RayStep::Boundary => return Location::Boundary,
+                            RayStep::Cross => odd = !odd,
+                            RayStep::Skip => {}
+                        }
+                    }
+                    if odd {
+                        Location::Interior
+                    } else {
+                        Location::Exterior
+                    }
+                };
+                geometry::covers_ring_near(&cell_ring, &near_segs, &mut locate, eps)
+            };
+            *h = if inside { *h + 1 } else { 0 };
+        }
+        histogram_step(&heights, j, &mut best, &mut best_rect);
+    }
+    let (i0, j0, i1, j1) = match best_rect {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+    Ok(Some((cell_x(i0), cell_y(j0), cell_x(i1), cell_y(j1))))
+}
+
+/// A boundary segment and its y-range.
+#[derive(Debug, Clone, Copy)]
+struct Seg {
+    a: Coord,
+    b: Coord,
+    ymin: f64,
+    ymax: f64,
+}
+
+impl Seg {
+    /// GEOS's straddle rule for a horizontal ray at height `y` (`ymin <= y < ymax`).
+    fn straddles(&self, y: f64) -> bool {
+        self.ymin <= y && y < self.ymax
+    }
+}
+
+/// A segment of one grid row: its padded x-start, and the cells it is near
+/// (`i_lo..i_hi_end`).
+#[derive(Debug, Clone, Copy)]
+struct RowSeg {
+    seg: Seg,
+    xlo: f64,
+    i_lo: usize,
+    i_hi_end: usize,
+}
+
+/// x-range of the part of `s` with `y` in `[lo, hi]` (the caller has checked that `s` reaches
+/// the band). Rounding here is far below the pad the caller adds.
+fn x_range_in_band(s: &Seg, lo: f64, hi: f64) -> (f64, f64) {
+    let (a, b) = (s.a, s.b);
+    let dy = b.1 - a.1;
+    let (t0, t1) = if dy == 0.0 {
+        (0.0, 1.0)
+    } else {
+        let ta = ((lo - a.1) / dy).clamp(0.0, 1.0);
+        let tb = ((hi - a.1) / dy).clamp(0.0, 1.0);
+        (ta.min(tb), ta.max(tb))
+    };
+    let at = |t: f64| {
+        if t <= 0.0 {
+            a.0
+        } else if t >= 1.0 {
+            b.0
+        } else {
+            a.0 + t * (b.0 - a.0)
+        }
+    };
+    let (x0, x1) = (at(t0), at(t1));
+    (x0.min(x1), x0.max(x1))
+}
+
+/// Toggle the parity of position `k` (0-based) of an XOR Fenwick tree.
+fn fenwick_toggle(tree: &mut [bool], k: usize) {
+    let mut i = k + 1;
+    while i < tree.len() {
+        tree[i] = !tree[i];
+        i += i & i.wrapping_neg();
+    }
+}
+
+/// XOR of the first `n` positions of an XOR Fenwick tree.
+fn fenwick_prefix(tree: &[bool], n: usize) -> bool {
+    let mut acc = false;
+    let mut i = n.min(tree.len().saturating_sub(1));
+    while i > 0 {
+        acc ^= tree[i];
+        i -= i & i.wrapping_neg();
+    }
+    acc
+}
+
+/// One row of the histogram method: the largest rectangle under `heights` ending at row `j`.
+fn histogram_step(
+    heights: &[usize],
+    j: usize,
+    best: &mut usize,
+    best_rect: &mut Option<(usize, usize, usize, usize)>,
+) {
+    let nx = heights.len();
+    let mut stack: Vec<usize> = Vec::new();
+    for i in 0..=nx {
+        let h = if i < nx { heights[i] } else { 0 };
+        while let Some(&top) = stack.last() {
+            if heights[top] < h {
+                break;
+            }
+            stack.pop();
+            let left = stack.last().map_or(0, |s| s + 1);
+            let area = heights[top] * (i - left);
+            if area > *best {
+                *best = area;
+                *best_rect = Some((left, j + 1 - heights[top], i, j + 1));
+            }
+        }
+        stack.push(i);
+    }
+}
+
+/// The pre-F3 implementation, kept verbatim as the reference for the differential tests: every
+/// cell is tested with [`geometry::contains_with_tolerance`] against the whole boundary (cells
+/// times vertices). Bounded by [`MAX_GRID_CELLS`] only. Not for request paths.
+#[doc(hidden)]
+pub fn largest_inner_rectangle_reference(poly: &[Coord], cell: f64) -> Option<Rect> {
     let b = Bounds::of(poly)?;
     let nx_f = ((b.maxx - b.minx) / cell).trunc();
     let ny_f = ((b.maxy - b.miny) / cell).trunc();
     if !(nx_f >= 2.0 && ny_f >= 2.0) || !nx_f.is_finite() || !ny_f.is_finite() {
         return None;
     }
-    // Bounded work: Python would scan any grid; floors with more cells than this (about
-    // 200 m x 200 m at 0.2 m) get no rectangle.
     if nx_f * ny_f > MAX_GRID_CELLS as f64 {
         return None;
     }
@@ -234,23 +564,7 @@ pub fn largest_inner_rectangle(poly: &[Coord], cell: f64) -> Option<(f64, f64, f
             let inside = geometry::contains_with_tolerance(&ring, &cell_ring, 1e-6);
             *h = if inside { *h + 1 } else { 0 };
         }
-        let mut stack: Vec<usize> = Vec::new();
-        for i in 0..=nx {
-            let h = if i < nx { heights[i] } else { 0 };
-            while let Some(&top) = stack.last() {
-                if heights[top] < h {
-                    break;
-                }
-                stack.pop();
-                let left = stack.last().map_or(0, |s| s + 1);
-                let area = heights[top] * (i - left);
-                if area > best {
-                    best = area;
-                    best_rect = Some((left, j + 1 - heights[top], i, j + 1));
-                }
-            }
-            stack.push(i);
-        }
+        histogram_step(&heights, j, &mut best, &mut best_rect);
     }
     let (i0, j0, i1, j1) = best_rect?;
     Some((cell_x(i0), cell_y(j0), cell_x(i1), cell_y(j1)))
@@ -360,19 +674,52 @@ pub fn is_solver_ready(site: &SiteGeometry) -> bool {
 pub const MIN_FRAME_AREA: f64 = 20.0;
 
 /// `frame_for_solver(site, min_area)`. `None` when the floor has no usable rectangle of at least
-/// `min_area` square meters.
+/// `min_area` square meters, or when a framing work bound stopped the scan
+/// ([`frame_for_solver_checked`] tells the two apart).
 pub fn frame_for_solver(site: &SiteGeometry, min_area: f64) -> Option<Frame> {
+    frame_for_solver_checked(site, min_area).ok().flatten()
+}
+
+/// [`frame_for_solver`], with `Err` (and a note saying which bound) when a work bound of
+/// [`largest_inner_rectangle_checked`] stopped the scan: such a floor gets no frame rather than
+/// a long computation. `Ok(None)` is Python's `None` (no usable rectangle).
+pub fn frame_for_solver_checked(
+    site: &SiteGeometry,
+    min_area: f64,
+) -> Result<Option<Frame>, WorkBoundExceeded> {
+    frame_with(site, min_area, largest_inner_rectangle_checked)
+}
+
+/// [`frame_for_solver`] on [`largest_inner_rectangle_reference`] (the pre-F3 scan), for the
+/// differential tests. Not for request paths.
+#[doc(hidden)]
+pub fn frame_for_solver_reference(site: &SiteGeometry, min_area: f64) -> Option<Frame> {
+    frame_with(site, min_area, |poly, cell| {
+        Ok(largest_inner_rectangle_reference(poly, cell))
+    })
+    .ok()
+    .flatten()
+}
+
+fn frame_with(
+    site: &SiteGeometry,
+    min_area: f64,
+    inner_rectangle: impl Fn(&[Coord], f64) -> Result<Option<Rect>, WorkBoundExceeded>,
+) -> Result<Option<Frame>, WorkBoundExceeded> {
     if is_solver_ready(site) {
-        return Some(Frame {
+        return Ok(Some(Frame {
             site: site.clone(),
             map: FrameMap::Identity,
             notes: vec![],
-        });
+        }));
     }
-    let (x0, y0, x1, y1) = largest_inner_rectangle(&site.floor_boundary, INNER_RECTANGLE_CELL)?;
+    let Some((x0, y0, x1, y1)) = inner_rectangle(&site.floor_boundary, INNER_RECTANGLE_CELL)?
+    else {
+        return Ok(None);
+    };
     let (w, h) = (x1 - x0, y1 - y0);
     if w * h < min_area {
-        return None;
+        return Ok(None);
     }
     let mut notes = vec![format!(
         "Layout uses the largest rectangular area of the measured floor ({w:.1} x {h:.1} m = {:.0} m2 of {:.0} m2); the rest is left unprogrammed.",
@@ -476,9 +823,9 @@ pub fn frame_for_solver(site: &SiteGeometry, min_area: f64) -> Option<Frame> {
         })
         .collect();
     framed.restricted_areas = vec![];
-    Some(Frame {
+    Ok(Some(Frame {
         site: framed,
         map: FrameMap::Rect { side, x0, y0, w, h },
         notes,
-    })
+    }))
 }

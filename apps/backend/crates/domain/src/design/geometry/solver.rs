@@ -62,7 +62,7 @@ use crate::spatial::validation::validate_layout;
 use crate::DomainError;
 use ss_core::Contract;
 
-use super::framing::{frame_for_solver, MIN_FRAME_AREA};
+use super::framing::{frame_for_solver_checked, MIN_FRAME_AREA};
 
 /// Centimetres per meter in the integer model.
 pub const CM: i64 = 100;
@@ -1421,12 +1421,18 @@ pub fn generate_candidates(
     prefs: &LayoutPreferences,
     count: i64,
 ) -> Result<Vec<Candidate>, DomainError> {
-    let Some(frame) = frame_for_solver(site, MIN_FRAME_AREA) else {
-        return Ok(vec![infeasible(
-            "none",
-            vec![],
-            "No usable rectangular area in this floor".into(),
-        )]);
+    let frame = match frame_for_solver_checked(site, MIN_FRAME_AREA) {
+        Ok(Some(frame)) => frame,
+        Ok(None) => {
+            return Ok(vec![infeasible(
+                "none",
+                vec![],
+                "No usable rectangular area in this floor".into(),
+            )])
+        }
+        // A framing work bound stopped the scan (Rust only): say so instead of claiming the
+        // floor has no usable area.
+        Err(bound) => return Ok(vec![infeasible("none", vec![], bound.note)]),
     };
     let rooms = expand(requirements);
     let framed = &frame.site;
