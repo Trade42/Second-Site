@@ -2,6 +2,9 @@
 
 #![allow(dead_code)]
 
+pub mod analysis;
+pub mod labels;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 

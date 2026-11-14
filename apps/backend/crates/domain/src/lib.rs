@@ -6,14 +6,22 @@
 //! - `domains/permits/{extract,service}.py` (pure part) -> [`permits`]
 //! - `integrations/{base,costar,la_permits}` (fixture and data-kit providers) -> [`integrations`]
 //! - `domains/requirements/templates.py` -> [`requirements`]
+//! - `domains/feasibility/engine.py` -> [`feasibility`]
+//! - `domains/finance/{calculator,cost_catalog}.py` -> [`finance`]
+//! - `domains/ranking/engine.py` -> [`ranking`]
+//! - `domains/evidence/validator.py` -> [`evidence`]
 //! - Python built-in semantics the port depends on -> [`py`]
 
 pub mod contracts;
 pub mod error;
+pub mod evidence;
+pub mod feasibility;
+pub mod finance;
 pub mod integrations;
 pub mod permits;
 pub mod property;
 pub mod py;
+pub mod ranking;
 pub mod requirements;
 
 pub use error::DomainError;

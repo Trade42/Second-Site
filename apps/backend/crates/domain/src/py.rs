@@ -376,9 +376,264 @@ fn valid_offset(tz: &str) -> bool {
         && digits[..2].parse::<u32>().is_ok_and(|h| h < 24)
 }
 
+/// CPython 3.12 built-in `sum()` over floats with the default start `0`. The first item is
+/// added to the int `0` (so `-0.0` becomes `0.0`); the rest use Neumaier's compensated summation,
+/// and the compensation is added at the end when it is non-zero and finite. An empty sequence
+/// gives `0.0` where Python returns the int `0`.
+pub fn sum_floats<I: IntoIterator<Item = f64>>(items: I) -> f64 {
+    let mut it = items.into_iter();
+    let Some(first) = it.next() else {
+        return 0.0;
+    };
+    let mut total = 0.0 + first;
+    let mut c = 0.0;
+    for x in it {
+        let t = total + x;
+        if total.abs() >= x.abs() {
+            c += (total - t) + x;
+        } else {
+            c += (x - t) + total;
+        }
+        total = t;
+    }
+    if c != 0.0 && c.is_finite() {
+        total += c;
+    }
+    total
+}
+
+/// Whether an `i64` converts to `f64` without rounding.
+fn exact_f64(v: i64) -> bool {
+    let m = v.unsigned_abs();
+    m == 0 || 64 - m.leading_zeros() - m.trailing_zeros() <= 53
+}
+
+/// Python `a / b` for ints: the correctly rounded (ties-to-even) quotient. `None` when `b == 0`
+/// (Python raises `ZeroDivisionError`).
+pub fn int_true_div(a: i64, b: i64) -> Option<f64> {
+    if b == 0 {
+        return None;
+    }
+    if a == 0 {
+        return Some(if b < 0 { -0.0 } else { 0.0 });
+    }
+    if exact_f64(a) && exact_f64(b) {
+        // IEEE division of exact operands is correctly rounded.
+        return Some(a as f64 / b as f64);
+    }
+    let negative = (a < 0) != (b < 0);
+    let (num, den) = (a.unsigned_abs(), b.unsigned_abs());
+    // num/den = (n128 / den) * 2^-shift with n128 holding num in the top bits of a u128, so the
+    // integer quotient has at least 64 significant bits.
+    let shift = 128 - (64 - num.leading_zeros()) as i32;
+    let n128 = (num as u128) << shift;
+    let den = u128::from(den);
+    let (q, sticky) = (n128 / den, !n128.is_multiple_of(den));
+    let bits = 128 - q.leading_zeros() as i32;
+    let drop = bits - 53;
+    let mut mant = q >> drop;
+    let low = q & ((1u128 << drop) - 1);
+    let half = 1u128 << (drop - 1);
+    if low > half || (low == half && (sticky || mant & 1 == 1)) {
+        mant += 1;
+    }
+    let mut exp = drop - shift;
+    if mant == 1u128 << 53 {
+        mant >>= 1;
+        exp += 1;
+    }
+    // mant < 2^53 and |exp| < 130: the product below is exact.
+    let scale = f64::from_bits(((1023 + exp) as u64) << 52);
+    let value = mant as f64 * scale;
+    Some(if negative { -value } else { value })
+}
+
+/// Python `float(s)` for a string: surrounding `str.isspace()` whitespace is ignored and single
+/// underscores between digits are allowed; `inf`, `infinity` and `nan` in any case. Narrower than
+/// CPython: non-ASCII decimal digits are rejected.
+pub fn float_of_str(s: &str) -> Option<f64> {
+    let t = strip(s);
+    let cleaned: String = if t.contains('_') {
+        let chars: Vec<char> = t.chars().collect();
+        for (i, c) in chars.iter().enumerate() {
+            if *c == '_' {
+                let before = i.checked_sub(1).and_then(|j| chars.get(j));
+                let after = chars.get(i + 1);
+                if !(before.is_some_and(char::is_ascii_digit)
+                    && after.is_some_and(char::is_ascii_digit))
+                {
+                    return None;
+                }
+            }
+        }
+        chars.into_iter().filter(|c| *c != '_').collect()
+    } else {
+        t.to_owned()
+    };
+    if !cleaned.is_ascii() {
+        return None;
+    }
+    cleaned.parse::<f64>().ok()
+}
+
+/// Python's error text for `float(x)` / `int(x)` of an unsupported JSON type.
+fn type_name(v: &Value) -> &'static str {
+    match v {
+        Value::Null => "NoneType",
+        Value::Bool(_) => "bool",
+        Value::Number(_) => "float",
+        Value::String(_) => "str",
+        Value::Array(_) => "list",
+        Value::Object(_) => "dict",
+    }
+}
+
+/// Python `float(x)` for a JSON-decoded value: numbers and booleans convert, strings parse as
+/// [`float_of_str`], anything else is the `TypeError`/`ValueError` message.
+pub fn float_of_value(v: &Value) -> Result<f64, String> {
+    match v {
+        Value::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
+        Value::Number(n) => n
+            .as_f64()
+            .ok_or_else(|| "float() argument out of range".to_owned()),
+        Value::String(s) => float_of_str(s)
+            .ok_or_else(|| format!("could not convert string to float: {}", str_repr(s))),
+        other => Err(format!(
+            "float() argument must be a string or a real number, not '{}'",
+            type_name(other)
+        )),
+    }
+}
+
+/// Python `int(f)` for a float, as an `i64`: truncation toward zero. `Err` for NaN and the
+/// infinities (Python raises) and for results outside `i64` (Python returns a big int).
+pub fn int_of_float(f: f64) -> Result<i64, String> {
+    if f.is_nan() {
+        return Err("cannot convert float NaN to integer".into());
+    }
+    if f.is_infinite() {
+        return Err("cannot convert float infinity to integer".into());
+    }
+    let t = f.trunc();
+    // -2^63 is exact; 2^63 is the first value that does not fit.
+    if (-9_223_372_036_854_775_808.0..9_223_372_036_854_775_808.0).contains(&t) {
+        Ok(t as i64)
+    } else {
+        Err(format!("int({}) does not fit in i64", float_repr(f)))
+    }
+}
+
+/// `str(int(f))` for a float, exact for every finite value (Python's ints are unbounded).
+pub fn int_str_of_float(f: f64) -> Result<String, String> {
+    if f.is_nan() {
+        return Err("cannot convert float NaN to integer".into());
+    }
+    if f.is_infinite() {
+        return Err("cannot convert float infinity to integer".into());
+    }
+    let t = f.trunc();
+    if t == 0.0 {
+        return Ok("0".into());
+    }
+    // Fixed-precision formatting of an integral double prints its exact decimal value.
+    Ok(format!("{t:.0}"))
+}
+
+/// Python `int(s)` for a string: optional sign, ASCII digits with single underscores between
+/// digits, surrounding whitespace ignored. Narrower than CPython: non-ASCII digits are rejected,
+/// and values outside `i64` are an error.
+pub fn int_of_str(s: &str) -> Result<i64, String> {
+    let err = || format!("invalid literal for int() with base 10: {}", str_repr(s));
+    let t = strip(s);
+    let (sign, digits) = match t.as_bytes().first() {
+        Some(b'-') => (-1i128, &t[1..]),
+        Some(b'+') => (1, &t[1..]),
+        _ => (1, t),
+    };
+    let bytes = digits.as_bytes();
+    if bytes.is_empty() || !bytes[0].is_ascii_digit() || !bytes[bytes.len() - 1].is_ascii_digit() {
+        return Err(err());
+    }
+    let mut value: i128 = 0;
+    let mut prev_underscore = false;
+    for &b in bytes {
+        if b == b'_' {
+            if prev_underscore {
+                return Err(err());
+            }
+            prev_underscore = true;
+            continue;
+        }
+        if !b.is_ascii_digit() {
+            return Err(err());
+        }
+        prev_underscore = false;
+        value = value
+            .checked_mul(10)
+            .and_then(|v| v.checked_add(i128::from(b - b'0')))
+            .ok_or_else(|| format!("int({}) does not fit in i64", str_repr(s)))?;
+    }
+    i64::try_from(sign * value).map_err(|_| format!("int({}) does not fit in i64", str_repr(s)))
+}
+
+/// `format(n, ',')` for an integer: comma thousands separators.
+pub fn group_thousands(n: i128) -> String {
+    let digits = n.unsigned_abs().to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3 + 1);
+    if n < 0 {
+        out.push('-');
+    }
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn numeric_helpers_match_cpython_examples() {
+        // Expected values are CPython 3.12 results.
+        assert_eq!(sum_floats([0.1; 10]), 1.0);
+        assert_eq!(sum_floats([0.1, 0.2, 0.3]), 0.6);
+        assert_eq!(sum_floats([1e100, 1.0, -1e100]), 1.0);
+        assert_eq!(sum_floats([-0.0]).to_bits(), 0.0f64.to_bits());
+        assert_eq!(int_true_div(1, 3), Some(1.0 / 3.0));
+        assert_eq!(int_true_div(5, 0), None);
+        // 2^53 + 1 is not exact as a double; Python divides the exact integers.
+        assert_eq!(
+            int_true_div(9_007_199_254_740_993, 3),
+            Some(3002399751580331.0)
+        );
+        assert_eq!(int_true_div(i64::MAX, 7), Some(1.3176245766935393e18));
+        assert_eq!(
+            int_true_div(-9_007_199_254_740_993, 2),
+            Some(-4503599627370496.0)
+        );
+        assert_eq!(float_of_str(" 1_000.5 "), Some(1000.5));
+        assert_eq!(float_of_str("1__0"), None);
+        assert_eq!(float_of_str("_1"), None);
+        assert!(float_of_str("-Infinity").is_some_and(|f| f == f64::NEG_INFINITY));
+        assert_eq!(int_of_float(-2.9), Ok(-2));
+        assert!(int_of_float(f64::NAN).is_err());
+        assert_eq!(
+            int_str_of_float(1e30).as_deref(),
+            Ok("1000000000000000019884624838656")
+        );
+        assert_eq!(int_str_of_float(-0.5).as_deref(), Ok("0"));
+        assert_eq!(int_str_of_float(800.0).as_deref(), Ok("800"));
+        assert_eq!(int_of_str(" -1_2 "), Ok(-12));
+        assert!(int_of_str("5.0").is_err());
+        assert!(int_of_str("1__2").is_err());
+        assert_eq!(group_thousands(1_234_567), "1,234,567");
+        assert_eq!(group_thousands(-1_000), "-1,000");
+        assert_eq!(group_thousands(999), "999");
+    }
 
     #[test]
     fn repr_and_g_match_cpython_examples() {
