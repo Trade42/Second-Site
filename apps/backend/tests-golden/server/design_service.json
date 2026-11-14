@@ -1,0 +1,2033 @@
+{
+ "room_requirements_from_profile": [
+  {
+   "rooms": [
+    [
+     "reception",
+     1
+    ],
+    [
+     "storage",
+     1
+    ],
+    [
+     "treatment",
+     3
+    ]
+   ],
+   "plumbing_rooms": null,
+   "result": [
+    {
+     "room_type": "reception",
+     "count": 1,
+     "min_area_sqm": 12.6,
+     "min_width_m": 3.0,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "storage",
+     "count": 1,
+     "min_area_sqm": 4.5,
+     "min_width_m": 1.5,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "treatment",
+     "count": 3,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     3
+    ],
+    [
+     "reception",
+     1
+    ],
+    [
+     "storage",
+     1
+    ]
+   ],
+   "plumbing_rooms": null,
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 3,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "reception",
+     "count": 1,
+     "min_area_sqm": 12.6,
+     "min_width_m": 3.0,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "storage",
+     "count": 1,
+     "min_area_sqm": 4.5,
+     "min_width_m": 1.5,
+     "needs_plumbing": false
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     2
+    ],
+    [
+     "office",
+     1
+    ],
+    [
+     "reception",
+     0
+    ],
+    [
+     "storage",
+     -1
+    ]
+   ],
+   "plumbing_rooms": null,
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 2,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "office",
+     "count": 1,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": false
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     2
+    ],
+    [
+     "laundry",
+     1
+    ],
+    [
+     "staff_room",
+     1
+    ]
+   ],
+   "plumbing_rooms": [
+    "laundry",
+    "staff_room"
+   ],
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 2,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "laundry",
+     "count": 1,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "staff_room",
+     "count": 1,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": true
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     2
+    ],
+    [
+     "reception",
+     1
+    ]
+   ],
+   "plumbing_rooms": [],
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 2,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "reception",
+     "count": 1,
+     "min_area_sqm": 12.6,
+     "min_width_m": 3.0,
+     "needs_plumbing": false
+    }
+   ]
+  },
+  {
+   "rooms": [],
+   "plumbing_rooms": null,
+   "result": []
+  },
+  {
+   "rooms": [
+    [
+     "unknown_room",
+     4
+    ]
+   ],
+   "plumbing_rooms": [
+    "unknown_room"
+   ],
+   "result": [
+    {
+     "room_type": "unknown_room",
+     "count": 4,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": true
+    }
+   ]
+  }
+ ],
+ "lock_keys": [
+  {
+   "namespace": "design_versions",
+   "id": "6a8f3a52-1d3b-4f6e-9c4e-0b7c1f2a3d4e",
+   "key": -7432078645635933439
+  },
+  {
+   "namespace": "design_versions",
+   "id": "00000000-0000-4000-8000-000000000000",
+   "key": -845066441114841819
+  },
+  {
+   "namespace": "bills_of_materials",
+   "id": "6a8f3a52-1d3b-4f6e-9c4e-0b7c1f2a3d4e",
+   "key": -5922274628451772582
+  },
+  {
+   "namespace": "activity_events",
+   "id": "6a8f3a52-1d3b-4f6e-9c4e-0b7c1f2a3d4e",
+   "key": -9055379089551683476
+  }
+ ],
+ "site_geometry": {
+  "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+  "source_id": "fixture-matterport-hollywood-302",
+  "cases": [
+   {
+    "name": "hollywood_fixture",
+    "doc": {
+     "_meta": {
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+      "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+     },
+     "fixture_key": "la-hollywood-6922-302",
+     "source_id": "fixture-matterport-hollywood-302",
+     "floor_boundary": [
+      [
+       0,
+       0
+      ],
+      [
+       12.0,
+       0
+      ],
+      [
+       12.0,
+       11.6
+      ],
+      [
+       0,
+       11.6
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0,
+        3
+       ],
+       "end": [
+        0,
+        8
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ]
+      }
+     ],
+     "measurement_uncertainty_m": 0.15
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "FIXTURE",
+     "data_origin": "FIXTURE_SYNTHETIC",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       12.0,
+       0.0
+      ],
+      [
+       12.0,
+       11.6
+      ],
+      [
+       0.0,
+       11.6
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "fixed_walls": [],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0.0
+       ],
+       "end": [
+        6.2,
+        0.0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0.0
+       ],
+       "end": [
+        6.2,
+        0.0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0.0,
+        3.0
+       ],
+       "end": [
+        0.0,
+        8.0
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ],
+       "evidence_ids": []
+      }
+     ],
+     "restricted_areas": [],
+     "scale_verified": false,
+     "measurement_uncertainty_m": 0.15
+    },
+    "error": null
+   },
+   {
+    "name": "live_l_shaped_suite",
+    "doc": {
+     "source_id": "TESTMODEL01",
+     "model_name": "Suite 210",
+     "floor_label": "Floor 1",
+     "floor_count": 1,
+     "measured_area_sqm": 108.0,
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       10.0
+      ],
+      [
+       8.0,
+       10.0
+      ],
+      [
+       8.0,
+       7.0
+      ],
+      [
+       12.0,
+       7.0
+      ],
+      [
+       12.0,
+       0.0
+      ]
+     ],
+     "fixed_walls": [
+      [
+       [
+        3,
+        0
+       ],
+       [
+        3,
+        10
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.5,
+        0.0
+       ],
+       "end": [
+        6.5,
+        0.0
+       ]
+      }
+     ],
+     "windows": [],
+     "interior_doors": [],
+     "rooms": [
+      {
+       "label": "Office",
+       "area_sqm": 24.0
+      }
+     ],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin (rotated -0 deg from provider frame)",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       10.0
+      ],
+      [
+       8.0,
+       10.0
+      ],
+      [
+       8.0,
+       7.0
+      ],
+      [
+       12.0,
+       7.0
+      ],
+      [
+       12.0,
+       0.0
+      ]
+     ],
+     "fixed_obstacles": [],
+     "fixed_walls": [
+      [
+       [
+        3.0,
+        0.0
+       ],
+       [
+        3.0,
+        10.0
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.5,
+        0.0
+       ],
+       "end": [
+        6.5,
+        0.0
+       ]
+      }
+     ],
+     "exits": [],
+     "windows": [],
+     "fixture_locations": [],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "error": null
+   },
+   {
+    "name": "live_windows_doors_rounding_rooms",
+    "doc": {
+     "source_id": "GEOM0001",
+     "model_name": "Suite 1",
+     "floor_label": "Floor 1",
+     "floor_count": 1,
+     "measured_area_sqm": 63.2,
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "floor_boundary": [
+      [
+       0.123,
+       0.0
+      ],
+      [
+       0.123,
+       6.5
+      ],
+      [
+       9.877,
+       6.5
+      ],
+      [
+       9.877,
+       0.0
+      ]
+     ],
+     "fixed_walls": [
+      [
+       [
+        5.0,
+        0.0
+       ],
+       [
+        5.0,
+        6.5
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        6.9882716049999996,
+        0.0
+       ],
+       "end": [
+        7.888271605,
+        0.0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        1.96172839,
+        0.0
+       ],
+       "end": [
+        3.1617283900000004,
+        0.0
+       ]
+      }
+     ],
+     "interior_doors": [
+      {
+       "kind": "interior_door",
+       "start": [
+        5.0,
+        1.175
+       ],
+       "end": [
+        5.0,
+        2.0749999999999997
+       ]
+      },
+      {
+       "kind": "interior_door",
+       "start": [
+        2.0,
+        4.3
+       ],
+       "end": [
+        2.0,
+        5.2
+       ]
+      }
+     ],
+     "rooms": [
+      {
+       "label": "Treatment",
+       "area_sqm": 30.1
+      },
+      {
+       "label": null,
+       "area_sqm": null
+      }
+     ],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin (rotated -0 deg from provider frame)",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       6.5
+      ],
+      [
+       9.754,
+       6.5
+      ],
+      [
+       9.754,
+       0.0
+      ]
+     ],
+     "fixed_obstacles": [],
+     "fixed_walls": [
+      [
+       [
+        4.877,
+        0.0
+       ],
+       [
+        4.877,
+        6.5
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        6.865,
+        0.0
+       ],
+       "end": [
+        7.765,
+        0.0
+       ]
+      }
+     ],
+     "exits": [],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        1.839,
+        0.0
+       ],
+       "end": [
+        3.039,
+        0.0
+       ]
+      }
+     ],
+     "fixture_locations": [],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "error": null
+   },
+   {
+    "name": "live_largest_floor_by_area",
+    "doc": {
+     "source_id": "GEOM0001",
+     "model_name": "Suite 1",
+     "floor_label": "Upper",
+     "floor_count": 2,
+     "measured_area_sqm": 40.0,
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "floor_boundary": [
+      [
+       8.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       5.0
+      ],
+      [
+       8.0,
+       5.0
+      ]
+     ],
+     "fixed_walls": [],
+     "entrances": [],
+     "windows": [],
+     "interior_doors": [],
+     "rooms": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin (rotated -0 deg from provider frame)",
+     "floor_boundary": [
+      [
+       8.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       5.0
+      ],
+      [
+       8.0,
+       5.0
+      ]
+     ],
+     "fixed_obstacles": [],
+     "fixed_walls": [],
+     "entrances": [],
+     "exits": [],
+     "windows": [],
+     "fixture_locations": [],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "error": null
+   },
+   {
+    "name": "live_floor_area_tie_most_edges",
+    "doc": {
+     "source_id": "GEOM0001",
+     "model_name": "Suite 1",
+     "floor_label": "B",
+     "floor_count": 2,
+     "measured_area_sqm": 40.0,
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       5.0
+      ],
+      [
+       8.0,
+       5.0
+      ],
+      [
+       8.0,
+       0.0
+      ]
+     ],
+     "fixed_walls": [
+      [
+       [
+        4,
+        0
+       ],
+       [
+        4,
+        5
+       ]
+      ]
+     ],
+     "entrances": [],
+     "windows": [],
+     "interior_doors": [],
+     "rooms": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin (rotated -0 deg from provider frame)",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       5.0
+      ],
+      [
+       8.0,
+       5.0
+      ],
+      [
+       8.0,
+       0.0
+      ]
+     ],
+     "fixed_obstacles": [],
+     "fixed_walls": [
+      [
+       [
+        4.0,
+        0.0
+       ],
+       [
+        4.0,
+        5.0
+       ]
+      ]
+     ],
+     "entrances": [],
+     "exits": [],
+     "windows": [],
+     "fixture_locations": [],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "error": null
+   },
+   {
+    "name": "live_rotated_with_partition_and_bad_edges",
+    "doc": {
+     "source_id": "GEOM0001",
+     "model_name": "Suite 1",
+     "floor_label": "Floor 1",
+     "floor_count": 1,
+     "measured_area_sqm": null,
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       -4.243,
+       4.243
+      ],
+      [
+       2.828,
+       11.314
+      ],
+      [
+       7.071,
+       7.071
+      ]
+     ],
+     "fixed_walls": [
+      [
+       [
+        3.536,
+        3.536
+       ],
+       [
+        -0.707,
+        7.778
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        1.484924237525381,
+        1.484924237525381
+       ],
+       "end": [
+        2.0506096624746193,
+        2.0506096624746193
+       ]
+      }
+     ],
+     "windows": [],
+     "interior_doors": [
+      {
+       "kind": "interior_door",
+       "start": [
+        2.227386349652601,
+        4.843681450347399
+       ],
+       "end": [
+        1.4495688903473987,
+        5.621498909652601
+       ]
+      }
+     ],
+     "rooms": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin (rotated 45 deg from provider frame)",
+     "floor_boundary": [
+      [
+       6.001,
+       0.0
+      ],
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       10.0
+      ],
+      [
+       6.001,
+       10.0
+      ]
+     ],
+     "fixed_obstacles": [],
+     "fixed_walls": [
+      [
+       [
+        6.001,
+        5.001
+       ],
+       [
+        0.001,
+        5.0
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        6.001,
+        2.1
+       ],
+       "end": [
+        6.001,
+        2.9
+       ]
+      }
+     ],
+     "exits": [],
+     "windows": [],
+     "fixture_locations": [],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "error": null
+   },
+   {
+    "name": "live_walls_near_the_boundary",
+    "doc": {
+     "source_id": "GEOM0001",
+     "model_name": "Suite 1",
+     "floor_label": "Floor 1",
+     "floor_count": 1,
+     "measured_area_sqm": 40.0,
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "floor_boundary": [
+      [
+       8.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       5.0
+      ],
+      [
+       8.0,
+       5.0
+      ]
+     ],
+     "fixed_walls": [
+      [
+       [
+        0.5,
+        0.3
+       ],
+       [
+        7.5,
+        0.3
+       ]
+      ]
+     ],
+     "entrances": [],
+     "windows": [],
+     "interior_doors": [],
+     "rooms": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin (rotated -0 deg from provider frame)",
+     "floor_boundary": [
+      [
+       8.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       5.0
+      ],
+      [
+       8.0,
+       5.0
+      ]
+     ],
+     "fixed_obstacles": [],
+     "fixed_walls": [
+      [
+       [
+        0.5,
+        0.3
+       ],
+       [
+        7.5,
+        0.3
+       ]
+      ]
+     ],
+     "entrances": [],
+     "exits": [],
+     "windows": [],
+     "fixture_locations": [],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "error": null
+   },
+   {
+    "name": "rotated_three_rooms_python",
+    "doc": {
+     "source_id": "ROTATED3",
+     "model_name": "Rotated three-room suite",
+     "floor_label": "Floor 1",
+     "floor_count": 1,
+     "measured_area_sqm": 80.1,
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "floor_boundary": [
+      [
+       0.974,
+       6.603
+      ],
+      [
+       5.882,
+       7.557
+      ],
+      [
+       7.408,
+       -0.296
+      ],
+      [
+       2.5,
+       -1.25
+      ]
+     ],
+     "fixed_walls": [
+      [
+       [
+        7.217,
+        0.686
+       ],
+       [
+        14.089,
+        2.021
+       ]
+      ],
+      [
+       [
+        14.089,
+        2.021
+       ],
+       [
+        13.421,
+        5.457
+       ]
+      ],
+      [
+       [
+        13.421,
+        5.457
+       ],
+       [
+        6.549,
+        4.121
+       ]
+      ],
+      [
+       [
+        6.406,
+        4.858
+       ],
+       [
+        12.689,
+        6.079
+       ]
+      ],
+      [
+       [
+        12.689,
+        6.079
+       ],
+       [
+        12.164,
+        8.778
+       ]
+      ],
+      [
+       [
+        12.164,
+        8.778
+       ],
+       [
+        5.882,
+        7.557
+       ]
+      ]
+     ],
+     "entrances": [],
+     "windows": [],
+     "interior_doors": [],
+     "rooms": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "MATTERPORT_MEASURED",
+     "data_origin": "LIVE",
+     "units": "m",
+     "coordinate_reference": "local_floor_origin (rotated -11 deg from provider frame)",
+     "floor_boundary": [
+      [
+       0.0,
+       8.0
+      ],
+      [
+       5.0,
+       8.0
+      ],
+      [
+       5.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0
+      ]
+     ],
+     "fixed_obstacles": [],
+     "fixed_walls": [
+      [
+       [
+        5.0,
+        1.0
+       ],
+       [
+        12.0,
+        1.0
+       ]
+      ],
+      [
+       [
+        12.0,
+        1.0
+       ],
+       [
+        12.0,
+        4.5
+       ]
+      ],
+      [
+       [
+        12.0,
+        4.5
+       ],
+       [
+        4.999,
+        4.5
+       ]
+      ],
+      [
+       [
+        5.0,
+        5.25
+       ],
+       [
+        11.4,
+        5.25
+       ]
+      ],
+      [
+       [
+        11.4,
+        5.25
+       ],
+       [
+        11.4,
+        8.0
+       ]
+      ],
+      [
+       [
+        11.4,
+        8.0
+       ],
+       [
+        5.0,
+        8.0
+       ]
+      ]
+     ],
+     "entrances": [],
+     "exits": [],
+     "windows": [],
+     "fixture_locations": [],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": null
+    },
+    "error": null
+   },
+   {
+    "name": "unknown_geometry_source",
+    "doc": {
+     "_meta": {
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+      "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+     },
+     "fixture_key": "la-hollywood-6922-302",
+     "source_id": "fixture-matterport-hollywood-302",
+     "floor_boundary": [
+      [
+       0,
+       0
+      ],
+      [
+       12.0,
+       0
+      ],
+      [
+       12.0,
+       11.6
+      ],
+      [
+       0,
+       11.6
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0,
+        3
+       ],
+       "end": [
+        0,
+        8
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ]
+      }
+     ],
+     "measurement_uncertainty_m": 0.15,
+     "geometry_source": "SATELLITE"
+    },
+    "result": null,
+    "error": "ValueError"
+   },
+   {
+    "name": "no_floor_boundary",
+    "doc": {
+     "_meta": {
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+      "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+     },
+     "fixture_key": "la-hollywood-6922-302",
+     "source_id": "fixture-matterport-hollywood-302",
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0,
+        3
+       ],
+       "end": [
+        0,
+        8
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ]
+      }
+     ],
+     "measurement_uncertainty_m": 0.15
+    },
+    "result": null,
+    "error": "KeyError"
+   },
+   {
+    "name": "photo_estimate_scale_verified",
+    "doc": {
+     "_meta": {
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+      "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+     },
+     "fixture_key": "la-hollywood-6922-302",
+     "source_id": "fixture-matterport-hollywood-302",
+     "floor_boundary": [
+      [
+       0,
+       0
+      ],
+      [
+       12.0,
+       0
+      ],
+      [
+       12.0,
+       11.6
+      ],
+      [
+       0,
+       11.6
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0,
+        3
+       ],
+       "end": [
+        0,
+        8
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ]
+      }
+     ],
+     "measurement_uncertainty_m": 0.15,
+     "geometry_source": "PHOTO_ESTIMATE",
+     "scale_verified": true
+    },
+    "result": null,
+    "error": "ValidationError"
+   },
+   {
+    "name": "owner_measured_truthy_scale",
+    "doc": {
+     "_meta": {
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+      "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+     },
+     "fixture_key": "la-hollywood-6922-302",
+     "source_id": "fixture-matterport-hollywood-302",
+     "floor_boundary": [
+      [
+       0,
+       0
+      ],
+      [
+       12.0,
+       0
+      ],
+      [
+       12.0,
+       11.6
+      ],
+      [
+       0,
+       11.6
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0,
+        3
+       ],
+       "end": [
+        0,
+        8
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ]
+      }
+     ],
+     "measurement_uncertainty_m": 0.15,
+     "geometry_source": "OWNER_MEASURED",
+     "scale_verified": 1,
+     "coordinate_reference": "owner_sketch"
+    },
+    "result": {
+     "property_id": "3f1c2b9a-6d4e-4f1a-8b2c-9d0e1f2a3b4c",
+     "source_id": "fixture-matterport-hollywood-302",
+     "geometry_source": "OWNER_MEASURED",
+     "data_origin": "FIXTURE_SYNTHETIC",
+     "units": "m",
+     "coordinate_reference": "owner_sketch",
+     "floor_boundary": [
+      [
+       0.0,
+       0.0
+      ],
+      [
+       12.0,
+       0.0
+      ],
+      [
+       12.0,
+       11.6
+      ],
+      [
+       0.0,
+       11.6
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "fixed_walls": [],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0.0
+       ],
+       "end": [
+        6.2,
+        0.0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0.0
+       ],
+       "end": [
+        6.2,
+        0.0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0.0,
+        3.0
+       ],
+       "end": [
+        0.0,
+        8.0
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ],
+       "evidence_ids": []
+      }
+     ],
+     "restricted_areas": [],
+     "scale_verified": true,
+     "measurement_uncertainty_m": 0.15
+    },
+    "error": null
+   },
+   {
+    "name": "negative_uncertainty",
+    "doc": {
+     "_meta": {
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+      "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+     },
+     "fixture_key": "la-hollywood-6922-302",
+     "source_id": "fixture-matterport-hollywood-302",
+     "floor_boundary": [
+      [
+       0,
+       0
+      ],
+      [
+       12.0,
+       0
+      ],
+      [
+       12.0,
+       11.6
+      ],
+      [
+       0,
+       11.6
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0,
+        3
+       ],
+       "end": [
+        0,
+        8
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ]
+      }
+     ],
+     "measurement_uncertainty_m": -0.1
+    },
+    "result": null,
+    "error": "ValidationError"
+   },
+   {
+    "name": "degenerate_boundary",
+    "doc": {
+     "_meta": {
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "warning": "Invented 12.0m x 11.6m rectangle for solver development. Not measured. scale_verified=false.",
+      "note": "Corner column at (0.2-0.8, 0.2-0.8). Entrance on the y=0 wall."
+     },
+     "fixture_key": "la-hollywood-6922-302",
+     "source_id": "fixture-matterport-hollywood-302",
+     "floor_boundary": [
+      [
+       0,
+       0
+      ],
+      [
+       1,
+       0
+      ]
+     ],
+     "fixed_obstacles": [
+      [
+       [
+        0.2,
+        0.2
+       ],
+       [
+        0.8,
+        0.2
+       ],
+       [
+        0.8,
+        0.8
+       ],
+       [
+        0.2,
+        0.8
+       ]
+      ]
+     ],
+     "entrances": [
+      {
+       "kind": "entrance",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "exits": [
+      {
+       "kind": "exit",
+       "start": [
+        5.0,
+        0
+       ],
+       "end": [
+        6.2,
+        0
+       ]
+      }
+     ],
+     "windows": [
+      {
+       "kind": "window",
+       "start": [
+        0,
+        3
+       ],
+       "end": [
+        0,
+        8
+       ]
+      }
+     ],
+     "fixture_locations": [
+      {
+       "kind": "sink",
+       "location": [
+        11.5,
+        10.8
+       ]
+      }
+     ],
+     "measurement_uncertainty_m": 0.15
+    },
+    "result": null,
+    "error": "ValidationError"
+   }
+  ]
+ }
+}

@@ -667,6 +667,137 @@ pub fn group_thousands(n: i128) -> String {
     out
 }
 
+/// A compiled regex with Python `re` semantics (str pattern, optionally `re.I`) for the
+/// constructs the ported communication patterns use: literals, alternation, groups, greedy
+/// quantifiers, character classes, `\d`, `\s` and `\b`. Python and the Rust `regex` crate
+/// differ there (part 1 review, R9), and this type closes the gaps:
+///
+/// - `\s` means `str.isspace()` (the pattern is compiled with [`py_regex`]'s translation);
+/// - `\b` uses Python's word characters (`\w` = Unicode letters `L*`, numbers `N*` and `_`; Rust
+///   counts combining marks, connector punctuation, join controls and `Other_Alphabetic`
+///   symbols as word characters and not `No` numbers such as `½`). The text is matched in a
+///   normalized copy where each character whose word status differs is replaced, one character
+///   for one, by a stand-in with Python's status (`ж` for a word character, `☃` otherwise);
+///   neither stand-in can match a pattern literal, a digit or a space;
+/// - with `re.I`, Python also matches `İ` (U+0130) and `ı` (U+0131) for `i`, which Rust's
+///   simple case folding does not: they are replaced by `i` in the normalized copy (Python's
+///   other non-ASCII equivalents of ASCII letters, `K` for `k` and `ſ` for `s`, Rust folds too).
+///
+/// Match positions and groups are reported in the original text. `\d` is Unicode `Nd` in both
+/// engines; the Rust engine's leftmost-first semantics equal Python's backtracking for these
+/// patterns (no backreferences or lookaround). Unicode tables: CPython 3.12 uses Unicode 15.0,
+/// the `regex` crate a newer version; characters assigned after 15.0 may differ (tested).
+#[derive(Debug, Clone)]
+pub struct PyRegex {
+    re: Regex,
+    ignore_case: bool,
+}
+
+/// A match of [`PyRegex::search`]: byte ranges in the original text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PyMatch<'t> {
+    text: &'t str,
+    groups: Vec<Option<(usize, usize)>>,
+}
+
+impl<'t> PyMatch<'t> {
+    /// `m.group(i)` (0 is the whole match); `None` when the group did not participate.
+    pub fn group(&self, i: usize) -> Option<&'t str> {
+        self.groups
+            .get(i)
+            .copied()
+            .flatten()
+            .map(|(a, b)| &self.text[a..b])
+    }
+
+    /// `m.start()`, `m.end()` in bytes of the original text.
+    pub fn span(&self) -> (usize, usize) {
+        self.groups.first().copied().flatten().unwrap_or((0, 0))
+    }
+}
+
+fn rust_word(c: char) -> bool {
+    static W: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = W.get_or_init(|| Regex::new(r"\A\w\z").expect("static regex is valid"));
+    let mut buf = [0u8; 4];
+    re.is_match(c.encode_utf8(&mut buf))
+}
+
+/// CPython's `\w` for str patterns: `str.isalnum()` or `_` (general categories `L*` and `N*`).
+pub fn is_py_word(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric() || c == '_';
+    }
+    static W: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = W.get_or_init(|| Regex::new(r"\A[\p{L}\p{N}]\z").expect("static regex is valid"));
+    let mut buf = [0u8; 4];
+    re.is_match(c.encode_utf8(&mut buf))
+}
+
+impl PyRegex {
+    /// Compile a Python pattern (`re.compile(pattern)`, or with `re.I` when `ignore_case`).
+    /// Patterns are compile-time constants covered by tests; failure is a programming error.
+    pub fn new(pattern: &str, ignore_case: bool) -> Self {
+        let translated = pattern.replace(r"\s", r"[\s\x1C-\x1F]");
+        let full = if ignore_case {
+            format!("(?i){translated}")
+        } else {
+            translated
+        };
+        Self {
+            re: Regex::new(&full).expect("static regex is valid"),
+            ignore_case,
+        }
+    }
+
+    /// The normalized copy of `text` and, for each of its byte offsets at a character boundary
+    /// (and its end), the matching offset in `text`.
+    fn normalize(&self, text: &str) -> (String, Vec<usize>) {
+        let mut out = String::with_capacity(text.len());
+        let mut at = Vec::with_capacity(text.len() + 1);
+        for (i, c) in text.char_indices() {
+            let mapped = if c.is_ascii() {
+                c
+            } else if self.ignore_case && (c == '\u{130}' || c == '\u{131}') {
+                'i'
+            } else {
+                let py = is_py_word(c);
+                if py == rust_word(c) {
+                    c
+                } else if py {
+                    'ж'
+                } else {
+                    '☃'
+                }
+            };
+            let start = out.len();
+            out.push(mapped);
+            at.resize(start + 1, i);
+            at[start] = i;
+        }
+        let end = out.len();
+        at.resize(end + 1, text.len());
+        at[end] = text.len();
+        (out, at)
+    }
+
+    /// `pattern.search(text)`: the first match, with every group.
+    pub fn search<'t>(&self, text: &'t str) -> Option<PyMatch<'t>> {
+        let (norm, at) = self.normalize(text);
+        let caps = self.re.captures(&norm)?;
+        let groups = (0..caps.len())
+            .map(|i| caps.get(i).map(|m| (at[m.start()], at[m.end()])))
+            .collect();
+        Some(PyMatch { text, groups })
+    }
+
+    /// `bool(pattern.search(text))`.
+    pub fn is_match(&self, text: &str) -> bool {
+        let (norm, _) = self.normalize(text);
+        self.re.is_match(&norm)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

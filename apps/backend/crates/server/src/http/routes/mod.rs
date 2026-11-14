@@ -2,6 +2,7 @@
 //! by adding one `.merge(...)` line to [`api_routes`].
 
 pub mod approvals;
+pub mod design;
 pub mod dev;
 pub mod events;
 pub mod health;
@@ -25,6 +26,7 @@ pub fn api_routes() -> Router<AppState> {
         .merge(events::router())
         .merge(properties::router())
         .merge(media::router())
+        .merge(design::router())
 }
 
 /// Open a transaction, run `$body` with `tx: &mut dyn Tx`, commit on success. An early return
