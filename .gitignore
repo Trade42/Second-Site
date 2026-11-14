@@ -1,0 +1,4 @@
+.board/
+.env
+.env.*
+!.env.example

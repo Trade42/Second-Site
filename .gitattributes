@@ -1,0 +1,2 @@
+tools/board text eol=lf
+.claude/hooks/*.sh text eol=lf
