@@ -1,0 +1,164 @@
+{
+ "_meta": {
+  "source": "https://v2.nessieisreal.com/openapi.json (Nessie API 2.1.3, spec_sha256 49bf003e5ce32155af14410c640f0275b864eb3c0bd2398ab4f08b312cbe3e37), retrieved 2026-11-14",
+  "note": "Bodies under `verbatim` are copied from the guides in the OpenAPI info.description or from the schema `examples` keywords; `...` placeholders in the docs were replaced as stated in each `edit`. Bodies under `constructed` were written for these tests from the component schemas (field names, types, enums and required lists) and are validated against schemas.json by the tests; their values are invented and are not Nessie output."
+ },
+ "verbatim": {
+  "account_credit_card_excerpt": {
+   "where": "guide 'Accounts, balances and credit cards' > 'Reading balances'",
+   "edit": "none (the guide shows only these fields; AccountDTO requires more, so this excerpt is not schema-complete)",
+   "body": {
+    "id": "acct_01J8...",
+    "type": "Credit Card",
+    "balance_cents": 4250,
+    "pending_debits_cents": 0,
+    "available_cents": 95750,
+    "credit_limit_cents": 100000
+   }
+  },
+  "transfer_request": {
+   "where": "'The API in one minute' (POST /accounts/{id}/transfers)",
+   "edit": "none",
+   "body": {"amount_cents": 2500, "payee_id": "<another account id>"}
+  },
+  "purchase_request": {
+   "where": "guide 'Transactions: how money moves' (POST /accounts/{id}/purchases)",
+   "edit": "none",
+   "body": {"amount_cents": 1299, "merchant_id": "<merchant id>", "description": "coffee"}
+  },
+  "card_payment_transfer_request": {
+   "where": "guide 'Accounts, balances and credit cards' > 'Credit cards work like real cards'",
+   "edit": "none",
+   "body": {"amount_cents": 20000, "payee_id": "<card account id>"}
+  },
+  "events_page": {
+   "where": "guide 'The event feed' > 'Reading it'",
+   "edit": "data.transaction was `{ ... }` in the guide; replaced by {}",
+   "body": {
+    "items": [
+     {"id": "evt_...", "seq": 1, "type": "transaction.created", "account_id": "acct_...", "tx_id": "txn_...",
+      "created_at": "2026-02-01T12:00:00Z", "data": {"transaction": {}}}
+    ],
+    "next_cursor": 1
+   }
+  },
+  "problem_insufficient_funds": {
+   "where": "ErrorModel schema `examples` keywords (type, title, status, detail)",
+   "edit": "assembled from the per-field examples",
+   "body": {
+    "type": "https://nessieisreal.com/problems/insufficient_funds",
+    "title": "Unprocessable Entity",
+    "status": 422,
+    "detail": "Account acct_01J8Z... has 500 cents available."
+   }
+  },
+  "health": {
+   "where": "HealthDTO schema `examples` keywords",
+   "edit": "assembled from the per-field examples",
+   "body": {"status": "healthy", "service": "nessie", "version": "2.0.0", "commit": "58f8301", "timestamp": 1791759518, "uptime_seconds": 42}
+  },
+  "address": {
+   "where": "AddressDTO schema `examples` keywords",
+   "edit": "assembled from the per-field examples",
+   "body": {"street_number": "1500", "street_name": "Main St", "city": "McLean", "state": "VA", "zip": "22101"}
+  },
+  "geocode": {
+   "where": "GeocodeDTO schema `examples` keywords",
+   "edit": "assembled from the per-field examples",
+   "body": {"lat": 38.9339, "lng": -77.1773}
+  },
+  "purge": {
+   "where": "DataPurgeDTO schema `examples` keyword",
+   "edit": "assembled from the per-field example",
+   "body": {"deleted": 14}
+  }
+ },
+ "constructed": {
+  "CustomerDTO": {
+   "id": "cust_example_1",
+   "first_name": "Ada",
+   "last_name": "Example",
+   "address": {"street_number": "1500", "street_name": "Main St", "city": "McLean", "state": "VA", "zip": "22101"},
+   "created_at": "2026-11-14T12:00:00Z",
+   "updated_at": "2026-11-14T12:00:00Z"
+  },
+  "AccountDTO": {
+   "id": "acct_example_1",
+   "customer_id": "cust_example_1",
+   "type": "Checking",
+   "nickname": "Opening fund",
+   "balance_cents": 25000000,
+   "pending_debits_cents": 120000,
+   "available_cents": 24880000,
+   "account_number": "0000123456",
+   "rewards": 0,
+   "created_at": "2026-11-14T12:00:00Z",
+   "updated_at": "2026-11-14T12:00:01Z"
+  },
+  "MerchantDTO": {
+   "id": "merch_example_1",
+   "name": "SIMULATED LANDLORD",
+   "category": "real_estate",
+   "address": {"street_number": "1500", "street_name": "Main St", "city": "McLean", "state": "VA", "zip": "22101"},
+   "geocode": {"lat": 38.9339, "lng": -77.1773},
+   "created_at": "2026-11-14T12:00:00Z",
+   "updated_at": "2026-11-14T12:00:00Z"
+  },
+  "TransactionDTO_purchase_pending": {
+   "id": "txn_example_1",
+   "kind": "purchase",
+   "status": "pending",
+   "medium": "balance",
+   "amount_cents": 120000,
+   "payer_id": "acct_example_1",
+   "merchant_id": "merch_example_1",
+   "description": "SIMULATION: security deposit",
+   "decision": "",
+   "decision_source": "",
+   "settle_at": "2026-11-14T12:00:11Z",
+   "created_at": "2026-11-14T12:00:01Z",
+   "updated_at": "2026-11-14T12:00:01Z"
+  },
+  "TransactionDTO_bill_payment_completed": {
+   "id": "txn_example_2",
+   "kind": "bill_payment",
+   "status": "completed",
+   "medium": "balance",
+   "amount_cents": 690000,
+   "payer_id": "acct_example_1",
+   "bill_id": "bill_example_1",
+   "decision": "approve",
+   "decision_source": "owner",
+   "settle_at": "2026-11-14T12:00:21Z",
+   "created_at": "2026-11-14T12:00:11Z",
+   "updated_at": "2026-11-14T12:00:21Z"
+  },
+  "BillDTO_recurring": {
+   "id": "bill_example_1",
+   "account_id": "acct_example_1",
+   "status": "recurring",
+   "payee": "SIMULATED LANDLORD",
+   "nickname": "Rent + NNN",
+   "creation_date": "2026-11-14",
+   "payment_date": "",
+   "recurring_date": 1,
+   "upcoming_payment_date": "2026-12-01",
+   "payment_amount": 6900.0,
+   "created_at": "2026-11-14T12:00:00Z",
+   "updated_at": "2026-11-14T12:00:00Z"
+  },
+  "ListResponseAccountDTOBody": {
+   "items": [
+    {
+     "id": "acct_example_1", "customer_id": "cust_example_1", "type": "Savings", "nickname": "Reserve",
+     "balance_cents": 100, "pending_debits_cents": 0, "available_cents": 100, "account_number": "0000000001",
+     "rewards": 0, "created_at": "2026-11-14T12:00:00Z", "updated_at": "2026-11-14T12:00:00Z"
+    }
+   ],
+   "next_cursor": "opaque-cursor-1"
+  },
+  "TransactionListResponseBody_null_items": {
+   "items": null
+  }
+ }
+}
