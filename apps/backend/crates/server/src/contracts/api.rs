@@ -4,14 +4,13 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use ss_core::{
-    BusinessExpansionProfile, Checker, Contract, Market, ProjectContext, Validate,
+    BusinessExpansionProfile, Checker, Contract, IntegrationStatus, Market, ProjectContext,
+    Validate,
 };
 use uuid::Uuid;
 
 use super::{plain_contract, JsonMap, TaskRecord};
 pub use crate::error::ProblemDetail;
-/// One definition per contract: `ProviderStatusEntry` is `ss-domain`'s (provider `status()`).
-pub use ss_domain::contracts::ProviderStatusEntry;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -94,6 +93,16 @@ pub struct TaskAccepted {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ProviderStatusEntry {
+    pub provider: String,
+    pub mode: String,
+    pub status: IntegrationStatus,
+    pub credentials_present: bool,
+    pub note: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
@@ -123,6 +132,7 @@ pub struct DevTokenResponse {
 plain_contract!(
     ChatResponse,
     TaskAccepted,
+    ProviderStatusEntry,
     HealthResponse,
     ReadyResponse,
     DevTokenResponse,

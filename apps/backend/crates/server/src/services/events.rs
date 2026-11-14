@@ -25,22 +25,6 @@ use crate::store::{Query, Tx};
 
 pub const MAX_CAUSATION_DEPTH: usize = 12;
 
-/// The transaction-scoped advisory lock key that orders event writers of one project:
-/// the first 8 bytes of `SHA-256("second-site:activity_events:" + str(project_id))` as a
-/// big-endian signed 64-bit integer (`"-"` in place of the id for events without a project).
-///
-/// Python equivalent, for writers to the same table that adopt the lock later:
-/// `int.from_bytes(hashlib.sha256(f"second-site:activity_events:{pid}".encode()).digest()[:8],
-/// "big", signed=True)`.
-pub fn event_lock_key(project_id: Option<Uuid>) -> i64 {
-    use sha2::{Digest, Sha256};
-    let id = project_id.map_or_else(|| "-".to_owned(), |p| p.to_string());
-    let digest = Sha256::digest(format!("second-site:activity_events:{id}").as_bytes());
-    let mut b = [0u8; 8];
-    b.copy_from_slice(&digest[..8]);
-    i64::from_be_bytes(b)
-}
-
 /// Arguments of `EventService.emit`.
 #[derive(Debug, Clone)]
 pub struct Emit<'a> {
@@ -163,13 +147,6 @@ impl<'a> EventService<'a> {
             actor_id: e.actor_id,
             payload,
         })?;
-        // Commit order equals `seq` order within a project (R5 of the part 1 review): `seq` is
-        // drawn only while this transaction holds the project's event lock, which it keeps until
-        // it ends, so no event of the project can commit after a higher `seq` became visible.
-        // Taken on every emit (re-entrant), because rolling back to a savepoint taken earlier
-        // releases it. Python writers to the same table (Photon) do not take it yet.
-        tx.advisory_xact_lock(event_lock_key(Some(e.project_id)))
-            .await?;
         let sp = tx.savepoint().await?;
         match rows::insert(tx, &event).await {
             Ok(_) => tx.release_savepoint(sp).await?,

@@ -420,12 +420,6 @@ pub trait Tx: Send {
         filters: &[Filter],
     ) -> StoreResult<u64>;
 
-    /// `pg_advisory_xact_lock(key)`: wait until no other transaction holds the advisory lock
-    /// `key`, then hold it until this transaction ends (re-entrant; a rollback to a savepoint
-    /// taken before the lock releases it). The in-memory store serializes whole transactions
-    /// already, so there it is a no-op.
-    async fn advisory_xact_lock(&mut self, key: i64) -> StoreResult<()>;
-
     async fn savepoint(&mut self) -> StoreResult<Savepoint>;
     async fn release_savepoint(&mut self, sp: Savepoint) -> StoreResult<()>;
     async fn rollback_to_savepoint(&mut self, sp: Savepoint) -> StoreResult<()>;

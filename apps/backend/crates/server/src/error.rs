@@ -33,10 +33,6 @@ pub struct Problem {
     pub message: String,
     pub error_code: Option<String>,
     pub details: Map<String, Value>,
-    /// Overrides the variant's default `retryable` (a provider error's kind decides it).
-    pub retryable: Option<bool>,
-    /// Overrides the Python class name recorded as a failed task's `error_code`.
-    pub class_name: Option<&'static str>,
 }
 
 impl Problem {
@@ -45,8 +41,6 @@ impl Problem {
             message: message.into(),
             error_code: None,
             details: Map::new(),
-            retryable: None,
-            class_name: None,
         }
     }
 }
@@ -246,41 +240,10 @@ impl AppError {
     }
 
     pub fn retryable(&self) -> bool {
-        if let Some(r) = self.problem_ref().and_then(|p| p.retryable) {
-            return r;
-        }
         matches!(
             self,
             AppError::ProviderUnavailable(_) | AppError::Internal(_)
         )
-    }
-
-    /// Override `retryable` (Python's class attribute, decided per error here).
-    pub fn with_retryable(mut self, retryable: bool) -> Self {
-        if let Some(p) = self.problem_mut() {
-            p.retryable = Some(retryable);
-        }
-        self
-    }
-
-    /// Override the Python class name a failed task records as `error_code`.
-    pub fn with_class_name(mut self, name: &'static str) -> Self {
-        if let Some(p) = self.problem_mut() {
-            p.class_name = Some(name);
-        }
-        self
-    }
-
-    /// A provider failure (`integrations.base.ProviderError`) as Python's
-    /// `ProviderUnavailableError` would answer it: 503 `PROVIDER_UNAVAILABLE`, `retryable` from
-    /// the error kind, `details` with the provider and the kind. The message is `str(exc)`;
-    /// provider messages never contain credentials. A failed task records `error_code`
-    /// `ProviderError`, as Python's `TaskService` records `type(exc).__name__`.
-    pub fn provider(e: &ss_domain::integrations::base::ProviderError) -> Self {
-        AppError::provider_unavailable(e.to_string())
-            .details(serde_json::json!({"provider": e.provider, "kind": e.kind.as_str()}))
-            .with_retryable(e.retryable())
-            .with_class_name("ProviderError")
     }
 
     /// The message sent to the client.
@@ -322,9 +285,6 @@ impl AppError {
     /// The Python exception class name (`type(exc).__name__`), used as a failed task's
     /// `error_code` exactly as `TaskService.run` records it.
     pub fn python_class_name(&self) -> &'static str {
-        if let Some(name) = self.problem_ref().and_then(|p| p.class_name) {
-            return name;
-        }
         match self {
             AppError::BadRequest(_) => "AppError",
             AppError::NotFound(_) => "NotFoundError",
@@ -361,32 +321,6 @@ impl From<InvalidStateTransition> for AppError {
 impl From<ValidationError> for AppError {
     fn from(e: ValidationError) -> Self {
         AppError::ContractValidation(e)
-    }
-}
-
-impl From<ss_domain::integrations::base::ProviderError> for AppError {
-    fn from(e: ss_domain::integrations::base::ProviderError) -> Self {
-        AppError::provider(&e)
-    }
-}
-
-/// Domain failures (`ss-domain`), mapped as Python's handlers answer the same exceptions:
-/// a Pydantic `ValidationError` is 422 `CONTRACT_VALIDATION_ERROR`; a provider error is 503
-/// `PROVIDER_UNAVAILABLE` (Python: an accidental 500 outside tasks); everything else
-/// (`ValueError`, `TypeError`, unbounded-int overflow) is a 500 whose cause is logged, with the
-/// Python exception class as a failed task's `error_code`.
-impl From<ss_domain::DomainError> for AppError {
-    fn from(e: ss_domain::DomainError) -> Self {
-        use ss_domain::DomainError as D;
-        match e {
-            D::Provider(p) => AppError::provider(&p),
-            D::Validation(v) => AppError::ContractValidation(v),
-            D::Address(a) => AppError::internal_kind("ValueError", a.to_string()),
-            D::Extract(x) => AppError::internal_kind("ValueError", x.to_string()),
-            D::BadRecord(m) => AppError::internal_kind("TypeError", m),
-            D::Value(m) => AppError::internal_kind("ValueError", m),
-            D::Overflow(m) => AppError::internal_kind("OverflowError", m),
-        }
     }
 }
 
