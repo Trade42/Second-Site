@@ -126,6 +126,20 @@ both_backends!(upload_route, |db| {
     .await;
     assert_problem(&r, 400, "UNSUPPORTED_MEDIA");
     assert_eq!(r.body["message"], "unsupported content type None");
+    // Starlette compares the part's raw Content-Type header: no case folding, no MIME parsing
+    // (reviewer finding: `IMAGE/JPEG` was accepted, `jpeg` was reported as None).
+    for ct in ["IMAGE/JPEG", "jpeg", "image/jpeg;x=1"] {
+        let r = upload(
+            &t,
+            &pid,
+            Some(&tok),
+            MP,
+            form(&[part("file", Some("a.jpg"), Some(ct), b"abc")]),
+        )
+        .await;
+        assert_problem(&r, 400, "UNSUPPORTED_MEDIA");
+        assert_eq!(r.body["message"], format!("unsupported content type {ct}"));
+    }
 
     // No `file` part, a JSON body, an empty body: 422 missing body.file.
     for (ct, body) in [
