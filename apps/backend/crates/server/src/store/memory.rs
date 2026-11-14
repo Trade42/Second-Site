@@ -718,6 +718,11 @@ impl Tx for MemTx {
         self.track(r)
     }
 
+    async fn advisory_xact_lock(&mut self, _key: i64) -> StoreResult<()> {
+        // Transactions are fully serialized by the store lock this one already holds.
+        self.check_open()
+    }
+
     async fn savepoint(&mut self) -> StoreResult<Savepoint> {
         self.check_open()?;
         self.next_sp += 1;

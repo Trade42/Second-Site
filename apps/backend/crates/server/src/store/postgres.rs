@@ -207,6 +207,19 @@ fn run_raw<'c>(conn: &'c mut PgConnection, sql: String) -> BoxFuture<'c, StoreRe
     })
 }
 
+fn run_advisory_lock<'c>(conn: &'c mut PgConnection, key: i64) -> BoxFuture<'c, StoreResult<()>> {
+    Box::pin(async move {
+        let mut args = PgArguments::default();
+        args.add(key)
+            .map_err(|e| StoreError::Database(format!("bind advisory lock key: {e}")))?;
+        sqlx::query_with("SELECT pg_advisory_xact_lock($1)", args)
+            .execute(&mut *conn)
+            .await
+            .map(|_| ())
+            .map_err(|e| map_sqlx("", e))
+    })
+}
+
 fn decode(table: &TableDef, r: &PgRow) -> StoreResult<Row> {
     let mut row = Row::new();
     for (i, c) in table.columns.iter().enumerate() {
@@ -710,6 +723,12 @@ impl Tx for PgTx {
 
     async fn delete_where(&mut self, t: &'static TableDef, filters: &[Filter]) -> StoreResult<u64> {
         let r = self.delete_where_inner(t, filters).await;
+        self.track(r)
+    }
+
+    async fn advisory_xact_lock(&mut self, key: i64) -> StoreResult<()> {
+        let conn = self.conn()?;
+        let r = run_advisory_lock(conn, key).await;
         self.track(r)
     }
 

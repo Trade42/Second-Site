@@ -76,6 +76,8 @@ def token_vectors() -> dict:
         expired = security.issue_token(SECRET, USER, ttl_s=5)
     with at(NOW):
         valid = security.issue_token(SECRET, USER, ttl_s=FAR - int(NOW))
+        # Minted at the fixed instant too, so regeneration is byte-identical (review item R11).
+        wrong_purpose_media = security.issue_token(SECRET, USER, ttl_s=10**6, purpose="media")
     valid_enc, valid_sig = valid.rsplit(".", 1)
     flipped = valid_sig[:-1] + ("0" if valid_sig[-1] != "0" else "1")
     body_tampered = ("B" if valid_enc[0] != "B" else "C") + valid_enc[1:] + "." + valid_sig
@@ -86,7 +88,7 @@ def token_vectors() -> dict:
         ("expired", expired, "access", NOW),
         ("exp_equal_now_is_valid", signed(f"access.{USER}.{int(NOW)}"), "access", float(int(NOW))),
         ("exp_just_past", signed(f"access.{USER}.{int(NOW)}"), "access", int(NOW) + 0.5),
-        ("wrong_purpose_media_token", security.issue_token(SECRET, USER, ttl_s=10**6, purpose="media"), "access", NOW),
+        ("wrong_purpose_media_token", wrong_purpose_media, "access", NOW),
         ("wrong_purpose_requested", valid, "media", NOW),
         ("tampered_signature", f"{valid_enc}.{flipped}", "access", NOW),
         ("tampered_body", body_tampered, "access", NOW),

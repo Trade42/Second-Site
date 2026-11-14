@@ -17,6 +17,9 @@ thiserror = "2"
 regex = "1"
 rust_decimal = { version = "1", default-features = false, features = ["std", "serde"] }
 csv = "1"
+# Polygon overlay (intersection, union, difference) and robust orientation predicates for the
+# Shapely-based layout validation; no default features (no threads, no triangulation).
+geo = { version = "0.33", default-features = false }
 
 [dev-dependencies]
 indexmap = "2"

@@ -81,6 +81,11 @@ fn uuid_error(msg: &str) -> String {
 }
 
 impl PathParams {
+    /// A `str` path parameter.
+    pub fn raw(&self, name: &str) -> Option<String> {
+        self.0.get(name).cloned()
+    }
+
     /// A UUID path parameter (pydantic-core parses UUIDs with the same `uuid` crate).
     pub fn uuid(&self, name: &str) -> Result<Uuid, AppError> {
         let raw = self.0.get(name).map(String::as_str).unwrap_or("");
@@ -235,41 +240,66 @@ fn type_error(kind: BodyKind, input: Value) -> AppError {
     ])
 }
 
+/// A request body after FastAPI's first step: decoded as JSON when the content type says JSON,
+/// before any dependency (authentication, owned project) runs.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EarlyBody {
+    Empty,
+    /// Not declared as JSON: kept as text (validation reports it as the wrong type).
+    Raw(String),
+    Json(Value),
+}
+
+/// Decode the body as FastAPI does before resolving dependencies: invalid JSON is a 422
+/// `json_invalid` even for an unauthenticated request.
+pub fn early_json_body(headers: &HeaderMap, body: &[u8]) -> Result<EarlyBody, AppError> {
+    if body.is_empty() {
+        return Ok(EarlyBody::Empty);
+    }
+    if !is_json_content_type(headers) {
+        return Ok(EarlyBody::Raw(String::from_utf8_lossy(body).into_owned()));
+    }
+    match serde_json::from_slice(body) {
+        Ok(v) => Ok(EarlyBody::Json(v)),
+        Err(e) => {
+            let text = String::from_utf8_lossy(body);
+            let pos = char_offset(&text, e.line(), e.column());
+            Err(AppError::RequestValidation(vec![json!({
+                "type": "json_invalid",
+                "loc": ["body", pos],
+                "msg": "JSON decode error",
+                "input": {},
+                "ctx": {"error": e.to_string()},
+            })]))
+        }
+    }
+}
+
+impl EarlyBody {
+    fn object(self, kind: BodyKind) -> Result<serde_json::Map<String, Value>, AppError> {
+        match self {
+            EarlyBody::Empty => Err(AppError::RequestValidation(vec![json!({
+                "type": "missing", "loc": ["body"], "msg": "Field required", "input": null,
+            })])),
+            EarlyBody::Raw(text) => Err(type_error(kind, Value::String(text))),
+            EarlyBody::Json(Value::Object(m)) => Ok(m),
+            EarlyBody::Json(other) => Err(type_error(kind, other)),
+        }
+    }
+
+    /// The body as the JSON object a Pydantic model body is validated from (422 otherwise).
+    pub fn into_object(self) -> Result<serde_json::Map<String, Value>, AppError> {
+        self.object(BodyKind::Model)
+    }
+}
+
 /// Parse the request body into a JSON object, as FastAPI does before model validation.
 fn body_object(
     headers: &HeaderMap,
     body: &[u8],
     kind: BodyKind,
 ) -> Result<serde_json::Map<String, Value>, AppError> {
-    if body.is_empty() {
-        return Err(AppError::RequestValidation(vec![json!({
-            "type": "missing", "loc": ["body"], "msg": "Field required", "input": null,
-        })]));
-    }
-    if !is_json_content_type(headers) {
-        return Err(type_error(
-            kind,
-            Value::String(String::from_utf8_lossy(body).into_owned()),
-        ));
-    }
-    let value: Value = match serde_json::from_slice(body) {
-        Ok(v) => v,
-        Err(e) => {
-            let text = String::from_utf8_lossy(body);
-            let pos = char_offset(&text, e.line(), e.column());
-            return Err(AppError::RequestValidation(vec![json!({
-                "type": "json_invalid",
-                "loc": ["body", pos],
-                "msg": "JSON decode error",
-                "input": {},
-                "ctx": {"error": e.to_string()},
-            })]));
-        }
-    };
-    match value {
-        Value::Object(m) => Ok(m),
-        other => Err(type_error(kind, other)),
-    }
+    early_json_body(headers, body)?.object(kind)
 }
 
 /// Request-validation errors from a contract's validation error (`loc` prefixed with `body`).

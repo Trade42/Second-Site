@@ -17,11 +17,13 @@ pub mod error;
 pub mod evidence;
 pub mod feasibility;
 pub mod finance;
+pub mod geometry;
 pub mod integrations;
 pub mod permits;
 pub mod property;
 pub mod py;
 pub mod ranking;
 pub mod requirements;
+pub mod spatial;
 
 pub use error::DomainError;
