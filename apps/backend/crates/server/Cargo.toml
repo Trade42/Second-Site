@@ -15,6 +15,11 @@ path = "src/main.rs"
 
 [dependencies]
 ss-core = { path = "../core" }
+ss-domain = { path = "../domain" }
+# Blocking HTTP client for the live provider adapters (the domain provider traits are
+# synchronous); calls run on tokio's blocking pool.
+ureq = { version = "2", default-features = false, features = ["tls"] }
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 # float_roundtrip: parse floats exactly as Python does (payload_hash parity, lossless documents).
 # It must be a normal-dependency feature: the jsonschema dev-dependency enables it in test builds.
@@ -26,7 +31,7 @@ indexmap = { version = "2", features = ["serde"] }
 thiserror = "2"
 async-trait = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
-axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "original-uri", "matched-path"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "original-uri", "matched-path", "multipart"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "catch-panic"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
