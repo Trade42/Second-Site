@@ -200,17 +200,6 @@ pub fn register(app: &App, i: Arc<Integrations>) {
         name: "vexcel",
         status: Box::new(move || vexcel.status()),
     }));
-    // `c.catalog` is always `FixtureCatalogProvider()` in Python's container: illustrative prices
-    // only (the bill of materials uses its price table).
-    app.providers.register(Arc::new(Reported {
-        name: "product_catalog",
-        status: Box::new(|| {
-            use ss_domain::integrations::catalog::{
-                FixtureCatalogProvider, ProductCatalogProvider,
-            };
-            FixtureCatalogProvider.status()
-        }),
-    }));
     app.extensions.insert(i);
 }
 

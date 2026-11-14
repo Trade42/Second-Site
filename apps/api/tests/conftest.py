@@ -25,7 +25,6 @@ os.environ["DATABASE_URL"] = TEST_DB
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("AUTH_SECRET", "test-secret")
 os.environ["SUPERVISOR_MODEL"] = ""
-os.environ["BACKEND_API_URL"] = ""
 # Tests never touch live providers, even when a developer's .env enables them.
 for _mode in (
     "PROPERTY_PROVIDER_MODE",
