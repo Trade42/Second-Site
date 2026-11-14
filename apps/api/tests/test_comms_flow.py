@@ -369,15 +369,11 @@ def test_revise_and_change_save_design_words_without_chat(monkeypatch):
 
     owner_id = UUID("00000000-0000-0000-0000-000000000001")
     project_id = UUID("00000000-0000-0000-0000-000000000002")
-    channel = OwnerChannel(
-        owner_id=owner_id, handle="+15555550142", status=OwnerChannelStatus.LINKED
-    )
+    channel = OwnerChannel(owner_id=owner_id, handle="+15555550142", status=OwnerChannelStatus.LINKED)
     monkeypatch.setattr(
         "app.domains.communications.owner_channel.channel_for_handle", lambda db, handle: channel
     )
-    monkeypatch.setattr(
-        "app.domains.communications.owner_channel.link_from_inbound", lambda db, ch, msg: ch
-    )
+    monkeypatch.setattr("app.domains.communications.owner_channel.link_from_inbound", lambda db, ch, msg: ch)
     monkeypatch.setattr(
         "app.domains.communications.owner_channel.latest_project_id", lambda db, oid: project_id
     )

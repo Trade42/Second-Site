@@ -126,7 +126,7 @@ def _design_change_words(text: str) -> str | None:
     lowered = text.lower()
     for prefix in ("revise:", "change:"):
         if lowered.startswith(prefix):
-            return text[len(prefix):].strip()
+            return text[len(prefix) :].strip()
     return None
 
 
