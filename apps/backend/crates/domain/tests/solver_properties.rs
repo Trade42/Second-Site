@@ -282,3 +282,49 @@ fn solver_properties_hold_on_500_seeded_cases() {
         "the constructive method should be exercised"
     );
 }
+
+/// The exact search at its work bound: 10 rooms of 10 different kinds with plumbing terms on a
+/// floor whose two spine strips total about 5,800 positions (1,024 class-count states), just
+/// under `POSITION_CELL_LIMIT`. Run with `cargo test --release -- --ignored` to time it.
+#[test]
+#[ignore = "timing only; slow in a debug build"]
+fn exact_search_at_its_bound_timing() {
+    let site = SiteGeometry {
+        floor_boundary: vec![(0.0, 0.0), (14.0, 0.0), (14.0, 29.0), (0.0, 29.0)],
+        entrances: vec![Opening {
+            kind: "entrance".into(),
+            start: (6.4, 0.0),
+            end: (7.6, 0.0),
+        }],
+        fixture_locations: vec![Fixture {
+            kind: "sink".into(),
+            location: (13.0, 20.0),
+            evidence_ids: vec![],
+        }],
+        ..site(&mut Rng(1))
+    };
+    let reqs: Vec<RoomRequirement> = (0..10)
+        .map(|k| RoomRequirement {
+            room_type: format!("kind{k}"),
+            count: 1,
+            min_area_sqm: 8.0 + k as f64 * 0.7,
+            // Small enough that every room's minimum length comes from its area: ten distinct
+            // classes, 2^10 states.
+            min_width_m: 0.5,
+            needs_plumbing: true,
+        })
+        .collect();
+    let prefs = LayoutPreferences::default();
+    let rooms = expand(&reqs).unwrap();
+    let t = std::time::Instant::now();
+    let choice = best_strips(&site, Topology::Spine, &rooms, &prefs).unwrap();
+    let rep = choice.solution.expect("solvable");
+    println!(
+        "status {:?}, work {} cells, {:?}",
+        rep.status,
+        rep.work,
+        t.elapsed()
+    );
+    assert_eq!(rep.status, SolveStatus::Optimal);
+    assert!(rep.work <= POSITION_CELL_LIMIT);
+}

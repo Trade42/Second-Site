@@ -295,3 +295,17 @@ fn layouts_are_never_presented_as_approved_plans() {
         ));
     }
 }
+
+#[test]
+fn huge_floors_are_bounded_not_scanned() {
+    // 1 km x 1 km at 0.2 m would be 25 million cells; the scan is refused (no frame).
+    let ring = vec![
+        (0.0, 0.0),
+        (1000.0, 0.0),
+        (1000.0, 1000.0),
+        (500.0, 1000.0),
+        (500.0, 1001.0),
+        (0.0, 1001.0),
+    ];
+    assert_eq!(largest_inner_rectangle(&ring, 0.2), None);
+}

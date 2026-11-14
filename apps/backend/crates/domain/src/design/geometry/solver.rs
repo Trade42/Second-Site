@@ -814,7 +814,7 @@ impl Sparse {
 
     /// Maximum over `[l, r]` (inclusive); `NEG` for an empty range.
     fn query(&self, l: i64, r: i64) -> i64 {
-        if l > r || r < 0 {
+        if l > r || r < 0 || self.levels[0].is_empty() {
             return NEG;
         }
         let l = l.max(0) as usize;

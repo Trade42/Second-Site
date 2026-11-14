@@ -196,15 +196,24 @@ pub fn normalize_plan(doc: &Value) -> Result<Value, DomainError> {
 /// Grid cell of [`largest_inner_rectangle`] (meters).
 pub const INNER_RECTANGLE_CELL: f64 = 0.2;
 
+/// Largest grid [`largest_inner_rectangle`] scans (cells).
+pub const MAX_GRID_CELLS: usize = 1_000_000;
+
 /// `largest_inner_rectangle(poly, cell)`: the largest axis-aligned rectangle on a `cell` grid
 /// (anchored at the polygon's lower-left bound) whose cells all lie inside
 /// `poly.buffer(1e-6)`, by the histogram method. `(x0, y0, x1, y1)`, or `None` when the grid has
-/// fewer than 2 cells in either direction or no cell fits.
+/// fewer than 2 cells in either direction, no cell fits, or the grid exceeds [`MAX_GRID_CELLS`]
+/// (a deliberate bound; Python has none).
 pub fn largest_inner_rectangle(poly: &[Coord], cell: f64) -> Option<(f64, f64, f64, f64)> {
     let b = Bounds::of(poly)?;
     let nx_f = ((b.maxx - b.minx) / cell).trunc();
     let ny_f = ((b.maxy - b.miny) / cell).trunc();
     if !(nx_f >= 2.0 && ny_f >= 2.0) || !nx_f.is_finite() || !ny_f.is_finite() {
+        return None;
+    }
+    // Bounded work: Python would scan any grid; floors with more cells than this (about
+    // 200 m x 200 m at 0.2 m) get no rectangle.
+    if nx_f * ny_f > MAX_GRID_CELLS as f64 {
         return None;
     }
     let (nx, ny) = (nx_f as usize, ny_f as usize);

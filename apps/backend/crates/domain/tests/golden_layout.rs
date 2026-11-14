@@ -544,6 +544,12 @@ fn solver_matches_cp_sat_model() {
             }
             if o.report.valid {
                 st.rust_valid_candidates += 1;
+                if !t_valid {
+                    println!(
+                        "RUST_ONLY_VALID {name} {}: Python issues {}",
+                        o.name, t["report"]["issues"]
+                    );
+                }
             }
             if t_valid && o.report.valid {
                 st.both_valid += 1;
