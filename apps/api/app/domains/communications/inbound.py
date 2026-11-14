@@ -107,9 +107,49 @@ def route_owner_message(db: Session, c, msg) -> tuple[str, str | None]:
         return "chat", f"I don't see a project for you yet. Start one at {web}"
     if word == "status":
         return "command", _status_text(db, project_id, web)
+    # Owner sentences that start with revise: or change: are saved here and never sent to chat.
+    # Layout edits still happen in the app. This does not grant an approval or revise a layout.
+    change = _design_change_words(text)
+    if change is not None:
+        _save_design_change(db, project_id, ch.owner_id, change, msg)
+        return (
+            "command",
+            f"Noted. I saved this design change: {change}. Layout edits still happen in the app.",
+        )
     ctx = ToolContext(db=db, c=c, project_id=project_id, owner_id=ch.owner_id)
     reply = run_chat(ctx, text, c.settings, thread_id=f"photon:{ch.owner_id}").reply
     return "chat", reply[:1500]
+
+
+def _design_change_words(text: str) -> str | None:
+    """The sentence after a leading 'revise:' or 'change:', or None when this is ordinary text."""
+    lowered = text.lower()
+    for prefix in ("revise:", "change:"):
+        if lowered.startswith(prefix):
+            return text[len(prefix) :].strip()
+    return None
+
+
+def _save_design_change(db: Session, project_id, owner_id, words: str, msg) -> None:
+    """Persist the owner's design sentence. Does not call DesignService.revise."""
+    from app.contracts import Channel, CommunicationSession, CommunicationState, StructuredFinding
+    from app.repositories import registry as repos
+
+    platform = getattr(msg, "platform", "")
+    repos.communications.add(
+        db,
+        CommunicationSession(
+            project_id=project_id,
+            channel=Channel.PHOTON_SMS if platform == "sms" else Channel.PHOTON_IMESSAGE,
+            authorized_owner_id=owner_id,
+            purpose="design change",
+            state=CommunicationState.COMPLETED,
+            structured_findings=[
+                StructuredFinding(question="design change", answer=words, classification="OWNER_REPORTED")
+            ],
+            provider_message_ids=[msg.message_id] if getattr(msg, "message_id", None) else [],
+        ),
+    )
 
 
 def _status_text(db: Session, project_id, web: str) -> str:
