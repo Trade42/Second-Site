@@ -486,7 +486,12 @@ fn rotated_multi_room_plan_keeps_the_whole_suite() {
     // The other fields follow Python's shape: same keys, same provenance labels.
     let keys = |v: &Value| -> Vec<String> { v.as_object().unwrap().keys().cloned().collect() };
     assert_eq!(keys(&got), keys(py));
-    for k in ["geometry_source", "data_origin", "source_id", "scale_verified"] {
+    for k in [
+        "geometry_source",
+        "data_origin",
+        "source_id",
+        "scale_verified",
+    ] {
         assert_eq!(got[k], py[k], "{k}");
     }
     // The walls between the rooms are interior walls of the suite here.

@@ -788,10 +788,7 @@ pub mod designs {
                     .limit(1),
             )
             .await?;
-        Ok(rows
-            .first()
-            .map(|r| r.int("version_number"))
-            .transpose()?)
+        Ok(rows.first().map(|r| r.int("version_number")).transpose()?)
     }
 
     /// The unique constraint on `(property_id, version_number)`.

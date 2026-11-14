@@ -1,0 +1,240 @@
+{
+ "room_requirements_from_profile": [
+  {
+   "rooms": [
+    [
+     "reception",
+     1
+    ],
+    [
+     "storage",
+     1
+    ],
+    [
+     "treatment",
+     3
+    ]
+   ],
+   "plumbing_rooms": null,
+   "result": [
+    {
+     "room_type": "reception",
+     "count": 1,
+     "min_area_sqm": 12.6,
+     "min_width_m": 3.0,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "storage",
+     "count": 1,
+     "min_area_sqm": 4.5,
+     "min_width_m": 1.5,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "treatment",
+     "count": 3,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     3
+    ],
+    [
+     "reception",
+     1
+    ],
+    [
+     "storage",
+     1
+    ]
+   ],
+   "plumbing_rooms": null,
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 3,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "reception",
+     "count": 1,
+     "min_area_sqm": 12.6,
+     "min_width_m": 3.0,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "storage",
+     "count": 1,
+     "min_area_sqm": 4.5,
+     "min_width_m": 1.5,
+     "needs_plumbing": false
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     2
+    ],
+    [
+     "office",
+     1
+    ],
+    [
+     "reception",
+     0
+    ],
+    [
+     "storage",
+     -1
+    ]
+   ],
+   "plumbing_rooms": null,
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 2,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "office",
+     "count": 1,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": false
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     2
+    ],
+    [
+     "laundry",
+     1
+    ],
+    [
+     "staff_room",
+     1
+    ]
+   ],
+   "plumbing_rooms": [
+    "laundry",
+    "staff_room"
+   ],
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 2,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": false
+    },
+    {
+     "room_type": "laundry",
+     "count": 1,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "staff_room",
+     "count": 1,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": true
+    }
+   ]
+  },
+  {
+   "rooms": [
+    [
+     "treatment",
+     2
+    ],
+    [
+     "reception",
+     1
+    ]
+   ],
+   "plumbing_rooms": [],
+   "result": [
+    {
+     "room_type": "treatment",
+     "count": 2,
+     "min_area_sqm": 9.9,
+     "min_width_m": 2.8,
+     "needs_plumbing": true
+    },
+    {
+     "room_type": "reception",
+     "count": 1,
+     "min_area_sqm": 12.6,
+     "min_width_m": 3.0,
+     "needs_plumbing": false
+    }
+   ]
+  },
+  {
+   "rooms": [],
+   "plumbing_rooms": null,
+   "result": []
+  },
+  {
+   "rooms": [
+    [
+     "unknown_room",
+     4
+    ]
+   ],
+   "plumbing_rooms": [
+    "unknown_room"
+   ],
+   "result": [
+    {
+     "room_type": "unknown_room",
+     "count": 4,
+     "min_area_sqm": 8.1,
+     "min_width_m": 2.4,
+     "needs_plumbing": true
+    }
+   ]
+  }
+ ],
+ "lock_keys": [
+  {
+   "namespace": "design_versions",
+   "id": "6a8f3a52-1d3b-4f6e-9c4e-0b7c1f2a3d4e",
+   "key": -7432078645635933439
+  },
+  {
+   "namespace": "design_versions",
+   "id": "00000000-0000-4000-8000-000000000000",
+   "key": -845066441114841819
+  },
+  {
+   "namespace": "bills_of_materials",
+   "id": "6a8f3a52-1d3b-4f6e-9c4e-0b7c1f2a3d4e",
+   "key": -5922274628451772582
+  },
+  {
+   "namespace": "activity_events",
+   "id": "6a8f3a52-1d3b-4f6e-9c4e-0b7c1f2a3d4e",
+   "key": -9055379089551683476
+  }
+ ]
+}

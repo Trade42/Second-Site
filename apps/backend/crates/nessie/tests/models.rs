@@ -25,7 +25,10 @@ fn address() -> Address {
 fn golden_files_record_their_source() {
     let s = nessie_golden("schemas.json");
     assert_eq!(s["_meta"]["api_version"], "2.1.3");
-    assert_eq!(s["_meta"]["source"], "https://v2.nessieisreal.com/openapi.json");
+    assert_eq!(
+        s["_meta"]["source"],
+        "https://v2.nessieisreal.com/openapi.json"
+    );
     assert_eq!(
         s["_meta"]["security_schemes"]["bearerAuth"]["scheme"],
         "bearer"
@@ -33,7 +36,10 @@ fn golden_files_record_their_source() {
     let ops = s["operations"].as_object().unwrap();
     assert_eq!(ops["create-purchase"]["path"], "/accounts/{id}/purchases");
     assert_eq!(ops["pay-bill"]["path"], "/bills/{id}/payments");
-    assert_eq!(ops["create-bill-for-account"]["request_schema"], "BillCreateDTO");
+    assert_eq!(
+        ops["create-bill-for-account"]["request_schema"],
+        "BillCreateDTO"
+    );
     assert!(nessie_golden("doc_examples.json")["_meta"]["source"]
         .as_str()
         .unwrap()
@@ -59,7 +65,10 @@ fn verbatim_request_examples_round_trip() {
     let p: PurchaseCreate = serde_json::from_value(verbatim("purchase_request")).unwrap();
     assert_eq!(p.amount_cents, 1299);
     assert_eq!(p.description.as_deref(), Some("coffee"));
-    assert_eq!(serde_json::to_value(&p).unwrap(), verbatim("purchase_request"));
+    assert_eq!(
+        serde_json::to_value(&p).unwrap(),
+        verbatim("purchase_request")
+    );
     assert_nessie_conforms("PurchaseCreateDTO", &verbatim("purchase_request"));
 
     for name in ["transfer_request", "card_payment_transfer_request"] {
@@ -86,7 +95,10 @@ fn verbatim_events_problem_health_address() {
     assert_nessie_conforms("ErrorModel", &verbatim("problem_insufficient_funds"));
 
     let h: Health = serde_json::from_value(verbatim("health")).unwrap();
-    assert_eq!((h.status.as_str(), h.version.as_str()), ("healthy", "2.0.0"));
+    assert_eq!(
+        (h.status.as_str(), h.version.as_str()),
+        ("healthy", "2.0.0")
+    );
     assert_nessie_conforms("HealthDTO", &verbatim("health"));
 
     assert!(address().validate().is_ok());
@@ -106,14 +118,20 @@ fn constructed_responses_conform_and_parse() {
         ("TransactionDTO_bill_payment_completed", "TransactionDTO"),
         ("BillDTO_recurring", "BillDTO"),
         ("ListResponseAccountDTOBody", "ListResponseAccountDTOBody"),
-        ("TransactionListResponseBody_null_items", "TransactionListResponseBody"),
+        (
+            "TransactionListResponseBody_null_items",
+            "TransactionListResponseBody",
+        ),
     ] {
         assert_nessie_conforms(schema, &constructed(body));
     }
     let c: Customer = serde_json::from_value(constructed("CustomerDTO")).unwrap();
     assert_eq!(c.id, "cust_example_1");
     let a: Account = serde_json::from_value(constructed("AccountDTO")).unwrap();
-    assert_eq!(a.available_cents, a.balance_cents - a.pending_debits_cents.unwrap());
+    assert_eq!(
+        a.available_cents,
+        a.balance_cents - a.pending_debits_cents.unwrap()
+    );
     let m: Merchant = serde_json::from_value(constructed("MerchantDTO")).unwrap();
     assert_eq!(m.geocode.unwrap().lat, 38.9339);
     let t: Transaction =
@@ -178,7 +196,10 @@ fn request_bodies_conform_to_the_published_request_schemas() {
         address: address(),
     };
     customer.validate().unwrap();
-    assert_nessie_conforms("CustomerCreateDTO", &serde_json::to_value(&customer).unwrap());
+    assert_nessie_conforms(
+        "CustomerCreateDTO",
+        &serde_json::to_value(&customer).unwrap(),
+    );
 
     let checking = AccountCreate {
         account_type: AccountType::Checking,
@@ -189,7 +210,10 @@ fn request_bodies_conform_to_the_published_request_schemas() {
     };
     checking.validate().unwrap();
     let v = serde_json::to_value(&checking).unwrap();
-    assert_eq!(v, json!({"type": "Checking", "nickname": "Second Site simulation", "balance_cents": 25000000}));
+    assert_eq!(
+        v,
+        json!({"type": "Checking", "nickname": "Second Site simulation", "balance_cents": 25000000})
+    );
     assert_nessie_conforms("AccountCreateDTO", &v);
     let card = AccountCreate {
         account_type: AccountType::CreditCard,
@@ -271,7 +295,10 @@ fn request_bodies_conform_to_the_published_request_schemas() {
     .unwrap();
     bill.validate().unwrap();
     let v = serde_json::to_value(&bill).unwrap();
-    assert_eq!(serde_json::to_string(&v["payment_amount"]).unwrap(), "6900.5");
+    assert_eq!(
+        serde_json::to_string(&v["payment_amount"]).unwrap(),
+        "6900.5"
+    );
     assert_eq!(v["status"], "recurring");
     assert_nessie_conforms("BillCreateDTO", &v);
 
@@ -294,7 +321,12 @@ fn request_validation_applies_documented_limits() {
     c.first_name.push('é');
     assert!(c.validate().is_err());
     c.first_name = "A".into();
-    for (state, zip) in [("Virginia", "22101"), ("VA", "2210"), ("VA", "22a01"), ("VA", "221011")] {
+    for (state, zip) in [
+        ("Virginia", "22101"),
+        ("VA", "2210"),
+        ("VA", "22a01"),
+        ("VA", "221011"),
+    ] {
         c.address.state = state.into();
         c.address.zip = zip.into();
         assert!(c.validate().is_err(), "{state} {zip}");
@@ -341,7 +373,8 @@ fn request_validation_applies_documented_limits() {
     p.description = Some("d".repeat(200));
     assert!(p.validate().is_ok());
 
-    let mut b = BillCreate::new_minor(BillStatus::Recurring, "p".into(), None, 1, Some(31)).unwrap();
+    let mut b =
+        BillCreate::new_minor(BillStatus::Recurring, "p".into(), None, 1, Some(31)).unwrap();
     assert!(b.validate().is_ok());
     b.recurring_date = Some(32);
     assert!(b.validate().is_err());
@@ -354,7 +387,11 @@ fn request_validation_applies_documented_limits() {
     b.status = BillStatus::Unknown("overdue".into());
     assert!(b.validate().is_err());
     assert!(BillCreate::new_minor(BillStatus::Recurring, "p".into(), None, -1, None).is_err());
-    assert!(BillPaymentCreate { amount_cents: Some(0) }.validate().is_err());
+    assert!(BillPaymentCreate {
+        amount_cents: Some(0)
+    }
+    .validate()
+    .is_err());
 }
 
 #[test]

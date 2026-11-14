@@ -44,7 +44,8 @@ use crate::store::repo::{designs, rooms, BOMS, DESIGNS, GEOMETRIES, PROPERTIES};
 use crate::store::{Query, Tx};
 
 /// `ROOM_MIN_WIDTH` (meters); other room types get 2.4.
-pub const ROOM_MIN_WIDTH: &[(&str, f64)] = &[("treatment", 2.8), ("reception", 3.0), ("storage", 1.5)];
+pub const ROOM_MIN_WIDTH: &[(&str, f64)] =
+    &[("treatment", 2.8), ("reception", 3.0), ("storage", 1.5)];
 
 /// How often [`DesignService::persist`] renumbers after losing the version-number race to a
 /// writer that does not take the advisory lock.
@@ -144,7 +145,10 @@ pub fn site_geometry_from_doc(
         .cloned()
         .unwrap_or_else(|| json!("FIXTURE"));
     let geometry_source: GeometrySource = serde_json::from_value(source.clone()).map_err(|_| {
-        AppError::internal_kind("ValueError", format!("{source} is not a valid GeometrySource"))
+        AppError::internal_kind(
+            "ValueError",
+            format!("{source} is not a valid GeometrySource"),
+        )
     })?;
     let floor_boundary = doc
         .get("floor_boundary")
@@ -287,10 +291,11 @@ impl<'a> DesignService<'a> {
             }
         }
         if !stored {
-            return Err(AppError::conflict(
-                "could not assign a unique design version number",
-            )
-            .details(json!({"table": "design_versions", "constraint": designs::VERSION_CONSTRAINT})));
+            return Err(
+                AppError::conflict("could not assign a unique design version number").details(
+                    json!({"table": "design_versions", "constraint": designs::VERSION_CONSTRAINT}),
+                ),
+            );
         }
         for r in &dv.room_polygons {
             let polygon = serde_json::to_value(&r.polygon)
@@ -330,8 +335,7 @@ impl<'a> DesignService<'a> {
             req.preferences.clone(),
             req.candidate_count,
         );
-        let candidates =
-            blocking(move || generate_candidates(&s, &reqs, &prefs, count)).await??;
+        let candidates = blocking(move || generate_candidates(&s, &reqs, &prefs, count)).await??;
         let mut created = Vec::new();
         for cand in candidates {
             if !cand.report.valid {

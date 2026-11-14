@@ -16,8 +16,8 @@ use ss_domain::contracts::ProviderStatusEntry;
 use ss_domain::integrations::base::ProviderErrorKind;
 use uuid::Uuid;
 
-use crate::approval::{ApprovalAction, AuthorizationError, PaymentAuthorization, PaymentIntent};
 use crate::approval::PaymentOperation;
+use crate::approval::{ApprovalAction, AuthorizationError, PaymentAuthorization, PaymentIntent};
 use crate::config::NessieConfig;
 use crate::error::NessieError;
 use crate::models::{

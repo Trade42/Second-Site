@@ -51,7 +51,10 @@ pub fn minor_to_dollars(minor: i64) -> Result<f64, MoneyError> {
         .map_err(|_| MoneyError::OutOfRange(text.clone()))?;
     // Defensive: the bound above guarantees an exact round trip; check it anyway.
     match dollars_to_minor(value) {
-        Ok(DollarConversion { minor: back, exact: true }) if back == minor => Ok(value),
+        Ok(DollarConversion {
+            minor: back,
+            exact: true,
+        }) if back == minor => Ok(value),
         _ => Err(MoneyError::OutOfRange(text)),
     }
 }
@@ -113,7 +116,7 @@ pub fn format_usd(minor: i64) -> String {
     let dollars = (abs / 100).to_string();
     let mut grouped = String::with_capacity(dollars.len() + dollars.len() / 3);
     for (i, ch) in dollars.chars().enumerate() {
-        if i > 0 && (dollars.len() - i) % 3 == 0 {
+        if i > 0 && (dollars.len() - i).is_multiple_of(3) {
             grouped.push(',');
         }
         grouped.push(ch);
@@ -164,8 +167,14 @@ mod tests {
     fn dollars_to_minor_refuses_non_finite_and_huge() {
         assert_eq!(dollars_to_minor(f64::NAN), Err(MoneyError::NotFinite));
         assert_eq!(dollars_to_minor(f64::INFINITY), Err(MoneyError::NotFinite));
-        assert!(matches!(dollars_to_minor(1e300), Err(MoneyError::OutOfRange(_))));
-        assert!(matches!(dollars_to_minor(1e13), Err(MoneyError::OutOfRange(_))));
+        assert!(matches!(
+            dollars_to_minor(1e300),
+            Err(MoneyError::OutOfRange(_))
+        ));
+        assert!(matches!(
+            dollars_to_minor(1e13),
+            Err(MoneyError::OutOfRange(_))
+        ));
         assert_eq!(conv(9_999_999_999_999.99), (MAX_DOLLAR_MINOR, true));
         assert!(matches!(
             non_negative_dollars_to_minor(-0.01),
@@ -181,7 +190,13 @@ mod tests {
             let m = minor.min(MAX_DOLLAR_MINOR);
             for v in [m, -m] {
                 let d = minor_to_dollars(v).unwrap();
-                assert_eq!(dollars_to_minor(d).unwrap(), DollarConversion { minor: v, exact: true });
+                assert_eq!(
+                    dollars_to_minor(d).unwrap(),
+                    DollarConversion {
+                        minor: v,
+                        exact: true
+                    }
+                );
                 // What serde_json writes is the exact decimal (trailing zeros trimmed, ".0" kept).
                 let json = serde_json::to_string(&d).unwrap();
                 let abs = v.unsigned_abs();
@@ -194,9 +209,18 @@ mod tests {
                 assert_eq!(json, format!("{sign}{}.{frac}", abs / 100), "{v} cents");
             }
         }
-        assert_eq!(serde_json::to_string(&minor_to_dollars(123456).unwrap()).unwrap(), "1234.56");
-        assert_eq!(serde_json::to_string(&minor_to_dollars(690000).unwrap()).unwrap(), "6900.0");
-        assert_eq!(serde_json::to_string(&minor_to_dollars(1).unwrap()).unwrap(), "0.01");
+        assert_eq!(
+            serde_json::to_string(&minor_to_dollars(123456).unwrap()).unwrap(),
+            "1234.56"
+        );
+        assert_eq!(
+            serde_json::to_string(&minor_to_dollars(690000).unwrap()).unwrap(),
+            "6900.0"
+        );
+        assert_eq!(
+            serde_json::to_string(&minor_to_dollars(1).unwrap()).unwrap(),
+            "0.01"
+        );
         assert_eq!(
             serde_json::to_string(&minor_to_dollars(MAX_DOLLAR_MINOR).unwrap()).unwrap(),
             "9999999999999.99"
@@ -205,7 +229,10 @@ mod tests {
             minor_to_dollars(MAX_DOLLAR_MINOR + 1),
             Err(MoneyError::OutOfRange(_))
         ));
-        assert!(matches!(minor_to_dollars(i64::MIN), Err(MoneyError::OutOfRange(_))));
+        assert!(matches!(
+            minor_to_dollars(i64::MIN),
+            Err(MoneyError::OutOfRange(_))
+        ));
     }
 
     #[test]

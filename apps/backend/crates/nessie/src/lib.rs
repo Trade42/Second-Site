@@ -44,8 +44,7 @@ pub use approval::{
     PaymentOperation,
 };
 pub use bank::{
-    select_bank, AttemptOutcome, NessieBank, PaymentError, SimulatedOutcome,
-    SimulatedPaymentRecord,
+    select_bank, AttemptOutcome, NessieBank, PaymentError, SimulatedOutcome, SimulatedPaymentRecord,
 };
 pub use config::{ApiKey, NessieConfig, ProviderMode, DEFAULT_BASE_URL};
 pub use error::{NessieError, ProblemSummary};

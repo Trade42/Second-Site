@@ -368,7 +368,8 @@ pub fn plan_move_in_payments(
         );
         push(p);
     } else if !deposit.is_empty() {
-        notes_zero.push("The security deposit is $0 in the cost scenario; nothing to simulate.".into());
+        notes_zero
+            .push("The security deposit is $0 in the cost scenario; nothing to simulate.".into());
     }
 
     if !monthly.is_empty() && monthly.expected > 0 {
@@ -479,7 +480,8 @@ pub fn plan_move_in_payments(
     };
 
     let moving: Vec<&PlannedPayment> = payments.iter().filter(|p| p.moves_money).collect();
-    let move_in_payments_expected_minor = checked_sum(moving.iter().map(|p| p.amount_expected_minor))?;
+    let move_in_payments_expected_minor =
+        checked_sum(moving.iter().map(|p| p.amount_expected_minor))?;
     let move_in_payments_high_minor = checked_sum(moving.iter().map(|p| p.amount_high_minor))?;
     let reserves_expected_minor = checked_sum(reserves.iter().map(|r| r.amount_expected_minor))?;
     let reserves_high_minor = checked_sum(reserves.iter().map(|r| r.amount_high_minor))?;
@@ -557,7 +559,9 @@ pub struct SandboxTargets {
 
 impl MoveInPaymentPlan {
     pub fn payment(&self, plan_item_id: &str) -> Option<&PlannedPayment> {
-        self.payments.iter().find(|p| p.plan_item_id == plan_item_id)
+        self.payments
+            .iter()
+            .find(|p| p.plan_item_id == plan_item_id)
     }
 
     /// The exact intent (and so the approval payload) for one planned payment.

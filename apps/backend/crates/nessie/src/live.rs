@@ -187,11 +187,13 @@ impl LiveNessieBank {
             .as_deref()
             .and_then(|b| serde_json::from_slice::<Problem>(b).ok())
             .filter(|p| !p.problem_type.is_empty() || !p.title.is_empty())
-            .map(|p| ProblemSummary {
-                http_status: code,
-                slug: truncate(&self.scrub(p.slug()), 80),
-                title: truncate(&self.scrub(&p.title), 120),
-                detail: p.detail.as_deref().map(|d| truncate(&self.scrub(d), 300)),
+            .map(|p| {
+                Box::new(ProblemSummary {
+                    http_status: code,
+                    slug: truncate(&self.scrub(p.slug()), 80),
+                    title: truncate(&self.scrub(&p.title), 120),
+                    detail: p.detail.as_deref().map(|d| truncate(&self.scrub(d), 300)),
+                })
             });
         let mut message = format!("HTTP {code}");
         if let Some(p) = &problem {
@@ -252,7 +254,7 @@ impl LiveNessieBank {
         method: &str,
         path: &str,
         query: &[(&str, String)],
-        body: Option<&serde_json::Value>,
+        body: Option<&str>,
         authenticated: bool,
     ) -> Result<Vec<u8>, NessieError> {
         if self.base_url.is_empty() {
@@ -273,41 +275,36 @@ impl LiveNessieBank {
             req = req.query(k, v);
         }
         let result = match body {
-            Some(b) => {
-                let text = serde_json::to_string(b).map_err(|e| {
-                    NessieError::InvalidRequest(format!("request body: {e}"))
-                })?;
-                req.set("Content-Type", "application/json").send_string(&text)
-            }
+            Some(text) => req
+                .set("Content-Type", "application/json")
+                .send_string(text),
             None => req.call(),
         };
         let out = match result {
-            Ok(resp) if (200..300).contains(&resp.status()) => {
-                read_limited(resp, MAX_BODY_BYTES)
-                    .map_err(|e| {
-                        if matches!(
-                            e.kind(),
-                            std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
-                        ) {
-                            self.error(ProviderErrorKind::Timeout, "timed out")
-                        } else {
-                            self.error(
-                                ProviderErrorKind::Unavailable,
-                                &format!("reading the response failed: {e}"),
-                            )
-                        }
-                    })
-                    .and_then(|b| {
-                        if b.len() as u64 > MAX_BODY_BYTES {
-                            Err(self.error(
-                                ProviderErrorKind::BadResponse,
-                                &format!("response larger than {MAX_BODY_BYTES} bytes"),
-                            ))
-                        } else {
-                            Ok(b)
-                        }
-                    })
-            }
+            Ok(resp) if (200..300).contains(&resp.status()) => read_limited(resp, MAX_BODY_BYTES)
+                .map_err(|e| {
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                    ) {
+                        self.error(ProviderErrorKind::Timeout, "timed out")
+                    } else {
+                        self.error(
+                            ProviderErrorKind::Unavailable,
+                            &format!("reading the response failed: {e}"),
+                        )
+                    }
+                })
+                .and_then(|b| {
+                    if b.len() as u64 > MAX_BODY_BYTES {
+                        Err(self.error(
+                            ProviderErrorKind::BadResponse,
+                            &format!("response larger than {MAX_BODY_BYTES} bytes"),
+                        ))
+                    } else {
+                        Ok(b)
+                    }
+                }),
             Ok(resp) => Err(self.status_error(resp.status(), None)),
             Err(ureq::Error::Status(code, resp)) => {
                 let body = read_limited(resp, MAX_ERROR_BODY_BYTES).ok();
@@ -352,7 +349,10 @@ impl LiveNessieBank {
             }
         }
         Err(last.unwrap_or_else(|| {
-            self.error(ProviderErrorKind::Unavailable, "retry policy allows no attempts")
+            self.error(
+                ProviderErrorKind::Unavailable,
+                "retry policy allows no attempts",
+            )
         }))
     }
 
@@ -363,13 +363,16 @@ impl LiveNessieBank {
         path: &str,
         body: Option<&B>,
     ) -> Result<T, NessieError> {
-        let value = match body {
-            Some(b) => Some(serde_json::to_value(b).map_err(|e| {
-                NessieError::InvalidRequest(format!("request body: {e}"))
-            })?),
+        // Serialized straight from the struct: field order is the declared (documented) order,
+        // whatever serde_json features other crates enable.
+        let text = match body {
+            Some(b) => Some(
+                serde_json::to_string(b)
+                    .map_err(|e| NessieError::InvalidRequest(format!("request body: {e}")))?,
+            ),
             None => None,
         };
-        let out = self.send_once("POST", path, &[], value.as_ref(), true)?;
+        let out = self.send_once("POST", path, &[], text.as_deref(), true)?;
         self.parse(what, &out)
     }
 
@@ -536,19 +539,30 @@ impl NessieBank for LiveNessieBank {
 
     fn settle_transaction(&self, id: &str) -> Result<BankRecord<Transaction>, NessieError> {
         path_id("transaction id", id)?;
-        self.post::<Transaction, ()>("TransactionDTO", &format!("/transactions/{id}/settle"), None)
-            .map(|t| self.rec(t))
+        self.post::<Transaction, ()>(
+            "TransactionDTO",
+            &format!("/transactions/{id}/settle"),
+            None,
+        )
+        .map(|t| self.rec(t))
     }
 
     fn cancel_transaction(&self, id: &str) -> Result<BankRecord<Transaction>, NessieError> {
         path_id("transaction id", id)?;
-        self.post::<Transaction, ()>("TransactionDTO", &format!("/transactions/{id}/cancel"), None)
-            .map(|t| self.rec(t))
+        self.post::<Transaction, ()>(
+            "TransactionDTO",
+            &format!("/transactions/{id}/cancel"),
+            None,
+        )
+        .map(|t| self.rec(t))
     }
 
     fn execute(&self, auth: PaymentAuthorization) -> Result<SimulatedPaymentRecord, PaymentError> {
-        execute_with(Simulation::NessieSandbox, &self.ledger, auth, |call| {
-            match call {
+        execute_with(
+            Simulation::NessieSandbox,
+            &self.ledger,
+            auth,
+            |call| match call {
                 PreparedCall::Purchase { account_id, body } => {
                     path_id("account id", account_id)?;
                     self.post(
@@ -560,8 +574,12 @@ impl NessieBank for LiveNessieBank {
                 }
                 PreparedCall::CreateBill { account_id, body } => {
                     path_id("account id", account_id)?;
-                    self.post("BillDTO", &format!("/accounts/{account_id}/bills"), Some(body))
-                        .map(CallAnswer::Bill)
+                    self.post(
+                        "BillDTO",
+                        &format!("/accounts/{account_id}/bills"),
+                        Some(body),
+                    )
+                    .map(CallAnswer::Bill)
                 }
                 PreparedCall::PayBill { bill_id, body } => {
                     path_id("bill id", bill_id)?;
@@ -572,7 +590,7 @@ impl NessieBank for LiveNessieBank {
                     )
                     .map(CallAnswer::Transaction)
                 }
-            }
-        })
+            },
+        )
     }
 }

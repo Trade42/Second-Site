@@ -46,7 +46,10 @@ const PREFIX: &str = "/api/v1/projects/{project_id}/layouts";
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(&format!("{PREFIX}/generate"), post(generate))
-        .route(&format!("{PREFIX}/geometry/{{geometry_id}}"), get(get_geometry))
+        .route(
+            &format!("{PREFIX}/geometry/{{geometry_id}}"),
+            get(get_geometry),
+        )
         .route(PREFIX, get(list_layouts))
         .route(&format!("{PREFIX}/{{layout_id}}/revisions"), post(revise))
         .route(&format!("{PREFIX}/{{layout_id}}/bom"), get(bom))
@@ -150,7 +153,10 @@ async fn get_geometry(
         let project_id = owned(&app, tx, project_id, user).await?;
         let geometry_id = params.uuid("geometry_id")?;
         let not_found = || AppError::not_found("geometry not found");
-        let geo = GEOMETRIES.get(tx, geometry_id).await?.ok_or_else(not_found)?;
+        let geo = GEOMETRIES
+            .get(tx, geometry_id)
+            .await?
+            .ok_or_else(not_found)?;
         PROPERTIES
             .get_in_project(tx, geo.property_id, project_id)
             .await?
@@ -229,10 +235,7 @@ async fn revise(
                 .first()
                 .map_or(base.design_version_id, |d| d.design_version_id);
             let mut out = JsonMap::new();
-            out.insert(
-                "revision_status".into(),
-                json!(updated.status.as_str()),
-            );
+            out.insert("revision_status".into(), json!(updated.status.as_str()));
             out.insert("design_version_ids".into(), ids(&created));
             out.insert(
                 "current_valid_version_id".into(),

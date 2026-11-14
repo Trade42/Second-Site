@@ -100,7 +100,9 @@ pub const HOLLYWOOD: &str = "6922 W HOLLYWOOD BLVD";
 pub const ALHAMBRA: &str = "5380 E ALHAMBRA AVE";
 
 pub fn t(y: i32, mo: u32, d: u32, h: u32) -> DateTime<Utc> {
-    Utc.with_ymd_and_hms(y, mo, d, h, 0, 0).single().expect("time")
+    Utc.with_ymd_and_hms(y, mo, d, h, 0, 0)
+        .single()
+        .expect("time")
 }
 
 /// The approval the server would hand over for `intent`, APPROVED and unexpired.
@@ -240,9 +242,7 @@ impl MockServer {
 }
 
 fn read_request(stream: &TcpStream) -> Option<Recorded> {
-    stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
-        .ok()?;
+    stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
     let mut reader = BufReader::new(stream.try_clone().ok()?);
     let mut line = String::new();
     reader.read_line(&mut line).ok()?;
@@ -304,7 +304,7 @@ fn answer(mut stream: TcpStream, reply: Reply) {
     let text = match reply {
         Reply::Body(status, ctype, body) => {
             if status == 204 {
-                format!("HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
+                "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n".to_owned()
             } else {
                 format!(
                     "HTTP/1.1 {status} {}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",

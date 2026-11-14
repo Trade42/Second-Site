@@ -95,17 +95,22 @@ fn problem(status: u16, slug: &str, title: &str, detail: impl Into<String>) -> N
             format!("HTTP {status} {slug}: {title}: {detail}"),
         ),
         http_status: Some(status),
-        problem: Some(ProblemSummary {
+        problem: Some(Box::new(ProblemSummary {
             http_status: status,
             slug: slug.to_owned(),
             title: title.to_owned(),
             detail: Some(detail),
-        }),
+        })),
     }
 }
 
 fn not_found(what: &str, id: &str) -> NessieError {
-    problem(404, "not_found", "Not Found", format!("{what} {id} not found"))
+    problem(
+        404,
+        "not_found",
+        "Not Found",
+        format!("{what} {id} not found"),
+    )
 }
 
 fn check_id(field: &str, id: &str) -> Result<(), NessieError> {
@@ -320,7 +325,11 @@ impl FixtureBank {
     }
 
     /// Cancels a pending transaction and releases its hold (shared by cancel and deletes).
-    fn cancel_in(st: &mut State, id: &str, reason: Option<&str>) -> Result<Transaction, NessieError> {
+    fn cancel_in(
+        st: &mut State,
+        id: &str,
+        reason: Option<&str>,
+    ) -> Result<Transaction, NessieError> {
         let now = st.tick();
         let tx = Self::find_tx(st, id)?;
         if tx.status != TransactionStatus::Pending {
@@ -418,8 +427,10 @@ impl NessieBank for FixtureBank {
             return Err(not_found("customer", customer_id));
         }
         let (id, now) = st.new_id("acct");
-        let credit_limit = (body.account_type == AccountType::CreditCard)
-            .then(|| body.credit_limit_cents.unwrap_or(DEFAULT_CREDIT_LIMIT_CENTS));
+        let credit_limit = (body.account_type == AccountType::CreditCard).then(|| {
+            body.credit_limit_cents
+                .unwrap_or(DEFAULT_CREDIT_LIMIT_CENTS)
+        });
         let mut a = Account {
             id: id.clone(),
             customer_id: Some(customer_id.to_owned()),

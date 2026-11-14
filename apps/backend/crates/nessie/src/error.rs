@@ -32,7 +32,8 @@ pub enum NessieError {
         error: ProviderError,
         /// The HTTP status Nessie answered with, when it answered.
         http_status: Option<u16>,
-        problem: Option<ProblemSummary>,
+        /// Boxed to keep the error small.
+        problem: Option<Box<ProblemSummary>>,
     },
     /// A request failed the documented limits; nothing was sent.
     #[error("[nessie] invalid request: {0}")]
