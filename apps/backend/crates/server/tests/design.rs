@@ -1323,6 +1323,18 @@ both_backends!(a_live_scan_is_normalized_and_stored_as_live, |db| {
     });
     t.app.extensions.insert(std::sync::Arc::new(integrations));
     let d = demo(&t).await;
+    // Only a `provider: "matterport"` asset is read through the configured (here live) provider;
+    // the fixture listing's stand-in says `provider: "fixture"` and would be read from the
+    // fixture geometry (`tests/design_source.rs`). Mark it a Matterport scan, id unchanged.
+    let mut tx = t.app.store.begin().await.unwrap();
+    let mut prop = PROPERTIES
+        .get(&mut *tx, uuid(&json!(d.hollywood)))
+        .await
+        .unwrap()
+        .unwrap();
+    prop.interior_assets[0].provider = "matterport".into();
+    PROPERTIES.upsert(&mut *tx, &prop).await.unwrap();
+    tx.commit().await.unwrap();
     let r = generate(
         &t,
         &d.tok,

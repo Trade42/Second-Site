@@ -12,7 +12,7 @@
 //! Truth rules: the measured `areaFloor` is the scan's area, never the listing's area; a scan
 //! counts as the listed suite only when its title names the suite ([`suite_matches`]).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex};
 
@@ -67,6 +67,12 @@ pub trait MatterportProvider: Send + Sync {
     fn mode(&self) -> &str;
     /// A `SiteGeometry`-shaped document for one model, or `None`.
     fn get_floor_geometry(&self, asset_id: &str) -> Result<Option<Value>, ProviderError>;
+    /// True when an earlier [`Self::get_floor_geometry`] for `asset_id` answered `None` because
+    /// the provider does not know the model (or this token cannot see it), as opposed to a model
+    /// without a usable floor. Only the live provider can tell; everything else says `false`.
+    fn model_not_found(&self, _asset_id: &str) -> bool {
+        false
+    }
     /// Summaries keyed by model id, in request order; inaccessible models are left out.
     fn model_summaries(
         &self,
@@ -154,6 +160,8 @@ pub struct LiveMatterportProvider {
     configured: bool,
     client: HttpClient,
     geometry_cache: Mutex<HashMap<String, Option<Value>>>,
+    /// Model ids the API answered `not.found` for (their cached geometry is `None`).
+    not_found: Mutex<HashSet<String>>,
 }
 
 impl std::fmt::Debug for LiveMatterportProvider {
@@ -198,6 +206,7 @@ impl LiveMatterportProvider {
                 vec![("Authorization".to_owned(), format!("Basic {basic}"))],
             ),
             geometry_cache: Mutex::new(HashMap::new()),
+            not_found: Mutex::new(HashSet::new()),
         }
     }
 
@@ -254,6 +263,21 @@ impl LiveMatterportProvider {
     }
 }
 
+/// The marker of the API's answer for a model it does not know, or that this token cannot see,
+/// as observed on 2026-11-15: HTTP 2xx, `data: null`, and one GraphQL error whose message is
+/// `Error fetching data (path: /model, code: not.found): Not Found`. Only the message text is
+/// known (it is what [`LiveMatterportProvider::gql`] keeps of each error); the raw error object
+/// was not captured, so nothing else of it (`path`, `extensions`) is relied on.
+const MODEL_NOT_FOUND: &str = "(path: /model, code: not.found)";
+
+/// True when every error message `gql` joined into `e` is the `not.found` of the `model` path
+/// (a `not.found` on any other path, or any other error alongside it, is not).
+fn is_model_not_found(e: &ProviderError) -> bool {
+    e.provider == PROVIDER
+        && e.kind == ProviderErrorKind::BadResponse
+        && e.message.split("; ").all(|m| m.contains(MODEL_NOT_FOUND))
+}
+
 /// `_safe_id`: model ids are interpolated into GraphQL text, so only `[A-Za-z0-9_-]{4,64}`.
 pub fn safe_id(mid: &str) -> Result<&str, ProviderError> {
     static ID: LazyLock<Regex> =
@@ -300,6 +324,14 @@ impl MatterportProvider for LiveMatterportProvider {
         "live"
     }
 
+    /// A model the API does not know (or this token cannot see) is `None`, cached like any other
+    /// `None` and remembered for [`MatterportProvider::model_not_found`], not a provider error:
+    /// the trait documents `None` for it, and the layout then tries the property's next asset
+    /// or answers `GEOMETRY_UNAVAILABLE`. Deliberately different from Python, whose `_gql`
+    /// raises `BAD_RESPONSE` here and fails the layout task (R1 of
+    /// `orchestrator/reports/live-2.md`). Every other error stays an error: authentication,
+    /// rate limit, unreachable, a malformed answer, and a `not.found` on any other path.
+    /// `model_summaries` is unchanged.
     fn get_floor_geometry(&self, asset_id: &str) -> Result<Option<Value>, ProviderError> {
         if let Some(hit) = self
             .geometry_cache
@@ -310,7 +342,21 @@ impl MatterportProvider for LiveMatterportProvider {
             return Ok(hit.clone());
         }
         let id = safe_id(asset_id)?;
-        let data = self.gql(GEOMETRY_QUERY, Some(json!({"id": id})))?;
+        let data = match self.gql(GEOMETRY_QUERY, Some(json!({"id": id}))) {
+            Ok(data) => data,
+            Err(e) if is_model_not_found(&e) => {
+                self.not_found
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(asset_id.to_owned());
+                self.geometry_cache
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(asset_id.to_owned(), None);
+                return Ok(None);
+            }
+            Err(e) => return Err(e),
+        };
         let doc = match data.get("model") {
             Some(Value::Object(model)) if !model.is_empty() => {
                 super::matterport_geometry::floor_geometry_from_model(model)?
@@ -323,6 +369,13 @@ impl MatterportProvider for LiveMatterportProvider {
             .unwrap_or_else(|e| e.into_inner())
             .insert(asset_id.to_owned(), doc.clone());
         Ok(doc)
+    }
+
+    fn model_not_found(&self, asset_id: &str) -> bool {
+        self.not_found
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(asset_id)
     }
 
     fn model_summaries(

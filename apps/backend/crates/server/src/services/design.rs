@@ -23,7 +23,16 @@
 //!   the fetch and the solve with no transaction, pool connection or lock, then one write
 //!   transaction with the task's whole visible lifecycle (F1 of the part 3 review). Python runs
 //!   it all in the request's one transaction; its observable answers, rows and events are the
-//!   same.
+//!   same;
+//! - the floor of an interior asset is read from the asset's own provider, not the configured
+//!   mode ([`DesignService::prepare_site`]): only a `provider: "matterport"` asset goes to the
+//!   configured Matterport provider, and any other asset (the fixture listing's stand-in scan,
+//!   `provider: "fixture"`) is read from the fixture geometry whatever the mode, so a fixture id
+//!   never reaches the live API. Python (`service.py:63-66`) sends every measured asset to the
+//!   configured provider; it never showed there because its live mode also switched the
+//!   listings to the CoStar kit (D1 of `orchestrator/reports/live-2.md`).
+
+use std::sync::Arc;
 
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -35,6 +44,7 @@ use ss_domain::contracts::{
 use ss_domain::design::geometry::framing::normalize_plan;
 use ss_domain::design::geometry::solver::{generate_candidates, Candidate};
 use ss_domain::design::interior::finishes::finish_specifications;
+use ss_domain::integrations::base::ProviderError;
 use ss_domain::procurement::bom::generate_bom;
 use ss_domain::py;
 use ss_domain::requirements::templates::sqm_per_room;
@@ -45,6 +55,7 @@ use crate::contracts::{ActorType, EventType, JsonMap, TaskRecord};
 use crate::error::{AppError, AppResult};
 use crate::http::extract::py_truthy;
 use crate::integrations::blocking;
+use crate::integrations::matterport::{FixtureMatterportProvider, MatterportProvider};
 use crate::services::events::Emit;
 use crate::store::repo::{designs, rooms, BOMS, DESIGNS, GEOMETRIES, PROPERTIES, TASKS};
 use crate::store::{Query, Tx};
@@ -67,8 +78,9 @@ pub const SITE_ATTEMPTS: usize = 3;
 pub enum SiteSource {
     /// The property's last stored geometry.
     Stored(Box<SiteGeometry>),
-    /// Nothing is stored yet: the property's interior assets with measured geometry, in order.
-    Assets(Vec<String>),
+    /// Nothing is stored yet: the property's interior assets with measured geometry, in order, as
+    /// `(asset_id, provider)` (the asset's own `provider`, e.g. `"matterport"` or `"fixture"`).
+    Assets(Vec<(String, String)>),
 }
 
 /// The floor a layout is solved on.
@@ -277,7 +289,7 @@ impl<'a> DesignService<'a> {
             prop.interior_assets
                 .iter()
                 .filter(|a| a.has_measured_geometry)
-                .map(|a| a.asset_id.clone())
+                .map(|a| (a.asset_id.clone(), a.provider.clone()))
                 .collect(),
         ))
     }
@@ -286,6 +298,18 @@ impl<'a> DesignService<'a> {
     /// stored geometry as it is, or the first asset the Matterport provider has a document for,
     /// built into a `SiteGeometry` (normalized first when the document is `LIVE`); otherwise 404
     /// `GEOMETRY_UNAVAILABLE`.
+    ///
+    /// The document comes from the asset's own provider: an asset whose provider is
+    /// `"matterport"` is read through the configured Matterport provider (live or fixture, as the
+    /// mode says); any other asset is read from the fixture geometry whatever the mode
+    /// ([`Self::fixture_matterport`]) and never reaches the live API. A fixture document says
+    /// `FIXTURE_SYNTHETIC` (not `data_origin: LIVE`), so its `SiteGeometry` stays labelled
+    /// fixture data. Python sends every asset to the configured provider (see the module doc).
+    ///
+    /// When no asset has a document and at least one was skipped because the provider does not
+    /// know the model (or the token cannot see it, [`MatterportProvider::model_not_found`]), the
+    /// 404 keeps `GEOMETRY_UNAVAILABLE` and its message says so. Python fails the task with the
+    /// provider's `BAD_RESPONSE` there instead; with no such skip the message is Python's.
     pub async fn prepare_site(
         &self,
         property_id: Uuid,
@@ -295,10 +319,21 @@ impl<'a> DesignService<'a> {
             SiteSource::Stored(g) => return Ok(PreparedSite::Stored(*g)),
             SiteSource::Assets(assets) => assets,
         };
-        for asset_id in assets {
-            let matterport = self.app.integrations().matterport.clone();
+        let mut unknown_model = false;
+        for (asset_id, provider) in assets {
+            let matterport = if provider == crate::integrations::matterport::PROVIDER {
+                self.app.integrations().matterport.clone()
+            } else {
+                self.fixture_matterport()
+            };
             let id = asset_id.clone();
-            let doc = blocking(move || matterport.get_floor_geometry(&id)).await??;
+            let (doc, not_found) = blocking(move || {
+                let doc = matterport.get_floor_geometry(&id)?;
+                let not_found = doc.is_none() && matterport.model_not_found(&id);
+                Ok::<_, ProviderError>((doc, not_found))
+            })
+            .await??;
+            unknown_model |= not_found;
             let Some(doc) = doc.filter(py_truthy) else {
                 continue;
             };
@@ -329,10 +364,27 @@ impl<'a> DesignService<'a> {
                 live,
             )?));
         }
-        Err(
-            AppError::not_found("no measured geometry available for this property")
-                .code("GEOMETRY_UNAVAILABLE"),
-        )
+        let message = if unknown_model {
+            "no measured geometry available for this property: Matterport does not know the \
+             model, or this token cannot see it"
+        } else {
+            "no measured geometry available for this property"
+        };
+        Err(AppError::not_found(message).code("GEOMETRY_UNAVAILABLE"))
+    }
+
+    /// The Matterport provider for an asset whose provider is not `"matterport"`: the configured
+    /// one when it is the fixture provider (fixture mode, so nothing moves there), otherwise the
+    /// fixture geometry on the configured fixtures directory.
+    fn fixture_matterport(&self) -> Arc<dyn MatterportProvider> {
+        let configured = self.app.integrations().matterport.clone();
+        if configured.mode() == "fixture" {
+            configured
+        } else {
+            Arc::new(FixtureMatterportProvider::new(
+                &self.app.settings.fixtures_dir,
+            ))
+        }
     }
 
     /// `site_geometry(property_id)`, last part (a layout task's write phase, after its first
