@@ -340,11 +340,11 @@ pub fn largest_inner_rectangle_checked(
     if work.units() > MAX_FRAME_WORK {
         return Err(WorkBoundExceeded {
             note: format!(
-                "Floor outline too detailed to frame: {} boundary segments, which together cross {} rows of a {} x {} cell grid (estimated framing work {} units, above the bound of {MAX_FRAME_WORK}); no layout was generated. Simplify the measured outline.",
+                "Floor outline too detailed to frame: {} boundary segments on a {} x {} cell grid, which reach a grid row {} times in all (estimated framing work {} units, above the bound of {MAX_FRAME_WORK}); no layout was generated. Simplify the measured outline.",
                 work.segments,
-                work.segment_rows,
                 grid.nx,
                 grid.ny,
+                work.segment_rows,
                 work.units()
             ),
         });

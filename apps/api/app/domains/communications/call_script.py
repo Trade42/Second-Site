@@ -66,12 +66,19 @@ SQFT = re.compile(r"(\d[\d,]{2,6})\s*(?:usable\s*)?(?:sq(?:uare)?\.?\s*(?:ft|fee
 # Characters: a word character is str.isalnum() or "_" (re's \w), a space is str.isspace(), a digit
 # that counts as part of a reported number is ASCII 0-9 only (any other Unicode decimal next to a
 # number makes it unclear), and the apostrophes below are read as "'" before any pattern runs.
-# Read as "'": right and left single quotation marks, modifier letter apostrophe.
-APOSTROPHES = {0x2019: "'", 0x2018: "'", 0x2BC: "'"}
+# Read as "'": right and left single quotation marks, modifier letter apostrophe, and the look-alikes
+# grave accent, acute accent, prime and fullwidth apostrophe ("isn´t", "doesn`t").
+APOSTROPHES = {0x2019: "'", 0x2018: "'", 0x2BC: "'", 0x60: "'", 0xB4: "'", 0x2032: "'", 0xFF07: "'"}
 WORD = re.compile(r"\w+(?:'\w+)*")
-NO_IDIOM = re.compile(r"\b(?:no|not\s+an?)\s+(?:problems?|issues?|worries|doubts?|questions?|reason)\b", re.I)
+SPACES = re.compile(r"\s+")  # every run of spaces is read as one " ", so "have  to check" is a hedge
+NO_IDIOM = re.compile(
+    r"\b(?:no|not\s+an?)\s+(?:\w+\s+)?(?:problems?|issues?|worries|doubts?|questions?|reason)\b", re.I
+)
+# An area stated as rentable or gross is not the usable area the question asks for.
+NOT_USABLE = re.compile(r"\b(?:rentable|gross|rsf|gsf)\b", re.I)
 NEGATIONS = frozenset(
-    "not no nope none never nor neither without cannot hardly barely scarcely nothing nobody nowhere".split()
+    "not no nope none never nor neither without cannot hardly barely scarcely nothing nobody nowhere "
+    "zero 0 nah nay nil nada zilch negative impossible incorrect lack lacks lacking absent missing".split()
 )
 # Contractions written without an apostrophe; any word ending in "n't" is one too.
 CONTRACTIONS = frozenset(
@@ -81,10 +88,15 @@ CONTRACTIONS = frozenset(
 # Words that negate the affirmation right after them (so does every contraction).
 NEGATE_BEFORE = frozenset({"not", "never", "cannot", "hardly", "barely", "scarcely"})
 NEGATE_AFTER_ADVERB = frozenset({"not", "never"})  # after definitely, absolutely, correct, sure
+PREDICATE_AUX = frozenset({"to", "been", "yet"})  # "it has to be added", "it has been removed", "we have yet to"
+# A bound, not the value: "less than 100 amps", "at least 1,000 sf", "under 200 amps", "200 amps or more"
+BOUND_BEFORE = frozenset("under over below above than least most max maximum min minimum".split())
+BOUND_AFTER = frozenset("max maximum min minimum plus".split())
+BOUND_AFTER_OR = frozenset("more less fewer greater higher lower above below over under".split())
 NUMBER_OPENERS = '([{"\u201c~:'  # allowed directly before a number, besides a space
 # Join a number to an earlier one: hyphens, dashes, minus sign, ~ / , . : + &
 NUMBER_JOINERS = "-\u2010\u2011\u2012\u2013\u2014\u2015\u2212~/,.:+&"
-JOIN_WORDS_BEFORE = frozenset({"to", "and", "or", "through", "thru", "till", "until", "vs", "versus"})
+JOIN_WORDS_BEFORE = frozenset({"to", "and", "or", "through", "thru", "till", "until", "vs", "versus", "of"})
 JOIN_WORDS_AFTER = frozenset({"to", "or", "through", "thru", "till", "until"})
 
 
@@ -117,7 +129,8 @@ def _is_contraction(w: str) -> bool:
 
 
 def _is_negation(w: str) -> bool:
-    return _folded(w) in NEGATIONS or _is_contraction(w)
+    """A listed negation, alone or before a clitic ("nothing's", "nobody'll"), or a contraction."""
+    return _folded(w.split("'")[0]) in NEGATIONS or _is_contraction(w)
 
 
 def _skip_space_back(text: str, i: int) -> int:
@@ -144,7 +157,7 @@ def _affirmed(text: str, m: re.Match[str], ending: dict[int, str], starting: dic
     after = starting.get(j) if j > m.end() else None
     if before is not None and (_folded(before) in NEGATE_BEFORE or _is_contraction(before)):
         return False
-    if m.group(2) and after is not None and _is_negation(after):
+    if m.group(2) and after is not None and (_is_negation(after) or _folded(after) in PREDICATE_AUX):
         return False
     if m.group(3) and after is not None and _folded(after) in NEGATE_AFTER_ADVERB:
         return False
@@ -222,15 +235,48 @@ def _stands_alone(text: str, start: int, end: int, starts: set[int]) -> bool:
     return True
 
 
+def _word_at(text: str, i: int, step: int) -> tuple[str, int]:
+    """The listed form of the word right before (step -1) or after (step 1) offset i, spaces only between,
+    and the offset past it."""
+    i = _skip_space_back(text, i) if step < 0 else _skip_space_fwd(text, i)
+    j = i
+    while (j > 0 and _is_word(text[j - 1])) if step < 0 else (j < len(text) and _is_word(text[j])):
+        j += step
+    return _folded(text[min(i, j) : max(i, j)]), j
+
+
+def _qualified(text: str, m: re.Match[str], negation_ends: list[int], breaks: list[int]) -> bool:
+    """The unit match is negated, a bound or an article: a negation word earlier in its clause ("it's not
+    1,500 sf", "not even 100 amps"); a bound word next to it ("less than", "at least", "under", "200 amps or
+    more"); or the unit as a lower-case "a" after a space and before a word ("in 2015 a while back").
+    `negation_ends` (the end offsets of the negation words) and `breaks` (the clause breaks) are sorted."""
+    k = bisect.bisect_right(negation_ends, m.start()) - 1
+    if k >= 0:
+        b = bisect.bisect_left(breaks, negation_ends[k])
+        if b == len(breaks) or breaks[b] >= m.start():
+            return True
+    after, j = _word_at(text, m.end(), 1)
+    if _word_at(text, m.start(), -1)[0] in BOUND_BEFORE or after in BOUND_AFTER:
+        return True
+    if after == "or" and _word_at(text, j, 1)[0] in BOUND_AFTER_OR:
+        return True
+    g, i = m.group(), _skip_space_fwd(text, m.end())
+    return g[-1] == "a" and g[-2] == " " and i < len(text) and _is_word(text[i])
+
+
 def _quantity(pattern: re.Pattern[str], text: str) -> int | None:
-    """The one value every unit match states; None if any match is not a whole plain number, if the matches
-    disagree, or if the value is zero. Group 1 (the digits) starts each match."""
+    """The one value every unit match states; None if any match is not a whole plain number or is qualified
+    (_qualified), if the matches disagree, or if the value is zero. Group 1 (the digits) starts each match."""
     matches = list(pattern.finditer(text))
     starts = {m.start() for m in matches}
+    negation_ends = [m.end() for m in WORD.finditer(text) if _is_negation(m.group())]
+    breaks = [i for i, c in enumerate(text) if not (_is_word(c) or c.isspace() or c == "'")]
     values: set[int] = set()
     for m in matches:
         digits = m.group(1)
         if not (_plain_number(digits) and _stands_alone(text, m.start(), m.end(), starts)):
+            return None
+        if _qualified(text, m, negation_ends, breaks):
             return None
         values.add(int(digits.replace(",", "")))
         if len(values) > 1:
@@ -241,7 +287,8 @@ def _quantity(pattern: re.Pattern[str], text: str) -> int | None:
 def extract(question: CallQuestion, answer: str) -> StructuredFinding:
     """One finding; value None ("unclear") unless the answer clearly states one.
 
-    - Typographic apostrophes are read as "'"; any hedge (UNSURE) leaves every claim unclear.
+    - Typographic apostrophes are read as "'" and every run of spaces as one " "; any hedge (UNSURE) leaves
+      every claim unclear.
     - Amps and area: every unit match must be a whole plain number (_plain_number, _stands_alone), all of
       them the same non-zero value; otherwise unclear. No other bounds than the patterns' own.
     - Yes/no: True only for an affirmation that is not negated (_affirmed), no NO match and no negation word
@@ -251,14 +298,14 @@ def extract(question: CallQuestion, answer: str) -> StructuredFinding:
     """
     value: Any = None
     unit: str | None = None
-    text = answer.translate(APOSTROPHES)
+    text = SPACES.sub(" ", answer.translate(APOSTROPHES))
     if not UNSURE.search(text):
         if question.claim_type == "tenant_subpanel_amps":
             n = _quantity(AMPS, text)
             if n is not None:
                 value, unit = n, "A"
         elif question.claim_type == "usable_area_sqft":
-            n = _quantity(SQFT, text)
+            n = None if NOT_USABLE.search(text) else _quantity(SQFT, text)
             if n is not None:
                 value, unit = n, "sqft"
         elif question.claim_type in ("in_unit_plumbing", "hvac_zonable"):

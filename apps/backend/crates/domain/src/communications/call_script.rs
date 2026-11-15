@@ -73,16 +73,50 @@ pub const SQFT_PATTERN: &str =
 // part of a reported number is ASCII 0-9 only (any other Unicode decimal next to a number makes it
 // unclear), and the apostrophes below are read as `'` before any pattern runs.
 
-/// Read as `'`: right and left single quotation marks, modifier letter apostrophe.
-pub const APOSTROPHES: [char; 3] = ['\u{2019}', '\u{2018}', '\u{2BC}'];
+/// Read as `'`: right and left single quotation marks, modifier letter apostrophe, and the
+/// look-alikes grave accent, acute accent, prime and fullwidth apostrophe ("isn´t", "doesn`t").
+pub const APOSTROPHES: [char; 7] = [
+    '\u{2019}', '\u{2018}', '\u{2BC}', '`', '\u{B4}', '\u{2032}', '\u{FF07}',
+];
 /// A word, with inner apostrophes ("doesn't", "there's").
 pub const WORD_PATTERN: &str = r"\w+(?:'\w+)*";
-/// Idioms whose "no" is not an answer (`re.I`).
+/// Idioms whose "no" is not an answer, with at most one word between ("no plumbing issues";
+/// `re.I`).
 pub const NO_IDIOM_PATTERN: &str =
-    r"\b(?:no|not\s+an?)\s+(?:problems?|issues?|worries|doubts?|questions?|reason)\b";
-pub const NEGATIONS: [&str; 15] = [
-    "not", "no", "nope", "none", "never", "nor", "neither", "without", "cannot", "hardly",
-    "barely", "scarcely", "nothing", "nobody", "nowhere",
+    r"\b(?:no|not\s+an?)\s+(?:\w+\s+)?(?:problems?|issues?|worries|doubts?|questions?|reason)\b";
+/// An area stated as rentable or gross is not the usable area the question asks for (`re.I`).
+pub const NOT_USABLE_PATTERN: &str = r"\b(?:rentable|gross|rsf|gsf)\b";
+pub const NEGATIONS: [&str; 30] = [
+    "not",
+    "no",
+    "nope",
+    "none",
+    "never",
+    "nor",
+    "neither",
+    "without",
+    "cannot",
+    "hardly",
+    "barely",
+    "scarcely",
+    "nothing",
+    "nobody",
+    "nowhere",
+    "zero",
+    "0",
+    "nah",
+    "nay",
+    "nil",
+    "nada",
+    "zilch",
+    "negative",
+    "impossible",
+    "incorrect",
+    "lack",
+    "lacks",
+    "lacking",
+    "absent",
+    "missing",
 ];
 /// Contractions written without an apostrophe; any word ending in `n't` is one too.
 pub const CONTRACTIONS: [&str; 20] = [
@@ -94,12 +128,24 @@ pub const CONTRACTIONS: [&str; 20] = [
 pub const NEGATE_BEFORE: [&str; 6] = ["not", "never", "cannot", "hardly", "barely", "scarcely"];
 /// Words that negate an adverb affirmation right before them.
 pub const NEGATE_AFTER_ADVERB: [&str; 2] = ["not", "never"];
+/// A predicate followed by one of these is an auxiliary, not an affirmation ("it has to be
+/// added", "it has been removed", "we have yet to").
+pub const PREDICATE_AUX: [&str; 3] = ["to", "been", "yet"];
+/// A bound, not the value: "less than 100 amps", "at least 1,000 sf", "under 200 amps", "200 amps
+/// or more". Words right before the number, right after the unit, and after "or" there.
+pub const BOUND_BEFORE: [&str; 11] = [
+    "under", "over", "below", "above", "than", "least", "most", "max", "maximum", "min", "minimum",
+];
+pub const BOUND_AFTER: [&str; 5] = ["max", "maximum", "min", "minimum", "plus"];
+pub const BOUND_AFTER_OR: [&str; 10] = [
+    "more", "less", "fewer", "greater", "higher", "lower", "above", "below", "over", "under",
+];
 /// Characters allowed directly before a reported number (besides a space or the start).
 pub const NUMBER_OPENERS: &str = "([{\"\u{201C}~:";
 /// Characters that join a number to an earlier one: hyphens, dashes, minus, `~ / , . : + &`.
 pub const NUMBER_JOINERS: &str = "-\u{2010}\u{2011}\u{2012}\u{2013}\u{2014}\u{2015}\u{2212}~/,.:+&";
-pub const JOIN_WORDS_BEFORE: [&str; 9] = [
-    "to", "and", "or", "through", "thru", "till", "until", "vs", "versus",
+pub const JOIN_WORDS_BEFORE: [&str; 10] = [
+    "to", "and", "or", "through", "thru", "till", "until", "vs", "versus", "of",
 ];
 pub const JOIN_WORDS_AFTER: [&str; 6] = ["to", "or", "through", "thru", "till", "until"];
 
@@ -111,6 +157,7 @@ struct Patterns {
     sqft: PyRegex,
     word: PyRegex,
     no_idiom: PyRegex,
+    not_usable: PyRegex,
 }
 
 fn patterns() -> &'static Patterns {
@@ -123,6 +170,7 @@ fn patterns() -> &'static Patterns {
         sqft: PyRegex::new(SQFT_PATTERN, true),
         word: PyRegex::new(WORD_PATTERN, false),
         no_idiom: PyRegex::new(NO_IDIOM_PATTERN, true),
+        not_usable: PyRegex::new(NOT_USABLE_PATTERN, true),
     })
 }
 
@@ -192,8 +240,9 @@ fn is_contraction(w: &str) -> bool {
     ends_nt || listed(&CONTRACTIONS, w)
 }
 
+/// A listed negation, alone or before a clitic ("nothing's", "nobody'll"), or a contraction.
 fn is_negation(w: &str) -> bool {
-    listed(&NEGATIONS, w) || is_contraction(w)
+    listed(&NEGATIONS, w.split('\'').next().unwrap_or(w)) || is_contraction(w)
 }
 
 fn char_before(t: &str, i: usize) -> Option<char> {
@@ -247,7 +296,7 @@ fn affirmed(t: &str, m: &PyMatch<'_>, words: &[(usize, usize)]) -> bool {
     if before.is_some_and(|w| listed(&NEGATE_BEFORE, w) || is_contraction(w)) {
         return false;
     }
-    if m.group(2).is_some() && after.is_some_and(is_negation) {
+    if m.group(2).is_some() && after.is_some_and(|w| is_negation(w) || listed(&PREDICATE_AUX, w)) {
         return false;
     }
     if m.group(3).is_some() && after.is_some_and(|w| listed(&NEGATE_AFTER_ADVERB, w)) {
@@ -360,17 +409,81 @@ fn stands_alone(t: &str, start: usize, end: usize, starts: &[usize]) -> bool {
     true
 }
 
+/// Python's `_word_at`: the word right before (`back`) or after offset `i`, spaces only between,
+/// and the offset past it (Python returns it folded; callers here fold through [`listed`]).
+fn word_at(t: &str, i: usize, back: bool) -> (&str, usize) {
+    let k = if back {
+        skip_space_back(t, i)
+    } else {
+        skip_space_fwd(t, i)
+    };
+    let mut j = k;
+    if back {
+        while let Some(c) = char_before(t, j).filter(|&c| is_word(c)) {
+            j -= c.len_utf8();
+        }
+        (&t[j..k], j)
+    } else {
+        while let Some(c) = char_at(t, j).filter(|&c| is_word(c)) {
+            j += c.len_utf8();
+        }
+        (&t[k..j], j)
+    }
+}
+
+/// Python's `_qualified`: the unit match is negated, a bound or an article. A negation word
+/// earlier in its clause ("it's not 1,500 sf", "not even 100 amps"); a bound word next to it
+/// ([`BOUND_BEFORE`], [`BOUND_AFTER`], "or" then [`BOUND_AFTER_OR`]); or the unit as a lower-case
+/// "a" after a space and before a word ("in 2015 a while back"). `negation_ends` (the end offsets
+/// of the negation words) and `breaks` (the clause breaks) are sorted.
+fn qualified(t: &str, m: &PyMatch<'_>, negation_ends: &[usize], breaks: &[usize]) -> bool {
+    let (start, end) = m.span();
+    let k = negation_ends.partition_point(|&e| e <= start);
+    if k > 0 {
+        let b = breaks.partition_point(|&p| p < negation_ends[k - 1]);
+        if breaks.get(b).is_none_or(|&p| p >= start) {
+            return true;
+        }
+    }
+    let (after, j) = word_at(t, end, false);
+    if listed(&BOUND_BEFORE, word_at(t, start, true).0) || listed(&BOUND_AFTER, after) {
+        return true;
+    }
+    if listed(&["or"], after) && listed(&BOUND_AFTER_OR, word_at(t, j, false).0) {
+        return true;
+    }
+    let mut tail = m.group(0).unwrap_or("").chars().rev();
+    matches!((tail.next(), tail.next()), (Some('a'), Some(' ')))
+        && char_at(t, skip_space_fwd(t, end)).is_some_and(is_word)
+}
+
 /// Python's `_quantity`: the one value every unit match states; `None` if any match is not a
-/// whole plain number, if the matches disagree, or if the value is zero. Group 1 (the digits)
-/// starts each match.
-fn quantity(re: &PyRegex, t: &str) -> Option<i64> {
+/// whole plain number or is qualified ([`qualified`]), if the matches disagree, or if the value
+/// is zero. Group 1 (the digits) starts each match.
+fn quantity(p: &Patterns, re: &PyRegex, t: &str) -> Option<i64> {
     let matches = re.search_all(t);
     let starts: Vec<usize> = matches.iter().map(|m| m.span().0).collect();
+    let negation_ends: Vec<usize> = p
+        .word
+        .search_all(t)
+        .iter()
+        .map(PyMatch::span)
+        .filter(|&(s, e)| is_negation(&t[s..e]))
+        .map(|(_, e)| e)
+        .collect();
+    let breaks: Vec<usize> = t
+        .char_indices()
+        .filter(|&(_, c)| !(is_word(c) || py::is_space(c) || c == '\''))
+        .map(|(i, _)| i)
+        .collect();
     let mut values: Vec<i64> = Vec::new();
     for m in &matches {
         let digits = m.group(1)?;
         let (start, end) = m.span();
         if !(plain_number(digits) && stands_alone(t, start, end, &starts)) {
+            return None;
+        }
+        if qualified(t, m, &negation_ends, &breaks) {
             return None;
         }
         let n: i64 = digits.replace(',', "").parse().ok()?;
@@ -390,8 +503,8 @@ fn quantity(re: &PyRegex, t: &str) -> Option<i64> {
 /// `extract(question, answer)`: one finding, value `null` ("unclear") unless the answer clearly
 /// states one.
 ///
-/// - Typographic apostrophes ([`APOSTROPHES`]) are read as `'`; any hedge ("not sure", "would
-///   have to check", ...) leaves every claim unclear.
+/// - Typographic apostrophes ([`APOSTROPHES`]) are read as `'` and every run of spaces as one
+///   `' '`; any hedge ("not sure", "would have to check", ...) leaves every claim unclear.
 /// - `tenant_subpanel_amps` (unit `A`) and `usable_area_sqft` (unit `sqft`, commas dropped): every
 ///   unit match must be a whole plain number ([`plain_number`], [`stands_alone`]), all of them the
 ///   same non-zero value; otherwise unclear. No other bounds than the patterns' own (amps 2 to 4
@@ -403,22 +516,37 @@ fn quantity(re: &PyRegex, t: &str) -> Option<i64> {
 /// - any other claim: the stripped answer's first 200 characters (as given), or `null` when empty.
 pub fn extract(question: &CallQuestion, answer: &str) -> StructuredFinding {
     let p = patterns();
-    let text: String = answer
-        .chars()
-        .map(|c| if APOSTROPHES.contains(&c) { '\'' } else { c })
-        .collect();
+    // Python: SPACES.sub(" ", answer.translate(APOSTROPHES)), `\s` being `str.isspace()`.
+    let mut text = String::with_capacity(answer.len());
+    let mut in_space = false;
+    for c in answer.chars() {
+        if py::is_space(c) {
+            if !in_space {
+                text.push(' ');
+            }
+            in_space = true;
+        } else {
+            text.push(if APOSTROPHES.contains(&c) { '\'' } else { c });
+            in_space = false;
+        }
+    }
     let mut value = Value::Null;
     let mut unit: Option<String> = None;
     if !p.unsure.is_match(&text) {
         match question.claim_type.as_str() {
             "tenant_subpanel_amps" => {
-                if let Some(n) = quantity(&p.amps, &text) {
+                if let Some(n) = quantity(p, &p.amps, &text) {
                     value = Value::from(n);
                     unit = Some("A".into());
                 }
             }
             "usable_area_sqft" => {
-                if let Some(n) = quantity(&p.sqft, &text) {
+                let n = if p.not_usable.is_match(&text) {
+                    None
+                } else {
+                    quantity(p, &p.sqft, &text)
+                };
+                if let Some(n) = n {
                     value = Value::from(n);
                     unit = Some("sqft".into());
                 }

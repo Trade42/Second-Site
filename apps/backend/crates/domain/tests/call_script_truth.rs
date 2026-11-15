@@ -438,3 +438,196 @@ fn long_answers_follow_the_same_rules() {
         assert_eq!(value(claim, &answer), want, "{claim} {}", &answer[..20]);
     }
 }
+
+/// Review of rust-domain-5: answers the writer's fix misread (each value differs there), then
+/// answers whose value the review fixes keep. The same cases as `test_call_script_truth.py`.
+fn review_cases() -> Vec<(&'static str, &'static str, Value)> {
+    vec![
+        ("in_unit_plumbing", "that isn\u{b4}t correct", Value::Null),
+        ("in_unit_plumbing", "That isn`t correct.", Value::Null),
+        ("in_unit_plumbing", "it sure doesn\u{2032}t", Value::Null),
+        ("in_unit_plumbing", "that isn\u{ff07}t correct", Value::Null),
+        ("in_unit_plumbing", "It doesn\u{b4}t.", json!(false)),
+        ("in_unit_plumbing", "There isn`t.", json!(false)),
+        (
+            "in_unit_plumbing",
+            "We don\u{2032}t have one.",
+            json!(false),
+        ),
+        (
+            "tenant_subpanel_amps",
+            "I don\u{b4}t know, 200 amps",
+            Value::Null,
+        ),
+        ("available_from", "I`ll find out", Value::Null),
+        ("in_unit_plumbing", "There is zero plumbing.", Value::Null),
+        ("in_unit_plumbing", "It has zero sinks.", Value::Null),
+        ("in_unit_plumbing", "There's 0 plumbing.", Value::Null),
+        (
+            "in_unit_plumbing",
+            "Nah, there's a sink in the other suite.",
+            Value::Null,
+        ),
+        ("hvac_zonable", "Impossible, for sure.", Value::Null),
+        ("in_unit_plumbing", "Sure, that's incorrect.", Value::Null),
+        ("in_unit_plumbing", "Yes, nothing's there.", Value::Null),
+        (
+            "in_unit_plumbing",
+            "It lacks plumbing, for sure.",
+            Value::Null,
+        ),
+        (
+            "in_unit_plumbing",
+            "Negative, it has a sink next door.",
+            Value::Null,
+        ),
+        (
+            "in_unit_plumbing",
+            "No, there is zero plumbing.",
+            json!(false),
+        ),
+        ("in_unit_plumbing", "It has been removed.", Value::Null),
+        ("in_unit_plumbing", "It has to be added.", Value::Null),
+        ("in_unit_plumbing", "We have to add one.", Value::Null),
+        ("in_unit_plumbing", "We have yet to plumb it.", Value::Null),
+        ("hvac_zonable", "It has to be redone.", Value::Null),
+        ("in_unit_plumbing", "It has been removed, no.", json!(false)),
+        (
+            "tenant_subpanel_amps",
+            "It's not 400 amps, it's 200",
+            Value::Null,
+        ),
+        ("tenant_subpanel_amps", "It isn't 200 amps.", Value::Null),
+        (
+            "tenant_subpanel_amps",
+            "Definitely not 400 amps.",
+            Value::Null,
+        ),
+        ("tenant_subpanel_amps", "Not even 100 amps.", Value::Null),
+        (
+            "tenant_subpanel_amps",
+            "Nowhere near 100 amps.",
+            Value::Null,
+        ),
+        (
+            "usable_area_sqft",
+            "It's not 1,500 sf, it's 1,128.",
+            Value::Null,
+        ),
+        (
+            "usable_area_sqft",
+            "Not 3,500 sq ft, more like 2,000.",
+            Value::Null,
+        ),
+        ("tenant_subpanel_amps", "Less than 100 amps.", Value::Null),
+        ("tenant_subpanel_amps", "Under 200 amps.", Value::Null),
+        ("tenant_subpanel_amps", "No more than 200 amps", Value::Null),
+        ("tenant_subpanel_amps", "At most 60 amps", Value::Null),
+        ("tenant_subpanel_amps", "200 amps max", Value::Null),
+        ("tenant_subpanel_amps", "200 amps plus", Value::Null),
+        ("usable_area_sqft", "Over 1,000 sf.", Value::Null),
+        ("usable_area_sqft", "Just under 1,250 sf", Value::Null),
+        ("usable_area_sqft", "1,250 sf or less", Value::Null),
+        ("usable_area_sqft", "2,000 of 10,000 sf", Value::Null),
+        (
+            "usable_area_sqft",
+            "1,200 of 10,000 square feet",
+            Value::Null,
+        ),
+        (
+            "usable_area_sqft",
+            "1,300 sf rentable, 1,128 usable",
+            Value::Null,
+        ),
+        ("usable_area_sqft", "1,300 sf gross", Value::Null),
+        (
+            "usable_area_sqft",
+            "1,300 square feet rentable",
+            Value::Null,
+        ),
+        (
+            "tenant_subpanel_amps",
+            "It was upgraded in 2015 a while back.",
+            Value::Null,
+        ),
+        (
+            "tenant_subpanel_amps",
+            "We pay 1500 a month for power.",
+            Value::Null,
+        ),
+        ("in_unit_plumbing", "No plumbing issues.", Value::Null),
+        (
+            "in_unit_plumbing",
+            "No plumbing problems at all.",
+            Value::Null,
+        ),
+        ("hvac_zonable", "No zoning issues.", Value::Null),
+        ("in_unit_plumbing", "Sure, I'd have  to check.", Value::Null),
+        (
+            "in_unit_plumbing",
+            "Sure, I'd have\u{a0}to check.",
+            Value::Null,
+        ),
+        (
+            "tenant_subpanel_amps",
+            "I'm not  sure, maybe 200 amps",
+            Value::Null,
+        ),
+        (
+            "tenant_subpanel_amps",
+            "I don't\u{a0}know, 200 amps?",
+            Value::Null,
+        ),
+        ("in_unit_plumbing", "It's all\u{a0}open.", json!(false)),
+        ("in_unit_plumbing", "Not\u{2002}really.", json!(false)),
+        ("tenant_subpanel_amps", "No, it's 200 amps.", json!(200)),
+        ("tenant_subpanel_amps", "200 amps, not 400.", json!(200)),
+        (
+            "tenant_subpanel_amps",
+            "It's 200 amps, nothing in use yet",
+            json!(200),
+        ),
+        ("tenant_subpanel_amps", "It's 400 amps or so", json!(400)),
+        ("tenant_subpanel_amps", "200A service", json!(200)),
+        ("tenant_subpanel_amps", "200 A service", json!(200)),
+        ("tenant_subpanel_amps", "about 200 a.", json!(200)),
+        ("tenant_subpanel_amps", "It's 200 a", json!(200)),
+        ("tenant_subpanel_amps", "60% of 200 amps", json!(200)),
+        (
+            "tenant_subpanel_amps",
+            "About 50% of the 200 amps is in use",
+            json!(200),
+        ),
+        ("usable_area_sqft", "2,000 sf of 10,000", json!(2000)),
+        ("usable_area_sqft", "1,128 usable square feet", json!(1128)),
+        ("usable_area_sqft", "1,128 sf usable", json!(1128)),
+        ("usable_area_sqft", "about 1,128 square feet", json!(1128)),
+        ("in_unit_plumbing", "No plumbing.", json!(false)),
+        (
+            "in_unit_plumbing",
+            "There's no plumbing at all.",
+            json!(false),
+        ),
+        ("in_unit_plumbing", "it does\u{a0}not", Value::Null),
+        (
+            "in_unit_plumbing",
+            "Yes, there's a sink in back",
+            json!(true),
+        ),
+        ("hvac_zonable", "No, it's all open", json!(false)),
+    ]
+}
+
+#[test]
+fn negated_bounded_hedged_and_respaced_answers() {
+    for (claim, answer, want) in review_cases() {
+        let f = extract(&q(claim), answer);
+        assert_eq!(f.value, want, "{claim} {answer:?}");
+        let unit = match (claim, &want) {
+            ("tenant_subpanel_amps", Value::Number(_)) => Some("A"),
+            ("usable_area_sqft", Value::Number(_)) => Some("sqft"),
+            _ => None,
+        };
+        assert_eq!(f.unit.as_deref(), unit, "{claim} {answer:?}");
+    }
+}

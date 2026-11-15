@@ -155,7 +155,7 @@ fn outlines_with_too_many_segment_rows_are_refused_before_the_scan() {
     let err = frame_for_solver_checked(&site, MIN_FRAME_AREA).expect_err("bounded");
     let refused_in = t.elapsed();
     assert!(
-        err.note.starts_with("Floor outline too detailed to frame: 8004 boundary segments, which together cross 7994000 rows of a 999 x 999 cell grid (estimated framing work "),
+        err.note.starts_with("Floor outline too detailed to frame: 8004 boundary segments on a 999 x 999 cell grid, which reach a grid row 7994000 times in all (estimated framing work "),
         "{}",
         err.note
     );

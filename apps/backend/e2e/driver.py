@@ -1130,7 +1130,7 @@ def d12() -> str:
         **{f"{m}_PROVIDER_MODE": "fixture" for m in modes},
     )
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-    same, differ, not_comparable = [], [], []
+    same, key_order, differ, not_comparable = [], [], [], []
     try:
         with Session(engine) as db:
             ctx = ToolContext(
@@ -1152,6 +1152,8 @@ def d12() -> str:
                     not_comparable.append(f"{tag}: http {err.get('error_code')}, in-process {len(a)} chars")
                 elif a == b:
                     same.append(tag)
+                elif key_order_only(b, a):
+                    key_order.append(tag)
                 else:
                     differ.append(f"{tag}: {explain_text_diff(b, a)}")
             db.rollback()
@@ -1160,9 +1162,22 @@ def d12() -> str:
     note = f"; not comparable (HTTP mode failed): {not_comparable}" if not_comparable else ""
     if differ:
         raise Fail(
-            "byte-identical tool text in both modes", " | ".join(differ) + f" || identical: {same}{note}"
+            "the same JSON value in both modes (object key order aside)",
+            " | ".join(differ) + f" || bytes identical: {same}; key order only: {key_order}{note}",
         )
-    return f"identical: {', '.join(same)}{note}"
+    ko = f"; bytes differ (object key order): {', '.join(key_order)}" if key_order else ""
+    return f"the same JSON value in both modes; bytes identical: {', '.join(same) or 'none'}{ko}{note}"
+
+
+def key_order_only(a: str, b: str) -> bool:
+    """True when two tool texts are the same JSON value and differ only in the order of object keys: each text is
+    exactly what json.dumps prints for its own value (so spacing and number spelling are the same), and the values
+    are equal with types compared (strict_diff)."""
+    try:
+        ja, jb = json.loads(a), json.loads(b)
+    except ValueError:
+        return False
+    return json.dumps(ja) == a and json.dumps(jb) == b and not strict_diff(ja, jb)
 
 
 @check(

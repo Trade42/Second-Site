@@ -293,3 +293,97 @@ def test_typographic_apostrophes_read_like_ascii_ones():
 def test_long_answers_follow_the_same_rules(q, answer, value):
     # The helpers are linear (dicts and bisect, not nested scans): 140,000 characters take well under a second.
     assert extract(q, answer).value == value
+
+
+# Review of rust-domain-5: answers the writer's fix misread (each value differs there), then answers whose value
+# the review fixes keep. Mirrored in call_script_truth.rs.
+REVIEW_FIXED = [
+    (PLUMBING, "that isn\u00b4t correct", None),
+    (PLUMBING, "That isn`t correct.", None),
+    (PLUMBING, "it sure doesn\u2032t", None),
+    (PLUMBING, "that isn\uff07t correct", None),
+    (PLUMBING, "It doesn\u00b4t.", False),
+    (PLUMBING, "There isn`t.", False),
+    (PLUMBING, "We don\u2032t have one.", False),
+    (AMPS, "I don\u00b4t know, 200 amps", None),
+    (AVAILABLE, "I`ll find out", None),
+    (PLUMBING, "There is zero plumbing.", None),
+    (PLUMBING, "It has zero sinks.", None),
+    (PLUMBING, "There's 0 plumbing.", None),
+    (PLUMBING, "Nah, there's a sink in the other suite.", None),
+    (HVAC, "Impossible, for sure.", None),
+    (PLUMBING, "Sure, that's incorrect.", None),
+    (PLUMBING, "Yes, nothing's there.", None),
+    (PLUMBING, "It lacks plumbing, for sure.", None),
+    (PLUMBING, "Negative, it has a sink next door.", None),
+    (PLUMBING, "No, there is zero plumbing.", False),
+    (PLUMBING, "It has been removed.", None),
+    (PLUMBING, "It has to be added.", None),
+    (PLUMBING, "We have to add one.", None),
+    (PLUMBING, "We have yet to plumb it.", None),
+    (HVAC, "It has to be redone.", None),
+    (PLUMBING, "It has been removed, no.", False),
+    (AMPS, "It's not 400 amps, it's 200", None),
+    (AMPS, "It isn't 200 amps.", None),
+    (AMPS, "Definitely not 400 amps.", None),
+    (AMPS, "Not even 100 amps.", None),
+    (AMPS, "Nowhere near 100 amps.", None),
+    (SQFT, "It's not 1,500 sf, it's 1,128.", None),
+    (SQFT, "Not 3,500 sq ft, more like 2,000.", None),
+    (AMPS, "Less than 100 amps.", None),
+    (AMPS, "Under 200 amps.", None),
+    (AMPS, "No more than 200 amps", None),
+    (AMPS, "At most 60 amps", None),
+    (AMPS, "200 amps max", None),
+    (AMPS, "200 amps plus", None),
+    (SQFT, "Over 1,000 sf.", None),
+    (SQFT, "Just under 1,250 sf", None),
+    (SQFT, "1,250 sf or less", None),
+    (SQFT, "2,000 of 10,000 sf", None),
+    (SQFT, "1,200 of 10,000 square feet", None),
+    (SQFT, "1,300 sf rentable, 1,128 usable", None),
+    (SQFT, "1,300 sf gross", None),
+    (SQFT, "1,300 square feet rentable", None),
+    (AMPS, "It was upgraded in 2015 a while back.", None),
+    (AMPS, "We pay 1500 a month for power.", None),
+    (PLUMBING, "No plumbing issues.", None),
+    (PLUMBING, "No plumbing problems at all.", None),
+    (HVAC, "No zoning issues.", None),
+    (PLUMBING, "Sure, I'd have  to check.", None),
+    (PLUMBING, "Sure, I'd have\u00a0to check.", None),
+    (AMPS, "I'm not  sure, maybe 200 amps", None),
+    (AMPS, "I don't\u00a0know, 200 amps?", None),
+    (PLUMBING, "It's all\u00a0open.", False),
+    (PLUMBING, "Not\u2002really.", False),
+]
+REVIEW_KEPT = [
+    (AMPS, "No, it's 200 amps.", 200),
+    (AMPS, "200 amps, not 400.", 200),
+    (AMPS, "It's 200 amps, nothing in use yet", 200),
+    (AMPS, "It's 400 amps or so", 400),
+    (AMPS, "200A service", 200),
+    (AMPS, "200 A service", 200),
+    (AMPS, "about 200 a.", 200),
+    (AMPS, "It's 200 a", 200),
+    (AMPS, "60% of 200 amps", 200),
+    (AMPS, "About 50% of the 200 amps is in use", 200),
+    (SQFT, "2,000 sf of 10,000", 2000),
+    (SQFT, "1,128 usable square feet", 1128),
+    (SQFT, "1,128 sf usable", 1128),
+    (SQFT, "about 1,128 square feet", 1128),
+    (PLUMBING, "No plumbing.", False),
+    (PLUMBING, "There's no plumbing at all.", False),
+    (PLUMBING, "it does\u00a0not", None),
+    (PLUMBING, "Yes, there's a sink in back", True),
+    (HVAC, "No, it's all open", False),
+]
+
+
+@pytest.mark.parametrize(("q", "answer", "value"), REVIEW_FIXED + REVIEW_KEPT)
+def test_negated_bounded_hedged_and_respaced_answers(q, answer, value):
+    # Look-alike apostrophes, runs of spaces, more negation words, auxiliaries ("it has to"), negated or bounded
+    # numbers, "X of Y sf", rentable or gross areas, the article "a" after a number, "no plumbing issues".
+    f = extract(q, answer)
+    assert f.value == value and type(f.value) is type(value), (answer, f.value)
+    unit = {"tenant_subpanel_amps": "A", "usable_area_sqft": "sqft"}.get(q.claim_type)
+    assert f.unit == (unit if isinstance(value, int) and not isinstance(value, bool) else None)

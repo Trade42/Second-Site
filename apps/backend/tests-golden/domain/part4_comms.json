@@ -2662,7 +2662,7 @@
   },
   {
    "answer": "150 a b",
-   "describe": "tenant_subpanel_amps: 150 A",
+   "describe": "tenant_subpanel_amps: unclear",
    "finding": {
     "answer": "150 a b",
     "claim_type": "tenant_subpanel_amps",
@@ -2670,8 +2670,8 @@
     "question": "How many amps?",
     "speaker": "counterparty",
     "transcript_offset_s": null,
-    "unit": "A",
-    "value": 150
+    "unit": null,
+    "value": null
    },
    "question": {
     "claim_type": "tenant_subpanel_amps",
@@ -7412,7 +7412,7 @@
   },
   {
    "answer": "at least 200 amps",
-   "describe": "tenant_subpanel_amps: 200 A",
+   "describe": "tenant_subpanel_amps: unclear",
    "finding": {
     "answer": "at least 200 amps",
     "claim_type": "tenant_subpanel_amps",
@@ -7420,8 +7420,8 @@
     "question": "How many amps?",
     "speaker": "counterparty",
     "transcript_offset_s": null,
-    "unit": "A",
-    "value": 200
+    "unit": null,
+    "value": null
    },
    "question": {
     "claim_type": "tenant_subpanel_amps",
@@ -7431,7 +7431,7 @@
   },
   {
    "answer": "200 amps or more",
-   "describe": "tenant_subpanel_amps: 200 A",
+   "describe": "tenant_subpanel_amps: unclear",
    "finding": {
     "answer": "200 amps or more",
     "claim_type": "tenant_subpanel_amps",
@@ -7439,8 +7439,8 @@
     "question": "How many amps?",
     "speaker": "counterparty",
     "transcript_offset_s": null,
-    "unit": "A",
-    "value": 200
+    "unit": null,
+    "value": null
    },
    "question": {
     "claim_type": "tenant_subpanel_amps",
@@ -7450,7 +7450,7 @@
   },
   {
    "answer": "2000 a month",
-   "describe": "tenant_subpanel_amps: 2000 A",
+   "describe": "tenant_subpanel_amps: unclear",
    "finding": {
     "answer": "2000 a month",
     "claim_type": "tenant_subpanel_amps",
@@ -7458,8 +7458,8 @@
     "question": "How many amps?",
     "speaker": "counterparty",
     "transcript_offset_s": null,
-    "unit": "A",
-    "value": 2000
+    "unit": null,
+    "value": null
    },
    "question": {
     "claim_type": "tenant_subpanel_amps",
@@ -12086,7 +12086,7 @@
   },
   {
    "answer": "Nah, yes",
-   "describe": "hvac_zonable: yes",
+   "describe": "hvac_zonable: unclear",
    "finding": {
     "answer": "Nah, yes",
     "claim_type": "hvac_zonable",
@@ -12095,7 +12095,7 @@
     "speaker": "counterparty",
     "transcript_offset_s": null,
     "unit": null,
-    "value": true
+    "value": null
    },
    "question": {
     "claim_type": "hvac_zonable",
@@ -12248,6 +12248,1811 @@
     "transcript_offset_s": null,
     "unit": null,
     "value": "January 1st"
+   },
+   "question": {
+    "claim_type": "available_from",
+    "question": "When would the space be available to start a lease?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "I don\u00b4t know, 200 amps",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "I don\u00b4t know, 200 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "It's not 400 amps, it's 200",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "It's not 400 amps, it's 200",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "It isn't 200 amps.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "It isn't 200 amps.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "Definitely not 400 amps.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "Definitely not 400 amps.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "Not even 100 amps.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "Not even 100 amps.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "Nowhere near 100 amps.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "Nowhere near 100 amps.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "Less than 100 amps.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "Less than 100 amps.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "Under 200 amps.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "Under 200 amps.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "No more than 200 amps",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "No more than 200 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "At most 60 amps",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "At most 60 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "200 amps max",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "200 amps max",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "200 amps plus",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "200 amps plus",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "It was upgraded in 2015 a while back.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "It was upgraded in 2015 a while back.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "We pay 1500 a month for power.",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "We pay 1500 a month for power.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "I'm not  sure, maybe 200 amps",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "I'm not  sure, maybe 200 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "I don't\u00a0know, 200 amps?",
+   "describe": "tenant_subpanel_amps: unclear",
+   "finding": {
+    "answer": "I don't\u00a0know, 200 amps?",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "No, it's 200 amps.",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "No, it's 200 amps.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "200 amps, not 400.",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "200 amps, not 400.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "It's 200 amps, nothing in use yet",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "It's 200 amps, nothing in use yet",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "It's 400 amps or so",
+   "describe": "tenant_subpanel_amps: 400 A",
+   "finding": {
+    "answer": "It's 400 amps or so",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 400
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "200A service",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "200A service",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "200 A service",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "200 A service",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "about 200 a.",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "about 200 a.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "It's 200 a",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "It's 200 a",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "60% of 200 amps",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "60% of 200 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "About 50% of the 200 amps is in use",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "About 50% of the 200 amps is in use",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "The building has 400 amps, the suite gets 100.",
+   "describe": "tenant_subpanel_amps: 400 A",
+   "finding": {
+    "answer": "The building has 400 amps, the suite gets 100.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 400
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "It's 200 amps... no wait, 100.",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "It's 200 amps... no wait, 100.",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "two 100 amp panels",
+   "describe": "tenant_subpanel_amps: 100 A",
+   "finding": {
+    "answer": "two 100 amp panels",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 100
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "Up to 400 amps",
+   "describe": "tenant_subpanel_amps: 400 A",
+   "finding": {
+    "answer": "Up to 400 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 400
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "In 2015 A while back",
+   "describe": "tenant_subpanel_amps: 2015 A",
+   "finding": {
+    "answer": "In 2015 A while back",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 2015
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "that isn\u00b4t correct",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "that isn\u00b4t correct",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "That isn`t correct.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "That isn`t correct.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "it sure doesn\u2032t",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "it sure doesn\u2032t",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "that isn\uff07t correct",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "that isn\uff07t correct",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It doesn\u00b4t.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "It doesn\u00b4t.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "There isn`t.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "There isn`t.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "We don\u2032t have one.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "We don\u2032t have one.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "There is zero plumbing.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "There is zero plumbing.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It has zero sinks.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "It has zero sinks.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "There's 0 plumbing.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "There's 0 plumbing.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Nah, there's a sink in the other suite.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "Nah, there's a sink in the other suite.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Sure, that's incorrect.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "Sure, that's incorrect.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Yes, nothing's there.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "Yes, nothing's there.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It lacks plumbing, for sure.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "It lacks plumbing, for sure.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Negative, it has a sink next door.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "Negative, it has a sink next door.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "No, there is zero plumbing.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "No, there is zero plumbing.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It has been removed.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "It has been removed.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It has to be added.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "It has to be added.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "We have to add one.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "We have to add one.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "We have yet to plumb it.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "We have yet to plumb it.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It has been removed, no.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "It has been removed, no.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "No plumbing issues.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "No plumbing issues.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "No plumbing problems at all.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "No plumbing problems at all.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Sure, I'd have  to check.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "Sure, I'd have  to check.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Sure, I'd have\u00a0to check.",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "Sure, I'd have\u00a0to check.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It's all\u00a0open.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "It's all\u00a0open.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Not\u2002really.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "Not\u2002really.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "No plumbing.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "No plumbing.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "There's no plumbing at all.",
+   "describe": "in_unit_plumbing: no",
+   "finding": {
+    "answer": "There's no plumbing at all.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "it does\u00a0not",
+   "describe": "in_unit_plumbing: unclear",
+   "finding": {
+    "answer": "it does\u00a0not",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Yes, there's a sink in back",
+   "describe": "in_unit_plumbing: yes",
+   "finding": {
+    "answer": "Yes, there's a sink in back",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "I doubt there's a sink.",
+   "describe": "in_unit_plumbing: yes",
+   "finding": {
+    "answer": "I doubt there's a sink.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Sure, let me check.",
+   "describe": "in_unit_plumbing: yes",
+   "finding": {
+    "answer": "Sure, let me check.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "There is supposed to be one.",
+   "describe": "in_unit_plumbing: yes",
+   "finding": {
+    "answer": "There is supposed to be one.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Maybe yes.",
+   "describe": "in_unit_plumbing: yes",
+   "finding": {
+    "answer": "Maybe yes.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "We have plumbing on the second floor only.",
+   "describe": "in_unit_plumbing: yes",
+   "finding": {
+    "answer": "We have plumbing on the second floor only.",
+    "claim_type": "in_unit_plumbing",
+    "classification": "OWNER_REPORTED",
+    "question": "Plumbing?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "in_unit_plumbing",
+    "question": "Plumbing?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Impossible, for sure.",
+   "describe": "hvac_zonable: unclear",
+   "finding": {
+    "answer": "Impossible, for sure.",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It has to be redone.",
+   "describe": "hvac_zonable: unclear",
+   "finding": {
+    "answer": "It has to be redone.",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "No zoning issues.",
+   "describe": "hvac_zonable: unclear",
+   "finding": {
+    "answer": "No zoning issues.",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "No, it's all open",
+   "describe": "hvac_zonable: no",
+   "finding": {
+    "answer": "No, it's all open",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It has one zone.",
+   "describe": "hvac_zonable: yes",
+   "finding": {
+    "answer": "It has one zone.",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "There's only one thermostat.",
+   "describe": "hvac_zonable: yes",
+   "finding": {
+    "answer": "There's only one thermostat.",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It's all open, so it's easy to zone.",
+   "describe": "hvac_zonable: no",
+   "finding": {
+    "answer": "It's all open, so it's easy to zone.",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": false
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It's not 1,500 sf, it's 1,128.",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "It's not 1,500 sf, it's 1,128.",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Not 3,500 sq ft, more like 2,000.",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "Not 3,500 sq ft, more like 2,000.",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Over 1,000 sf.",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "Over 1,000 sf.",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Just under 1,250 sf",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "Just under 1,250 sf",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,250 sf or less",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "1,250 sf or less",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "2,000 of 10,000 sf",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "2,000 of 10,000 sf",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,200 of 10,000 square feet",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "1,200 of 10,000 square feet",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,300 sf rentable, 1,128 usable",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "1,300 sf rentable, 1,128 usable",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,300 sf gross",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "1,300 sf gross",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,300 square feet rentable",
+   "describe": "usable_area_sqft: unclear",
+   "finding": {
+    "answer": "1,300 square feet rentable",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "2,000 sf of 10,000",
+   "describe": "usable_area_sqft: 2000 sqft",
+   "finding": {
+    "answer": "2,000 sf of 10,000",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 2000
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,128 usable square feet",
+   "describe": "usable_area_sqft: 1128 sqft",
+   "finding": {
+    "answer": "1,128 usable square feet",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1128
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,128 sf usable",
+   "describe": "usable_area_sqft: 1128 sqft",
+   "finding": {
+    "answer": "1,128 sf usable",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1128
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "about 1,128 square feet",
+   "describe": "usable_area_sqft: 1128 sqft",
+   "finding": {
+    "answer": "about 1,128 square feet",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1128
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "The building is 10,000 sf; the suite is about 2,000.",
+   "describe": "usable_area_sqft: 10000 sqft",
+   "finding": {
+    "answer": "The building is 10,000 sf; the suite is about 2,000.",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 10000
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "2,000 of the 10,000 sf",
+   "describe": "usable_area_sqft: 10000 sqft",
+   "finding": {
+    "answer": "2,000 of the 10,000 sf",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 10000
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "nearly 1,250 sf",
+   "describe": "usable_area_sqft: 1250 sqft",
+   "finding": {
+    "answer": "nearly 1,250 sf",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1250
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,000 sf downstairs and 500 upstairs",
+   "describe": "usable_area_sqft: 1000 sqft",
+   "finding": {
+    "answer": "1,000 sf downstairs and 500 upstairs",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1000
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "about 1,128 square feet, maybe 1,200",
+   "describe": "usable_area_sqft: 1128 sqft",
+   "finding": {
+    "answer": "about 1,128 square feet, maybe 1,200",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1128
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "A minimum of 1,000 sf",
+   "describe": "usable_area_sqft: 1000 sqft",
+   "finding": {
+    "answer": "A minimum of 1,000 sf",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1000
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "I`ll find out",
+   "describe": "available_from: unclear",
+   "finding": {
+    "answer": "I`ll find out",
+    "claim_type": "available_from",
+    "classification": "OWNER_REPORTED",
+    "question": "When would the space be available to start a lease?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
    },
    "question": {
     "claim_type": "available_from",

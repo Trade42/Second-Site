@@ -374,10 +374,119 @@ TRUTH_ANSWERS = {
     ],
 }
 
+# Review of rust-domain-5 (orchestrator/reports/rust-domain-5-review.md): answers the review found misread
+# by the writer's fix and fixed, answers whose value the fixes keep, then known misreadings that are owed (not
+# fixed; their values are what the code gives, not what a person would record).
+REVIEW_ANSWERS: dict[str, list[str]] = {k: [] for k in ("amps", "plumbing", "hvac", "sqft", "available")}
+for _claim, _answer in [  # fixed
+    ("plumbing", "that isn\u00b4t correct"),
+    ("plumbing", "That isn`t correct."),
+    ("plumbing", "it sure doesn\u2032t"),
+    ("plumbing", "that isn\uff07t correct"),
+    ("plumbing", "It doesn\u00b4t."),
+    ("plumbing", "There isn`t."),
+    ("plumbing", "We don\u2032t have one."),
+    ("amps", "I don\u00b4t know, 200 amps"),
+    ("available", "I`ll find out"),
+    ("plumbing", "There is zero plumbing."),
+    ("plumbing", "It has zero sinks."),
+    ("plumbing", "There's 0 plumbing."),
+    ("plumbing", "Nah, there's a sink in the other suite."),
+    ("hvac", "Impossible, for sure."),
+    ("plumbing", "Sure, that's incorrect."),
+    ("plumbing", "Yes, nothing's there."),
+    ("plumbing", "It lacks plumbing, for sure."),
+    ("plumbing", "Negative, it has a sink next door."),
+    ("plumbing", "No, there is zero plumbing."),
+    ("plumbing", "It has been removed."),
+    ("plumbing", "It has to be added."),
+    ("plumbing", "We have to add one."),
+    ("plumbing", "We have yet to plumb it."),
+    ("hvac", "It has to be redone."),
+    ("plumbing", "It has been removed, no."),
+    ("amps", "It's not 400 amps, it's 200"),
+    ("amps", "It isn't 200 amps."),
+    ("amps", "Definitely not 400 amps."),
+    ("amps", "Not even 100 amps."),
+    ("amps", "Nowhere near 100 amps."),
+    ("sqft", "It's not 1,500 sf, it's 1,128."),
+    ("sqft", "Not 3,500 sq ft, more like 2,000."),
+    ("amps", "Less than 100 amps."),
+    ("amps", "Under 200 amps."),
+    ("amps", "No more than 200 amps"),
+    ("amps", "At most 60 amps"),
+    ("amps", "200 amps max"),
+    ("amps", "200 amps plus"),
+    ("sqft", "Over 1,000 sf."),
+    ("sqft", "Just under 1,250 sf"),
+    ("sqft", "1,250 sf or less"),
+    ("sqft", "2,000 of 10,000 sf"),
+    ("sqft", "1,200 of 10,000 square feet"),
+    ("sqft", "1,300 sf rentable, 1,128 usable"),
+    ("sqft", "1,300 sf gross"),
+    ("sqft", "1,300 square feet rentable"),
+    ("amps", "It was upgraded in 2015 a while back."),
+    ("amps", "We pay 1500 a month for power."),
+    ("plumbing", "No plumbing issues."),
+    ("plumbing", "No plumbing problems at all."),
+    ("hvac", "No zoning issues."),
+    ("plumbing", "Sure, I'd have  to check."),
+    ("plumbing", "Sure, I'd have\u00a0to check."),
+    ("amps", "I'm not  sure, maybe 200 amps"),
+    ("amps", "I don't\u00a0know, 200 amps?"),
+    ("plumbing", "It's all\u00a0open."),
+    ("plumbing", "Not\u2002really."),
+]:
+    REVIEW_ANSWERS[_claim].append(_answer)
+for _claim, _answer in [  # kept
+    ("amps", "No, it's 200 amps."),
+    ("amps", "200 amps, not 400."),
+    ("amps", "It's 200 amps, nothing in use yet"),
+    ("amps", "It's 400 amps or so"),
+    ("amps", "200A service"),
+    ("amps", "200 A service"),
+    ("amps", "about 200 a."),
+    ("amps", "It's 200 a"),
+    ("amps", "60% of 200 amps"),
+    ("amps", "About 50% of the 200 amps is in use"),
+    ("sqft", "2,000 sf of 10,000"),
+    ("sqft", "1,128 usable square feet"),
+    ("sqft", "1,128 sf usable"),
+    ("sqft", "about 1,128 square feet"),
+    ("plumbing", "No plumbing."),
+    ("plumbing", "There's no plumbing at all."),
+    ("plumbing", "it does\u00a0not"),
+    ("plumbing", "Yes, there's a sink in back"),
+    ("hvac", "No, it's all open"),
+]:
+    REVIEW_ANSWERS[_claim].append(_answer)
+for _claim, _answer in [  # owed
+    ("plumbing", "I doubt there's a sink."),
+    ("plumbing", "Sure, let me check."),
+    ("plumbing", "There is supposed to be one."),
+    ("plumbing", "Maybe yes."),
+    ("hvac", "It has one zone."),
+    ("hvac", "There's only one thermostat."),
+    ("hvac", "It's all open, so it's easy to zone."),
+    ("plumbing", "We have plumbing on the second floor only."),
+    ("amps", "The building has 400 amps, the suite gets 100."),
+    ("amps", "It's 200 amps... no wait, 100."),
+    ("amps", "two 100 amp panels"),
+    ("amps", "Up to 400 amps"),
+    ("amps", "In 2015 A while back"),
+    ("sqft", "The building is 10,000 sf; the suite is about 2,000."),
+    ("sqft", "2,000 of the 10,000 sf"),
+    ("sqft", "nearly 1,250 sf"),
+    ("sqft", "1,000 sf downstairs and 500 upstairs"),
+    ("sqft", "about 1,128 square feet, maybe 1,200"),
+    ("sqft", "A minimum of 1,000 sf"),
+]:
+    REVIEW_ANSWERS[_claim].append(_answer)
+
 
 def finding_cases():
     out = []
-    for key, answers in [*ANSWERS.items(), *TRUTH_ANSWERS.items()]:
+    for key, answers in [*ANSWERS.items(), *TRUTH_ANSWERS.items(), *REVIEW_ANSWERS.items()]:
         q = QUESTIONS[key]
         for ans in answers:
             f = extract(q, ans)
