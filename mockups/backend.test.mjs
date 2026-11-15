@@ -86,11 +86,11 @@ await t('labels: a CoStar kit record is a CoStar listing (data-kit snapshot), ne
 });
 await t('search note: each kind counted separately, nothing said for a zero count', () => {
   const syn = F.properties.map(x => B.poolEntry(x.record)), real = [KP[k1.property_id], KP[k2.property_id]];
-  assert.equal(B.searchNote(real), 'Of 2 listings from the backend, 2 are real CoStar listings from the data-kit snapshot (dated records, not a live feed). 1 has a 3D scan of the suite itself, so a layout can be generated there.');
-  assert.equal(B.searchNote(syn), 'Of 2 listings from the backend, 2 are synthetic demo data (fixture), not CoStar records. 1 has a 3D scan of the suite itself, so a layout can be generated there.');
-  assert.equal(B.searchNote([syn[0]]), 'Of 1 listing from the backend, 1 is synthetic demo data (fixture), not CoStar records. None has a 3D scan of the suite itself, so no layout can be generated yet.');
+  assert.equal(B.searchNote(real), 'Of 2 listings from the backend, 2 are real CoStar listings from the data-kit snapshot (dated records, not a live feed). 1 has a 3D scan of the suite itself, so a layout there is drawn on the measured floor. For the other, a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan.');
+  assert.equal(B.searchNote(syn), 'Of 2 listings from the backend, 2 are synthetic demo data (fixture), not CoStar records. 1 has a 3D scan of the suite itself, so a layout there is drawn on the measured floor. For the other, a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan.');
+  assert.equal(B.searchNote([syn[0]]), 'Of 1 listing from the backend, 1 is synthetic demo data (fixture), not CoStar records. None has a 3D scan of the suite itself: a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan.');
   assert.equal(B.poolEntry(hw.record).live.scan_text, '3D scan of this suite (demo data)');
-  assert.equal(B.searchNote([...real.slice(0, 1), ...syn.slice(0, 1), KP[k5.property_id]]), 'Of 3 listings from the backend, 1 is a real CoStar listing from the data-kit snapshot (dated records, not a live feed); 1 from a live listing provider; 1 is synthetic demo data (fixture), not CoStar records. 1 has a 3D scan of the suite itself, so a layout can be generated there.');
+  assert.equal(B.searchNote([...real.slice(0, 1), ...syn.slice(0, 1), KP[k5.property_id]]), 'Of 3 listings from the backend, 1 is a real CoStar listing from the data-kit snapshot (dated records, not a live feed); 1 from a live listing provider; 1 is synthetic demo data (fixture), not CoStar records. 1 has a 3D scan of the suite itself, so a layout there is drawn on the measured floor. For the others, a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan.');
   assert.equal(B.searchNote([]), null);
 });
 await t('images: CoStar photo first, else the Vexcel aerial route, else the neutral image', () => {
@@ -117,7 +117,7 @@ await t('scans: suite scan vs building scans only, the scan id and label kept fo
   assert.equal(KP[k2.property_id].live.scan, null); assert.equal(KP[k2.property_id].live.scan_text, 'Building scans only');
   assert.equal(KP[k2.property_id].live.scans[0].label, 'Lobby and common areas');
   assert.equal(KP[k3.property_id].live.scan_text, 'No 3D scan');
-  assert.match(B.spaceNotes(k2).cons[0], /^Building scans only: no layout without a scan of the suite$/);
+  assert.match(B.spaceNotes(k2).cons[0], /^Building scans only: no measured layout \(at most an approximate sketch on the listed area\)$/);
   assert.match(B.spaceNotes(k1).pros[0], /^3D scan of this suite/);
 });
 await t('awkward records: no rent, area, unit or coordinates; long unit; fractions; one building twice', () => {
@@ -250,7 +250,7 @@ await t('page wiring: bind, search, asset, furnish and turn as workspace.js call
     await B.search(S); // workspace.js line 212
     assert.deepEqual(notes.filter(n => /failed/i.test(n)), [], notes.join(' | '));
     assert.equal(ctx.POOL.length, 3); assert.deepEqual(S.saved, []);
-    assert.ok(notes.includes(B.html('Of 3 listings from the backend, 2 are real CoStar listings from the data-kit snapshot (dated records, not a live feed); 1 is synthetic demo data (fixture), not CoStar records. 2 have a 3D scan of the suite itself, so a layout can be generated there.')), notes.join(' | '));
+    assert.ok(notes.includes(B.html('Of 3 listings from the backend, 2 are real CoStar listings from the data-kit snapshot (dated records, not a live feed); 1 is synthetic demo data (fixture), not CoStar records. 1 is in none of the page’s four areas and stays shown whichever area you choose. 2 have a 3D scan of the suite itself, so a layout there is drawn on the measured floor. For the other, a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan.')), notes.join(' | '));
     for (const p of ctx.POOL) assert.ok(ctx.D[p.src]?.issues && ctx.SPACE_NOTES[p.id], p.id);
     const p1 = ctx.P[k1.property_id], ph = ctx.P[hw.record.property_id];
     assert.equal(B.asset(p1.src, p1.photo), k1.commercial_listing.photo_urls[0], 'workspace.js line 11 calls asset(src, f) with two arguments');
@@ -729,7 +729,7 @@ await t('no fit: markup in the message is text; another error_code keeps the old
   await B.furnish(S);
   const c = results(doc).at(-1); assert.ok(c.all().some(n => n.textContent === '<img src=x onerror=alert(1)>')); assert.ok(!c.all().some(n => n.tagName === 'IMG' || 'innerHTML' in n));
   notes.length = 0; const before = results(doc).length;
-  current = failingFetch({ status: 'FAILED', error_code: 'GEOMETRY_UNAVAILABLE', error_message: 'no measured geometry' });
+  current = failingFetch({ status: 'FAILED', error_code: 'StoreError', error_message: 'no measured geometry' });
   assert.equal(await B.furnish(S), false); assert.equal(results(doc).length, before);
   assert.match(notes.at(-1), /^No layout for .*Layout generation is FAILED: no measured geometry\.$/);
   current = failingFetch({ status: 'COMPLETED', output_reference: { design_version_ids: [] } });
@@ -1115,6 +1115,171 @@ await t('without ?live=1 the page is untouched: backend.js is imported only on l
 if (hadLocation) globalThis.location = realLocation; else delete globalThis.location;
 B.useVoiceEnv(null);
 
+/* ------------------------------------------------ web-link-9: after the demo sweep */
+const EST = { geometry_source: 'LISTED_AREA_ESTIMATE', shape_assumed: true, area_measured: false, listed_area: 148.6, listed_area_unit: 'sqm', assumed_shape: 'rectangle, sides 3:2, one entrance in the middle of a short side', unknown: ['columns', 'fixed_walls', 'plumbing', 'windows', 'exits'], shows: 'whether the room program\'s areas fit the listed area, not where rooms can really go', label: 'Approximate sketch on the listed area; not a measured floor and not a plan' };
+const EST_SITE = { ...F.geometry, geometry_source: 'LISTED_AREA_ESTIMATE', data_origin: 'DERIVED', scale_verified: false, source_id: 'listing-1' };
+const SKETCH_BILL = 'Quantity from an approximate sketch on the listing\'s stated area, not from a measured floor.';
+await t('sketch: a layout on an assumed floor is told apart by the site, the design version or the task, never a measured one', () => {
+  assert.equal(B.isSketch(F.layout, F.geometry), false); assert.equal(B.sketchOf(F.layout, F.geometry, KP[k1.property_id]), null);
+  assert.equal(B.isSketch(F.layout, EST_SITE), true); assert.equal(B.isSketch({ ...F.layout, floor_estimate: EST }, F.geometry), true);
+  assert.equal(B.isSketch({ ...F.layout, floor_estimate: null }, F.geometry), false);
+  // Only the site says so (the brief's contract): the page's own sentence, with the listing's area as the page shows it.
+  const own = B.sketchOf(F.layout, EST_SITE, { sqft: 1310, sqftKnown: true });
+  assert.equal(own.label, 'Approximate sketch on the listed area (1,310 SF as the listing states it). The floor’s shape is assumed: this suite has no 3D scan of its own. Not a measured plan.');
+  assert.equal(B.sketchOf(F.layout, EST_SITE, { sqft: 0, sqftKnown: false }).label, 'Approximate sketch on the listed area (not a figure the page can show). The floor’s shape is assumed: this suite has no 3D scan of its own. Not a measured plan.');
+  // With the backend's FloorEstimate: its label, its area (148.6 m2 = 1,600 SF) and its shape, as given.
+  const be = B.sketchOf({ ...F.layout, floor_estimate: EST }, EST_SITE, { sqft: 999, sqftKnown: true }, { items: [{ price_note: 'Illustrative planning price (fixture), not a supplier quote. ' + SKETCH_BILL }] });
+  assert.equal(be.area, '1,600 SF');
+  assert.equal(be.label, 'Approximate sketch on the listed area; not a measured floor and not a plan. Listed area: 1,600 SF as the listing states it. The floor’s shape is assumed (rectangle, sides 3:2, one entrance in the middle of a short side): this suite has no 3D scan of its own.');
+  assert.equal(be.detail, 'Not known about the real floor: columns, fixed walls, plumbing, windows, exits. It shows whether the room program\'s areas fit the listed area, not where rooms can really go.');
+  assert.equal(be.bill, SKETCH_BILL);
+  assert.equal(B.sketchOf({ ...F.layout, floor_estimate: { ...EST, listed_area_unit: 'sqft', listed_area: 1600 } }, EST_SITE, null).area, '1600 sqft', 'another unit is shown as given, never converted as if it were m2');
+  for (const l of [own.label, be.label]) { assert.doesNotMatch(l, /measured floor of|Matterport|live provider|stored snapshot/); assert.match(l, /Approximate sketch/); assert.match(l, /assumed/); }
+  // The backend's words have a limit (review): a label of 5,000 characters is cut, and still ends with the page's own sentence.
+  const long = B.sketchOf({ ...F.layout, floor_estimate: { ...EST, label: 'L'.repeat(5000), assumed_shape: 'S'.repeat(5000), shows: 'W'.repeat(5000), unknown: Array(500).fill('U'.repeat(500)) } }, EST_SITE, null);
+  assert.ok(long.label.length < 520, `label ${long.label.length}`); assert.ok(long.detail.length < 900, `detail ${long.detail.length}`);
+  assert.match(long.label, /^L{199}…\. Listed area: 1,600 SF as the listing states it\. The floor’s shape is assumed \(S{159}…\): this suite has no 3D scan of its own\.$/); assert.match(long.detail, /, and more\. It shows W{239}…\.$/);
+  assert.equal(B.geometryWords(EST_SITE, own), own.label.replace(/\.$/, ''));
+  assert.match(B.geometryWords(EST_SITE), /^Approximate sketch on the listed area .*Not a measured plan$/);
+  assert.equal(B.geometryWords({ geometry_source: 'MATTERPORT_SCAN', data_origin: 'LIVE', scale_verified: true }), 'matterport scan (live provider data)');
+});
+await t('sketch: rooms that do not fit an assumed floor get a card that names no scan (review)', () => {
+  const msg = "No layout fits the assumed floor: there is no scan of this suite, so the floor was assumed as a 3:2 rectangle of the listing's stated 40 m2 (not measured) and the room program needs 5 room(s). No layout was stored.";
+  const r = B.layoutResult({ error_code: 'LayoutInfeasibleError', error_message: msg }, { live: { floor_is_suite: false } });
+  assert.equal(r.kind, 'assumed'); assert.equal(r.heading, 'The rooms do not fit a floor assumed from the listed area');
+  assert.doesNotMatch(JSON.stringify([r.heading, r.lines[0]]), /which scan|floor geometry the backend has|measured floor/);
+  assert.deepEqual(r.lines[1], ['The backend said', msg]); assert.deepEqual(r.tail, [B.NO_FIT_OPTIONS]);
+  assert.equal(B.layoutResult({ error_code: 'LayoutInfeasibleError', error_message: 'No layout fits the measured floor: other words' }, { live: { floor_is_suite: true } }).kind, 'unparsed', 'the measured message keeps its own card');
+});
+await t('sketch: room areas are approximate; the plan image is a plain rectangle; no scan mesh in the furnish stage', async () => {
+  for (const r of B.roomsFrom(F.layout, EST_SITE).rooms) assert.match(r.dim, /^\d+ SF, approximate \(assumed floor\)$/);
+  for (const r of B.roomsFrom(F.layout, F.geometry).rooms) assert.match(r.dim, /^\d+ SF$/);
+  const p = KP[k2.property_id], P = { [p.id]: p };
+  const img = decodeURIComponent(B.asset(p.src, 'matterport-floorplan-08.png', P, { [p.src]: { sketch: { label: 'x' } } }));
+  assert.match(img, /<rect /); assert.doesNotMatch(img, /<text|<image|href|https?:\/\/(?!www\.w3\.org)/);
+  assert.match(decodeURIComponent(B.asset(p.src, 'matterport-floorplan-08.png', P, { [p.src]: {} })), /No floor plan image/);
+});
+await t('sketch in the page: the label in the layout note, under the viewer and in the parts pane; no mesh; the old failure is a plain card', () => withDoc(async () => {
+  const { doc, S, notes, ctx } = await waitPage();
+  await B.search(S); S.finalist = k2.property_id;
+  const p = ctx.P[k2.property_id], d = ctx.D[p.src];
+  // The backend of today: no floor for a listing with no scan of its own suite.
+  for (const task of [{ status: 'FAILED', error_code: 'GEOMETRY_UNAVAILABLE', error_message: 'this listing has no 3D scan of its own suite and states no area' }, { status: 'FAILED', error_code: 'NotFoundError', error_message: 'no measured geometry available for this property' }]) {
+    notes.length = 0; current = failingFetch(task);
+    assert.equal(await B.furnish(S), false);
+    const c = cardText(results(doc).at(-1)).trim();
+    assert.match(c, /^No layout yet for this listing: there is no 3D scan of this suite to measure the floor from\. Nothing was drawn or estimated, and no layout was stored\./);
+    assert.doesNotMatch(c, /FAILED|NotFoundError|GEOMETRY_UNAVAILABLE|\d m2/); assert.deepEqual(notes, []); assert.equal(d.rooms.length, 0);
+  }
+  // The backend with the estimate: the same routes, an estimate site and the label on the task.
+  current = (u, o) => {
+    const path = new URL(u).pathname;
+    if (path.endsWith('/layouts/generate')) return Promise.resolve({ ok: true, status: 202, text: async () => JSON.stringify({ task: { status: 'COMPLETED', output_reference: { design_version_ids: [F.layout.design_version_id], floor_estimate: EST } } }) });
+    if (/\/layouts\/geometry\//.test(path)) return Promise.resolve({ ok: true, status: 200, text: async () => JSON.stringify(EST_SITE) });
+    if (/\/bom$/.test(path)) return Promise.resolve({ ok: true, status: 200, text: async () => JSON.stringify({ ...F.bom, items: F.bom.items.map(i => ({ ...i, price_note: i.price_note + ' ' + SKETCH_BILL })) }) });
+    return strictFetch(u, o);
+  };
+  notes.length = 0;
+  assert.equal(await B.furnish(S), true);
+  assert.ok(d.sketch && d.rooms.length, 'the layout is kept as a sketch');
+  const note = notes.find(n => /^Layout version/.test(n));
+  assert.ok(note.includes(B.html(d.sketch.label)) && note.includes(B.html(SKETCH_BILL)) && note.includes('Not known about the real floor'), note);
+  assert.doesNotMatch(note, /Floor geometry: |live provider data|scale not verified/);
+  S.stage = 'furnish'; S.chosen = S.finalist;
+  const dh = await B.dollhouse(p);
+  assert.equal(dh.mesh, null); assert.equal(dh.poster, null); assert.equal(dh.text, B.SKETCH_NO_MODEL); assert.equal(dh.blocks, false);
+  assert.match(decodeURIComponent(B.asset(p.src, 'matterport-floorplan-08.png')), /<rect /);
+  S.stage = 'compare';
+  assert.notEqual((await B.dollhouse(p)).text, B.SKETCH_NO_MODEL, 'in Compare the other space keeps its own labelled view');
+}));
+await t('lease extras: an unknown NNN is unknown, a stated zero is zero', () => {
+  const s0 = F.cost_scenarios[0], id = s0.property_id;
+  const zero = { ...s0, line_items: s0.line_items.map(l => (l.category === 'NNN' ? { ...l, expected: 0, low: 0, high: 0 } : l)) };
+  const unknown = { ...zero, assumptions: [...s0.assumptions, 'NNN/CAM charges unknown — monthly cost may be understated'] };
+  assert.equal(B.costsFrom([s0], id).extras, 700); assert.equal(B.costsFrom([s0], id, { nnn_charges_monthly: 70000 }).extras, 700);
+  assert.equal(B.costsFrom([zero], id).extras, 0, 'a stated zero stays 0 (the page prints "Included")');
+  assert.equal(B.costsFrom([zero], id, { nnn_charges_monthly: 0 }).extras, 0);
+  assert.equal(B.costsFrom([unknown], id).extras, null, 'the calculator said unknown: the page prints "Not stated"');
+  assert.equal(B.costsFrom([unknown], id).extras_unknown, true);
+  assert.equal(B.costsFrom([zero], id, { nnn_charges_monthly: null }).extras, null, 'the listing gives no figure');
+  assert.equal(B.costsFrom([zero], id, {}).extras, null);
+  assert.equal(B.costsFrom([unknown], id).build, B.costsFrom([s0], id).build, 'the opening cost is unchanged');
+  assert.equal(B.detailEntry({ ...k1, commercial_listing: { ...k1.commercial_listing, nnn_charges_monthly: null } }, [], [{ ...zero, property_id: k1.property_id }]).extras, null);
+  assert.equal(B.EXTRAS_NOTE(['5757 W Century, 100', '122 E 7th']), '* Total to open excludes lease extras for 5757 W Century, 100 and 122 E 7th: the NNN/CAM charges are not stated, so the cost each month may be higher than the rent.');
+});
+await t('search note: counts what the page shows and says what it left out and why, with the page\'s own limit', () => {
+  const mk = (sqft, extra = {}) => ({ sqft, sqftKnown: sqft > 0, live: { source: 'snapshot', scan: null, ...extra } });
+  const pool = [mk(1310, { scan: { asset_id: 'a' } }), mk(1200), mk(2000), mk(380), mk(788), mk(0), mk(1500)];
+  const fits = min => pool.filter(p => p.sqft >= min && p !== pool[6]); // the last one is hidden for another reason
+  assert.equal(B.searchNote(pool, { shown: fits(1000), min: 1000 }), 'Of 7 listings from the backend, 7 are real CoStar listings from the data-kit snapshot (dated records, not a live feed). 3 are shown here: 2 of the 7 are smaller than the 1,000 SF your rooms need and are not shown; 1 states no area, so the page cannot tell whether your rooms fit, and is not shown; 1 more does not match your other answers (area, rent or kind of business) or was dismissed, and is not shown. 1 of those shown has a 3D scan of the suite itself, so a layout there is drawn on the measured floor. For the others, a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan.');
+  // The limit is read from the page each time: another room count, another figure and another count.
+  assert.match(B.searchNote(pool, { shown: fits(1250), min: 1250 }), / 2 are shown here: 3 of the 7 are smaller than the 1,250 SF your rooms need and are not shown; /);
+  assert.match(B.searchNote(pool, { shown: pool, min: 500 }), /\. All 7 are shown here\. 1 of those shown has /);
+  assert.match(B.searchNote(pool, { shown: [], min: 9000 }), /\. None are shown here: 6 of the 7 are smaller than the 9,000 SF your rooms need and are not shown; 1 states no area[^.]*\.$/);
+  B.openArea(pool[1], () => ['westside']);
+  assert.match(B.searchNote(pool, { shown: fits(1000), min: 1000 }), /not shown\. 1 of those shown is in none of the page’s four areas and stays shown whichever area you choose\. 1 of those shown has/);
+});
+await t('aerial: one button per image the listing really has; a live listing has one, "Overhead"', () => {
+  assert.deepEqual(B.aerialDirs({ aerial: { url: 'http://x/ortho' } }), ['ortho']);
+  assert.deepEqual(B.aerialDirs({ aerial: null }), []);
+  assert.deepEqual(B.aerialDirs({ aerial: { url: 'u' }, local: { aerial: { ortho: 'vexcel-ortho.jpg', 'oblique-n': 'vexcel-oblique-n.jpg' } } }), ['ortho', 'oblique-n']);
+  assert.deepEqual(B.aerialDirs({ aerial: null, local: { aerial: { 'oblique-e': 'vexcel-oblique-e.jpg' } } }), ['oblique-e']);
+  assert.deepEqual(B.aerialDirs(KP[k1.property_id].live), ['ortho']);
+});
+await t('item size: a real size as given, a nominal size with its note, otherwise "Size not given"; never 0 × 0 ft', async () => {
+  const { nominalSize } = await import('./furniture.js');
+  assert.deepEqual(B.sizeText({ id: 'desk', w: 5, d: 2.2 }, nominalSize), { text: '5 × 2.2 ft', note: null });
+  const cat = B.catalogFrom(F.bom, B.roomsFrom(F.layout, F.geometry).rooms).cat;
+  for (const c of cat) {
+    const s = B.sizeText(c, nominalSize), n = nominalSize(c.id);
+    assert.doesNotMatch(s.text, /(^|\D)0 × 0/);
+    if (n) { assert.match(s.text, /^\d+(\.\d)? × \d+(\.\d)? ft \(nominal\)$/); assert.equal(s.note, n.note); } else assert.deepEqual(s, { text: 'Size not given', note: null });
+    assert.deepEqual(B.sizeText(c, null), { text: 'Size not given', note: null }, 'without furniture.js nothing is invented');
+  }
+  assert.deepEqual(B.sizeText({ id: 'treatment_bed@treatment', w: 0, d: 0 }, nominalSize), { text: '6.2 × 2.5 ft (nominal)', note: 'Nominal size for this kind of item: the bill of materials gives no measurement.' });
+  assert.equal(B.sizeText({ id: 'flooring@x', w: 0, d: 0 }, nominalSize).text, 'Size not given');
+});
+await t('area: a listing the page cannot name an area for stays shown whichever area is picked, and is never named', () => {
+  const rec = { ...k1, property_identity: { ...k1.property_identity, latitude: 34.0325, longitude: -118.3506 } }; // West Adams: between the page's boxes
+  assert.equal(B.zoneOf(34.0325, -118.3506), null);
+  const p = B.poolEntry(rec, 'http://127.0.0.1:8010'); assert.equal(p.zone, null);
+  let zones = null; B.openArea(p, () => zones);
+  const pageRule = q => !zones || zones.includes(q.zone); // workspace.js matches(), the area part
+  assert.equal(pageRule(p), true);
+  for (zones of [['downtown'], ['westside'], ['eastside', 'valley']]) assert.equal(pageRule(p), true, zones.join());
+  assert.equal(p.live.area_named, false); assert.ok(Object.keys(p).includes('zone'));
+  assert.ok(B.spaceNotes(rec).description.endsWith(B.NO_AREA_TEXT));
+  const named = B.poolEntry(k1); zones = ['valley'];
+  assert.equal(pageRule(named), named.zone === 'valley'); assert.ok(!B.spaceNotes(k1).description.includes(B.NO_AREA_TEXT) || named.zone == null);
+});
+await t('assistant reply: internal ids never show', () => {
+  const U1 = 'c96c80ae-1f2b-4c3d-8e9f-0a1b2c3d4e5f', U2 = 'b6f0456f-aaaa-4bbb-8ccc-dddddddddddd';
+  const cases = [
+    [`The top pick is 5757 W Century Blvd (property ${U1}; ranking ${U2}).`, 'The top pick is 5757 W Century Blvd.'],
+    [`Ranked first: 630 W 6th St, 110B (property_id: ${U1}), at $4,048 a month.`, 'Ranked first: 630 W 6th St, 110B, at $4,048 a month.'],
+    [`630 W 6th St [id ${U1}] has a suite scan (1,310 SF).`, '630 W 6th St has a suite scan (1,310 SF).'],
+    [`The property ${U1} is the cheapest.`, 'The property is the cheapest.'],
+    [`Property ID: ${U1.toUpperCase()}\nRent: $4,048`, 'Rent: $4,048'],
+    [`Layout \`${U1}\` is proposed, not approved.`, 'Layout is proposed, not approved.'],
+    [`1. 5757 W Century Blvd (rent $9,000; property ${U1})\n2. 122 E 7th St (${U2})`, '1. 5757 W Century Blvd (rent $9,000)\n2. 122 E 7th St'],
+    [`Scenario id=${U1}, ranking_id=${U2}: 36 months.`, ': 36 months.'],
+    ['No ids here (only words; and 2 numbers: 12, 34).', 'No ids here (only words; and 2 numbers: 12, 34).'],
+    [`${U1}`, B.ONLY_IDS_TEXT], [`(property ${U1})`, B.ONLY_IDS_TEXT], ['', ''],
+  ];
+  for (const [input, want] of cases) {
+    const out = B.cleanReply(input);
+    assert.doesNotMatch(out, /[0-9a-f]{8}-[0-9a-f]{4}-/i, input);
+    if (want !== ': 36 months.') assert.equal(out, want, input); else assert.doesNotMatch(out, /id\b/i, out);
+  }
+});
+await t('assistant reply in the page: turn() shows the cleaned reply', () => withDoc(async () => {
+  const { S, said } = await waitPage();
+  await B.search(S); S.stage = 'compare';
+  const U = '0b7c3c1e-5b7a-4a56-9d0e-2f6f3d1a9b11';
+  current = (u, o) => (new URL(u).pathname.endsWith('/chat') ? Promise.resolve({ ok: true, status: 200, text: async () => JSON.stringify({ reply: `Best: 100 Alpha St (property ${U}; ranking ${U}).\nNext line <b>`, mode: 'model' }) }) : strictFetch(u, o));
+  said.length = 0; await B.turn('compare', 'what is the biggest risk here?', S, 5);
+  assert.equal(said.length, 1); assert.ok(said[0].startsWith('Best: 100 Alpha St.<br>Next line &lt;b&gt;<br><small>Assistant'), said[0]); assert.doesNotMatch(said[0], new RegExp(U));
+}));
 /* ----------------------------------------------------------------- (b) */
 const URL_ = process.env.BACKEND_URL, ORIGIN = process.env.MOCKUP_ORIGIN || 'http://localhost:8090';
 if (!URL_) console.log('SKIPPED (b) end to end: BACKEND_URL is not set');

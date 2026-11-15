@@ -843,7 +843,7 @@ async function seed(to) {
   history.replaceState(null, '', location.pathname); // a reload keeps what you did next
 }
 
-LIVE?.bind({ POOL, P, D, CAT, C, FIRST, FILL, SPACE_NOTES, pins, S: () => S, map: () => map, a, note, esc, selectSpace, renderViewer });
+LIVE?.bind({ POOL, P, D, CAT, C, FIRST, FILL, SPACE_NOTES, pins, S: () => S, map: () => map, a, note, esc, selectSpace, renderViewer, fits, minSqft });
 FV?.bind({ S: () => S, C, save, selectPiece, renderViewer, load: s => import(s) });
 const start = location.hash.slice(1); // #reset clears saved state
 if (['searched', 'compare', 'furnish', 'reset'].includes(start)) S = fresh();

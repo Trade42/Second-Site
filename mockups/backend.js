@@ -93,6 +93,16 @@ export function zoneOf(lat, lon) {
   if (lat < 34.065 && lon > -118.29) return 'downtown';
   return null;
 }
+export const NO_AREA_TEXT = 'In none of the page’s four areas (Downtown, Westside, Eastside, the Valley), so it stays shown whichever area you choose.';
+// A listing zoneOf() cannot name (between the boxes, or no coordinates) is not dropped when the person
+// picks an area: the page's filter reads p.zone (workspace.js matches()), so for such a listing p.zone
+// answers with the first area the person chose (null while they chose none). It is never called by an
+// area's name: live.area_named is false and the tooltip and the search note say so (NO_AREA_TEXT).
+export function openArea(p, chosen) {
+  Object.defineProperty(p, 'zone', { enumerable: true, configurable: true, get: () => chosen()?.[0] ?? null });
+  p.live.area_named = false;
+  return p;
+}
 const DIRECTIONS = new Set(['N', 'S', 'E', 'W']);
 const SUFFIX = new Set(['ST', 'AVE', 'BLVD', 'DR', 'RD', 'WAY', 'PL', 'LN', 'CT', 'PKWY']);
 export function shortAddress(street) {
@@ -216,6 +226,8 @@ export const viewName = v => (v === 'tour' ? '3D tour' : v);
 export async function dollhouse(p) {
   const L = p?.live;
   if (!L) return null;
+  // A layout sketched on an assumed floor is shown in the furnish stage: no scan mesh under or beside it.
+  if (page?.D[p.src]?.sketch && page.S().stage === 'furnish') return { key: p.src, mesh: null, poster: null, text: SKETCH_NO_MODEL, blocks: false };
   if (L.local) return { key: p.src, mesh: `assets/meshes/${p.src}.obj`, poster: `assets/dollhouses/${p.src}.png`, caption: '3D scan of this suite · Matterport (saved copy)', blocks: true };
   const it = L.interior;
   if (!it) return { key: p.src, mesh: null, poster: null, text: 'No 3D scan', blocks: false };
@@ -274,6 +286,100 @@ export function viewer(view, p, d) {
     const img = doc.querySelector('#v-photos > img');
     if (text && img) img.alt = `${p.address}: ${text}`;
   }
+  aerialDirections(view, p); sketchBanner(view, p, d); extrasNote();
+}
+// The aerial view's direction buttons (workspace.html .dirs): only the directions this listing has an
+// image of its own for. A live listing has one overhead image, so it gets one button, "Overhead"; a
+// saved copy keeps the directions it has files for. The page's default direction is moved to one shown.
+export const aerialDirs = L => [...new Set([...(L?.aerial || L?.local?.aerial?.ortho ? ['ortho'] : []), ...Object.keys(L?.local?.aerial || {})])];
+function aerialDirections(view, p) {
+  const doc = globalThis.document, box = doc?.querySelector?.('#v-aerial .dirs');
+  if (!box || view !== 'aerial' || !p?.live) return;
+  const have = aerialDirs(p.live), S = page?.S();
+  box.style.display = have.length ? '' : 'none';
+  if (S && have.length && !have.includes(S.dir)) {
+    S.dir = have[0];
+    const img = doc.querySelector('#v-aerial > img'), src = asset(p.src, `vexcel-${S.dir}.jpg`);
+    if (img && src && img.getAttribute('src') !== src) img.src = src;
+  }
+  for (const b of box.querySelectorAll('button[data-dir]')) {
+    if (b.dataset.label == null) b.dataset.label = b.textContent;
+    b.style.display = have.includes(b.dataset.dir) ? '' : 'none';
+    b.textContent = b.dataset.dir === 'ortho' && have.length === 1 ? 'Overhead' : b.dataset.label;
+    if (S) b.setAttribute('aria-pressed', String(b.dataset.dir === S.dir));
+  }
+}
+// The sketch label under the viewer (in the page's flow, in the bar below the stage: it covers nothing):
+// in the furnish stage for every view, and in Compare while the floor plan view shows the sketch.
+function sketchBanner(view, p, d) {
+  const doc = globalThis.document, bar = doc?.querySelector?.('#viewer .vbar');
+  if (!bar) return;
+  let el = doc.getElementById('live-sketch');
+  const on = !!(d?.sketch && d.rooms?.length && (page?.S().stage === 'furnish' || view === 'floorplan'));
+  if (!el) {
+    if (!on) return;
+    el = doc.createElement('p'); el.id = 'live-sketch'; el.className = 'live-sketch'; el.setAttribute('role', 'note');
+    el.style.cssText = 'flex:1 0 100%;min-width:0;overflow-wrap:anywhere;margin:0;font-size:13px;line-height:1.4;color:var(--ink2)';
+    bar.append(el);
+  }
+  el.hidden = !on; el.textContent = on ? d.sketch.label : '';
+}
+// The same label at the top of the furnish side pane (the catalog and the parts list), which the page
+// re-renders on its own (renderPane): put back whenever it is missing while the sketch is the layout shown.
+function paneSketch() {
+  const doc = globalThis.document, pane = doc?.getElementById?.('pane'), S = page?.S();
+  if (!pane || !S) return;
+  const p = page.P[S.chosen], d = p && page.D[p.src], on = !!(S.stage === 'furnish' && d?.sketch);
+  const old = [...pane.children].find(c => c.className === 'live-sketch-pane');
+  if (!on) { old?.remove(); return; }
+  const text = [d.sketch.label, d.sketch.bill].filter(Boolean).join(' ');
+  if (old) { if (old.textContent !== text) old.textContent = text; return; }
+  if (!pane.children.length) return; // the pane is closed (the chat is shown): the label is under the viewer
+  const el = doc.createElement('p'); el.className = 'live-sketch-pane'; el.setAttribute('role', 'note'); el.textContent = text;
+  el.style.cssText = 'grid-column:1/-1;min-width:0;overflow-wrap:anywhere;margin:0 0 10px;font-size:13px;line-height:1.4;color:var(--ink2)';
+  pane.prepend(el);
+}
+// Under the cost table (rebuilt by the page's renderFindings, always followed by renderViewer): which
+// totals leave the lease extras out because the listing does not state them.
+export const EXTRAS_NOTE = names => `* Total to open excludes lease extras for ${names.join(' and ')}: the NNN/CAM charges are not stated, so the cost each month may be higher than the rent.`;
+function extrasNote() {
+  const doc = globalThis.document, f = doc?.getElementById?.('findings'), table = f?.querySelector?.('table.costs');
+  if (!table || !page) return;
+  f.querySelector('.live-extras')?.remove();
+  const ids = [...table.querySelectorAll('thead button[data-finalist]')].map(b => b.dataset.finalist);
+  const unknown = ids.map((id, i) => ({ p: page.P[id], i })).filter(x => x.p?.live && page.D[x.p.src]?.extras == null);
+  if (!unknown.length) return;
+  const cells = table.querySelectorAll('tr.total td');
+  for (const x of unknown) { const td = cells[x.i + 1]; if (td && !td.textContent.endsWith('*')) td.textContent += '*'; }
+  const note = doc.createElement('p'); note.className = 'live-extras'; note.style.cssText = 'margin:8px 0 0;font-size:13px;line-height:1.4;color:var(--ink3)';
+  note.textContent = EXTRAS_NOTE(unknown.map(x => x.p.short));
+  (table.closest('.table-scroll') || table).after(note);
+}
+// An item's footprint in the tooltip. The page prints "<w> × <d> ft" from the catalog entry
+// (workspace.js showTip), and the backend's bill of materials gives no size (w = d = 0).
+const FT_PER_M = 3.28084;
+export function sizeText(c, nominal) {
+  if ([c?.w, c?.d].every(v => Number.isFinite(v) && v > 0)) return { text: `${c.w} × ${c.d} ft`, note: null };
+  const n = nominal?.(c?.id), ft = m => String(Math.round(m * FT_PER_M * 10) / 10);
+  return n && [n.width, n.depth].every(v => Number.isFinite(v) && v > 0) ? { text: `${ft(n.width)} × ${ft(n.depth)} ft (nominal)`, note: n.note || null } : { text: 'Size not given', note: null };
+}
+let nominalSize = null; // furniture.js nominalSize, loaded by bind(); without it every unknown size reads "Size not given"
+function tipSize() {
+  const doc = globalThis.document, tip = doc?.getElementById?.('tip'), dd = tip?.querySelector?.('.tip-facts dd:not(.tip-price)');
+  if (!dd || dd.dataset.live || !page) return;
+  const t = doc.querySelector('[aria-describedby="tip"]'), c = page.C[t?.dataset.place || t?.dataset.key?.split('|')[0]];
+  if (!c?.live) return;
+  const s = sizeText(c, nominalSize);
+  dd.dataset.live = '1'; dd.textContent = s.text;
+  if (s.note) { const n = doc.createElement('span'); n.className = 'tip-meta'; n.textContent = s.note; tip.append(n); }
+}
+// Watches the two elements the page re-renders without calling back (the tooltip and the furnish pane).
+function watchPage() {
+  const doc = globalThis.document, MO = globalThis.MutationObserver;
+  if (!doc?.getElementById || !MO) return;
+  const tip = doc.getElementById('tip'), pane = doc.getElementById('pane');
+  if (tip) new MO(tipSize).observe(tip, { childList: true });
+  if (pane) new MO(paneSketch).observe(pane, { childList: true });
 }
 const clampIndex = (i, n) => Math.max(0, Math.min(n - 1, Number.isInteger(i) ? i : 0));
 // The viewer's extra elements, made once by bind() in a browser: the tour layer (its caption above the
@@ -372,13 +478,14 @@ export function spaceNotes(rec, api = '', local = null) {
   const count = s => a.filter(x => x.status === s).length;
   const source = listingSource(cl), img = imagesOf(rec, api), scans = scansOf(rec);
   const has = k => Object.values(local?.captions || {}).includes(LOCAL_CAPTION[k]);
+  const ident = rec.property_identity || {}, noArea = zoneOf(ident.latitude, ident.longitude) == null;
   const image = local
     ? `${scans.text} (Matterport): its mesh and dollhouse view${has('matterport') ? ' and stills' : ''} are saved copies from this scan${has('costar') ? `, the photos are saved copies of this listing's CoStar photos` : ''}${has('vexcel') ? ', and the aerial images are saved Vexcel images of the building' : ''} (files on this computer).`
     : [img.photoCaption ? `Image: ${img.photoCaption}.` : null, img.aerial ? `${img.photoCaption ? 'Also: ' : 'Image: '}${img.aerial.caption}.` : null].filter(Boolean).join(' ');
   return {
-    description: [`${source.label}.`, local ? null : `${scans.text}.`, image || null, cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null].filter(Boolean).join(' '),
-    pros: [scans.suite ? '3D scan of this suite (a layout can be generated)' : null, ...a.filter(x => x.status === 'MEETS').map(x => requirementLabel(x.requirement_id) + ': meets')].filter(Boolean).concat(count('MEETS') ? [] : ['No requirement confirmed as met']).slice(0, 2),
-    cons: [scans.suite ? null : `${scans.text}: no layout without a scan of the suite`, count('UNKNOWN') ? `${count('UNKNOWN')} requirement(s) unknown` : null, count('MAY_REQUIRE_WORK') ? `${count('MAY_REQUIRE_WORK')} may need work` : null, ...(rec.missing_information || [])].filter(Boolean).slice(0, 3),
+    description: [`${source.label}.`, local ? null : `${scans.text}.`, image || null, cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null, noArea ? NO_AREA_TEXT : null].filter(Boolean).join(' '),
+    pros: [scans.suite ? '3D scan of this suite (a layout is drawn on its measured floor)' : null, ...a.filter(x => x.status === 'MEETS').map(x => requirementLabel(x.requirement_id) + ': meets')].filter(Boolean).concat(count('MEETS') ? [] : ['No requirement confirmed as met']).slice(0, 2),
+    cons: [scans.suite ? null : `${scans.text}: no measured layout (at most an approximate sketch on the listed area)`, count('UNKNOWN') ? `${count('UNKNOWN')} requirement(s) unknown` : null, count('MAY_REQUIRE_WORK') ? `${count('MAY_REQUIRE_WORK')} may need work` : null, ...(rec.missing_information || [])].filter(Boolean).slice(0, 3),
   };
 }
 
@@ -437,20 +544,26 @@ export function issuesFrom(assessments, rec) {
 }
 // The latest cost scenario of one property -> the page's cost fields (dollars, display only).
 // total to open = opening_cost_expected; "Renovation" = its one-time items except furniture (FF&E).
-export function costsFrom(scenarios, propertyId) {
+// Lease extras (NNN/CAM) are a figure only when the listing states one. The calculator writes an NNN
+// line of 0 for a listing with no figure (finance/calculator.rs) and says so in its assumptions
+// ("NNN/CAM charges unknown"): that 0 is unknown, not "Included". `listing` (the record's
+// commercial_listing) decides when given: a null nnn_charges_monthly is unknown, a stated 0 is 0.
+export const NNN_UNKNOWN = /NNN\/CAM charges unknown/i;
+export function costsFrom(scenarios, propertyId, listing) {
   const mine = (scenarios || []).filter(s => s.property_id === propertyId).sort((x, y) => String(x.calculated_at).localeCompare(String(y.calculated_at)));
   const s = mine.at(-1);
   if (!s) return { extras: null, build: null, other: null, weeks: null, scenario: null };
   const ffe = s.line_items.filter(l => l.kind === 'ONE_TIME' && l.category === 'FF&E').reduce((n, l) => n + l.expected, 0);
   const nnn = s.line_items.filter(l => l.kind === 'MONTHLY' && l.category === 'NNN').reduce((n, l) => n + l.expected, 0);
+  const unknown = (s.assumptions || []).some(a => NNN_UNKNOWN.test(String(a))) || (listing != null && listing.nnn_charges_monthly == null);
   return {
-    extras: s.line_items.some(l => l.category === 'NNN') ? toDollars(nnn) : null,
+    extras: !unknown && s.line_items.some(l => l.category === 'NNN') ? toDollars(nnn) : null, extras_unknown: unknown,
     build: toDollars(s.opening_cost_expected - ffe), other: toDollars(ffe), weeks: null, // the backend gives no schedule
     scenario: { id: s.scenario_id, low: toDollars(s.opening_cost_low), expected: toDollars(s.opening_cost_expected), high: toDollars(s.opening_cost_high), assumptions: s.assumptions, excluded: s.excluded_costs },
   };
 }
 export function detailEntry(rec, assessments, scenarios) {
-  return { ...costsFrom(scenarios, rec.property_id), photos: ['none'], plan: { w: 1000, h: 600, ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms: [], issues: issuesFrom(assessments ?? rec.infrastructure_assessments, rec), live: true };
+  return { ...costsFrom(scenarios, rec.property_id, rec.commercial_listing), photos: ['none'], plan: { w: 1000, h: 600, ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms: [], issues: issuesFrom(assessments ?? rec.infrastructure_assessments, rec), live: true };
 }
 
 /* ------------------------------------------------- pure mapping: stage 3 */
@@ -464,7 +577,42 @@ export function roomRequirements(counts) {
 
 // A generated layout and its site geometry (metres) -> the page's plan (100 px per metre) and rooms
 // (fractions of the plan). Every room is a proposal: drawn dashed, never as an approved plan.
+// A layout solved on a floor assumed from the listing's stated area (the backend's FloorEstimate:
+// SiteGeometry.geometry_source and DesignVersion.floor_estimate.geometry_source are LISTED_AREA_ESTIMATE,
+// scale_verified false). It is a sketch: never worded or drawn as a measured plan.
+export const SKETCH_SOURCE = 'LISTED_AREA_ESTIMATE';
+export const isSketch = (layout, geometry) => geometry?.geometry_source === SKETCH_SOURCE || (layout?.floor_estimate != null && typeof layout.floor_estimate === 'object');
+// The words a person reads. With the backend's own FloorEstimate its label and assumed shape are shown
+// as given; without one (only the site geometry says it is an estimate) the page's own sentence.
+// The backend's own words are shown as given but never without a limit: a label is a line, not a page.
+const upTo = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+export function sketchLabel(area, fe = null) {
+  const listed = area ? `${area} as the listing states it` : 'not a figure the page can show';
+  const own = typeof fe?.label === 'string' && fe.label.trim() ? upTo(fe.label.trim(), 200).replace(/\.$/, '') : null;
+  if (!own) return `Approximate sketch on the listed area (${listed}). The floor’s shape is assumed: this suite has no 3D scan of its own. Not a measured plan.`;
+  const shape = typeof fe.assumed_shape === 'string' && fe.assumed_shape.trim() ? ` (${upTo(fe.assumed_shape.trim(), 160)})` : '';
+  return `${own}. Listed area: ${listed}. The floor’s shape is assumed${shape}: this suite has no 3D scan of its own.`;
+}
+// The backend's sentence at the end of a sketch's bill items ("Quantity from an approximate sketch …"), kept visible.
+const SKETCH_QUANTITY = /Quantity from an approximate sketch[^.]*\./;
+export const SKETCH_NO_MODEL = 'No 3D model under this layout: it is a sketch on an assumed floor, and this suite has no 3D scan of its own. The floor plan view shows the sketch.';
+// null for a layout on any other floor. The area is the estimate's own listed_area (square metres as
+// stored, shown in SF like every area on the page), else the listing's area the page already shows.
+export function sketchOf(layout, geometry, p, bom = null) {
+  if (!isSketch(layout, geometry)) return null;
+  const fe = layout?.floor_estimate && typeof layout.floor_estimate === 'object' ? layout.floor_estimate : null;
+  const given = Number.isFinite(fe?.listed_area) && fe.listed_area > 0;
+  const sqft = given && fe.listed_area_unit === 'sqm' ? toSqft(fe.listed_area) : !given && p?.sqftKnown ? p.sqft : null;
+  const area = sqft != null ? `${sqft.toLocaleString('en-US')} SF` : given ? `${fe.listed_area} ${plain(fe.listed_area_unit || '(unit not stated)')}` : null;
+  const unknown = Array.isArray(fe?.unknown) && fe.unknown.length ? `Not known about the real floor: ${fe.unknown.slice(0, 12).map(u => upTo(words(u), 40)).join(', ')}${fe.unknown.length > 12 ? ', and more' : ''}.` : null;
+  const shows = typeof fe?.shows === 'string' && fe.shows.trim() ? `It shows ${upTo(fe.shows.trim(), 240).replace(/\.$/, '')}.` : null;
+  const bill = (bom?.items || []).map(i => SKETCH_QUANTITY.exec(String(i.price_note || ''))?.[0]).find(Boolean) || null;
+  return { area, label: sketchLabel(area, fe), detail: [unknown, shows].filter(Boolean).join(' '), bill };
+}
+// The plan image under a sketch: a plain rectangle (the assumed floor's outline), nothing else.
+const SKETCH_FLOOR = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect x="2" y="2" width="396" height="296" fill="#F4F3EF" stroke="#8A8985" stroke-width="2" stroke-dasharray="9 7" vector-effect="non-scaling-stroke"/></svg>');
 export function roomsFrom(layout, geometry) {
+  const assumed = isSketch(layout, geometry);
   const pts = (geometry?.floor_boundary || []).concat(...(layout.room_polygons || []).map(r => r.polygon));
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0 || 1, h = Math.max(...ys) - y0 || 1;
@@ -473,7 +621,7 @@ export function roomsFrom(layout, geometry) {
     const rx = r.polygon.map(p => p[0]), ry = r.polygon.map(p => p[1]);
     const t = ['treatment', 'reception', 'storage'].includes(r.room_type) ? r.room_type : r.room_type;
     count[t] = (count[t] || 0) + 1;
-    return { id: r.room_id, type: t, name: html(`${cap(words(r.room_type))} ${count[t]}`), dim: `${toSqft(r.area_sqm)} SF`, proposed: 1,
+    return { id: r.room_id, type: t, name: html(`${cap(words(r.room_type))} ${count[t]}`), dim: `${toSqft(r.area_sqm)} SF${assumed ? ', approximate (assumed floor)' : ''}`, proposed: 1,
       r: [(Math.min(...rx) - x0) / w, (Math.min(...ry) - y0) / h, (Math.max(...rx) - x0) / w, (Math.max(...ry) - y0) / h] };
   });
   return { plan: { w: Math.round(w * 100), h: Math.round(h * 100), ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms };
@@ -505,13 +653,17 @@ export function priceWords(origin) {
   return k === 'synthetic' ? 'fixture price, not a quote' : k === 'snapshot' ? 'catalog snapshot price, not a quote' : k === 'live' ? 'live catalog price, not a quote' : 'estimate, not a quote';
 }
 // A layout's floor geometry origin in words (the chat note after a layout).
-export function geometryWords(g = {}) {
+export function geometryWords(g = {}, sketch = null) {
+  if (sketch || g?.geometry_source === SKETCH_SOURCE) return (sketch || sketchOf(null, g, null)).label.replace(/\.$/, ''); // the caller ends the sentence
   const k = sourceOf(null, g.data_origin);
   const from = k === 'synthetic' ? ' (synthetic fixture)' : k === 'snapshot' ? ' (stored snapshot)' : k === 'live' ? ' (live provider data)' : ' (origin not stated)';
   return `${words(g.geometry_source) || 'source not stated'}${from}${g.scale_verified ? '' : ', scale not verified'}`;
 }
 // The note after a search: each kind counted separately, nothing said for a zero count.
-export function searchNote(pool) {
+// `view` is what the page itself will show: { shown: its fits(), min: its minSqft() } (workspace.js,
+// passed to bind()). With it the note counts the listings shown and says what was left out and why;
+// the size limit is the page's own figure, read at the time of the note.
+export function searchNote(pool, view = null) {
   const n = k => pool.filter(p => p.live?.source === k).length;
   const parts = [
     n('snapshot') ? `${n('snapshot')} ${n('snapshot') === 1 ? 'is a real CoStar listing' : 'are real CoStar listings'} from the data-kit snapshot (dated records, not a live feed)` : null,
@@ -520,8 +672,21 @@ export function searchNote(pool) {
     n('unknown') ? `${n('unknown')} with no source stated` : null,
   ].filter(Boolean);
   if (!pool.length || !parts.length) return null;
-  const scans = pool.filter(p => p.live?.scan).length;
-  return `Of ${pool.length} ${pool.length === 1 ? 'listing' : 'listings'} from the backend, ${parts.join('; ')}. ${scans ? `${scans} ${scans === 1 ? 'has' : 'have'} a 3D scan of the suite itself, so a layout can be generated there.` : 'None has a 3D scan of the suite itself, so no layout can be generated yet.'}`;
+  const N = pool.length, shown = view ? pool.filter(p => view.shown.includes(p)) : pool, hidden = pool.filter(p => !shown.includes(p));
+  const min = Number.isFinite(view?.min) ? view.min : null, is = k => (k === 1 ? 'is' : 'are');
+  const noSize = min == null ? [] : hidden.filter(p => !p.sqftKnown), small = min == null ? [] : hidden.filter(p => p.sqftKnown && p.sqft < min);
+  const other = hidden.length - noSize.length - small.length, open = shown.filter(p => p.live?.area_named === false).length;
+  const left = [
+    small.length ? `${small.length} of the ${N} ${is(small.length)} smaller than the ${min.toLocaleString('en-US')} SF your rooms need and ${is(small.length)} not shown` : null,
+    noSize.length ? `${noSize.length} ${noSize.length === 1 ? 'states' : 'state'} no area, so the page cannot tell whether your rooms fit, and ${is(noSize.length)} not shown` : null,
+    other ? `${other}${small.length || noSize.length ? ' more' : ` of the ${N}`} ${other === 1 ? 'does' : 'do'} not match your other answers (area, rent or kind of business) or ${other === 1 ? 'was' : 'were'} dismissed, and ${is(other)} not shown` : null,
+  ].filter(Boolean);
+  const count = !view ? '' : ` ${shown.length === N ? (N === 1 ? 'It is shown here.' : `All ${N} are shown here.`) : `${shown.length || 'None'} ${is(shown.length)} shown here: ${left.join('; ')}.`}`;
+  const area = open ? ` ${open}${view ? ' of those shown' : ''} ${is(open)} in none of the page’s four areas and ${open === 1 ? 'stays' : 'stay'} shown whichever area you choose.` : '';
+  const scans = shown.filter(p => p.live?.scan).length, of = view ? ' of those shown' : '';
+  const sketch = 'a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan';
+  const floor = !shown.length ? '' : scans ? ` ${scans}${of} ${scans === 1 ? 'has' : 'have'} a 3D scan of the suite itself, so a layout there is drawn on the measured floor.${scans < shown.length ? ` For the ${shown.length - scans === 1 ? 'other' : 'others'}, ${sketch}.` : ''}` : ` None${of} has a 3D scan of the suite itself: ${sketch}.`;
+  return `Of ${N} ${N === 1 ? 'listing' : 'listings'} from the backend, ${parts.join('; ')}.${count}${area}${floor}`;
 }
 // Owner texts saved by Photon as design-change notes -> read-only chat notes.
 export function ownerTextNotes(comms) {
@@ -592,7 +757,9 @@ export class Backend {
     const layout = (await this.req('GET', this.p('/layouts'))).find(l => l.design_version_id === id);
     if (!layout) throw new Error('The generated layout is not in the layout list.');
     const [geometry, bom] = await Promise.all([this.req('GET', this.p(`/layouts/geometry/${layout.geometry_id}`)), this.req('GET', this.p(`/layouts/${id}/bom`))]);
-    return { layout, geometry, bom };
+    // The estimate label travels on the task's answer too; a design version without it takes the task's.
+    const fe = task.output_reference?.floor_estimate;
+    return { layout: fe && typeof fe === 'object' && layout.floor_estimate == null ? { ...layout, floor_estimate: fe } : layout, geometry, bom };
   }
   chat(message) { return this.req('POST', this.p('/chat'), { message }); }
   communications() { return this.req('GET', this.p('/communications')); }
@@ -613,10 +780,11 @@ const NEUTRAL = (text, origin) => 'data:image/svg+xml;charset=utf-8,' + encodeUR
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect width="400" height="300" fill="#ECEBE7"/><text x="200" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#6B6A66">${html(text)}</text><text x="200" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" fill="#8A8985">${html(origin)}</text></svg>`);
 // The page asks for an image by (p.src, file). Every backend listing is answered here: synthetic ones by
 // "live-<id>", real ones by their id (see poolEntry). The page's own listings get undefined (its own path).
-export function asset(src, f, P = page?.P) {
+export function asset(src, f, P = page?.P, D = page?.D) {
   src = String(src);
   const p = P?.[src.startsWith('live-') ? src.slice(5) : src], L = p?.live;
   if (!L && !src.startsWith('live-')) return undefined;
+  if (/floorplan/.test(f) && D?.[src]?.sketch) return SKETCH_FLOOR; // an assumed floor: a plain rectangle, never a plan image
   if (L?.local?.captions[f]) return `assets/${L.local.slug}/${f}`; // a saved copy from this suite's own scan or listing
   const still = MEDIA_PHOTO.exec(f);
   if (still && L?.interior && !L.local) return mediaUrl(L.interior.asset_id, `photo/${+still[1]}.jpg`); // the backend's still of the chosen scan
@@ -743,7 +911,8 @@ export function bind(ctx) {
   for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
   for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
   const S = ctx.S(); S.slots = [null, null, null, null];
-  viewerElements(); waitStyle(); cardStyle();
+  viewerElements(); waitStyle(); cardStyle(); watchPage();
+  import('./furniture.js').then(m => { nominalSize = typeof m.nominalSize === 'function' ? m.nominalSize : null; }, () => {}); // optional: the tooltip's nominal sizes
   if (config().talk) voiceElements(); // never in plain live mode (the owner, 07:32Z: voice only on a call to the property)
 }
 const markers = {};
@@ -778,7 +947,7 @@ async function searchNow(S, fromSend = false) {
   const { POOL, P, D, FILL, SPACE_NOTES } = page, index = await localPlaces();
   // A slug is used only when exactly one listing of this result has that suite scan.
   const hits = results.map(r => localMatch(r.rec, index)), uses = s => hits.filter(h => h?.slug === s).length;
-  const entries = results.map((r, i) => { const p = poolEntry(r.rec, backend.api), h = hits[i]; return h && uses(h.slug) === 1 ? withLocal(p, h) : p; });
+  const entries = results.map((r, i) => { const p = poolEntry(r.rec, backend.api), h = hits[i]; if (p.zone == null) openArea(p, () => page.S().req.zones); return h && uses(h.slug) === 1 ? withLocal(p, h) : p; });
   for (const id of Object.keys(P)) if (!entries.some(p => p.id === id)) { dropPin(id); delete P[id]; }
   POOL.length = 0; FILL.length = 0;
   for (const [i, { rec, assessments, scenarios }] of results.entries()) {
@@ -790,7 +959,8 @@ async function searchNow(S, fromSend = false) {
   // Remove saved or shown ids the backend no longer returns (the page would look them up and fail).
   S.slots = S.slots.map(id => (id && P[id] ? id : null));
   S.saved = S.saved.filter(id => P[id]); if (S.open && !P[S.open]) S.open = null;
-  const msg = searchNote(POOL);
+  // What the page will show, by its own rule (fits and minSqft come from workspace.js through bind()).
+  const msg = searchNote(POOL, typeof page.fits === 'function' ? { shown: page.fits(), min: page.minSqft?.() } : null);
   if (msg) page.note(page.esc(msg));
 }
 // Stage 3: before the Furnish stage opens. False keeps the page in Compare.
@@ -806,11 +976,11 @@ export async function furnish(S) {
       if (r) resultCard(r); else page.note(page.esc(`No layout for ${p.address}: ${e.message}`));
       return false; // the page stays in Compare; a later try (new rooms) asks again
     } finally { end(); }
-    const { plan, rooms } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms);
-    Object.assign(d, { plan, rooms, bom: cat, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
+    const { plan, rooms } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms), sketch = sketchOf(out.layout, out.geometry, p, out.bom);
+    Object.assign(d, { plan, rooms, bom: cat, sketch, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
     for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
     const g = out.geometry;
-    page.note(page.esc(`Layout version ${out.layout.version_number} for ${p.address}: ${out.layout.approval_status.toLowerCase()}, ${out.layout.validation_report?.disclaimer || 'not an approved plan'} Floor geometry: ${geometryWords(g)}. Room minimums used: demo defaults (treatment 10 m² and 2.8 m wide, reception 12 m², storage 4 m²), not your answers. Bill of materials ${words(cat.status)}: ${cat.cat.length} item types, prices: ${[...new Set((out.bom.items || []).map(i => priceWords(i.price_origin)))].join('; ') || 'none'}.`));
+    page.note(page.esc(`Layout version ${out.layout.version_number} for ${p.address}: ${out.layout.approval_status.toLowerCase()}, ${out.layout.validation_report?.disclaimer || 'not an approved plan'} ${sketch ? [sketch.label, sketch.detail, sketch.bill].filter(Boolean).join(' ') : `Floor geometry: ${geometryWords(g)}.`} Room minimums used: demo defaults (treatment 10 m² and 2.8 m wide, reception 12 m², storage 4 m²), not your answers. Bill of materials ${words(cat.status)}: ${cat.cat.length} item types, prices: ${[...new Set((out.bom.items || []).map(i => priceWords(i.price_origin)))].join('; ') || 'none'}.`));
   }
   if (!S.placed.length || S.chosen !== S.finalist) S.placed = d.bom.placed.map(x => ({ ...x }));
   ownerTexts();
@@ -821,13 +991,21 @@ export async function furnish(S) {
 // the figures out; every figure is the message's own text, never computed, rounded or converted.
 const INFEASIBLE = /^No layout fits the measured floor: the floor is (\S+) m2 and (its largest rectangular area is (\S+ x \S+ m = \S+ m2)|the size of its largest rectangular area is unknown|it has no rectangular area of at least \S+ m2); the room program needs (\S+) room\(s\), at least (\S+ m2) in all plus circulation, with minimum room widths up to (\S+ m)\. Solver: (.*)\. No layout was stored\.$/s;
 export const NO_FIT_OPTIONS = 'Options: fewer or smaller rooms, or another listing.';
+const NO_GEOMETRY = /no measured geometry available/i;
+export const NO_GEOMETRY_TEXT = 'No layout yet for this listing: there is no 3D scan of this suite to measure the floor from.';
 // A failed layout task -> the result the owner reads, or null (any other failure keeps its note).
 export function layoutResult(e, p) {
   const own = !!p?.live?.floor_is_suite;
   const floor = own ? 'the measured floor of this suite (Matterport scan)' : 'the floor geometry the backend has for this listing (the answer does not say which scan it comes from; it may not be this suite’s own)';
   if (e?.no_layout) return { kind: 'none', heading: `No layout for this ${own ? 'suite' : 'listing'}`, lines: [], reasons: [], tail: [`The backend returned no layout for this ${own ? 'suite' : 'listing'} and gave no reason.`] };
+  // A backend without a floor for a listing that has no scan of its own suite: a plain result, nothing drawn.
+  if (e?.error_code === 'GEOMETRY_UNAVAILABLE' || NO_GEOMETRY.test(String(e?.error_message ?? '') + ' ' + String(e?.message ?? ''))) {
+    return { kind: 'no-geometry', heading: NO_GEOMETRY_TEXT, lines: [], reasons: [], tail: ['Nothing was drawn or estimated, and no layout was stored.', ...(p?.live?.interior?.scope === 'building' ? ['The 3D tour view shows another space in this building, under its own label.'] : [])] };
+  }
   if (e?.error_code !== 'LayoutInfeasibleError') return null;
   const msg = String(e.error_message ?? ''), m = INFEASIBLE.exec(msg);
+  // The rooms did not fit a floor assumed from the listed area (layout-estimate-1): no scan is named or implied.
+  if (/^No layout fits the assumed floor\b/.test(msg)) return { kind: 'assumed', heading: 'The rooms do not fit a floor assumed from the listed area', lines: [['Floor', 'an assumed rectangle on the listing’s stated area, not measured: this suite has no 3D scan of its own'], ['The backend said', msg]], reasons: [], tail: [NO_FIT_OPTIONS] };
   const heading = own ? 'The rooms do not fit this suite’s measured floor' : 'The rooms do not fit the floor geometry the backend has for this listing';
   if (!m) return { kind: 'unparsed', heading, lines: [['Floor', floor], ['The backend said', msg.trim() ? msg : '(no message: the backend gave no details)']], reasons: [], tail: [NO_FIT_OPTIONS] };
   const rect = m[3] ? m[3] : m[2].startsWith('the size') ? 'size unknown (the backend could not compute it)' : m[2].replace(/^it has /, '');
@@ -869,6 +1047,30 @@ async function ownerTexts() {
 // navigation commands); everything else goes to the project chat.
 // discover: the page's own answer edits after the questions (rent, rooms, area, opening) re-run the live search.
 const PAGE_COMMANDS = { discover: /look into|compare|closer|ready|go ahead|\$|rent|budget|month|room|downtown|west|east|valley|anywhere|open/i, compare: /anyway|layout|try|choose|go with|pick|sign/i, furnish: /^$/ };
+// Internal record ids never reach the person: before an assistant reply is shown, UUIDs go, and so does
+// a bracket that holds nothing but ids and their labels ("(property <uuid>; ranking <uuid>)"). The
+// second line of defence; the assistant's own facts are cleaned at the source.
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const ID_WORD = '(?:property|ranking|project|scenario|cost[ _-]?scenario|layout|design[ _-]?version|version|geometry|site[ _-]?geometry|task|listing|evidence|assessment|permit|communication|bom|asset|record|internal)';
+const ID_LABEL = `(?:${ID_WORD}(?:[ _-]?ids?)?|ids?|uuids?)`;
+const RE_UUID = new RegExp('[`\'"]?\\b' + UUID + '\\b[`\'"]?', 'gi');
+const RE_LABELLED = new RegExp(`(^|[(\\[]\\s*|[,;:]\\s*|\\s[–—-]\\s*|\\s)(${ID_LABEL})\\s*[:=#]?\\s*[\`'"]?\\b${UUID}\\b[\`'"]?`, 'gim');
+const RE_LABEL_WORDS = new RegExp(`\\b${ID_LABEL}\\b|\\band\\b`, 'gi');
+export const ONLY_IDS_TEXT = 'The assistant’s reply held only internal record ids, which are not shown.';
+export function cleanReply(text) {
+  const raw = String(text ?? '');
+  const idsOnly = inner => new RegExp(UUID, 'i').test(inner) && !inner.replace(RE_UUID, '').replace(RE_LABEL_WORDS, '').replace(/[\s:;,=#|/&.·-]/g, '');
+  let s = raw.replace(/[ \t]*(\(([^()]*)\)|\[([^[\]]*)\])/g, (m, _b, a, b) => (idsOnly(a ?? b) ? '' : m));
+  // "property_id: <uuid>", "id <uuid>": label and id go. A plain noun before an id ("the property <uuid> is…") keeps the noun.
+  s = s.replace(RE_LABELLED, (m, lead, label) => {
+    if (/^[(\[]/.test(lead)) return lead.trim(); // inside a bracket that says more: only the id and its label go
+    if (/^\s?[,;:–—-]/.test(lead)) return ''; // ", property <uuid>": the whole aside goes
+    return /(ids?|uuids?)$/i.test(label) ? '' : lead + label; // "the property <uuid> is…" keeps its noun
+  });
+  s = s.replace(RE_UUID, '');
+  s = s.replace(/([(\[])\s*[;,:]+\s*/g, '$1').replace(/\s*[;,:]+\s*([)\]])/g, '$1').replace(/[ \t]*(\(\s*\)|\[\s*\])/g, '').replace(/[ \t]+([,.;:!?)\]])/g, '$1').replace(/([(\[])[ \t]+/g, '$1').replace(/[,;:]+(?=[.;!?])/g, '').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]*[,;:–—-]?[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  return s || (raw.trim() ? ONLY_IDS_TEXT : '');
+}
 export function turn(stage, text, S, steps) {
   if ((stage === 'discover' && S.step < steps) || PAGE_COMMANDS[stage].test(text)) { // the page handles it, still inside its send()
     inSend = true; queueMicrotask(() => { inSend = false; }); return null;
@@ -878,7 +1080,7 @@ export function turn(stage, text, S, steps) {
     const end = waiting('chat', { composer: true });
     try {
       const out = await backend.chat(text); end(true);
-      page.a(`${page.esc(out.reply).replace(/\n/g, '<br>')}<br><small>${out.mode === 'deterministic' ? 'Deterministic engine, no model configured' : 'Assistant'} · from the backend</small>`);
+      page.a(`${page.esc(cleanReply(out.reply)).replace(/\n/g, '<br>')}<br><small>${out.mode === 'deterministic' ? 'Deterministic engine, no model configured' : 'Assistant'} · from the backend</small>`);
     } catch (e) { end(); page.note(page.esc(chatFailure(e))); } finally { end(); }
   })();
 }
