@@ -45,7 +45,7 @@ apps/backend/scripts/run-local.sh --memory   # in-memory demo store, no database
 - The script builds the release binary and runs it in the foreground on `127.0.0.1:8000` (`HOST` and `PORT` in the environment change that). It sets `STORE_BACKEND`, `HOST`, `PORT` and `FIXTURES_DIR` itself, so a line for one of those four in a `.env` file has no effect here.
 - It prints which store, database, fixture directory and address are in use.
 - It refuses to start instead of falling back when `DATABASE_URL` is missing or `FIXTURES_DIR` does not hold the fixture files.
-- Like the Python app, the service reads `.env` and `../../.env` relative to its working directory (`apps/backend`, so the repository `.env`); the environment wins. The three `NESSIE_*` names are the exception: they are read from the environment only.
+- Like the Python app, the service reads `.env` and `../../.env` relative to its working directory (`apps/backend`, so the repository `.env`); the environment wins. The `NESSIE_*` names are read the same way. The reading follows python-dotenv, including `${NAME}` interpolation, quoted values over several lines and lone CR line breaks. A `.env` or `../../.env` that exists but cannot be read, or is not valid UTF-8, stops the start-up with an error (as pydantic-settings does).
 - On PostgreSQL the schema is migrated to alembic head at start-up: alembic's own SQL, alembic's `alembic_version` bookkeeping, a no-op when already at head. Then the service creates its own table, `nessie_simulation_records`, if it is missing. `second-site-backend migrate` only migrates.
 - Run the Python app on another port (for example 8001) when both run together. They must share `DATABASE_URL` and `AUTH_SECRET`: a token minted by either service verifies in the other. See "Switching over".
 
@@ -116,7 +116,7 @@ The service reads every environment variable of `apps/api/app/core/config.py` un
 | `HOST`, `PORT` | listen address (uvicorn's command-line flags in Python) | `0.0.0.0`, `8000` |
 | `FIXTURES_DIR` | directory with `properties/`, `permits/` and `geometry/` fixtures, read at run time | the repository's `fixtures/` (image: `/app/fixtures`) |
 | `PYTHON_SERVICE_URL` | the Python app's origin (no `/api/v1`): owner texts and the forwarded routes | unset: the forwarded routes answer 503, owner texts are recorded as not sent |
-| `NESSIE_PROVIDER_MODE`, `NESSIE_API_KEY`, `NESSIE_BASE_URL` | the Nessie bank (see "Switching over", step 6); read from the process environment only | empty: the fixture bank; base URL `https://v2-prod-api.nessieisreal.com` |
+| `NESSIE_PROVIDER_MODE`, `NESSIE_API_KEY`, `NESSIE_BASE_URL` | the Nessie bank (see "Switching over", step 6) | empty: the fixture bank; base URL `https://v2-prod-api.nessieisreal.com` |
 
 Notes:
 - `DATABASE_URL` accepts `postgresql://` and SQLAlchemy's `postgresql+psycopg://`.
@@ -154,9 +154,11 @@ included, except `/internal/v1/owner/notify` (below).
 - Request body: 2 MiB. Larger is 413 `PAYLOAD_TOO_LARGE`, not forwarded.
 - Answer: 8 MiB. Larger is 502.
 - Connect timeout 3 s. Overall timeout 60 s for the chat and the Studio routes, 15 s for the rest.
+- Every request body, on every route (native or forwarded), is read under a 30 s idle bound between reads. A body that stops arriving is answered 408 `REQUEST_TIMEOUT`, retryable; on a forwarded route nothing was forwarded.
 
 **When the Python app cannot answer.** Never a 2xx, so a provider whose webhook was not forwarded retries it:
-- `PYTHON_SERVICE_URL` unset, blank or not a usable `http(s)` URL: 503 `PYTHON_SERVICE_NOT_CONFIGURED`, not retryable.
+- `PYTHON_SERVICE_URL` unset, blank, not a usable `http(s)` URL, or one that leads back to this service (it names this service's own `HOST`/`PORT`, or its `/health` was answered by this service): 503 `PYTHON_SERVICE_NOT_CONFIGURED`, not retryable, nothing sent.
+- A forwarded request that arrives back at this service while it is forwarding that same request: 508 `PYTHON_SERVICE_LOOP`, not forwarded again.
 - Connection refused or failed, answer cut off or too large: 502 `PYTHON_SERVICE_UNAVAILABLE`, retryable.
 - Connect or overall timeout: 504 `PYTHON_SERVICE_UNAVAILABLE`, retryable. When the request had already been sent, the message says that whether it took effect is unknown.
 
@@ -183,6 +185,7 @@ How to run the two services together and point the web app at the Rust service. 
 - **Check `/ready` before switching traffic.** Its entry `python_service` must say `"mode": "forward"`, `"status": "LIVE"`: the last `GET {PYTHON_SERVICE_URL}/health` answered 2xx.
   - The service checks that every 5 s, with a 2 s timeout. In the first seconds after start-up the entry is `NOT_STARTED` ("has not been answered yet"), or `BLOCKED` if the first check ran before the Python app was up. It turns `LIVE` within about 5 s of the Python app answering.
   - Unset, it is `not_configured` / `NOT_STARTED`. A failed check, or a last check older than 17 s (three intervals plus the timeout), is `BLOCKED`.
+  - It is also `BLOCKED` from start-up when the URL names this service's own `HOST`/`PORT`, and `BLOCKED` while `/health` is answered by this service (its `/health` carries the header `x-second-site-backend: rust`, which Python's lacks).
   - The overall `status` of `/ready` reflects only the database.
 
 **3. Python app settings.**
@@ -198,7 +201,7 @@ How to run the two services together and point the web app at the Rust service. 
 **5. Photon webhook.** At Photon, set the webhook URL to the Rust origin's `/webhooks/photon`. The Rust service forwards it with the raw body and the `webhook-id`, `webhook-timestamp` and `webhook-signature` headers unchanged; Python verifies and dedupes it. The harness ran this with a signed test webhook, not with Photon itself.
 
 **6. Nessie (mock money only).**
-- Set `NESSIE_PROVIDER_MODE`, `NESSIE_API_KEY` and `NESSIE_BASE_URL` in the Rust service's process environment. The service's own `.env` reading does not cover them. Compose passes `.env` lines in through `env_file`; with `run-local.sh` or a bare run, export them.
+- Set `NESSIE_PROVIDER_MODE`, `NESSIE_API_KEY` and `NESSIE_BASE_URL` like any other setting: in the environment, or in `.env` / `../../.env` (with `run-local.sh` or a bare run in `apps/backend`, that is the repository `.env`; compose passes it through `env_file`). A `live` line in the repository `.env` makes a local run use the real sandbox.
 - Empty, `fixture` or `disabled`: the in-memory fixture bank. `/ready` entry `nessie`: `MOCK`.
 - `live` with `NESSIE_API_KEY`: the Capital One Nessie sandbox. `/ready` says `PARTIAL` (`CONFIGURED_UNVERIFIED`) until an authenticated call succeeds, then `LIVE`.
 - `live` without a key: the fixture bank, and `/ready` says `BLOCKED`.
@@ -246,7 +249,7 @@ docker compose -f infra/compose.yaml ps backend                                 
   - the chat, the owner channel and a signed Photon webhook through the Rust origin;
   - an outreach, its approval and a call (fixture telephony) through the Rust origin, with single use holding in the Python app too;
   - no secret in either log.
-- In the last reported runs it ended `67 PASS, 1 FAIL, 1 SKIP` (exit 1). The SKIP is a fallback that runs only when the Rust service has no outreach route.
+- Measured at commit `036d526`, it ended `67 PASS, 1 FAIL, 1 SKIP` (exit 1). The SKIP is a fallback that runs only when the Rust service has no outreach route.
 - The FAIL is check D12, the one known difference. Free-form JSON maps come back from the Rust service with their keys sorted, for example `business_profile.space_requirements.required_rooms`. So the supervisor's `get_project_state` text differs in key order between in-process and HTTP mode. The JSON is equal. D12 can also fail on the order of the feasibility list after a re-analysis, an order both services inherit from Python.
 - Not covered: a browser and the web app, real providers, a real model, the simulated call after dialling, handoffs, the Telnyx webhook, the Nessie routes, and media.
 - The harness is not portable yet. It expects the local test database and build setup of the machine it was written on, and elsewhere it stops at set-up with exit 2. `apps/backend/e2e/README.md` says what it needs.
@@ -269,7 +272,7 @@ docker compose -f infra/compose.yaml ps backend                                 
 - **Live adapters** (Matterport, Vexcel, LA Open Data, the CoStar data kit) have only been exercised against mock servers.
 - **Layout solver:** valid layouts, but not coordinate-identical to the Python OR-Tools solver. Layouts are automated proposals, not approved or code-reviewed plans.
 - **Simulated broker calls.** `POST .../calls/{call_id}/simulate` plays the carrier. It feeds scripted, Telnyx-shaped events with canned broker answers into the same handlers as real webhooks.
-  - It is refused (409 `SIMULATOR_DISABLED`) with the live voice provider.
+  - It is refused (409 `SIMULATOR_DISABLED`) with the live voice provider. So is `POST .../calls` with `"simulate": true`, before the approval is spent and before any carrier request (Python differs: it placed a real call labelled simulated).
   - The call is `simulated: true`. Its evidence is `FIXTURE_SYNTHETIC`, with the limitation "SIMULATED CALL: scripted demo answer, not a real conversation.", and the owner's summary starts with "[Simulated call]".
 - **Broker answers** on any call are owner-reported evidence (`OWNER_REPORTED`, "not independently verified"), never verified capacity. Answer extraction copies two Python defects: some negations ("Absolutely not") are read as yes, and long numbers are cut ("9,500,000 sf" gives 500,000).
 - **Live Telnyx.** The live client exists behind the existing gates:
@@ -281,7 +284,7 @@ docker compose -f infra/compose.yaml ps backend                                 
 - **Approvals.** Placing a call and executing a simulated Nessie payment each need an APPROVED approval of this project, for exactly this payload, unexpired, single use.
   - Enforced at the action boundary by `ApprovalService::require_approved` (`crates/server/src/services/approvals.rs`), which locks the approval row.
   - Called by `CallOrchestrator::start` before the dial (`services/call_orchestration.rs`), and by the Nessie execute flow before the bank call (`services/nessie.rs`).
-  - `mark_executed` spends the approval in the same transaction. A refusal by the carrier or the bank leaves it APPROVED. A Nessie payment whose outcome is unknown spends it.
+  - For a call, `mark_executed` spends the approval in the same transaction. For a Nessie payment, the approval is checked and the payment claimed (`IN_FLIGHT`) in one committed transaction before the bank call, and spent in a second transaction after it. A refusal by the carrier or the bank leaves it APPROVED. A Nessie payment whose outcome is unknown spends it, and so does an `IN_FLIGHT` claim whose outcome was never recorded: it becomes `MAY_EXIST` when next read.
   - No route sends a message to a broker. A non-voice outreach stores a draft and a PENDING `SEND_MESSAGE` approval, and nothing executes it. Texts to the owner go through the Python app and need no approval, as in Python.
 - **Nessie** is Capital One's sandbox: mock money, never a real bank account.
   - The default is an in-memory fixture bank, labelled `FIXTURE_IN_MEMORY_BANK` in every answer. It forgets everything on restart. A stored sandbox then reads as gone and a new set-up replaces it. A payment already sent against the old fixture bank still blocks its plan item.
@@ -289,6 +292,10 @@ docker compose -f infra/compose.yaml ps backend                                 
   - Unknown: whether the real sandbox puts `payer_id` on a bill payment. If it does not, every first-month payment is reported as `MAY_EXIST` (fails closed).
   - Nessie writes no task or event. The activity feed shows only `approval.requested` and `approval.decided`.
   - `ALLOW_LIVE_PURCHASES` is not consulted.
+  - A graceful shutdown waits up to 30 s (by default) for executes between their two phases; one still in flight then becomes `MAY_EXIST`. Docker's default stop timeout is 10 s, shorter than that wait.
+  - Refresh can settle a `MAY_EXIST` purchase as `SENT` when the sandbox account's transactions show exactly one matching purchase whose description carries the plan item and attempt id; otherwise it stays `MAY_EXIST`.
+  - Instances that share a database need synchronised clocks (NTP). Another instance treats an `IN_FLIGHT` claim as dead 60 s after its bank call must have ended, so a clock difference of more than 60 s can settle a claim whose call is still running.
+  - Do not run an older build and this one on one database at the same time: an older build cannot decode a payment row written by this one (500 on that plan item).
 - **Owner texts are best effort.** They are sent after the request commits, on a background task, with no retry.
   - Python app down, or `PYTHON_SERVICE_URL` unset: the Rust service records a FAILED communication and a `communication.owner_notified` event with `delivery: "failed"`, and logs a warning.
   - Timeout or 5xx: the same records with `delivery: "unknown"`. The text may still go out.

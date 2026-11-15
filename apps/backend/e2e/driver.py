@@ -1714,6 +1714,688 @@ def g06() -> str:
 
 
 # =================================================================================================================
+# Shared by J and I: request ids, both request logs, and a digest of every table of the private schema
+# =================================================================================================================
+def _engine() -> Any:
+    if "engine" not in S:
+        if not DATABASE_URL:
+            raise Skip("E2E_DATABASE_URL not set by run.sh")
+        from sqlalchemy import create_engine
+
+        S["engine"] = create_engine(DATABASE_URL, pool_pre_ping=True)
+    return S["engine"]
+
+
+def db_digest() -> dict[str, tuple[int, str]]:
+    """(row count, md5 of every row's text) for each table of the run's schema: any insert, update or delete
+    by either service changes it."""
+    from sqlalchemy import text
+
+    out = {}
+    with _engine().connect() as c:
+        tables = c.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")).all()
+        for (t,) in tables:
+            row = c.execute(
+                text(
+                    f"SELECT count(*), md5(coalesce(string_agg(x::text, ',' ORDER BY x::text), '')) FROM \"{t}\" x"
+                )
+            ).one()
+            out[t] = (row[0], row[1])
+    return out
+
+
+def quiet_digest(limit_s: float = 8.0) -> dict[str, tuple[int, str]]:
+    """db_digest once nothing has changed for 0.5 s: owner texts the services send after answering (rust's notifier
+    calls python after its commit) must not be taken for a write of the next request."""
+    last, t0 = db_digest(), time.monotonic()
+    while time.monotonic() - t0 < limit_s:
+        time.sleep(0.5)
+        now = db_digest()
+        if now == last:
+            return now
+        last = now
+    return last
+
+
+def digest_diff(a: dict[str, tuple[int, str]], b: dict[str, tuple[int, str]]) -> list[str]:
+    return [
+        f"{t}: {a.get(t, (0, ''))[0]} -> {b.get(t, (0, ''))[0]} rows{'' if a.get(t, (0,))[0] != b.get(t, (0,))[0] else ' (changed)'}"
+        for t in sorted(set(a) | set(b))
+        if a.get(t) != b.get(t)
+    ]
+
+
+def rid_for(cid: str) -> str:
+    return f"e2e-{cid}-{uuid.uuid4().hex[:10]}"
+
+
+def logged(path: Path, off: int, rid: str) -> list[dict[str, Any]]:
+    return [x for x in requests_since(path, off) if x.get("request_id") == rid]
+
+
+def tagged(side: str, cid: str, method: str, path: str, **kw: Any) -> tuple[R, list[dict], list[dict]]:
+    """One request with a fresh x-request-id; returns the answer and the lines with that id in rust's and
+    python's request logs."""
+    rid = rid_for(cid)
+    off_rs, off_py = log_offset(RUST_LOG), log_offset(PY_LOG)
+    r = http(RS if side == "rust" else PY, method, path, headers={"x-request-id": rid}, **kw)
+    time.sleep(0.05)  # the access log line is written as the answer is sent
+    return r, logged(RUST_LOG, off_rs, rid), logged(PY_LOG, off_py, rid)
+
+
+def one_approval(tok: str, pid: str, approval_id: str, side: str = "rust") -> dict[str, Any]:
+    r = http(RS if side == "rust" else PY, "GET", proj(pid, "/approvals"), token=tok)
+    status_is(r, 200)
+    a = next((x for x in r.body if x.get("approval_id") == approval_id), None)
+    expect(
+        a is not None, f"approval {approval_id} in the {side} list", [x.get("approval_id") for x in r.body]
+    )
+    return a
+
+
+def both_read_same(tok: str, pid: str, approval_id: str) -> dict[str, Any]:
+    a, b = one_approval(tok, pid, approval_id, "rust"), one_approval(tok, pid, approval_id, "python")
+    d = strict_diff(a, b)
+    expect(not d, "the same approval document from rust and python", d[:4])
+    return a
+
+
+def new_outreach(cid: str, name: str, phone: str) -> dict[str, Any]:
+    """A fresh outreach in the first project through rust: its PENDING approval and draft communication."""
+    (tok, pid, alh) = need("rs_token", "pid", "alhambra")
+    body = outreach_body(alh) | {"recipient": {"name": name, "phone": phone}}
+    r = rs("POST", proj(pid, "/outreach"), token=tok, body=body)
+    status_is(r, 202)
+    expect(r.body["approval"].get("approval_status") == "PENDING", "a PENDING approval", r.body["approval"])
+    return r.body
+
+
+def decide(side: str, approval: dict[str, Any], decision: str, hash_: str | None = None, cid: str = "J") -> R:
+    (tok,) = need("rs_token")
+    body = {"decision": decision, "action_payload_hash": hash_ or approval["action_payload_hash"]}
+    r, _, _ = tagged(
+        side, cid, "POST", f"/api/v1/approvals/{approval['approval_id']}/decision", token=tok, body=body
+    )
+    return r
+
+
+def expire_in_db(approval_id: str) -> str:
+    """Move an approval's expires_at an hour into the past, as the services' own tests do (they rewrite the stored
+    document instead of waiting 24 h). The only write the driver makes to the shared schema."""
+    from sqlalchemy import text
+
+    past = time.strftime("%Y-%m-%dT%H:%M:%S.000000Z", time.gmtime(time.time() - 3600))
+    with _engine().begin() as c:
+        n = c.execute(
+            text(
+                "UPDATE approvals SET data = jsonb_set(data::jsonb, '{expires_at}', to_jsonb(CAST(:t AS text))), "
+                "record_version = record_version + 1, updated_at = now() WHERE id = CAST(:id AS uuid)"
+            ),
+            {"t": past, "id": approval_id},
+        ).rowcount
+    expect(n == 1, "one approval row updated", n)
+    return past
+
+
+def calls_of(pid: str) -> list[str]:
+    (tok,) = need("rs_token")
+    r = rs("GET", proj(pid, "/calls"), token=tok)
+    status_is(r, 200)
+    return [c["call_id"] for c in r.body]
+
+
+# =================================================================================================================
+# J. The approval decision (through rust; python reads every state identically)
+# =================================================================================================================
+@check("J01", "a decision with a wrong action_payload_hash is refused by rust and changes nothing")
+def j01() -> str:
+    (tok, pid) = need("rs_token", "pid")
+    o = new_outreach("J01", "E2E Hash Broker", "+15555550161")
+    appr = o["approval"]
+    before, rows = both_read_same(tok, pid, appr["approval_id"]), quiet_digest()
+    r = decide("rust", appr, "APPROVED", "0" * 64, "J01")
+    expect(
+        r.status == 409 and (r.body or {}).get("error_code") == "APPROVAL_PAYLOAD_MISMATCH",
+        "409 APPROVAL_PAYLOAD_MISMATCH",
+        r.show(),
+    )
+    after = both_read_same(tok, pid, appr["approval_id"])
+    expect(
+        not strict_diff(before, after),
+        "the approval unchanged (still PENDING, undecided)",
+        strict_diff(before, after),
+    )
+    changed = digest_diff(rows, db_digest())
+    expect(not changed, "no row written or changed anywhere in the schema", changed)
+    put("J01", j_pending=appr)
+    return "409 APPROVAL_PAYLOAD_MISMATCH; approval still PENDING (rust and python read the same document); no row changed"
+
+
+@check("J02", "REJECTED: rust and python read REJECTED, a call through rust is refused, no later decision")
+def j02() -> str:
+    (tok, pid, appr) = need("rs_token", "pid", "j_pending")
+    r = decide("rust", appr, "REJECTED", cid="J02")
+    status_is(r, 200)
+    expect(r.body.get("approval_status") == "REJECTED", "REJECTED", r.body)
+    seen = both_read_same(tok, pid, appr["approval_id"])
+    expect(seen.get("approval_status") == "REJECTED", "both read REJECTED", seen)
+    calls, rows = calls_of(pid), quiet_digest()
+    comm = next(
+        c
+        for c in rs("GET", proj(pid, "/communications"), token=tok).body
+        if c.get("approval_id") == appr["approval_id"]
+    )
+    c, _, _ = tagged(
+        "rust",
+        "J02",
+        "POST",
+        proj(pid, "/calls"),
+        token=tok,
+        body={"communication_id": comm["communication_id"]},
+    )
+    expect(
+        c.status == 409 and (c.body or {}).get("error_code") == "APPROVAL_REQUIRED",
+        "409 APPROVAL_REQUIRED for a call on a REJECTED approval",
+        c.show(),
+    )
+    again = decide("rust", appr, "APPROVED", cid="J02")
+    expect(
+        again.status == 409 and (again.body or {}).get("error_code") == "INVALID_STATE_TRANSITION",
+        "409 INVALID_STATE_TRANSITION for APPROVED after REJECTED",
+        again.show(),
+    )
+    expect(calls_of(pid) == calls, "no call created", "a call was created")
+    changed = digest_diff(rows, db_digest())
+    expect(not changed, "no row written by the refused call or decision", changed)
+    p = py("POST", proj(pid, "/calls"), token=tok, body={"communication_id": comm["communication_id"]})
+    return (
+        f"200 REJECTED, read identically by both; call refused 409 '{c.body.get('message')}'; APPROVED afterwards "
+        f"refused 409 INVALID_STATE_TRANSITION; nothing written (python's call route: {p.status} {(p.body or {}).get('error_code')})"
+    )
+
+
+@check("J03", "an expired PENDING approval cannot be decided (rust), and python reads it identically")
+def j03() -> str:
+    (tok, pid) = need("rs_token", "pid")
+    appr = new_outreach("J03", "E2E Expiry Broker", "+15555550162")["approval"]
+    past = expire_in_db(appr["approval_id"])
+    before, rows = both_read_same(tok, pid, appr["approval_id"]), quiet_digest()
+    r = decide("rust", appr, "APPROVED", cid="J03")
+    expect(
+        r.status == 409
+        and (r.body or {}).get("error_code") == "INVALID_STATE_TRANSITION"
+        and ((r.body or {}).get("details") or {}).get("current") == "EXPIRED",
+        "409 INVALID_STATE_TRANSITION, current EXPIRED",
+        r.show(),
+    )
+    after = both_read_same(tok, pid, appr["approval_id"])
+    expect(not strict_diff(before, after), "the approval unchanged", strict_diff(before, after))
+    changed = digest_diff(rows, db_digest())
+    expect(not changed, "no row changed", changed)
+    p = decide("python", appr, "APPROVED", cid="J03")
+    expect(p.status == 409, "python refuses the decision too (409)", p.show())
+    return (
+        f"expires_at set to {past} in the stored document (as the services' tests do); rust 409 "
+        f"INVALID_STATE_TRANSITION (current EXPIRED), python 409 {(p.body or {}).get('error_code')}; both read status "
+        f"{after.get('approval_status')} (the refused request rolls back its EXPIRED write); nothing changed"
+    )
+
+
+@check(
+    "J04",
+    "an approval that expired after APPROVED cannot be used for a call (rust), python reads it identically",
+)
+def j04() -> str:
+    (tok, pid) = need("rs_token", "pid")
+    o = new_outreach("J04", "E2E Late Broker", "+15555550163")
+    appr, comm = o["approval"], o["communication"]
+    ok = decide("rust", appr, "APPROVED", cid="J04")
+    status_is(ok, 200)
+    past = expire_in_db(appr["approval_id"])
+    before, calls, rows = both_read_same(tok, pid, appr["approval_id"]), calls_of(pid), quiet_digest()
+    c, _, _ = tagged(
+        "rust",
+        "J04",
+        "POST",
+        proj(pid, "/calls"),
+        token=tok,
+        body={"communication_id": comm["communication_id"]},
+    )
+    expect(
+        c.status == 409
+        and (c.body or {}).get("error_code") == "APPROVAL_REQUIRED"
+        and "EXPIRED" in str(c.body),
+        "409 APPROVAL_REQUIRED, approval EXPIRED",
+        c.show(),
+    )
+    expect(calls_of(pid) == calls, "no call created", "a call was created")
+    after = both_read_same(tok, pid, appr["approval_id"])
+    expect(not strict_diff(before, after), "the approval unchanged", strict_diff(before, after))
+    changed = digest_diff(rows, db_digest())
+    expect(not changed, "no row changed", changed)
+    p = py("POST", proj(pid, "/calls"), token=tok, body={"communication_id": comm["communication_id"]})
+    expect(p.status == 409, "python refuses the call too (409)", p.show())
+    return (
+        f"APPROVED, then expires_at {past}; rust call 409 '{c.body.get('message')}', python 409; no call, no row "
+        f"changed; both read {after.get('approval_status')} with the past expires_at"
+    )
+
+
+# =================================================================================================================
+# I. Cross-project isolation (review R23): a record of project B under project A's URL, and another owner
+# =================================================================================================================
+@check(
+    "I01",
+    "set-up: a second owner with a project of its own (search, outreach, a simulated call with a handoff)",
+)
+def i01() -> str:
+    owner2 = str(uuid.uuid4())
+    tok2 = issue_token(SECRET, uuid.UUID(owner2))
+    r = rs(
+        "POST",
+        "/api/v1/projects",
+        token=tok2,
+        body=fixture_body() | {"project_name": f"E2E other owner {RUN}"},
+    )
+    status_is(r, 201)
+    pb = r.body["project"]["project_id"]
+    s = rs("POST", proj(pb, "/properties/search"), token=tok2, body={"city": "Los Angeles", "state": "CA"})
+    status_is(s, 202)
+    props = {
+        p["property_identity"]["street_address"]: p["property_id"]
+        for p in rs("GET", proj(pb, "/properties"), token=tok2).body
+    }
+    alb = props[ALHAMBRA]
+    o = rs(
+        "POST",
+        proj(pb, "/outreach"),
+        token=tok2,
+        body=outreach_body(alb) | {"recipient": {"name": "E2E B Broker", "phone": "+15555550171"}},
+    )
+    status_is(o, 202)
+    o2 = rs(
+        "POST",
+        proj(pb, "/outreach"),
+        token=tok2,
+        body=outreach_body(alb) | {"recipient": {"name": "E2E B Caller", "phone": "+15555550172"}},
+    )
+    status_is(o2, 202)
+    a2 = o2.body["approval"]
+    d = rs(
+        "POST",
+        f"/api/v1/approvals/{a2['approval_id']}/decision",
+        token=tok2,
+        body={"decision": "APPROVED", "action_payload_hash": a2["action_payload_hash"]},
+    )
+    status_is(d, 200)
+    c = rs(
+        "POST",
+        proj(pb, "/calls"),
+        token=tok2,
+        body={"communication_id": o2.body["communication"]["communication_id"]},
+    )
+    status_is(c, 202)
+    sim = rs(
+        "POST", proj(pb, f"/calls/{c.body['call_id']}/simulate"), token=tok2, body={"owner_action": "later"}
+    )
+    status_is(sim, 200)
+    hs = rs("GET", proj(pb, "/handoffs"), token=tok2).body
+    expect(len(hs) == 1, "one handoff in the second owner's project", hs)
+    env = rs("GET", proj(pb), token=tok2).body
+    lay = rs("GET", proj(pb, "/layouts"), token=tok2).body
+    put(
+        "I01",
+        tok2=tok2,
+        owner2=owner2,
+        pb=pb,
+        alb=alb,
+        hwb=props[HOLLYWOOD],
+        comm_b=o.body["communication"],
+        appr_b=o.body["approval"],
+        handoff_b=hs[0],
+        call_b=c.body["call_id"],
+        profile_b=env["business_profile"],
+        task_b=s.body["task"]["task_id"],
+        layouts_b=lay,
+    )
+    return (
+        f"owner {owner2} (a token signed with the run's secret), project {pb}: 2 properties, a PENDING outreach, "
+        f"a simulated call with handoff {hs[0]['handoff_request_id']} ({hs[0]['status']})"
+    )
+
+
+def isolation_case(
+    cid: str, method: str, path: str, token: str, body: Any, py_defect: str | None, forwarded: bool = False
+) -> tuple[list[str], str]:
+    """Rust must answer 404, log the request (and python must not, unless the route is forwarded), and no row may
+    change. Then the same request on the python port: its answer and what it wrote are reported; a 2xx fails only
+    where the shared plan lists no known python defect (py_defect)."""
+    problems = []
+    rows = quiet_digest()
+    r, at_rs, at_py = tagged("rust", cid, method, path, token=token, body=body)
+    if r.status != 404:
+        problems.append(f"rust answered {r.show(200)}")
+    if not (len(at_rs) == 1 and at_rs[0].get("status") == 404 and len(at_py) == (1 if forwarded else 0)):
+        problems.append(
+            f"request id: rust log {[(x.get('path'), x.get('status')) for x in at_rs]}, python log {[(x.get('path'), x.get('status')) for x in at_py]}"
+        )
+    changed = digest_diff(rows, db_digest())
+    if changed:
+        problems.append(f"rows changed by the rust request: {changed}")
+    rows = quiet_digest()
+    p, _, _ = tagged("python", cid, method, path, token=token, body=body)
+    wrote = digest_diff(rows, quiet_digest())
+    pb = p.body if isinstance(p.body, dict) else {}
+    pnote = f"python {p.status}" + (
+        "" if 200 <= p.status < 300 else f" {pb.get('error_code') or pb.get('detail')}"
+    )
+    if wrote:
+        pnote += f", wrote {wrote}"
+    if 200 <= p.status < 300:
+        if py_defect:
+            pnote += f" (known python defect: {py_defect})"
+        else:
+            problems.append(
+                f"python answered {p.status} where the shared plan lists no defect: {p.show(160)}"
+            )
+    msg = (r.body or {}).get("message") if isinstance(r.body, dict) else r.text[:60]
+    return problems, f"rust {r.status} '{msg}'; {pnote}"
+
+
+def isolation_check(cases: list[tuple[str, str, str, Any, str | None]], cid: str) -> str:
+    out, problems = [], []
+    for label, method, path, body, py_defect in cases:
+        (tok,) = need("rs_token")
+        pr, note = isolation_case(cid, method, path, tok, body, py_defect)
+        out.append(f"{label}: {note}")
+        problems += [f"{label}: {x}" for x in pr]
+    if problems:
+        raise Fail(
+            "404 from rust, nothing written, request in rust's log only",
+            " | ".join(problems) + " || " + " | ".join(out),
+        )
+    return " | ".join(out)
+
+
+@check("I02", "layout generation in project A with a property of another project: rust 404, nothing written")
+def i02() -> str:
+    (pid, hwb, pid2) = need("pid", "hwb", "pid2")
+    hw2 = next(
+        p["property_id"]
+        for p in rs("GET", proj(pid2, "/properties"), token=need("rs_token")[0]).body
+        if p["property_identity"]["street_address"] == HOLLYWOOD
+    )
+    d = "layout generation by property_id"
+    return isolation_check(
+        [
+            (
+                "other owner's property",
+                "POST",
+                proj(pid, "/layouts/generate"),
+                {"property_id": hwb, "room_requirements": ROOMS},
+                d,
+            ),
+            (
+                "same owner, other project",
+                "POST",
+                proj(pid, "/layouts/generate"),
+                {"property_id": hw2, "room_requirements": ROOMS},
+                d,
+            ),
+        ],
+        "I02",
+    )
+
+
+@check(
+    "I03", "outreach in project A with a property of another project: rust 404, no approval, nothing written"
+)
+def i03() -> str:
+    (pid, alb, pid2) = need("pid", "alb", "pid2")
+    al2 = next(
+        p["property_id"]
+        for p in rs("GET", proj(pid2, "/properties"), token=need("rs_token")[0]).body
+        if p["property_identity"]["street_address"] == ALHAMBRA
+    )
+    d = "outreach by property_id"
+    rec = {"name": "E2E Isolation Broker", "phone": "+15555550181"}
+    return isolation_check(
+        [
+            (
+                "other owner's property",
+                "POST",
+                proj(pid, "/outreach"),
+                outreach_body(alb) | {"recipient": rec},
+                d,
+            ),
+            (
+                "same owner, other project",
+                "POST",
+                proj(pid, "/outreach"),
+                outreach_body(al2) | {"recipient": rec},
+                d,
+            ),
+        ],
+        "I03",
+    )
+
+
+@check(
+    "I04",
+    "a call start in project A with a communication of another owner's project: rust 404, nothing written",
+)
+def i04() -> str:
+    (pid, comm) = need("pid", "comm_b")
+    return isolation_check(
+        [
+            (
+                "other owner's communication",
+                "POST",
+                proj(pid, "/calls"),
+                {"communication_id": comm["communication_id"]},
+                "starting a call by communication_id",
+            ),
+        ],
+        "I04",
+    )
+
+
+@check(
+    "I05",
+    "another project's property under project A's URL: permits, feasibility, evidence, validation all 404",
+)
+def i05() -> str:
+    (pid, alb) = need("pid", "alb")
+    return isolation_check(
+        [
+            (rest, "GET", proj(pid, f"/properties/{alb}/{rest}"), None, None)
+            for rest in ("permits", "feasibility", "evidence", "evidence/validation")
+        ],
+        "I05",
+    )
+
+
+@check(
+    "I06",
+    "a handoff response in project A for a handoff of another owner's project: rust 404, nothing written",
+)
+def i06() -> str:
+    (pid, h) = need("pid", "handoff_b")
+    return isolation_check(
+        [
+            (
+                "other owner's handoff",
+                "POST",
+                proj(pid, f"/handoffs/{h['handoff_request_id']}/response"),
+                {"response": "ACCEPTED"},
+                "handoff response",
+            ),
+        ],
+        "I06",
+    )
+
+
+@check("I08", "the decision on another owner's approval: refused with 404 and nothing written (rust)")
+def i08() -> str:
+    (appr,) = need("appr_b")
+    return isolation_check(
+        [
+            (
+                "other owner's approval",
+                "POST",
+                f"/api/v1/approvals/{appr['approval_id']}/decision",
+                {"decision": "APPROVED", "action_payload_hash": appr["action_payload_hash"]},
+                None,
+            ),
+        ],
+        "I08",
+    )
+
+
+@check(
+    "I09",
+    "every project route of another owner's project: 404 'project not found' (never 403), nothing written",
+)
+def i09() -> str:
+    (tok, pb, alb, comm, h, call, task) = need(
+        "rs_token", "pb", "alb", "comm_b", "handoff_b", "call_b", "task_b"
+    )
+    lays = need("layouts_b")[0]
+    lid = lays[0]["design_version_id"] if lays else str(uuid.uuid4())
+    gid = (lays[0].get("geometry_id") if lays else None) or str(uuid.uuid4())
+    item = str(uuid.uuid4())
+    P = lambda rest="": proj(pb, rest)  # noqa: E731
+    routes = [
+        ("GET", P(), None),
+        ("PUT", P("/business-profile"), {}),
+        ("GET", P("/properties"), None),
+        ("POST", P("/properties/search"), {"city": "Los Angeles", "state": "CA"}),
+        ("GET", P(f"/properties/{alb}"), None),
+        ("POST", P(f"/properties/{alb}/analyze"), {}),
+        ("GET", P(f"/properties/{alb}/permits"), None),
+        ("GET", P(f"/properties/{alb}/feasibility"), None),
+        ("GET", P(f"/properties/{alb}/evidence"), None),
+        ("GET", P(f"/properties/{alb}/evidence/validation"), None),
+        ("GET", P("/rankings"), None),
+        ("GET", P("/cost-scenarios"), None),
+        ("GET", P("/approvals"), None),
+        ("GET", P(f"/tasks/{task}"), None),
+        ("GET", P("/events?limit=5"), None),
+        ("POST", P("/layouts/generate"), {"property_id": alb, "room_requirements": ROOMS}),
+        ("GET", P("/layouts"), None),
+        ("GET", P(f"/layouts/geometry/{gid}"), None),
+        ("POST", P(f"/layouts/{lid}/revisions"), {"requested_changes": ["x"]}),
+        ("GET", P(f"/layouts/{lid}/bom"), None),
+        ("POST", P("/outreach"), outreach_body(alb)),
+        ("GET", P("/communications"), None),
+        ("POST", P("/calls"), {"communication_id": comm["communication_id"]}),
+        ("GET", P("/calls"), None),
+        ("POST", P(f"/calls/{call}/simulate"), {"owner_action": "later"}),
+        ("GET", P("/handoffs"), None),
+        ("POST", P(f"/handoffs/{h['handoff_request_id']}/response"), {"response": "ACCEPTED"}),
+        ("POST", P("/chat"), {"message": "what's the status?"}),
+        ("POST", P("/nessie/sandbox"), {}),
+        ("GET", P("/nessie/sandbox"), None),
+        ("GET", P(f"/properties/{alb}/nessie/plan"), None),
+        ("GET", P(f"/properties/{alb}/nessie/affordability"), None),
+        ("POST", P(f"/properties/{alb}/nessie/payments/{item}/approval"), {}),
+        ("POST", P(f"/properties/{alb}/nessie/payments/{item}/execute"), {}),
+        ("POST", P(f"/properties/{alb}/nessie/payments/{item}/refresh"), {}),
+    ]
+    problems, py_answers, rows = [], {}, quiet_digest()
+    for method, path, body in routes:
+        r, at_rs, at_py = tagged("rust", "I09", method, path, token=tok, body=body)
+        short = f"{method} {path.replace(pb, '{B}')}"
+        b = r.body if isinstance(r.body, dict) else {}
+        if not (r.status == 404 and b.get("message") == "project not found" and not b.get("details")):
+            problems.append(f"{short}: rust {r.show(140)}")
+        fwd = path.endswith("/chat")
+        if not (len(at_rs) == 1 and len(at_py) == (1 if fwd else 0)):
+            problems.append(f"{short}: request id in rust log {len(at_rs)}x, python log {len(at_py)}x")
+        p = py(method, path, token=tok, body=body)
+        pb_ = p.body if isinstance(p.body, dict) else {}
+        py_answers.setdefault(f"{p.status} {pb_.get('message') or pb_.get('detail')}", []).append(
+            short.split(" ", 1)[1].split("/")[-1] or "project"
+        )
+        if 200 <= p.status < 300 or p.status == 403:
+            problems.append(f"{short}: python {p.show(140)}")
+    # the event stream separately: an answer that starts streaming must not be taken for a 404
+    with httpx.Client(base_url=RS, trust_env=False) as c:
+        with c.stream("GET", P("/events/stream"), headers={"Authorization": f"Bearer {tok}"}, timeout=5) as s:
+            if s.status_code != 404:
+                problems.append(f"GET {{B}}/events/stream: rust {s.status_code}")
+    changed = digest_diff(rows, db_digest())
+    if changed:
+        problems.append(f"rows changed: {changed}")
+    if problems:
+        raise Fail("404 project not found for every route, nothing written", " | ".join(problems))
+    return (
+        f"{len(routes) + 1} routes (every project route rust serves or forwards, with the other owner's real record "
+        f"ids): 404 'project not found', no details, each request id in rust's log (the chat also in python's, "
+        f"forwarded); nothing written. python: {py_answers}"
+    )
+
+
+@check(
+    "I10",
+    "supervisor tools bound to project A given another project's property: errors from rust, nothing written",
+)
+def i10() -> str:
+    (alb,) = need("alb")
+    rows, out, problems = quiet_digest(), [], []
+    for name, args in (
+        ("get_feasibility", {"property_id": alb}),
+        ("get_property_evidence", {"property_id": alb}),
+        ("validate_evidence", {"property_id": alb}),
+        (
+            "request_outreach_approval",
+            {
+                "property_id": alb,
+                "recipient_name": "E2E Tool Broker",
+                "recipient_phone": "+15555550191",
+                "questions": "sink?",
+            },
+        ),
+    ):
+        o, text, reqs = run_tool(name, args)
+        err = tool_error(o)
+        if err is None or err.get("http_status") != 404:
+            problems.append(f"{name}: {_short(text, 160)}")
+        elif not any(x.get("status") == 404 for x in reqs):
+            problems.append(f"{name}: no 404 in rust's log ({seen(reqs)})")
+        else:
+            out.append(f"{name}: {err.get('error_code')} 404")
+    changed = digest_diff(rows, db_digest())
+    if changed:
+        problems.append(f"rows changed: {changed}")
+    if problems:
+        raise Fail("a 404 tool error for each, nothing written", " | ".join(problems))
+    return "; ".join(out) + "; nothing written (in-process mode, python's known defect, not exercised)"
+
+
+@check(
+    "I07",
+    "PUT business-profile of project A carrying another project's profile_id: rust 404, nothing written",
+)
+def i07() -> str:
+    # Last of I on purpose: python's known defect moves the other project's profile to project A, after which the
+    # other project's call flow answers PROFILE_REQUIRED.
+    (pid, prof) = need("pid", "profile_b")
+    return isolation_check(
+        [
+            (
+                "other owner's profile",
+                "PUT",
+                proj(pid, "/business-profile"),
+                prof,
+                "PUT business-profile overwrites another project's profile",
+            ),
+        ],
+        "I07",
+    )
+
+
+# =================================================================================================================
 # H. Hygiene
 # =================================================================================================================
 @check("H01", "no kept log contains the shared secret, the Photon secret or a token signed with the secret")

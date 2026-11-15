@@ -581,8 +581,19 @@ impl Settings {
         let mut vars: HashMap<String, String> = HashMap::new();
         // Lowest priority first; later sources overwrite. `${NAME}` in a file reads `env`
         // (python-dotenv reads `os.environ`); a key without `=` unsets the name.
+        // A file that is there but cannot be read as UTF-8 stops the start, as in Python
+        // (pydantic-settings opens every `is_file()` with encoding utf-8 and raises).
         for file in [".env", "../../.env"] {
-            if let Ok(text) = std::fs::read_to_string(dir.join(file)) {
+            let path = dir.join(file);
+            if path.is_file() {
+                let text = std::fs::read(&path)
+                    .map_err(|e| ConfigError(format!("{file}: cannot be read ({})", e.kind())))
+                    .and_then(|b| {
+                        String::from_utf8(b).map_err(|e| {
+                            let at = e.utf8_error().valid_up_to();
+                            ConfigError(format!("{file}: not valid UTF-8 (at byte {at})"))
+                        })
+                    })?;
                 for (k, v) in read_dotenv(&text, &environ) {
                     match v {
                         Some(v) => vars.insert(k.to_ascii_uppercase(), v),
@@ -1000,6 +1011,16 @@ mod tests {
             ("APP_ENV".to_owned(), "from-env".to_owned()),
         ];
         let s = Settings::from_sources(&dir, env).unwrap();
+        // A file that is not UTF-8 stops the start (Python raises UnicodeDecodeError), with
+        // the file's name and no value; a directory named `.env` is skipped, as in Python.
+        std::fs::write(root.join(".env"), b"APP_ENV=x\nAUTH_SECRET=\xff\xfe\n").unwrap();
+        let e = Settings::from_sources(&dir, Vec::new())
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("../../.env: not valid UTF-8"), "{e}");
+        std::fs::remove_file(root.join(".env")).unwrap();
+        std::fs::create_dir(root.join(".env")).unwrap();
+        assert!(Settings::from_sources(&dir, Vec::new()).is_ok());
         std::fs::remove_dir_all(&root).unwrap();
         assert_eq!(s.database_url, "postgresql://alice@localhost/db");
         assert_eq!(s.photon_project_id, None);

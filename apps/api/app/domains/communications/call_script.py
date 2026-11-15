@@ -88,7 +88,8 @@ CONTRACTIONS = frozenset(
 # Words that negate the affirmation right after them (so does every contraction).
 NEGATE_BEFORE = frozenset({"not", "never", "cannot", "hardly", "barely", "scarcely"})
 NEGATE_AFTER_ADVERB = frozenset({"not", "never"})  # after definitely, absolutely, correct, sure
-PREDICATE_AUX = frozenset({"to", "been", "yet"})  # "it has to be added", "it has been removed", "we have yet to"
+# A predicate followed by these is an auxiliary: "it has to be added", "it has been removed", "we have yet to"
+PREDICATE_AUX = frozenset({"to", "been", "yet"})
 # A bound, not the value: "less than 100 amps", "at least 1,000 sf", "under 200 amps", "200 amps or more"
 BOUND_BEFORE = frozenset("under over below above than least most max maximum min minimum".split())
 BOUND_AFTER = frozenset("max maximum min minimum plus".split())

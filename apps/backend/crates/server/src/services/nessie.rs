@@ -2741,6 +2741,10 @@ async fn find_unknown_payment(
         Some("merchant")
     } else if approved_amount != Some(txn.amount_cents) || txn.amount_cents != p.amount_minor {
         Some("amount")
+    } else if txn.description.is_none() || txn.description != field("description") {
+        // The full description, not only the attempt's prefix, must be the approved one
+        // (fails closed when either is missing).
+        Some("description")
     } else {
         None
     };

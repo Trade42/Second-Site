@@ -883,6 +883,9 @@ struct Stub {
     /// nessie-3: set to true when a purchase POST arrives, before it is answered (the database
     /// "goes down" between the bank's answer and the outcome recording).
     down_on_pay: Arc<Mutex<Option<Arc<AtomicBool>>>>,
+    /// nessie-4: transactions listed first by `GET /accounts/{id}/transactions`, as
+    /// (the account they are listed under, the transaction).
+    extra_txns: Arc<Mutex<Vec<(String, Value)>>>,
 }
 
 #[derive(Default)]
@@ -918,6 +921,7 @@ fn stub() -> (MockServer, Stub) {
         delay_ms: Arc::new(AtomicU64::new(0)),
         complete: Arc::new(AtomicBool::new(false)),
         down_on_pay: Arc::new(Mutex::new(None)),
+        extra_txns: Arc::new(Mutex::new(Vec::new())),
     };
     let c = ctl.clone();
     let state = Mutex::new(StubState::default());
@@ -1006,10 +1010,16 @@ fn stub() -> (MockServer, Stub) {
                     })
                     .collect();
                 items.sort_by_key(|i| std::cmp::Reverse(i.0));
-                reply(
-                    200,
-                    json!({"items": items.into_iter().map(|(_, t)| t).collect::<Vec<_>>()}),
-                )
+                let mut out: Vec<Value> = c
+                    .extra_txns
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|(acct, _)| acct == id)
+                    .map(|(_, t)| t.clone())
+                    .collect();
+                out.extend(items.into_iter().map(|(_, t)| t));
+                reply(200, json!({"items": out}))
             }
             _ => problem(404, "not-found"),
         }
@@ -2399,3 +2409,77 @@ async fn nessie3_the_nessie_settings_come_through_the_settings_loader() {
     assert!(!r.text.contains("DOTENVCANARY"));
     let _ = std::fs::remove_dir_all(&root);
 }
+
+// nessie-4 (review R1): refresh settles a MAY_EXIST purchase only on a transaction whose full
+// description is the approved one. The attempt's prefix with other text after it is a mismatch.
+both_backends!(nessie4_refresh_needs_the_exact_approved_description, |db| {
+    let (srv, ctl) = stub();
+    let t = app_with_stub(db, &srv, 5.0);
+    let d = demo(&t).await;
+    let prop = d.hollywood.clone();
+    t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({}))
+        .await;
+    let acct = t.get(&sandbox_path(&d.pid), Some(&d.tok)).await.body["account_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let a = request_approval(&t, &d, &prop, ITEM_DEPOSIT).await;
+    assert!(a.status.is_success(), "{}", a.text);
+    decide(&t, &d.tok, &a.body["approval"], "APPROVED").await;
+    let id = a.body["approval"]["approval_id"].clone();
+    // The bank answers 503: nothing is created and the outcome is unknown.
+    *ctl.mode.lock().unwrap() = Mode::ServerError;
+    let r = execute(&t, &d, &prop, ITEM_DEPOSIT, &id).await;
+    *ctl.mode.lock().unwrap() = Mode::Normal;
+    assert_eq!(r.status.as_u16(), 502, "{}", r.text);
+    let pay = a.body["approval"]["action_payload"].clone();
+    let approved = pay["description"].as_str().unwrap().to_owned();
+    let prefix = format!(
+        "SIMULATION (Second Site plan item {ITEM_DEPOSIT}, attempt {}): ",
+        pay["attempt_id"].as_str().unwrap()
+    );
+    assert!(approved.starts_with(&prefix), "{approved}");
+    let txn = |n: &str, description: &str| -> Value {
+        json!({"id": n, "kind": "purchase", "status": "pending", "medium": "balance",
+            "amount_cents": pay["amount_minor"], "payer_id": acct, "merchant_id": pay["merchant_id"],
+            "description": description, "settle_at": "2026-11-14T12:00:00Z",
+            "created_at": "2026-11-14T12:00:00Z", "updated_at": "2026-11-14T12:00:00Z"})
+    };
+    let posts = count(&srv, "POST", "/purchases");
+    let before = attempt_json(&t, &d.pid, &prop, ITEM_DEPOSIT).await;
+    assert_eq!(before["attempt_status"], "MAY_EXIST");
+    let approval_before = approval_status(&t, &id).await;
+    for (n, description) in [
+        ("txn_n4_appended", format!("{approved} and something else")),
+        ("txn_n4_other_text", format!("{prefix}another purpose")),
+    ] {
+        *ctl.extra_txns.lock().unwrap() = vec![(acct.clone(), txn(n, &description))];
+        let r = refresh(&t, &d, &prop, ITEM_DEPOSIT).await;
+        assert_problem(&r, 409, "NESSIE_NOTHING_TO_REFRESH");
+        assert_eq!(r.body["details"]["attempt_status"], "MAY_EXIST", "{}", r.text);
+        assert_eq!(r.body["details"]["mismatch"], "description", "{}", r.text);
+        assert_eq!(r.body["details"]["nessie_transaction_id"], n, "{}", r.text);
+        assert_eq!(
+            attempt_json(&t, &d.pid, &prop, ITEM_DEPOSIT).await,
+            before,
+            "{n}: the row is unchanged"
+        );
+        assert_eq!(approval_status(&t, &id).await, approval_before);
+    }
+    // The exact approved description settles it SENT, from the transaction found.
+    *ctl.extra_txns.lock().unwrap() = vec![(acct.clone(), txn("txn_n4_exact", &approved))];
+    let r = refresh(&t, &d, &prop, ITEM_DEPOSIT).await;
+    ctl.extra_txns.lock().unwrap().clear();
+    labelled(&r, SANDBOX);
+    assert_eq!(r.body["attempt_status"], "SENT", "{}", r.text);
+    let stored = attempt_json(&t, &d.pid, &prop, ITEM_DEPOSIT).await;
+    assert_eq!(stored["attempt_status"], "SENT");
+    assert_eq!(stored["outcome_source"], svc::SOURCE_REFRESH_FOUND);
+    assert_eq!(stored["nessie_transaction_id"], "txn_n4_exact");
+    assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+    assert_eq!(
+        count(&srv, "POST", "/purchases"),
+        posts,
+        "refresh never moves money"
+    );
+});

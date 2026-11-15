@@ -176,9 +176,9 @@ struct Env {
 async fn env(db: &TestDb) -> Env {
     let t = TestApp::new(db, &[]);
     // Owner texts go to a recorder, which writes nothing of its own in the background.
-    t.app
-        .extensions
-        .insert(Arc::new(OwnerNotify::new(Arc::new(RecordingNotifier::new()))));
+    t.app.extensions.insert(Arc::new(OwnerNotify::new(Arc::new(
+        RecordingNotifier::new(),
+    ))));
     let (tok, user) = t.dev_token().await;
     let pid: Uuid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
         .as_str()
@@ -332,7 +332,11 @@ async fn decision_profile_update_and_search(db: &TestDb, n: usize, name: &str) {
     let (started, mut tally) = (Instant::now(), Tally::default());
     for round in 0..n {
         let a = e.pending_approval(&format!("r{round}")).await;
-        let d = if round % 2 == 0 { "REJECTED" } else { "APPROVED" };
+        let d = if round % 2 == 0 {
+            "REJECTED"
+        } else {
+            "APPROVED"
+        };
         let jobs = vec![e.decision(&a, d), e.profile_update(), e.search()];
         tally.round(round, &race(&e.t, &e.tok, round, jobs).await);
     }
