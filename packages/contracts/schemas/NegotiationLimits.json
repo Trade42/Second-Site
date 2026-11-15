@@ -1,0 +1,45 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/NegotiationLimits.json",
+  "additionalProperties": false,
+  "description": "The owner's rent limits for one call. Kept on the server; never returned or logged.",
+  "properties": {
+    "max_counters": {
+      "default": 3,
+      "title": "Max Counters",
+      "type": "integer"
+    },
+    "max_monthly_rent_cents": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Monthly Rent Cents"
+    },
+    "may_mention": {
+      "items": {
+        "type": "string"
+      },
+      "title": "May Mention",
+      "type": "array"
+    },
+    "target_monthly_rent_cents": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Monthly Rent Cents"
+    }
+  },
+  "title": "NegotiationLimits",
+  "type": "object"
+}

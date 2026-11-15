@@ -359,6 +359,23 @@ fn communications_contracts_conform_to_their_schemas() {
     }))
     .unwrap();
     common::assert_conforms("OutreachRequest", &common::to_value(&o));
+    assert!(o.purposes.is_none());
+    // The one optional field (voice-glue-1): a tour request and rent limits, in the schema
+    // the Python model generates.
+    let o = OutreachRequest::from_json_value(json!({
+        "property_id": u(), "channel": "VOICE", "purpose": "Tour and rent",
+        "recipient": {"role": "broker", "name": "Dana Broker", "phone": "+15555550100"},
+        "questions": ["Is there a loading dock?"],
+        "purposes": {
+            "tour": {"windows": [{"start": "2026-11-17T15:00:00-08:00", "end": "2026-11-17T17:00:00-08:00"}]},
+            "negotiation": {"target_monthly_rent_cents": 400000, "max_monthly_rent_cents": 450000},
+        },
+    }))
+    .unwrap();
+    let p = o.purposes.clone().unwrap();
+    assert_eq!(p.tour.unwrap().duration_minutes, 30);
+    assert_eq!(p.negotiation.unwrap().max_counters, 3);
+    common::assert_conforms("OutreachRequest", &common::to_value(&o));
     let ch =
         OwnerChannel::from_json_value(json!({"owner_id": u(), "handle": "+15555550142"})).unwrap();
     assert_eq!(ch.platform, "imessage");

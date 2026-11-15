@@ -114,7 +114,27 @@ def test_command_line_is_exact():
 # ---- the prompt (assistant-speed-1: compact facts, same rules) ------------------------------------------------
 # SYSTEM_RULES as reviewed, but for its last rule (assistant-ids-1): "Cite property ids..." is gone and the
 # form rule now says to name a listing by its address and never to write an id.
-RULES_SHA256 = "8dfc9eed6dad14355de5504d734255698955d997ace8659149a6b72d4283aff6"
+# assistant-why-1 adds sentences to the end of the form rule, the last bullet (a question about a listing gets the
+# ranking's reasons first, then what is not yet confirmed); everything before them is byte-identical to the rules
+# reviewed in assistant-ids-1, and the bullet count is unchanged (the voice rules test counts six truth bullets).
+RULES_BEFORE_WHY_SHA256 = "8dfc9eed6dad14355de5504d734255698955d997ace8659149a6b72d4283aff6"
+RULES_SHA256 = "d3b6cb031441e43f6ef57cbf1afdd330355022d2ec1c45c8ac8dae022d233ab3"
+
+
+def test_the_reasons_first_rule_is_added_and_no_other_rule_moved():
+    import hashlib
+
+    rules = cc.SYSTEM_RULES
+    start = rules.index("\n  When the owner asks about a listing")
+    assert hashlib.sha256(rules[:start].encode()).hexdigest() == RULES_BEFORE_WHY_SHA256
+    assert (
+        rules.count("\n- ") == 7 and "\n- " not in rules[start:]
+    )  # same bullets; the last one, the form rule, grew
+    assert rules[:start].rpartition("\n- ")[2].startswith("Reply in plain text")
+    why = " ".join(rules[start:].split())
+    assert "start with why it is ranked where it is" in why and "Only then say" in why
+    assert 'Call such a point "not yet confirmed" or "unknown"' in why and "it is never met" in why
+    assert "Do not open the reply with what the facts do not establish" in why
 
 
 def test_prompt_keeps_the_rules_and_every_fact_in_compact_json():
@@ -575,3 +595,131 @@ def test_public_facts_are_smaller_and_complete_for_the_fixture_project(ranked_ct
             src["feasibility"]
         )
     print(f"FACTS_CHARS before={before} after={after}")
+
+
+# ---- why a listing was suggested, and where a data-kit listing comes from (assistant-why-1) ---------------------
+def test_facts_carry_what_the_ranking_measured_for_the_top_listings(ranked_ctx):
+    raw, _ids = cc.gather_facts(ranked_ctx)
+    ranking = repos.rankings.list(ranked_ctx.db, project_id=ranked_ctx.project_id)[-1]
+    limit = raw["project_state"]["business_profile"]["monthly_rent_limit"]
+    assert isinstance(limit, int)  # the limit itself is in the facts
+    facts = cc.public_facts(raw)
+    assert set(facts["ranking"]["explanations"]) == {r["listing"] for r in facts["ranking"]["ranked"]}
+    for pub, src in zip(facts["top_properties"], raw["top_properties"], strict=True):
+        pid = src["property_id"]
+        basis = pub["ranking_basis"]
+        assert basis == src["ranking_basis"]  # nothing in it is an id, so the model gets it whole
+        assert basis["scores"] == ranking.normalized_scores[pid]
+        assert basis["penalty_for_unknowns"] == ranking.uncertainty_penalties[pid]
+        mine = [c for c in ranking.hard_constraint_results if str(c.property_id) == pid]
+        assert [c["check"] for c in basis["checks"]] == [c.constraint for c in mine] and mine
+        rent = next(c for c in basis["checks"] if c["check"] == "monthly_rent_limit")
+        assert rent["detail"].startswith("rent $") and " vs limit $" in rent["detail"]
+        assert {c["passed"] for c in basis["checks"]} <= {"YES", "NO", "UNKNOWN"}
+        # each requirement's status, what was observed and the question that would settle it
+        assert all({"requirement", "status", "observed", "questions"} <= set(a) for a in pub["feasibility"])
+    # the prompt grows by well under a tenth
+    with_basis = len(json.dumps(facts, default=str, separators=(",", ":")))
+    for d in facts["top_properties"]:
+        del d["ranking_basis"]
+    without = len(json.dumps(facts, default=str, separators=(",", ":")))
+    assert without < with_basis < without * 1.08
+    print(f"BASIS_CHARS without={without} with={with_basis}")
+
+
+def test_an_unknown_check_is_said_unknown_and_a_failed_read_leaves_the_basis_out(ranked_ctx, monkeypatch):
+    ranking = repos.rankings.list(ranked_ctx.db, project_id=ranked_ctx.project_id)[-1]
+    pid = ranking.ranked_properties[0].property_id
+    unknown = ranking.hard_constraint_results[0].model_copy(
+        update={"property_id": pid, "constraint": "x.hard", "passed": None, "detail": "UNKNOWN: " + "d" * 400}
+    )
+    changed = ranking.model_copy(update={"hard_constraint_results": [unknown]})
+    monkeypatch.setattr(cc.repos.rankings, "list", lambda *a, **k: [changed])
+    check = cc._ranking_basis(ranked_ctx)[str(pid)]["checks"][0]
+    assert check["passed"] == "UNKNOWN" and len(check["detail"]) == cc.MAX_CHECK_DETAIL_CHARS
+
+    def boom(*a, **k):
+        raise RuntimeError("no database")
+
+    monkeypatch.setattr(cc.repos.rankings, "list", boom)
+    assert cc._ranking_basis(ranked_ctx) == {}
+
+
+OTHER_PROBLEM = (
+    "facial_studio.plumbing.water_service: MEETS on historical evidence without stated limitations"
+)
+
+
+def _facts_with_problems(*problems: str):
+    raw = _synthetic_facts()
+    raw["data_notice"] = (
+        "Permits in these facts are fixture (demo) data, not live records. Say so when citing them."
+    )
+    raw["top_properties"][0]["evidence_check"] = {"problems": list(problems)}
+    raw["top_properties"].append(
+        {"property_id": P4, "rank": 4, "evidence_check": {"problems": [OTHER_PROBLEM]}}
+    )
+    return raw
+
+
+def test_a_data_kit_listing_is_named_a_genuine_snapshot_once_and_the_validator_line_is_dropped():
+    raw = _facts_with_problems(cc.COSTAR_NOT_LIVE, OTHER_PROBLEM)
+    assert (
+        cc.COSTAR_NOT_LIVE == "listing labeled CoStar but not retrieved live from CoStar"
+    )  # validator.py:41
+    facts = cc.public_facts(raw, kit_listings=True)
+    text = json.dumps(facts)
+    assert cc.COSTAR_NOT_LIVE not in text and "not retrieved live" not in text
+    # every other problem passes unchanged, for this listing and for the one the notice does not cover
+    assert facts["top_properties"][0]["evidence_check"] == {"problems": [OTHER_PROBLEM]}
+    assert facts["top_properties"][1]["evidence_check"] == {"problems": [OTHER_PROBLEM]}
+    assert facts["data_notice"] == (
+        "Permits in these facts are fixture (demo) data, not live records. Say so when citing them. "
+        "These listings are genuine CoStar records from the sponsor's data-kit snapshot, not a live query, so rent "
+        "and availability may have changed; say so once when you cite one: 12 EXAMPLE ST, 100."
+    )
+    assert text.count("data-kit snapshot") == 1 and "the listing ranked 4" not in facts["data_notice"]
+    assert raw == _facts_with_problems(cc.COSTAR_NOT_LIVE, OTHER_PROBLEM)  # the raw facts are not changed
+
+
+def test_fixture_mode_keeps_the_fixture_notice_and_the_validator_line():
+    raw = _facts_with_problems(cc.COSTAR_NOT_LIVE, OTHER_PROBLEM)
+    raw["data_notice"] = "Property listings in these facts are fixture (demo) data, not live records."
+    for facts in (cc.public_facts(raw), cc.public_facts(raw, kit_listings=False)):
+        assert facts["data_notice"] == raw["data_notice"]
+        assert facts["top_properties"][0]["evidence_check"] == {
+            "problems": [cc.COSTAR_NOT_LIVE, OTHER_PROBLEM]
+        }
+        assert "genuine" not in json.dumps(facts)
+
+
+def test_a_listing_the_validator_did_not_flag_is_never_called_a_costar_record():
+    # Kit mode, but this listing has no CoStar line (a synthetic listing has provider "fixture" and never gets it;
+    # a failed evidence check carries no problems at all): no notice, nothing filtered.
+    raw = _facts_with_problems(OTHER_PROBLEM)
+    raw["top_properties"].append({"property_id": P2, "rank": 2, "evidence_check": {"status": "TOOL_ERROR"}})
+    facts = cc.public_facts(raw, kit_listings=True)
+    assert facts["data_notice"] == raw["data_notice"] and "genuine" not in json.dumps(facts)
+    assert facts["top_properties"][0]["evidence_check"] == {"problems": [OTHER_PROBLEM]}
+    assert facts["top_properties"][2]["evidence_check"] == {"status": "TOOL_ERROR"}
+
+
+@pytest.mark.parametrize("mode", ["fixture", "live"])
+def test_the_chat_applies_the_notice_only_when_the_listing_provider_is_the_data_kit(
+    ranked_ctx, container, tmp_path, monkeypatch, mode
+):
+    from app.core.config import ProviderMode
+
+    bin_dir, record = _fake_cli(tmp_path)
+    _use(monkeypatch, bin_dir)
+    raw, ids = cc.gather_facts(ranked_ctx)
+    raw["top_properties"][0]["evidence_check"] = {"problems": [cc.COSTAR_NOT_LIVE]}
+    monkeypatch.setattr(cc, "gather_facts", lambda ctx: (raw, ids))
+    monkeypatch.setattr(container.settings, "property_provider_mode", ProviderMode(mode))
+    res = run_chat(ranked_ctx, "Why was the first space suggested?", container.settings, model=MODEL)
+    assert res.reply == CANNED
+    stdin = json.loads(record.read_text())["stdin"]
+    if mode == "live":
+        assert cc.COSTAR_NOT_LIVE not in stdin and stdin.count("genuine CoStar records") == 1
+    else:
+        assert cc.COSTAR_NOT_LIVE in stdin and "genuine CoStar records" not in stdin

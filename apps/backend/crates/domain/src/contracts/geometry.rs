@@ -39,6 +39,9 @@ string_enum! {
         /// Can never be scale_verified.
         PhotoEstimate = "PHOTO_ESTIMATE",
         Fixture = "FIXTURE",
+        /// An assumed floor built from the listing's stated area (no scan of the suite): never
+        /// measured, so it can never be scale_verified.
+        ListedAreaEstimate = "LISTED_AREA_ESTIMATE",
     }
 }
 
@@ -86,6 +89,9 @@ fn local_floor_origin() -> String {
 }
 
 pub const PHOTO_NOT_VERIFIED: &str = "photo-derived geometry cannot be scale_verified";
+
+pub const LISTED_AREA_NOT_VERIFIED: &str =
+    "a floor assumed from the listed area cannot be scale_verified";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -157,6 +163,9 @@ impl Validate for SiteGeometry {
         c.model_rules(mark, |c| {
             if self.geometry_source == GeometrySource::PhotoEstimate && self.scale_verified {
                 c.value_error(PHOTO_NOT_VERIFIED);
+            }
+            if self.geometry_source == GeometrySource::ListedAreaEstimate && self.scale_verified {
+                c.value_error(LISTED_AREA_NOT_VERIFIED);
             }
         });
     }
@@ -368,6 +377,55 @@ impl Contract for GeometryValidationReport {
     const NAME: &'static str = "GeometryValidationReport";
 }
 
+/// What a layout on a floor assumed from the listing's stated area is, in fields a page reads
+/// without parsing prose (`DesignVersion.floor_estimate`). Never present on a layout solved on a
+/// measured, CAD, owner-measured, photo or fixture floor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FloorEstimate {
+    /// Always `LISTED_AREA_ESTIMATE`.
+    pub geometry_source: GeometrySource,
+    /// Always true: the floor's shape is an assumption.
+    pub shape_assumed: bool,
+    /// Always false: the area is the listing's stated figure, not a measurement.
+    pub area_measured: bool,
+    /// The listing's stated area, as stored (`> 0`).
+    pub listed_area: f64,
+    /// The unit of `listed_area` as stored (`'sqm'`: `CommercialListing.available_area_sqm`).
+    pub listed_area_unit: String,
+    /// The assumed shape, e.g. `'rectangle 3:2, one entrance mid short side'`.
+    pub assumed_shape: String,
+    /// What is not known about the real floor, e.g. `'columns'`, `'fixed_walls'`, `'plumbing'`,
+    /// `'windows'`, `'exits'`.
+    pub unknown: Vec<String>,
+    /// What the sketch can and cannot show, in plain words.
+    pub shows: String,
+    /// A short label for display.
+    pub label: String,
+}
+
+pub const FLOOR_ESTIMATE_NOT_MEASURED: &str =
+    "a floor estimate is LISTED_AREA_ESTIMATE, its shape is assumed and its area is not measured";
+
+impl Validate for FloorEstimate {
+    fn check(&self, c: &mut Checker) {
+        let mark = c.error_count();
+        c.gt("listed_area", self.listed_area, 0.0);
+        c.model_rules(mark, |c| {
+            if self.geometry_source != GeometrySource::ListedAreaEstimate
+                || !self.shape_assumed
+                || self.area_measured
+            {
+                c.value_error(FLOOR_ESTIMATE_NOT_MEASURED);
+            }
+        });
+    }
+}
+
+impl Contract for FloorEstimate {
+    const NAME: &'static str = "FloorEstimate";
+}
+
 string_enum! {
     #[derive(Default)]
     pub enum DesignApprovalStatus {
@@ -409,6 +467,11 @@ pub struct DesignVersion {
     pub created_from_revision_request: Option<Uuid>,
     #[serde(default)]
     pub approval_status: DesignApprovalStatus,
+    /// Set only when the layout was solved on a floor assumed from the listing's stated area
+    /// (`LISTED_AREA_ESTIMATE`): what is assumed and unknown. `null` otherwise, as the Python
+    /// model dumps it: the key is always sent, last, like every other optional field here.
+    #[serde(default)]
+    pub floor_estimate: Option<FloorEstimate>,
 }
 
 impl Validate for DesignVersion {
@@ -419,6 +482,7 @@ impl Validate for DesignVersion {
         c.each("furniture_placements", &self.furniture_placements);
         c.each("finish_specifications", &self.finish_specifications);
         c.nested("validation_report", &self.validation_report);
+        c.nested_opt("floor_estimate", &self.floor_estimate);
         c.ge_opt(
             "estimated_construction_cost",
             self.estimated_construction_cost,

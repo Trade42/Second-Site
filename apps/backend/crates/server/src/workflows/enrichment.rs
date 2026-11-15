@@ -34,6 +34,7 @@ use uuid::Uuid;
 use indexmap::IndexMap;
 use ss_domain::integrations::base::{ProviderError, ProviderErrorKind};
 
+use super::property_analysis::bounded_map;
 use crate::integrations::matterport::{suite_matches, MatterportProvider, ModelSummary};
 use crate::integrations::vexcel::VexcelProvider;
 use crate::logging;
@@ -91,17 +92,27 @@ pub fn enrich_interior(
     apply_interior(prop, &ids, summaries.as_ref())
 }
 
-/// `enrich_interior` for a whole pool with **one** `model_summaries` call (the adapter batches
-/// 20 ids per request) instead of one per listing. Each listing gets exactly what its own call
-/// would have given: only the summaries of the ids it would have asked for (its first
-/// [`MAX_MODELS`] Matterport assets), and, when the one call fails, the failure its own call
-/// would have recorded. A `BAD_RESPONSE` or `NOT_FOUND` failure (which one listing's ids alone
+/// The ids the live Matterport adapter puts in one request (`model_summaries` makes one request
+/// per 20 ids, one after the other). The pool's calls are cut at the same boundaries, so each
+/// call is exactly one of the requests the adapter would have made.
+pub const MATTERPORT_BATCH: usize = 20;
+
+/// `enrich_interior` for a whole pool with one `model_summaries` call per [`MATTERPORT_BATCH`]
+/// ids, at most `bound` of them at once (the adapter would make the same requests one after
+/// the other), instead of one call per listing. The answers are merged in request order; the
+/// first failed request in that order is the failure, as the adapter's own loop reports it
+/// (the requests after it are still made, their answers dropped). Each listing gets exactly
+/// what its own call would have given: only the summaries of the ids it would have asked for
+/// (its first [`MAX_MODELS`] Matterport assets), and, when the calls fail, the failure its own
+/// call would have recorded. A `BAD_RESPONSE` or `NOT_FOUND` failure (which one listing's ids alone
 /// can cause: a malformed id, a bad entry) falls back to one call per listing, so only that
 /// listing records it. Any other failure (auth, timeout, outage, rate limit) marks every listing
-/// "not retrieved" at once, as each per-listing call would have.
+/// "not retrieved" at once, as each per-listing call would have. The per-listing calls of the
+/// fallback also run at most `bound` at once, results in pool order.
 pub fn enrich_interior_pool(
     pool: Vec<PropertyDigitalProfile>,
     matterport: &dyn MatterportProvider,
+    bound: usize,
 ) -> Vec<PropertyDigitalProfile> {
     let per_listing: Vec<Option<Vec<String>>> =
         pool.iter().map(|p| interior_ids(p, matterport)).collect();
@@ -116,15 +127,29 @@ pub fn enrich_interior_pool(
     if all.is_empty() {
         return pool;
     }
-    let summaries = matterport.model_summaries(&all);
+    let answers = bounded_map(
+        all.chunks(MATTERPORT_BATCH).collect(),
+        bound,
+        |ids| ids,
+        |ids| matterport.model_summaries(ids),
+    );
+    let mut merged: IndexMap<String, ModelSummary> = IndexMap::new();
+    let mut summaries = Ok(());
+    for answer in answers {
+        match answer {
+            Ok(part) => merged.extend(part),
+            Err(e) => {
+                summaries = Err(e);
+                break;
+            }
+        }
+    }
+    let summaries = summaries.map(|()| merged);
     // A bad answer or id that one listing's ids alone can cause must not cost the other listings
     // their scans: ask per listing then, as before (an outage-shaped failure is not re-asked).
     if matches!(&summaries, Err(e) if matches!(e.kind, ProviderErrorKind::BadResponse | ProviderErrorKind::NotFound))
     {
-        return pool
-            .into_iter()
-            .map(|p| enrich_interior(p, matterport))
-            .collect();
+        return bounded_map(pool, bound, |p| p, |p| enrich_interior(p, matterport));
     }
     pool.into_iter()
         .zip(per_listing)

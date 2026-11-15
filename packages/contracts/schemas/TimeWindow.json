@@ -1,0 +1,23 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/TimeWindow.json",
+  "additionalProperties": false,
+  "description": "A window of local time with the property's UTC offset, e.g. 2026-11-17T15:00:00-08:00.",
+  "properties": {
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "start",
+    "end"
+  ],
+  "title": "TimeWindow",
+  "type": "object"
+}
