@@ -58,7 +58,7 @@ impl Ctx {
                 owner_channel_id: Uuid::new_v4(),
                 owner_id: self.owner,
                 platform: "imessage".into(),
-                handle: "+15555550142".into(),
+                handle: format!("+1555{:07}", self.owner.as_u128() % 10_000_000),
                 status: ss_domain::contracts::OwnerChannelStatus::Linked,
                 space_id: Some("spc".into()),
                 agent_user_id: Some("usr".into()),
@@ -102,8 +102,8 @@ impl Ctx {
 
 both_backends!(negations_and_long_numbers_stay_labelled, |db| {
     let c = Ctx::new(db);
-    c.link().await;
     let (pid, prop) = c.project().await;
+    c.link().await;
     let prop_id = prop["property_id"].as_str().unwrap().to_owned();
     let before: Vec<(String, String)> = prop["infrastructure_assessments"]
         .as_array()
@@ -169,8 +169,8 @@ both_backends!(negations_and_long_numbers_stay_labelled, |db| {
 both_backends!(scripted_lines_during_handoffs, |db| {
     for action in ["accept", "later", "none"] {
         let c = Ctx::new(db);
-        c.link().await;
         let (pid, prop) = c.project().await;
+        c.link().await;
         let call = c.call(pid, prop["property_id"].as_str().unwrap()).await;
         let cid = call["call_id"].as_str().unwrap();
         let r = c
@@ -202,8 +202,8 @@ both_backends!(scripted_lines_during_handoffs, |db| {
 
 both_backends!(join_token_and_handoff_isolation, |db| {
     let c = Ctx::new(db);
-    c.link().await;
     let (pid, prop) = c.project().await;
+    c.link().await;
     let call = c.call(pid, prop["property_id"].as_str().unwrap()).await;
     let cid: Uuid = call["call_id"].as_str().unwrap().parse().unwrap();
     // A token of the join purpose is refused on ordinary routes.

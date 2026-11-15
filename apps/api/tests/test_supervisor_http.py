@@ -883,8 +883,8 @@ def test_chat_route_sends_its_request_id_to_rust(client, container, local_http, 
 
 def test_a_request_id_byte_outside_ascii_reaches_rust_unchanged(client, container, local_http, monkeypatch):
     """Through a real server (uvicorn on an ephemeral port) and raw HTTP: the test client can neither send nor read
-    back a header byte outside ASCII. Before the client sent the id as bytes, the same value as a str made httpx raise
-    UnicodeEncodeError inside the tool call."""
+    back a header byte outside ASCII. The client sends the id as bytes: as a str, httpx would raise UnicodeEncodeError
+    for this value, which is not an httpx error and so would not become a tool error."""
     import http.client
     import threading
 
