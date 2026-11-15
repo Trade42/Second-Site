@@ -29,9 +29,13 @@ const CONNECTION: &str = "conn-value-3";
 const NUMBER: &str = "+15555550111";
 const BASE: &str = "https://calls.example.com";
 const XAI: &str = "XAI-secret-value-4";
+/// The owner's test number: the only number a complete live configuration rings.
+const OWNER_TEST: &str = "+15555550177";
 
-/// Live voice, the outbound switch on, every setting a live call needs.
-const COMPLETE: [(&str, &str); 7] = [
+/// Live voice, the outbound switch on, every setting a live call needs, the owner's test number
+/// included (`LIVE_CALLS_ONLY_TO`: without it every live dial is refused).
+const COMPLETE: [(&str, &str); 8] = [
+    ("LIVE_CALLS_ONLY_TO", OWNER_TEST),
     ("VOICE_PROVIDER_MODE", "live"),
     ("ALLOW_LIVE_OUTBOUND_CALLS", "true"),
     ("TELNYX_API_KEY", API_KEY),
@@ -300,6 +304,7 @@ fn a_live_dial_is_refused_before_any_request_and_names_every_missing_setting() {
         .unwrap();
     assert_eq!(ok.call_control_id, "v3:abc");
     assert_eq!(server.requests().len(), 1);
+    assert_eq!(only_destination(&server), OWNER_TEST);
 
     // Live mode without the API key selects the fixture provider (Python's selection): no
     // carrier client exists, nothing can be dialed, and `/ready` names the key (below).
@@ -419,7 +424,17 @@ both_backends!(a_refused_dial_leaves_the_approval_unused, |db| {
     tx.commit().await.unwrap();
     assert_eq!(call.provider_call_id.as_deref(), Some("v3:abc"));
     assert_eq!(server.requests().len(), 1);
+    assert_eq!(only_destination(&server), OWNER_TEST);
 });
+
+/// The `to` of the one request the mock carrier received: the owner's test number, never the
+/// number the dial asked for.
+fn only_destination(server: &MockServer) -> String {
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1);
+    let body: Value = serde_json::from_slice(&requests[0].body).unwrap();
+    body["to"].as_str().unwrap().to_owned()
+}
 
 fn telnyx_line(ready: &Value) -> Value {
     ready["providers"]

@@ -20,6 +20,10 @@
 //! The media-stream commands (`dial_streaming`, `streaming_start`/`_stop`, `transcription_stop`,
 //! `playback_stop`) are Rust only (Python has none); they follow the same request pattern, without
 //! `command_id` or `client_state`, as every other command here.
+//! Whom a live dial rings (owner, 11:45Z, "Can they just call me only?"): with
+//! `LIVE_CALLS_ONLY_TO` set, that number instead of the one asked for, always; without it nobody
+//! (403 before any request), unless `LIVE_CALLS_TO_CONTACTS=true`. See
+//! [`Settings::live_call_target`].
 //! Tested only against a local mock server: no real call has been placed by this code.
 
 use std::sync::Arc;
@@ -37,7 +41,7 @@ use ss_domain::integrations::telnyx::{
 use super::http::HttpClient;
 use super::Reported;
 use crate::app::{App, ProviderStatus};
-use crate::config::{ProviderMode, Settings};
+use crate::config::{mask_number, LiveCallTarget, ProviderMode, Settings};
 
 const PROVIDER: &str = "telnyx";
 
@@ -70,9 +74,19 @@ pub struct LiveTelnyxProvider {
     configured: bool,
     /// [`Settings::voice_live_missing`] at construction: while not empty, no dial is sent.
     preflight_missing: Vec<&'static str>,
+    /// [`Settings::live_call_target`]: whom a dial may ring. `None` only on a client built by
+    /// hand (tests); [`Voice::from_settings`] always sets it.
+    target: Option<LiveCallTarget>,
     base_url: String,
     client: HttpClient,
 }
+
+/// The refusal while live calls are restricted to the owner's test number and none is set.
+pub const ONLY_TO_REFUSAL: &str =
+    "live call not dialed, nothing was sent to the carrier: live calls are restricted to the \
+     owner's test number, and LIVE_CALLS_ONLY_TO is not set to a phone number (+ and 8 to 15 \
+     digits). Set it to the owner's own number. No listing contact can be dialed without \
+     LIVE_CALLS_TO_CONTACTS=true.";
 
 impl std::fmt::Debug for LiveTelnyxProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -103,6 +117,7 @@ impl LiveTelnyxProvider {
             allow_outbound,
             configured: !api_key.is_empty() && !connection_id.is_empty(),
             preflight_missing: Vec::new(),
+            target: None,
             base_url: base_url.trim_end_matches('/').to_owned(),
             client: HttpClient::new(PROVIDER, policy(), Self::auth_headers(api_key)),
         }
@@ -112,6 +127,13 @@ impl LiveTelnyxProvider {
     /// [`Settings::voice_live_missing`]. [`Voice::from_settings`] always sets it.
     pub fn with_preflight(mut self, missing: Vec<&'static str>) -> Self {
         self.preflight_missing = missing;
+        self
+    }
+
+    /// Whom this client may ring: with [`LiveCallTarget::TestNumber`] every dial goes to that
+    /// number instead of the one asked for; with [`LiveCallTarget::Nobody`] every dial is refused.
+    pub fn with_call_target(mut self, target: LiveCallTarget) -> Self {
+        self.target = Some(target);
         self
     }
 
@@ -177,6 +199,17 @@ impl LiveTelnyxProvider {
                 &self.preflight_missing,
             )));
         }
+        // Whom it may ring: the owner's test number instead of whatever was asked for, the
+        // contact only with the second switch, otherwise nobody. The number asked for is never
+        // sent while a test number is set.
+        let test_number = match &self.target {
+            Some(LiveCallTarget::TestNumber(n)) => Some(n.as_str()),
+            Some(LiveCallTarget::Nobody) => {
+                return Err(TelephonyError::Forbidden(ONLY_TO_REFUSAL.into()));
+            }
+            Some(LiveCallTarget::Contacts) | None => None,
+        };
+        let to = test_number.unwrap_or(to);
         let mut body = json!({
             "connection_id": self.connection_id,
             "to": to,
@@ -191,7 +224,19 @@ impl LiveTelnyxProvider {
         if let (Some(stream), Some(m)) = (stream, body.as_object_mut()) {
             m.extend(stream.to_fields());
         }
-        let data = self.post("/calls", &body, Some(idempotency_key))?;
+        // A carrier's error text may repeat the number dialed: the test number is private.
+        let data = self
+            .post("/calls", &body, Some(idempotency_key))
+            .map_err(|mut e| {
+                if let Some(n) = test_number {
+                    let masked = mask_number(n);
+                    e.message = e
+                        .message
+                        .replace(n, &masked)
+                        .replace(n.trim_start_matches('+'), &masked);
+                }
+                e
+            })?;
         Ok(DialResult {
             call_control_id: Self::field(&data, "call_control_id")?,
             state: "initiated".into(),
@@ -404,7 +449,8 @@ impl Voice {
                     s.allow_live_outbound_calls,
                     base_url,
                 )
-                .with_preflight(s.voice_live_missing()),
+                .with_preflight(s.voice_live_missing())
+                .with_call_target(s.live_call_target()),
             )),
             _ => Self::fixture(),
         }

@@ -53,6 +53,26 @@ async fn ready(State(app): State<AppState>) -> Json<ReadyResponse> {
             format!("refused until set: {}", voice_missing.join(", ")),
         );
     }
+    // Live voice only: whom a live dial would ring. Says whether the test number is set, never
+    // the number.
+    if app.settings.voice_provider_mode == crate::config::ProviderMode::Live {
+        use crate::config::LiveCallTarget;
+        let target = match app.settings.live_call_target() {
+            LiveCallTarget::TestNumber(_) => {
+                "the owner's test number only (LIVE_CALLS_ONLY_TO is set); no listing contact is \
+                 dialed"
+            }
+            LiveCallTarget::Contacts => {
+                "each listing contact's own number (LIVE_CALLS_TO_CONTACTS=true, \
+                 LIVE_CALLS_ONLY_TO is not set)"
+            }
+            LiveCallTarget::Nobody => {
+                "nobody: every live dial is refused until LIVE_CALLS_ONLY_TO is set to the \
+                 owner's test number (+ and 8 to 15 digits)"
+            }
+        };
+        checks.insert("live_call_target".into(), target.to_owned());
+    }
     if app.settings.public_path_guard {
         checks.insert(
             "public_path_guard".into(),
