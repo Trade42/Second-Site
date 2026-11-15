@@ -8,7 +8,7 @@ From this work's build and review reports; code read for names only. **Nothing h
 - Our backend builds each call's instructions: client, property facts, missing information, approved questions, rules.
 - The server decides: rules read every line the other side says; commitments and sensitive requests hold the call and ask the client; the model's approval tools always get "not approved".
 - A call needs an APPROVED `PLACE_CALL` approval, checked in code (exact payload, unexpired, single use).
-- Off by default: every switch in section 3 is off or empty in `.env.example`.
+- Off by default: every switch in section 3 is off, empty, `fixture` or local in `.env.example`.
 
 **Ten minutes (mock):** a fixture carrier and a fixture bridge, no network.
 
@@ -19,7 +19,7 @@ VOICE_WIRE_PRINT=1 cargo test -p ss-server --test voice_call \
   the_server_decides_on_a_simulated_bridged_call::memory -- --nocapture
 ```
 
-The second prints the `session.update` and the opening line. Both were run for this note (09:12Z, in memory: 24 and 12 passed; PostgreSQL variants need `TEST_DATABASE_URL`). Over HTTP with the fixture provider (`POST …/calls/{call_id}/simulate`) the bridge is off: the older scripted call runs, and the client is told the tour and rent limits were not used.
+The second prints the `session.update` and the opening line. Both were run for this note and again by its reviewer (in memory: 24 and 12 passed; `voice_purposes` 19 with the `instruct` change of section 7; PostgreSQL variants need `TEST_DATABASE_URL`). Over HTTP with the fixture provider (`POST …/calls/{call_id}/simulate`) the bridge is off: the older scripted call runs, and the client is told the tour and rent limits were not used.
 
 **A call with a tour and rent limits** (synthetic), `POST /api/v1/projects/{project_id}/outreach`:
 
@@ -28,10 +28,10 @@ The second prints the `session.update` and the opening line. Both were run for t
  "recipient":{"role":"broker","name":"Dana Broker","phone":"+15555550100"},
  "questions":["Is there a loading dock?"],
  "purposes":{"tour":{"windows":[{"start":"2026-11-18T15:00:00-08:00","end":"2026-11-18T17:00:00-08:00"}],"duration_minutes":30},
-  "negotiation":{"target_monthly_rent_cents":400000,"max_monthly_rent_cents":451700,"max_counters":3}}}
+  "negotiation":{"target_monthly_rent_cents":400000,"max_monthly_rent_cents":451700,"max_counters":1}}}
 ```
 
-Then `POST /api/v1/approvals/{approval_id}/decision` with `{"decision":"APPROVED","action_payload_hash":"<returned>"}`, then `POST /api/v1/projects/{project_id}/calls` with `{"communication_id":"<returned>"}`.
+Then `POST /api/v1/approvals/{approval_id}/decision` with `{"decision":"APPROVED","action_payload_hash":"<returned>"}`, then `POST /api/v1/projects/{project_id}/calls` with `{"communication_id":"<returned>"}`. Fixture mode (the default) dials nothing; **live mode dials `recipient.phone`**. Above 1 counter the maximum can be heard (section 6).
 
 ## 2. The map
 
@@ -50,7 +50,7 @@ Then `POST /api/v1/approvals/{approval_id}/decision` with `{"decision":"APPROVED
 | `S/http/mod.rs` `public_path_guard` | what a tunnelled request may reach | `public_guard` 18 | A |
 | `apps/api/app/agents/voice_session.py` | browser "talk to the assistant" | pytest `test_voice_session.py` 21 | AF |
 
-No report shows a whole `ss-server` run after the glue (before it: 560 passed in memory), a clean whole PostgreSQL run, or the e2e script.
+No report shows a whole `ss-server` run after the glue (before it, the guard writer's: 560 in memory), a clean whole PostgreSQL run, or the e2e script.
 
 **The call's life** (functions in `call_orchestration.rs` unless named):
 
@@ -58,7 +58,7 @@ No report shows a whole `ss-server` run after the glue (before it: 560 passed in
 2. Start: `start` → `require_approved`, `intro_recording::active_for_call`, dial, `begin_purposes` (`call_purposes::approve`).
 3. Answer: `answered_bridged`. With an ACTIVE recording only `play` runs; `bridged_event` waits for `call.playback.ended` of our URL with `status: completed`, else `fail_politely` (apology, hangup). No recording: straight on. A machine: hung up without a word.
 4. Bridge: `begin_bridge` builds `voice_session_config`, registers the bridge with a random token, runs `response_agent::start` and `start_streaming`; Telnyx connects to `GET /api/v1/voice/stream/{bridge_id}?token=…` (`voice_bridge::accept_carrier`). The opening line ("Hello, this is an AI assistant, an automated system, calling on behalf of {client} about {property}.") is spoken verbatim first.
-5. Each line they say: `bridge_input` → `on_bridge_utterance` → `response_agent::step`; findings → `record_finding`; exact lines → `apply_say`. Only redacted text is stored.
+5. Each line they say: `bridge_input` → `on_bridge_utterance` → `response_agent::step`; findings → `record_finding`; exact lines → `apply_say`. Only redacted text is stored (misses: section 6).
 6. Tools: `on_bridge_tool`. `request_owner_approval` and `escalate_to_owner` get `not_approved_output` / `owner_asked_output` and raise `request_handoff`. `check_tour_time` and `evaluate_rent` → `on_purpose_tool` → `call_purposes::dispatch`; `notify_outcomes` tells the client.
 7. Hold: `request_handoff` pauses the bridge; the client answers (`POST …/handoffs/{id}/response`) → `respond` (conference, dial the client) → `owner_leg_event`: `owner_joined_line` only on HUMAN_JOINED; when the client hangs up, AI_RESUMED and `agent_resume`.
 8. End: `call.hangup` → `advance` → `VoiceCalls::close` → `finalize` → `voice_summary` (`call_summary`, `call_purposes::owner_lines`) → `notify_owner`.
@@ -75,7 +75,7 @@ No report shows a whole `ss-server` run after the glue (before it: 560 passed in
 | `VOICE_BRIDGE_ENABLED=true`, `XAI_API_KEY` | with live mode, puts Grok on the call |
 | `PUBLIC_PATH_GUARD=true` | the tunnel guard below |
 
-No dial reaches Telnyx without live mode, the key, `ALLOW_LIVE_OUTBOUND_CALLS` and an APPROVED approval. **The bridge switches do not gate the dial**: with them off and the others on, the older flow (fixed questions by Telnyx speech) would place a real call. Each switch alone at run time: read, not run.
+No dial reaches Telnyx without `VOICE_PROVIDER_MODE=live`, `TELNYX_API_KEY`, `ALLOW_LIVE_OUTBOUND_CALLS=true` and an APPROVED approval. Nothing checks the other rows before the dial (read): with `TELNYX_PUBLIC_KEY` or `PUBLIC_BASE_URL` wrong, a phone can ring while the server gets no event. **The bridge switches do not gate the dial**: with them off and the others on, the older flow (fixed questions by Telnyx speech) would place a real call. Each switch alone at run time: read, not run.
 
 **Guard and tunnel** (mock; never met a real tunnel). With the guard on, a request not sent to a loopback host name, or carrying a forwarding header, gets 404, except `POST /webhooks/telnyx`, `GET /api/v1/voice/stream/{id}`, `GET`/`HEAD /api/v1/media/public/{token}`, `GET /record`, `POST /record/check`, `POST /record/upload`. Before Telnyx gets the address, both must print `404`:
 
@@ -84,18 +84,18 @@ curl -s -o /dev/null -w '%{http_code}\n' https://<tunnel>/health
 curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<tunnel>/api/v1/dev/token
 ```
 
-Also: `AUTH_SECRET` must not be a published placeholder (guard F1); no `--http-host-header localhost`; bind to 127.0.0.1.
+Also: `AUTH_SECRET` must not be a published placeholder (guard F1: a stranger could sign media and recording links); no `--http-host-header localhost`; bind to 127.0.0.1.
 
 ## 4. Never run against reality
 
-- **xAI from Rust:** the `wss:` TLS connection (only local `ws://` ran); `instruct` (the system item, its `input_text` type, its client id, its delete); `pcmu` audio regrouped to 160 bytes.
+- **xAI from Rust:** the `wss:` TLS connection (only local `ws://` ran); `instruct` (its `input_text` type, client id and delete); `pcmu` audio regrouped to 160 bytes.
 - **xAI from anywhere:** a function tool call and its output (and `response_id` on it); the phone instructions; `max_duration`.
-- **Telnyx:** a dial; `streaming_start`'s answer; the media stream (`media.track`, `chunk` order, `clear` and `mark`, pacing, which leg `opposite` is); machine detection; playback events and their `status`; a WAV played with no `audio_type`; a webhook signed with a real key; the conference; carrier speech while the stream is paused.
+- **Telnyx:** a dial; `streaming_start`'s answer; `streaming.failed`'s payload; the media stream (`media.track`, `chunk` order, `clear` and `mark`, pacing, which leg `opposite` is); machine detection; playback events and their `status`; a WAV played with no `audio_type`; a webhook signed with a real key; the conference; carrier speech while the stream is paused.
 - **A phone**: none has rung. **A microphone, a browser**: the recording page has recorded nothing. **A tunnel, a process restart, real speech.**
 
 ## 5. The first real call: what to watch
 
-Before: the two curls; no `log`-crate backend at trace level (bridge V8: it would print the xAI key).
+Before: the two curls; no `log`-crate backend at trace level (bridge V8, R5: it would print the xAI key and each frame).
 
 1. `call.answered` passes the signature (request log `POST /webhooks/telnyx`; 400 = key).
 2. A person taken for a machine is hung up on silently (transcript "[answering machine detected; …]"), even with the client on the line.
@@ -112,17 +112,18 @@ Before: the two curls; no `log`-crate backend at trace level (bridge V8: it woul
 
 ## 6. Known limits and owed findings
 
-- **Response Agent** (round-3 review): N1 "it ends in 2019" and N2 "… each" let a real identifier through, stored whole; N3 spoken prices in pairs and N4 (MAJOR) three bare amounts hold a harmless call as sensitive; N5 "Yeah, …" answers an open yes/no question as yes; N6 a bare "Yes." closes a value question with a null. Round-1 F11: a manager's words are stored `OWNER_REPORTED`.
-- **Purposes** (round-2 review F1; glue review R4): the last counter is the maximum itself, so holding out finds it when 2 or more counters are approved: **approve 0 or 1 counter if the maximum must stay private**. Probing continues across calls. F2: the outcome names their lowest number, not their latest.
-- **Bridge**: round-2 review R3 (MAJOR, owed before the first real call): a transcript handler stuck on an early line is never noticed, so the model speaks without the server's decisions; R6 if the apology's transaction fails the call stays open, silent. Round 1: V8 above; V9 no `input_audio_buffer.clear` on pause, idle timer unbounded while paused; no reconnection. Glue review R2: a tool-call id already answered is not refused.
-- **Wiring** (its review): R6 the recording's timeout task is untested; R7 no sweep if `call.hangup` never arrives; resume after the client leaves is unconditional; nothing can approve a commitment on a call; `play` sends no `audio_type: "wav"`. Glue review: R3 with `purposes` the Python service computes another approval hash; R5 the notice "{contact} said $X" is the model's tool argument, unchecked; R6 questions without purposes are outside the digest. Glue writer: `openapi.ts` not regenerated.
+- **Response Agent** (round-3 review): N1 "it ends in 2019" and N2 "… each" let a real identifier through, stored whole; N3 spoken prices in pairs and N4 (MAJOR) three bare amounts hold a harmless call as sensitive; N5 "Yeah, …" answers an open yes/no question as yes; N6 a bare "Yes." closes a value question with a null. Round-1 F11: a manager's words are stored `OWNER_REPORTED`. Its section 4: also stored whole (no keyword near): an identifier said in words, one under 9 digits, a birth date, a driver's licence. Fit for a supervised call, not unattended volume.
+- **Purposes** (round-2 review F1; glue review R4): the last counter is the maximum itself, so holding out finds it when 2 or more counters are approved: **approve 0 or 1 counter if the maximum must stay private**. Probing continues across calls. F2: the outcome names their lowest number, not their latest. F4: the client's lines show the last 8 events. Round 1 R10: a window's offset is not checked against its date.
+- **Bridge**: round-2 review R3 (MAJOR, owed before the first real call): a transcript handler stuck on an early line is never noticed, so the model speaks without the server's decisions; R6 if the apology's transaction fails the call stays open, silent; R4 its tests can time out (5 of about 300 set-ups). Round 1: V8 above; V9 no `input_audio_buffer.clear` on pause, idle timer unbounded while paused; no reconnection. Glue review R2: a tool-call id already answered is not refused.
+- **Wiring** (its review): R6 the recording's timeout task is untested; R7 no sweep if `call.hangup` never arrives; resume after the client leaves is unconditional; nothing can approve a commitment on a call; `play` sends no `audio_type: "wav"`; no log captured through a whole call. Glue review: R3 with `purposes` the Python service computes another approval hash; R5 the notice "{contact} said $X" is the model's tool argument, unchecked; R6 questions without purposes are outside the digest; R7 an unknown key inside `purposes` is ignored (Python: 422).
 - **Process-local state** (wiring, glue): the stashed request, limits and Response Agent state live in memory. A restart before start: `APPROVAL_PAYLOAD_MISMATCH`, ask again; during a call: tools answer `not_approved`. Read, not run.
 - **Recorded introduction** (review): R2 a revoked recording stops playing only because its file is deleted; R3 trailing bytes accepted; R4 a deleted user's audio stays. Log review M1: odd forms of a valid media token that 404 are logged whole.
-- **Guard** (review): F1 with a placeholder `AUTH_SECRET` a stranger can sign media and recording links; F2 a refused path is logged whole, no rate limit.
+- **Summary** (review): R5 a numeric finding value of 9+ digits is not redacted in the JSON; R7 the client's text can drop a short "No".
+- **Guard** (review): F1 in section 3; F2 a refused path is logged whole, no rate limit.
 - **Voice session route** (review): F1 at `LOG_LEVEL=DEBUG` the provider's response headers are logged; F2 the browser sends `session.update` itself and can add tools.
 - **Disclosure text**: the contract default says "on the owner's behalf"; to a landlord "the owner" is the property's (wiring review R4).
 
-**Reports that disagree** (writer / other). Recording: no route path carries a token / its review R1: the media link was logged (fixed since). Recording: `status` is indexed / review R4: not. Stream commands: ignored webhooks tested in INTRO and ACTIVE / review F1: DIALING and INTRO. Response Agent round 2: the null finding "is never emitted" / review R3: false. Recording: a live call needs a recording / wiring, by the owner's 07:16Z word: optional. Glue: purposes R7 and R8 "still open" / purposes round 2: done.
+**Reports that disagree** (writer / review). Recording: a live call needs a recording / wiring, by the owner's 07:16Z word: optional. Stream commands: ignored webhooks tested in INTRO and ACTIVE / F1: DIALING and INTRO. Glue: purposes R7 and R8 "still open" / purposes round 2: done.
 
 ## 7. Not built
 
@@ -130,8 +131,7 @@ Before: the two curls; no `log`-crate backend at trace level (bridge V8: it woul
 - S8: the onboarding interview (the teammate's `inbound.py`).
 - The call card in the page: no voice report shows it; the page sends no `purposes`.
 - A voicemail policy: no message is left; the owner's to decide.
-- `Say::Instruct` on the wire: the glue report says not done (its review: "still sends nothing"); `BridgeHandle::instruct` exists. To wire: `BridgeControl::instruct`, its `BridgeHandle` and `FixtureControl` impls, one arm in `apply_say`.
-- Reconnection; the client's say before the assistant resumes.
+- `Say::Instruct` on the wire: not wired in the voice commit (glue report; its review: "still sends nothing"); `BridgeHandle::instruct` exists. If a later commit wires it: its tests are in `voice_purposes`; rely on it only with its review.
 
 ## 8. The owner's rules, quoted
 
