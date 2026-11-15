@@ -88,7 +88,11 @@ pub trait MatterportProvider: Send + Sync {
     }
     /// The signed media links of one model, or `None` when the API does not know the model or
     /// this token cannot see it (`not.found`). `fresh` skips the short-lived link cache.
-    fn model_media(&self, _asset_id: &str, _fresh: bool) -> Result<Option<ModelMedia>, ProviderError> {
+    fn model_media(
+        &self,
+        _asset_id: &str,
+        _fresh: bool,
+    ) -> Result<Option<ModelMedia>, ProviderError> {
         Err(media_off())
     }
     /// One signed link's bytes, fetched with **no** credentials.
@@ -177,8 +181,10 @@ fn url_of<'a>(v: &'a Value, field: &str) -> Option<&'a str> {
         .filter(|u| !u.is_empty())
 }
 
-fn list<'a>(v: Option<&'a Value>) -> &'a [Value] {
-    v.and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[])
+fn list(v: Option<&Value>) -> &[Value] {
+    v.and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
 }
 
 /// [`ModelMedia`] from the `model` object of [`MEDIA_QUERY`]'s answer.
@@ -204,7 +210,12 @@ pub fn media_from_model(model: &Map<String, Value>) -> ModelMedia {
     let photo_urls = list(assets.and_then(|a| a.get("photos")))
         .iter()
         .filter(|p| available(p))
-        .filter(|p| matches!(p.get("type").and_then(Value::as_str), None | Some("photo2D")))
+        .filter(|p| {
+            matches!(
+                p.get("type").and_then(Value::as_str),
+                None | Some("photo2D")
+            )
+        })
         .filter_map(|p| url_of(p, "resizeUrl"))
         .map(str::to_owned)
         .collect();
@@ -219,9 +230,9 @@ pub fn media_from_model(model: &Map<String, Value>) -> ModelMedia {
         })
         .filter_map(|f| {
             let url = url_of(f, "url")?.to_owned();
-            let origin = f.get("origin").and_then(|o| {
-                Some((o.get("x")?.as_f64()?, o.get("y")?.as_f64()?))
-            });
+            let origin = f
+                .get("origin")
+                .and_then(|o| Some((o.get("x")?.as_f64()?, o.get("y")?.as_f64()?)));
             Some(FloorplanLink {
                 url,
                 resolution_px_per_m: f.get("resolution").and_then(Value::as_f64),
@@ -234,11 +245,7 @@ pub fn media_from_model(model: &Map<String, Value>) -> ModelMedia {
             })
         })
         .collect();
-    let floorplan = plans
-        .iter()
-        .find(|p| p.alpha)
-        .or(plans.first())
-        .cloned();
+    let floorplan = plans.iter().find(|p| p.alpha).or(plans.first()).cloned();
     ModelMedia {
         name,
         mesh_url,
@@ -550,7 +557,11 @@ impl MatterportProvider for LiveMatterportProvider {
     }
 
     /// One [`MEDIA_QUERY`]; a `not.found` of the model is `None` (cached like an answer).
-    fn model_media(&self, asset_id: &str, fresh: bool) -> Result<Option<ModelMedia>, ProviderError> {
+    fn model_media(
+        &self,
+        asset_id: &str,
+        fresh: bool,
+    ) -> Result<Option<ModelMedia>, ProviderError> {
         let id = safe_id(asset_id)?;
         if !fresh {
             let cache = self.media_cache.lock().unwrap_or_else(|e| e.into_inner());

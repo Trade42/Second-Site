@@ -265,7 +265,10 @@ fn links(mp: &dyn MatterportProvider, id: &str, fresh: bool) -> AppResult<ModelM
 
 /// A signed link that stopped working before it was fetched answers 401/403/404 from the CDN.
 fn link_expired(e: &ProviderError) -> bool {
-    matches!(e.kind, ProviderErrorKind::Auth | ProviderErrorKind::NotFound)
+    matches!(
+        e.kind,
+        ProviderErrorKind::Auth | ProviderErrorKind::NotFound
+    )
 }
 
 /// Fetch one item (blocking): the cached links, the download, and on an expired link one fresh
@@ -354,10 +357,7 @@ async fn serve_item(app: AppState, params: PathParams, item: Item) -> AppResult<
             .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
             .and_then(|v| v["photos"]["count"].as_u64());
         if count.is_some_and(|c| n as u64 > c) {
-            return Err(media_not_found(format!(
-                "this scan has no {}",
-                item.what()
-            )));
+            return Err(media_not_found(format!("this scan has no {}", item.what())));
         }
     }
     let p = path.clone();
