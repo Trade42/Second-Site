@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Site Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --muted: #6e6e73;
+    --bg: #fff;
+    --radius: 12px;
+    --lift: 0 1px 2px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.08);
+    --lift-hi: 0 4px 10px rgba(0,0,0,.18);
+    --float: 0 8px 28px rgba(0,0,0,.16);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); }
+  body { font: 15px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  #map { position: fixed; inset: 0; }
+
+  /* Price pill. The marker root is positioned by MapLibre; the button inside is free to lift. */
+  .pill {
+    display: block; border: 0; margin: 0; cursor: pointer;
+    padding: 5px 9px; border-radius: 999px;
+    background: var(--bg); color: var(--ink);
+    font: inherit; font-weight: 600; font-size: 13px; line-height: 1; white-space: nowrap;
+    box-shadow: var(--lift);
+    transition: transform .14s ease, box-shadow .14s ease;
+  }
+  .pill.hot { transform: translateY(-3px) scale(1.06); box-shadow: var(--lift-hi); }
+  .pill[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .pill:focus-visible { outline: 2px solid #0a84ff; outline-offset: 2px; }
+
+  /* Floating card */
+  #card {
+    position: fixed; left: 50%; bottom: 36px; /* clears the attribution row */ transform: translateX(-50%);
+    width: min(420px, calc(100% - 24px));
+    display: flex; gap: 12px; padding: 10px;
+    background: var(--bg); border-radius: var(--radius); box-shadow: var(--float);
+  }
+  #card[hidden] { display: none; }
+  #card img { width: 112px; height: 84px; object-fit: cover; border-radius: 8px; flex: none; }
+  #card div { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  #card .rent { font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  #card .rent small { font-size: 13px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  #card .addr { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #card .meta { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Basemap toggle (only rendered when an aerial tile URL is configured) */
+  #basemap { position: fixed; top: 12px; right: 12px; display: flex; padding: 2px; border-radius: 9px; background: rgba(255,255,255,.92); box-shadow: var(--lift); }
+  #basemap button { border: 0; background: none; font: inherit; font-weight: 600; font-size: 13px; line-height: 1; padding: 7px 11px; border-radius: 7px; color: var(--muted); cursor: pointer; }
+  #basemap button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+
+  .maplibregl-ctrl-attrib { font-size: 11px; }
+  .maplibregl-ctrl-attrib.maplibregl-compact { box-shadow: none; }
+</style>
+</head>
+<body>
+<div id="map" role="region" aria-label="Candidate spaces map"></div>
+<article id="card" hidden aria-live="polite"></article>
+
+<script>
+// Basemap: OpenFreeMap "positron" (keyless vector style, OSM data).
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron';
+// Aerial: set to a same-origin proxy template once the API serves Vexcel ortho tiles, e.g.
+// '/api/v1/media/vexcel/tile/{z}/{x}/{y}.jpg'. The Vexcel key must stay on the server. null = no toggle.
+const AERIAL_TILES = null;
+
+// Used only until mockups/assets/places.json exists. No images: never stock photos.
+const FALLBACK = [
+  { slug: 'mateo-109', address: '915 Mateo St', suite: 'Suite 109', building_name: null, lat: 34.0318643, lon: -118.2326104,
+    listing: { property_type: 'OfficeRetail', sqft: 1128, asking_rent_monthly: 2210 }, images: [] },
+  { slug: 'sixth-110b', address: '630 W 6th St', suite: 'Suite 110B', building_name: null, lat: 34.0490675, lon: -118.2563047,
+    listing: { property_type: 'Retail', sqft: 1310, asking_rent_monthly: 4047 }, images: [] },
+  { slug: 'beverly-720', address: '1125 S Beverly Dr', suite: 'Suite 720', building_name: 'Beverly Hills Medical Tower', lat: 34.056853, lon: -118.396799,
+    listing: { property_type: 'OfficeMedical', sqft: 1490, asking_rent_monthly: 5215 }, images: [] },
+];
+
+const fmtShort = n => n >= 10000 ? `$${Math.round(n / 1000)}k`
+  : n >= 1000 ? `$${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : `$${n}`;
+const fmtSqft = n => n == null ? null : `${Math.round(n).toLocaleString('en-US')} SF`;
+// places.json uses asking_rent_monthly_usd (float); the original brief said asking_rent_monthly. Accept either.
+const rentOf = p => { const r = p.listing?.asking_rent_monthly_usd ?? p.listing?.asking_rent_monthly; return r == null ? null : Math.round(r); };
+// Unknown rent stays unknown: the pill falls back to size instead of inventing a price.
+const pillText = p => rentOf(p) != null ? `${fmtShort(rentOf(p))}/mo` : (fmtSqft(p.listing?.sqft) ?? 'Rent unknown');
+const heroOf = p => (p.images || []).find(i => i.source === 'costar' && i.kind === 'photo') || (p.images || [])[0] || null;
+// places.json: address is the full one-liner, street_address the short form, suite a bare "109".
+const streetOf = p => p.street_address || p.address;
+const suiteOf = p => p.suite ? (/^\d/.test(p.suite) ? `Suite ${p.suite}` : p.suite) : null;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const map = new maplibregl.Map({
+  container: 'map', style: STYLE_URL, center: [-118.3, 34.05], zoom: 11,
+  attributionControl: { compact: true }, dragRotate: false, pitchWithRotate: false,
+});
+map.touchZoomRotate.disableRotation();
+
+let places = [], markers = new Map(), selected = null, hovered = null;
+const selectSubs = new Set(), highlightSubs = new Set();
+const card = document.getElementById('card');
+
+function paint() {
+  places.forEach((p, i) => {
+    const m = markers.get(p.slug); if (!m) return;
+    const on = p.slug === selected, hot = p.slug === hovered;
+    m.btn.setAttribute('aria-pressed', on);
+    m.btn.classList.toggle('hot', hot && !on);
+    // Stacking encodes rank: when pills overlap, the better-ranked one sits on top.
+    m.marker.getElement().style.zIndex = on ? 1000 : hot ? 999 : places.length - i;
+  });
+}
+
+function renderCard() {
+  const i = places.findIndex(p => p.slug === selected);
+  if (i < 0) { card.hidden = true; card.innerHTML = ''; return; }
+  const p = places[i], hero = heroOf(p), rent = rentOf(p);
+  const meta = [`#${i + 1} of ${places.length}`, fmtSqft(p.listing?.sqft), p.listing?.property_type].filter(Boolean).join(' · ');
+  const sub = [suiteOf(p), p.building_name].filter(Boolean).join(', ');
+  card.innerHTML = `
+    ${hero ? `<img src="../assets/${esc(hero.file)}" alt="${esc(hero.caption || streetOf(p))}">` : ''}
+    <div>
+      <span class="rent">${rent != null ? `$${rent.toLocaleString('en-US')}/mo <small>asking</small>` : 'Rent not listed'}</span>
+      <span class="addr">${esc(streetOf(p))}</span>
+      ${sub ? `<span class="meta">${esc(sub)}</span>` : ''}
+      <span class="meta">${esc(meta)}</span>
+    </div>`;
+  card.hidden = false;
+}
+
+function select(slug, { fromMap = false } = {}) {
+  slug = places.some(p => p.slug === slug) ? slug : null;
+  if (slug === selected) return;
+  selected = slug;
+  paint(); renderCard();
+  const p = places.find(p => p.slug === slug);
+  // Pan only if the pin is hidden under the card or off-screen.
+  if (p && !fromMap) {
+    const pt = map.project([p.lon, p.lat]), c = map.getContainer();
+    if (pt.x < 40 || pt.y < 40 || pt.x > c.clientWidth - 40 || pt.y > c.clientHeight - 140)
+      map.easeTo({ center: [p.lon, p.lat], padding: { bottom: 120 }, duration: 400 });
+  }
+  selectSubs.forEach(cb => cb(slug, p || null));
+}
+
+function highlight(slug, { fromMap = false } = {}) {
+  if (slug === hovered) return;
+  hovered = slug ?? null;
+  paint();
+  if (fromMap) highlightSubs.forEach(cb => cb(hovered));
+}
+
+function fit() {
+  if (!places.length) return;
+  // Pills are centred on the point, so pad by half a pill (~40px wide, ~12px tall) plus breathing room.
+  const c = map.getContainer(), pad = Math.round(Math.min(48, c.clientWidth * .08, c.clientHeight * .08));
+  const b = new maplibregl.LngLatBounds();
+  places.forEach(p => b.extend([p.lon, p.lat]));
+  map.fitBounds(b, { padding: { top: pad + 16, left: pad + 44, right: pad + 44, bottom: pad + 16 }, maxZoom: 15, duration: 0 });
+}
+
+function setPlaces(arr) {
+  markers.forEach(m => m.marker.remove()); markers.clear();
+  places = (arr || []).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+  places.forEach(p => {
+    const el = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.className = 'pill'; btn.type = 'button'; btn.textContent = pillText(p);
+    btn.setAttribute('aria-label', `${streetOf(p)}${suiteOf(p) ? ', ' + suiteOf(p) : ''}: ${pillText(p)}`);
+    btn.addEventListener('click', () => select(p.slug, { fromMap: true }));
+    btn.addEventListener('mouseenter', () => highlight(p.slug, { fromMap: true }));
+    btn.addEventListener('mouseleave', () => highlight(null, { fromMap: true }));
+    btn.addEventListener('focus', () => highlight(p.slug, { fromMap: true }));
+    btn.addEventListener('blur', () => highlight(null, { fromMap: true }));
+    el.appendChild(btn);
+    markers.set(p.slug, { btn, marker: new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map) });
+  });
+  if (!places.some(p => p.slug === hovered)) hovered = null;
+  paint(); renderCard(); fit();
+  if (selected && !places.some(p => p.slug === selected)) select(null, { fromMap: true }); // tell the list too
+}
+
+map.on('click', e => { if (!e.originalEvent.target.closest('.pill')) select(null, { fromMap: true }); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') select(null, { fromMap: true }); });
+
+window.ssMap = {
+  select: slug => select(slug ?? null),
+  highlight: slug => highlight(slug ?? null),
+  setPlaces,
+  onSelect(cb) { selectSubs.add(cb); return () => selectSubs.delete(cb); },
+  onHighlight(cb) { highlightSubs.add(cb); return () => highlightSubs.delete(cb); },
+  get selected() { return selected; },
+  map,
+};
+
+if (AERIAL_TILES) map.on('load', () => {
+  const firstSymbol = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+  map.addSource('aerial', { type: 'raster', tiles: [AERIAL_TILES], tileSize: 256, attribution: '© Vexcel Imaging' });
+  map.addLayer({ id: 'aerial', type: 'raster', source: 'aerial', layout: { visibility: 'none' } }, firstSymbol);
+  const bar = document.createElement('div'); bar.id = 'basemap';
+  bar.innerHTML = '<button type="button" aria-pressed="true">Map</button><button type="button" aria-pressed="false">Aerial</button>';
+  bar.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    bar.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    map.setLayoutProperty('aerial', 'visibility', b.textContent === 'Aerial' ? 'visible' : 'none');
+  });
+  document.body.appendChild(bar);
+});
+
+fetch('../assets/places.json')
+  .then(r => r.ok ? r.json() : Promise.reject(r.status))
+  .catch(() => FALLBACK)
+  .then(setPlaces);
+</script>
+</body>
+</html>

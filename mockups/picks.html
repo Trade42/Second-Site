@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Image Picks</title>
+<style>
+  :root { --bg:#fff; --ink:#111; --mute:#8a8a8e; --fill:#f2f2f7; }
+  * { box-sizing:border-box; margin:0 }
+  body { background:var(--bg); color:var(--ink); font:15px/1.4 -apple-system,"SF Pro Text",Inter,system-ui,sans-serif; padding:32px 16px; max-width:1240px; margin:auto }
+  section { margin-bottom:56px }
+  h2 { font-size:22px; font-weight:600; letter-spacing:-.01em }
+  p { color:var(--mute); margin:4px 0 16px }
+  .grid { display:grid; grid-template-columns:2fr 1fr 1fr; grid-auto-rows:180px; gap:8px }
+  figure { position:relative; border-radius:14px; overflow:hidden; background:var(--fill) }
+  figure:first-child { grid-row:span 2 }
+  img { width:100%; height:100%; object-fit:cover; display:block }
+  figcaption { position:absolute; left:10px; bottom:10px; font-size:12px; color:#fff; background:rgba(0,0,0,.45); padding:3px 8px; border-radius:8px }
+  @media (max-width:640px){ .grid{ grid-template-columns:1fr 1fr; grid-auto-rows:120px } figure:first-child{ grid-column:span 2 } }
+</style>
+</head>
+<body>
+<section>
+  <h2>915 Mateo St · Suite 109</h2>
+  <p>Arts District · 1,128 SF · $2.2k/mo asking · one open room, one bathroom</p>
+  <div class="grid">
+    <figure><img src="assets/mateo-109/matterport-03.jpg"><figcaption>Matterport · interior</figcaption></figure>
+    <figure><img src="assets/mateo-109/matterport-dollhouse.jpg"><figcaption>Matterport · dollhouse</figcaption></figure>
+    <figure><img src="assets/mateo-109/costar-01.jpg"><figcaption>CoStar · building</figcaption></figure>
+    <figure><img src="assets/mateo-109/vexcel-oblique-s.jpg"><figcaption>Vexcel · oblique</figcaption></figure>
+    <figure><img src="assets/mateo-109/matterport-floorplan-08.png" style="object-fit:contain;padding:12px"><figcaption>Matterport · plan</figcaption></figure>
+  </div>
+</section>
+<section>
+  <h2>630 W 6th St · Suite 110B</h2>
+  <p>Downtown · 1,310 SF · $4.0k/mo asking · former restaurant, $75k key money in listing notes</p>
+  <div class="grid">
+    <figure><img src="assets/sixth-110b/matterport-03.jpg"><figcaption>Matterport · interior</figcaption></figure>
+    <figure><img src="assets/sixth-110b/matterport-dollhouse.jpg"><figcaption>Matterport · dollhouse</figcaption></figure>
+    <figure><img src="assets/sixth-110b/costar-01.jpg"><figcaption>CoStar · building</figcaption></figure>
+    <figure><img src="assets/sixth-110b/vexcel-oblique-n.jpg"><figcaption>Vexcel · oblique</figcaption></figure>
+    <figure><img src="assets/sixth-110b/matterport-floorplan-08.png" style="object-fit:contain;padding:12px"><figcaption>Matterport · plan</figcaption></figure>
+  </div>
+</section>
+<section>
+  <h2>1125 S Beverly Dr · Suite 720</h2>
+  <p>Beverly Hills Medical Tower · 1,490 SF · $5.2k/mo asking · separate rooms, sink cabinets, reception</p>
+  <div class="grid">
+    <figure><img src="assets/beverly-720/matterport-01.jpg"><figcaption>Matterport · reception</figcaption></figure>
+    <figure><img src="assets/beverly-720/matterport-dollhouse.jpg"><figcaption>Matterport · dollhouse</figcaption></figure>
+    <figure><img src="assets/beverly-720/costar-01.jpg"><figcaption>CoStar · building</figcaption></figure>
+    <figure><img src="assets/beverly-720/vexcel-oblique-e.jpg"><figcaption>Vexcel · oblique</figcaption></figure>
+    <figure><img src="assets/beverly-720/matterport-floorplan-08.png" style="object-fit:contain;padding:12px"><figcaption>Matterport · plan</figcaption></figure>
+  </div>
+</section>
+</body>
+</html>

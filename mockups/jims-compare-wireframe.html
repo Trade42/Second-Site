@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<title>Compare spaces / jims peanut butter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="jims-compare.css">
+</head>
+<body>
+<main class="app">
+<header class="app-header"><a class="brand" href="jims-first-mockup.html">jims peanut butter</a><nav aria-label="Workspace"><a href="jims-first-mockup.html">Search</a><a href="jims-compare-wireframe.html" aria-current="page">Compare spaces</a><a id="furnish-link" href="jims-furnish-wireframe.html?property=mateo-109">Furnish</a></nav></header>
+<aside class="sidebar" aria-label="Decision findings and conversation">
+<section class="analysis" aria-labelledby="analysis-heading">
+<div class="analysis-heading"><span class="eyebrow">BEFORE YOU COMMIT</span><h1 id="analysis-heading">The rent is only<br>part of the story.</h1></div>
+<div class="decision-status"><span class="status-mark" aria-hidden="true"></span><div><strong>Opening cost still unknown</strong><p>3 checks could change the build-out budget.</p></div></div>
+<div class="risk-list">
+<details class="risk" data-risk="plumbing" open><summary><span class="risk-number">01</span><span><strong>Can the plumbing serve 3 rooms?</strong><small>Potential construction cost</small></span><span class="expand-label">Details</span></summary><div class="risk-body"><p>New water and drain lines may be needed. Capacity and pipe routes have not been verified.</p><div class="next-check"><span>Next check</span>Confirm existing connections with the manager.</div></div></details>
+<details class="risk" data-risk="power"><summary><span class="risk-number">02</span><span><strong>Will your equipment need more power?</strong><small>Potential electrical upgrade</small></span><span class="expand-label">Details</span></summary><div class="risk-body"><p>Compare your equipment loads with current available service. The listing and scan alone don’t establish spare capacity.</p><div class="next-check"><span>Next check</span>Get current panel and service information.</div></div></details>
+<details class="risk" data-risk="layout"><summary><span class="risk-number">03</span><span><strong>Do 3 usable treatment rooms fit?</strong><small>Capacity and construction trade-off</small></span><span class="expand-label">Details</span></summary><div class="risk-body"><p>Room sizes, equipment clearance, and walkways need a measured layout test before counting on three rooms.</p><div class="next-check"><span>Next check</span>Validate a layout against measured geometry.</div></div></details>
+</div>
+<p class="evidence-note">Example checks for a facial studio. These are unresolved questions, not verified defects.</p>
+</section>
+<section class="chat" aria-labelledby="chat-heading">
+<div class="chat-heading"><h2 id="chat-heading">Talk through the decision</h2><span>About this space</span></div>
+<div class="messages" role="log" aria-live="polite"><div class="message user">Why might the cheaper space cost more to open?</div><div class="message assistant" id="initial-insight">Mateo has the lowest listed rent. Plumbing, electrical work, and lease extras are still unpriced, so we can’t call it the cheapest to open.</div></div>
+<button class="question-shortcut" type="button" id="prepare-questions">Prepare questions for the manager</button>
+<form class="composer"><label class="sr-only" for="chat-input">Ask about the decision</label><input id="chat-input" placeholder="Ask about costs or a concern…" autocomplete="off"><button type="submit">Send</button></form>
+</section>
+</aside>
+<section class="workspace" aria-label="Compare finalists and inspect the property">
+<div class="finalists" aria-label="Finalist properties"></div>
+<section class="cost-comparison" aria-labelledby="comparison-heading">
+<div class="comparison-heading"><h2 id="comparison-heading">What changes between spaces</h2><span>CoStar listing snapshots</span></div>
+<div class="table-wrap"><table><thead class="sr-only"><tr><th>Cost factor</th><th>915 Mateo St</th><th>630 W 6th St</th><th>1125 S Beverly Dr</th></tr></thead><tbody><tr><th scope="row">Lease structure</th><td data-column="mateo-109">Modified gross</td><td data-column="sixth-110b">Triple net <span class="lease-warning">Extras unpriced</span></td><td data-column="beverly-720">Full service</td></tr><tr><th scope="row">Opening total</th><td data-column="mateo-109">Not estimated</td><td data-column="sixth-110b">Not estimated</td><td data-column="beverly-720">Not estimated</td></tr></tbody></table></div>
+</section>
+<section class="viewer" aria-label="Selected property inspection">
+<div class="viewer-header"><div><span class="eyebrow">INSPECTION FOCUS</span><h2 id="focus-title">Plumbing capacity</h2></div><button class="quiet-button" id="focus-view" type="button" aria-pressed="false">Expand view</button></div>
+<div class="scene"><img id="scene-image" src="assets/dollhouses/mateo-109.png" alt="Matterport dollhouse of 915 Mateo St"><div class="inspection-note"><span class="check-label">NEEDS VERIFICATION</span><p id="focus-note">The scan doesn’t establish water capacity or hidden pipe routes.</p></div></div>
+<div class="viewer-footer"><div class="view-tabs" role="tablist" aria-label="Property view"><button type="button" role="tab" data-view="dollhouse" aria-selected="true">Dollhouse</button><button type="button" role="tab" data-view="floor" aria-selected="false">Floor plan</button><button type="button" role="tab" data-view="aerial" aria-selected="false">Aerial</button><button type="button" role="tab" data-view="map" aria-selected="false">Map</button><button type="button" role="tab" data-view="photo" aria-selected="false">Photos</button></div><a id="preview-layout" href="jims-furnish-wireframe.html?property=mateo-109">Preview a layout</a></div>
+<span class="source" id="view-source">Matterport scan</span>
+</section>
+</section>
+</main>
+<script src="jims-compare.js"></script>
+</body></html>

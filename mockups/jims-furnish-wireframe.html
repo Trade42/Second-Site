@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content"><title>Furnish / jims peanut butter</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet"><link rel="stylesheet" href="jims-wireframes.css"><link rel="stylesheet" href="jims-furnish-wireframe.css"></head>
+<body data-screen="furnish"><main class="shell">
+<header><a class="brand" href="jims-first-mockup.html">jims peanut butter</a><nav aria-label="Workspace pages"><a href="jims-first-mockup.html">Search</a><a href="jims-compare-wireframe.html">Compare spaces</a><a href="jims-furnish-wireframe.html" aria-current="page">Furnish</a></nav></header>
+<div class="section-top"><div><h1 id="selected-address">915 Mateo St</h1><p class="small">Your chosen space</p></div><div class="budget"><div><p class="small">Furniture subtotal / example</p><strong id="parts-total">$0</strong></div><span class="small" id="placement-count">No items placed</span></div></div>
+<div class="workspace furnish">
+<section class="left" aria-label="Marketplace, parts list, and chat"><section class="market-pane">
+<div class="tabs" role="tablist" aria-label="Marketplace and parts"><button data-market="suggestions" role="tab" aria-selected="true">Suggestions</button><button data-market="parts" role="tab" aria-selected="false">Parts list <span id="part-count">0</span></button></div><div class="catalog-scroll">
+<div class="market-content" id="suggestions"><p class="small" style="margin:14px 0">Suggested for your space</p><div class="suggestions"><article class="suggestion"><div class="product-placeholder">Equipment</div><strong>Treatment bed</strong><small>Example selection; fit to verify</small></article><article class="suggestion"><div class="product-placeholder">Storage</div><strong>Room cabinet</strong><small>Example selection; fit to verify</small></article><article class="suggestion"><div class="product-placeholder">Reception</div><strong>Reception desk</strong><small>Example selection; fit to verify</small></article></div><p class="wire-note">Example furnishings. Supplier availability and fit unverified.</p></div>
+<div class="market-content" id="parts" hidden><p class="empty" id="parts-empty">Items appear here as the assistant places them.</p><table class="parts" hidden><thead><tr><th>Item / room</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody></tbody></table><p class="wire-note">Only placed items count toward the total. Example prices; delivery, tax, and installation excluded.</p></div>
+
+</div></section><section class="chat-pane"><h2>Design conversation</h2>
+<div class="conversation" aria-live="polite"><div class="bubble">Tell me how you want the studio to work and feel. I’ll suggest the furniture and place it for you.</div></div>
+<div class="quick"><button type="button" id="furnish-demo">Furnish three treatment rooms</button></div>
+<form class="composer"><input aria-label="Tell the assistant how to furnish the space" placeholder="Light oak, warm lighting, under $10k…"><button type="submit">Send</button></form></section>
+</section>
+<section class="viewer" aria-label="Space and proposed placement">
+<div class="tabs" role="tablist" aria-label="Design view"><button role="tab" aria-selected="true" data-view="dollhouse">Dollhouse</button><button role="tab" aria-selected="false" data-view="floor">Floor plan</button></div>
+<div class="scene"><img id="scene-image" src="assets/dollhouses/mateo-109.png" alt="Existing Matterport dollhouse used as the design reference"><div class="placed" hidden aria-label="Schematic proposed furniture placements"><span style="left:16%;top:34%">Treatment beds × 3</span><span style="left:52%;top:45%">Cabinets × 3</span><span style="left:60%;top:71%">Reception desk</span></div></div>
+<div class="view-caption"><p class="small" id="scene-state">Existing space / ready for your brief</p><button id="undo" type="button" hidden>Undo placement</button></div>
+<p class="wire-note canvas-note">Reference scan / placement is schematic</p>
+</section>
+</div></main><script src="jims-wireframes.js"></script></body></html>

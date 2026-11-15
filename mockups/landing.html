@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Site</title>
+<meta name="description" content="Second Site is an assistant that helps a studio owner choose a second location by what it really costs to open.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..500&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"}}</script>
+<style>
+  /* Clean white pages, a soft baby blue for everything she can act on, deep navy for the dark moments. */
+  :root {
+    /* Palette: 012A4A 013A63 01497C 014F86 2A6F97 2C7DA0 468FAF 61A5C2 89C2D9 A9D6E5 */
+    --bg: #FFFFFF; --soft: #F1F8FB; --soft-2: #E0F0F6; --line: #D3E7EF;
+    --ink: #012A4A; --ink-2: #1C3A52; --ink-3: #34506A;
+    --blue: #61A5C2; --blue-2: #89C2D9; --blue-3: #A9D6E5; --blue-ink: #01497C; --blue-w: #E8F4F8;
+    --navy: #012A4A; --navy-2: #013A63;
+    --sans: "Newsreader", Georgia, serif; --serif: "Fraunces", Georgia, serif; --mono: "Newsreader", Georgia, serif;
+    --ease: cubic-bezier(.2, .7, .2, 1); --pad: clamp(16px, 4vw, 64px);
+  }
+  * { box-sizing: border-box; margin: 0 }
+  html { scroll-behavior: smooth }
+  body { background: #E2F0F6; color: var(--ink); font: 17.5px/1.55 var(--sans); font-optical-sizing: auto; font-variant-numeric: lining-nums; -webkit-font-smoothing: antialiased; overflow-x: clip }
+  img { display: block; max-width: 100% }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer }
+  a { color: inherit }
+  .mono { font: 500 15px/1.4 var(--sans) }
+  .tag, .head .mono, .close-text .mono, .city-copy .mono { display: inline-flex; align-items: center; gap: 8px; width: max-content; padding: 6px 13px 6px 11px; border-radius: 999px; background: rgba(255, 255, 255, .72); border: 1px solid rgba(1, 73, 124, .12); color: var(--blue-ink); font: 500 15px/1.2 var(--sans); backdrop-filter: blur(6px) }
+  .head .mono::before, .close-text .mono::before, .city-copy .mono::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #2C7DA0 }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 400; font-optical-sizing: auto; letter-spacing: -.015em; line-height: 1.08 }
+  h3 { letter-spacing: -.005em }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 var(--pad) }
+
+  /* The bar: clear at the top, white once the page moves. Name on the left, steps and Begin on the right. */
+  .nav { position: fixed; z-index: 50; inset: 0 0 auto; height: 68px; display: flex; align-items: center; gap: 28px; padding: 0 var(--pad); transition: background .35s, box-shadow .35s, height .35s }
+  .nav.solid { height: 60px; background: transparent; box-shadow: none; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px) } /* clear, just softened so text behind it stays out of the way */
+  .nav .logo { display: flex; align-items: center; gap: 10px; margin-right: auto; font-weight: 600; font-size: 17px; letter-spacing: -.025em; text-decoration: none }
+  .nav .logo i { width: 26px; height: 26px; display: grid; place-items: center; background: var(--ink); color: #fff; border-radius: 7px; font: 600 13.5px/1 var(--mono); font-style: normal }
+  .nav ul { display: flex; gap: 2px; list-style: none; padding: 0 }
+  .nav ul a { position: relative; display: block; padding: 8px 12px; font-size: 14px; text-decoration: none; color: var(--ink-2); transition: color .2s }
+  .nav ul a::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 3px; height: 1.5px; background: var(--ink); transform: scaleX(0); transform-origin: left; transition: transform .25s var(--ease) }
+  .nav ul a:hover { color: var(--ink) }
+  .nav ul a:hover::after { transform: scaleX(1) }
+  .go { display: inline-flex; align-items: center; gap: 10px; padding: 11px 18px; background: var(--ink); color: #fff; border-radius: 999px; font: 500 14.5px/1 var(--mono); text-decoration: none; transition: background .2s, gap .25s var(--ease) }
+  .go:hover { background: #013A63; gap: 14px }
+
+  /* 1 + 2. One long pinned stage. First a black-line building on a pale sky: a floor plan that rises floor by floor as
+     she scrolls while the camera turns around it. Then it pulls back into Los Angeles as a pen drawing, and the
+     photograph rises through the drawing. */
+  .stage { position: relative; height: 760vh }
+  /* A soft gradient that drifts and deepens as she scrolls. Four blurred light pools in the palette, moved from JS. */
+  .aurora { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: #D6EAF2 }
+  .aurora i { position: absolute; left: 0; top: 0; width: 90vmax; height: 90vmax; margin: -45vmax 0 0 -45vmax; border-radius: 50%; will-change: transform, opacity }
+  .aurora i:nth-child(1) { background: radial-gradient(closest-side, rgba(137, 194, 217, .9), transparent) }
+  .aurora i:nth-child(2) { background: radial-gradient(closest-side, rgba(97, 165, 194, .62), transparent) }
+  .aurora i:nth-child(3) { background: radial-gradient(closest-side, rgba(42, 111, 151, .42), transparent) }
+  .aurora i:nth-child(4) { background: radial-gradient(closest-side, rgba(240, 248, 251, .75), transparent) }
+  .aurora .glow { position: absolute; left: 0; top: 0; width: 60vmax; height: 60vmax; margin: -30vmax 0 0 -30vmax; border-radius: 50%; background: radial-gradient(closest-side, rgba(44, 125, 160, .55), rgba(97, 165, 194, .24) 55%, transparent); opacity: 0; transition: opacity .6s; will-change: transform }
+  .aurora.live .glow { opacity: 1 }
+  .aurora i:nth-child(5) { background: radial-gradient(closest-side, rgba(1, 73, 124, .36), transparent); width: 120vmax; height: 120vmax; margin: -60vmax 0 0 -60vmax }
+  .pin { position: sticky; top: 0; height: 100vh; min-height: 620px; overflow: hidden; background: linear-gradient(180deg, #B7D7E7 0%, #CFE5EF 58%, #C2DDEA 100%) }
+  .city-layer { position: absolute; inset: 0; will-change: transform }
+  .city-layer img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 55% }
+  .city-draw img:not(.baked) { filter: url(#pen) } /* fallback only: the sketch is normally baked once at load */
+  .city-photo { clip-path: inset(100% 0 0 0); will-change: clip-path, transform }
+  .city-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(1, 42, 74, .3), transparent 30%, transparent 50%, rgba(1, 42, 74, .72)) }
+  .city-title { position: absolute; z-index: 3; left: 0; right: 0; top: 17vh; text-align: center; padding: 0 16px; font-size: clamp(48px, 7.4vw, 120px); color: var(--navy); opacity: 0; transition: color .4s }
+  .stage.photo .city-title { color: #fff; text-shadow: 0 2px 30px rgba(1, 42, 74, .35) }
+  .city-copy { position: absolute; z-index: 3; left: 50%; bottom: 8vh; width: min(620px, calc(100% - 32px)); transform: translateX(-50%); text-align: center; font-size: clamp(16px, 1.3vw, 19px); color: var(--ink-2); opacity: 0; padding: 16px 20px; border-radius: 12px; background: rgba(255, 255, 255, .88); backdrop-filter: blur(6px); transition: color .4s, background .4s }
+  .city-copy .mono { display: flex; margin: 0 auto 12px }
+  .stage.photo .city-copy { color: #fff; background: rgba(1, 42, 74, .5); backdrop-filter: blur(10px); border-radius: 20px; text-shadow: none }
+  .stage.photo .city-copy .mono { color: #fff; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .3) }
+  .stage.photo .city-copy .mono::before { background: var(--blue-3) }
+
+  .night { position: absolute; z-index: 4; inset: 0; background: radial-gradient(ellipse 85% 70% at 50% 62%, #E4F1F7, #BFDCEA 55%, #8FBFD6); will-change: opacity }
+  #bld { position: absolute; z-index: 5; inset: 0; width: 100%; height: 100%; pointer-events: none }
+  .hero-in { position: absolute; z-index: 6; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 90px 16px 40px; color: var(--ink); will-change: opacity, transform }
+  .hero-in h1 { font-size: clamp(42px, 5.6vw, 86px); max-width: 15em; font-weight: 350 }
+  .hero-in h1 em { font-style: italic; color: #2C7DA0 }
+  .hero-in .lede { margin-top: 18px; max-width: 34em; color: var(--ink-2); font-size: clamp(15px, 1.2vw, 18px) }
+  .cue { position: absolute; z-index: 7; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--ink-3); will-change: opacity }
+  .cue i { width: 22px; height: 34px; border: 1.5px solid var(--ink-3); border-radius: 12px; position: relative }
+  .cue i::before { content: ""; position: absolute; left: 50%; top: 7px; width: 3px; height: 6px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); animation: wheel 1.6s ease-in-out infinite }
+  @keyframes wheel { 50% { transform: translateY(8px); opacity: .3 } }
+  .phase { position: absolute; z-index: 6; left: var(--pad); bottom: 7vh; max-width: min(620px, calc(100% - 2 * var(--pad))); display: flex; align-items: center; gap: 12px; text-align: left; color: var(--ink); opacity: 0; will-change: opacity; padding: 6px 22px 6px 6px; background: rgba(255, 255, 255, .9); border: 1px solid rgba(1, 73, 124, .1); border-radius: 999px; box-shadow: 0 12px 30px rgba(1, 42, 74, .12); backdrop-filter: blur(8px) }
+  .phase .mono { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--ink); color: #fff }
+  .phase p { font-size: clamp(15px, 1.15vw, 17px); font-weight: 400; letter-spacing: -.01em; line-height: 1.35 }
+
+  /* The search, under the headline. */
+  .find { margin-top: 30px; width: min(640px, 100%); display: grid; grid-template-columns: 1fr 1fr auto; gap: 0; padding: 4px; background: #fff; border: 1px solid var(--line); border-radius: 999px; backdrop-filter: blur(10px); box-shadow: 0 24px 60px rgba(1, 73, 124, .14); text-align: left }
+  .pick { position: relative }
+  .pick > button { width: 100%; display: grid; gap: 0; padding: 5px 34px 5px 22px; background: transparent; color: var(--ink); border-radius: 999px; text-align: left; transition: background .2s }
+  .pick > button:hover, .pick.open > button { background: var(--blue-w) }
+  .pick .lbl { color: var(--ink-2); font-size: 9.5px }
+  .pick + .pick::before { content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 1px; background: var(--line); z-index: 1 }
+  .pick .val { font-size: 14.5px; line-height: 1.3; color: var(--ink-2) }
+  .pick.set .val { color: var(--ink); font-weight: 500 }
+  .pick > button::after { content: ""; position: absolute; right: 15px; top: 50%; width: 7px; height: 7px; border-right: 1.5px solid var(--blue-ink); border-bottom: 1.5px solid var(--blue-ink); transform: translateY(-70%) rotate(45deg); transition: transform .25s var(--ease) }
+  .pick.open > button::after { transform: translateY(-20%) rotate(225deg) }
+  .menu { position: absolute; z-index: 8; left: 0; right: 0; top: calc(100% + 8px); padding: 6px; background: #fff; color: var(--ink); border-radius: 12px; box-shadow: 0 18px 44px rgba(1, 42, 74, .18); list-style: none; opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .2s var(--ease), transform .2s var(--ease) }
+  .pick.open .menu { opacity: 1; transform: none; pointer-events: auto }
+  .menu li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border-radius: 7px; font-size: 15px; cursor: pointer; transition: background .15s }
+  .menu li small { font: 500 12.5px/1 var(--mono); color: var(--ink-3) }
+  .menu li:hover, .menu li.active { background: var(--blue-w) }
+  .begin { display: flex; align-items: center; gap: 10px; padding: 0 22px; background: var(--ink); color: #fff; border-radius: 999px; font: 500 15px/1 var(--mono); transition: background .2s, gap .25s var(--ease) }
+  .begin:hover { background: #013A63; gap: 14px }
+  .hint { margin-top: 12px; min-height: 20px; font-size: 13px; color: #2C7DA0 }
+  .pick > button:focus-visible, .begin:focus-visible, .go:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px }
+
+  /* Section heads. */
+  section.block { padding-top: clamp(96px, 14vh, 150px) }
+  .head { text-align: center; max-width: 820px; margin: 0 auto; padding: 0 16px }
+  .head h2 { font-size: clamp(34px, 4.2vw, 60px) }
+  .head p { margin-top: 14px; color: var(--ink-2); font-size: clamp(15px, 1.2vw, 18px) }
+  .head .mono { margin-bottom: 16px }
+  .more { display: block; width: max-content; margin: 34px auto 0; color: var(--blue-ink); text-decoration: none; transition: letter-spacing .25s var(--ease) }
+  .more:hover { letter-spacing: .1em }
+
+  /* 3. The listings grid. */
+  .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 44px }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; text-decoration: none; transition: transform .3s var(--ease), box-shadow .3s, border-color .3s }
+  .tile:hover { transform: translateY(-4px); border-color: var(--blue-2); box-shadow: 0 16px 36px rgba(1, 73, 124, .12) }
+  .tile figure { position: relative; margin: 0; aspect-ratio: 1 / 1.05; overflow: hidden; background: var(--soft-2) }
+  .tile img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.05); transition: filter .4s, transform .6s var(--ease) }
+  .tile:hover img { filter: none; transform: scale(1.04) }
+  .tile figure span { position: absolute; left: 8px; top: 8px; padding: 3px 7px; background: rgba(255, 255, 255, .9); border-radius: 4px; font: 500 12px/1.3 var(--mono); color: var(--ink-2) }
+  .tile .meta { padding: 10px 12px 12px }
+  .tile .meta b { display: block; font: 500 14px/1.35 var(--mono); }
+  .tile .meta small { display: block; margin-top: 3px; font: 400 14px/1.35 var(--mono); color: var(--ink-3) }
+  .tile .meta em { display: block; margin-top: 8px; font-style: normal; font: 500 13.5px/1.3 var(--mono); color: var(--blue-ink) }
+  .tile.all { display: grid; place-items: center; text-align: center; background: var(--soft); border: 1px dashed var(--blue-2); padding: 20px }
+  .tile.all i { width: 44px; height: 44px; display: grid; place-items: center; margin: 0 auto 12px; background: var(--blue); color: var(--navy); border-radius: 50%; font-style: normal; font-size: 22px; transition: transform .3s var(--ease) }
+  .tile.all:hover i { transform: rotate(90deg) }
+  .tile.all b { font: 500 14.5px/1.3 var(--mono); color: var(--blue-ink) }
+
+  /* 4. Weeks to open, as one plain bar per finalist with a flag where it opens. */
+  .time { margin: 44px auto 0; padding: 30px clamp(18px, 3vw, 40px) 26px; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 20px 50px rgba(1, 73, 124, .07) }
+  .scale { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; color: var(--ink-3) }
+  .scale .ticks { position: relative; height: 18px }
+  .scale .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap }
+  .scale .ticks span:first-child { transform: none }
+  .trow { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; align-items: center; padding: 18px 0; border-top: 1px solid var(--line) }
+  .trow .who b { display: block; font-weight: 500; letter-spacing: -.01em }
+  .trow .who small { display: block; color: var(--ink-3); font: 400 14px/1.4 var(--mono); letter-spacing: .04em }
+  .track { position: relative; height: 44px; border-radius: 12px; background: repeating-linear-gradient(90deg, transparent 0 calc(100% / 26 - 1px), var(--line) calc(100% / 26 - 1px) calc(100% / 26)) }
+  .bar { position: absolute; left: 0; top: 0; bottom: 0; width: var(--w); border-radius: 12px; background: linear-gradient(90deg, #A9D6E5, var(--blue)); transform-origin: left; transform: scaleX(var(--g, 1)); transition: transform .9s cubic-bezier(.22,.7,.2,1); display: flex; align-items: center; padding: 0 14px; overflow: hidden }
+  .bar span { font: 500 13.5px/1 var(--mono); color: var(--navy); white-space: nowrap }
+  .flag { position: absolute; top: 50%; left: var(--w); transform: translate(10px, -50%); display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: var(--ink); color: #fff; font: 500 13.5px/1 var(--mono); white-space: nowrap; opacity: var(--o, 1); transition: background .2s, opacity .6s .3s }
+  .flag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--blue) }
+  .time .note { margin-top: 14px; font-size: 13px; color: var(--ink-3) }
+
+  /* 5 + 7. Carousels that stay inside the page margins: whole cards only. */
+  .rail-wrap { margin-top: 44px }
+  .rail { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 28px) / 3); gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain }
+  .rail::-webkit-scrollbar { display: none }
+  .rail > * { scroll-snap-align: start }
+  .shot { margin: 0 }
+  .shot .ph { aspect-ratio: 4 / 3; overflow: hidden; border-radius: 14px; background: var(--soft-2) }
+  .shot img { width: 100%; height: 100%; object-fit: cover; transition: transform .7s var(--ease) }
+  .shot:hover img { transform: scale(1.05) }
+  .shot figcaption { margin-top: 12px; font-weight: 500; letter-spacing: -.01em }
+  .shot figcaption small { display: block; margin-top: 2px; color: var(--ink-3); font-weight: 400; font-size: 14px }
+  .arrows { display: flex; justify-content: flex-end; gap: 8px; padding-top: 16px }
+  .arrows button { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: #fff; transition: background .2s, border-color .2s, color .2s }
+  .arrows button:hover { background: var(--blue); border-color: var(--blue); color: var(--navy) }
+
+  /* 6. A passage: the headline beside the reading, then the work nobody advertises. */
+  .passage { max-width: 1180px; margin: 0 auto; padding: clamp(110px, 16vh, 170px) var(--pad) 0 }
+  .passage .pair { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 80px); align-items: end }
+  .passage h2 { font-size: clamp(36px, 4.4vw, 64px) }
+  .passage h2 em { color: #2C7DA0 }
+  .passage p { color: var(--ink); font-size: clamp(16px, 1.2vw, 18.5px); line-height: 1.6 }
+  .passage p + p { margin-top: 14px }
+  .unsaid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-top: clamp(44px, 6vh, 64px); padding: 0; list-style: none }
+  .unsaid li { position: relative; display: flex; flex-direction: column; gap: 26px; padding: 18px 18px 20px; border-radius: 20px; background: rgba(255, 255, 255, .62); border: 1px solid rgba(255, 255, 255, .8); box-shadow: 0 10px 30px rgba(1, 42, 74, .07); backdrop-filter: blur(8px); transition: transform .35s var(--ease), background .3s, box-shadow .35s var(--ease) }
+  .unsaid li:hover { transform: translateY(-6px); background: #fff; box-shadow: 0 22px 44px rgba(1, 42, 74, .14) }
+  .unsaid svg { width: 40px; height: 40px; padding: 9px; border-radius: 50%; background: var(--ink); color: #fff; transition: background .3s }
+  .unsaid li:hover svg { background: #2C7DA0 }
+  .unsaid b { font: 400 clamp(19px, 1.6vw, 24px)/1.15 var(--serif); letter-spacing: -.01em }
+  .unsaid small { display: block; margin-top: 4px; color: var(--ink-2); font-size: 13.5px }
+  .passage .says { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 22px; color: var(--ink-2); font-size: 14px }
+  .says span { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .72); color: var(--ink); font-weight: 600 }
+  .says i { width: 9px; height: 9px; border-radius: 50% }
+  .says .k i { background: var(--navy) } .says .e i { background: linear-gradient(90deg, #2C7DA0 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px #2C7DA0 } .says .u i { box-shadow: inset 0 0 0 1.5px var(--ink-3) }
+  @media (max-width: 900px) { .passage .pair { grid-template-columns: 1fr } .unsaid { grid-template-columns: repeat(2, minmax(0, 1fr)) } .unsaid li:last-child { grid-column: span 2 } }
+
+  /* 7. The findings. */
+  .finding { display: flex; flex-direction: column; min-height: 250px; padding: 22px; background: #fff; border: 1px solid var(--line); border-radius: 14px; transition: background .25s, border-color .25s, transform .3s var(--ease), box-shadow .3s }
+  .finding:hover { background: var(--blue-w); border-color: var(--blue-2); transform: translateY(-3px); box-shadow: 0 14px 30px rgba(1, 73, 124, .1) }
+  .finding .mono { color: var(--ink-3) }
+  .finding .kind { display: inline-flex; align-items: center; gap: 7px; margin-top: 18px; padding: 4px 9px 4px 7px; width: max-content; border-radius: 999px; background: var(--soft); font: 500 13px/1 var(--mono); color: var(--ink-2) }
+  .finding .kind::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--navy-2) }
+  .finding .kind.estimate::before { background: var(--blue); border-radius: 50% }
+  .finding .kind.unknown::before { background: none; box-shadow: inset 0 0 0 1.5px var(--ink-3); border-radius: 50% }
+  .finding h3 { margin-top: 14px; font-size: 22px; letter-spacing: -.02em; line-height: 1.2 }
+  .finding .imp { margin-top: auto; padding-top: 18px; font: 500 15.5px/1 var(--mono); color: var(--blue-ink) }
+
+  /* 8. Evidence. */
+  .trust { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; margin-top: 6px; padding-top: 58px; list-style: none }
+  .trust::before { content: ""; position: absolute; left: 0; right: 0; top: 21px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--navy) 0%, #2C7DA0 45%, var(--blue-2) 80%, transparent) }
+  .trust-ends { display: flex; justify-content: space-between; margin-top: 30px; font: 500 13.5px/1 var(--mono); color: var(--ink-3) }
+  .src { position: relative }
+  .src i { position: absolute; top: -45px; left: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--navy); box-shadow: 0 0 0 6px #D5EBF3; transition: transform .3s }
+  .src:nth-child(2) i { background: #01497C } .src:nth-child(3) i { background: var(--blue) }
+  .src:nth-child(4) i { background: #D5EBF3; box-shadow: 0 0 0 6px #D5EBF3, inset 0 0 0 2px var(--ink-3) }
+  .src:hover i { transform: scale(1.35) }
+  .src .mono { display: block; color: var(--blue-ink) }
+  .src b { display: block; margin-top: 12px; font-size: clamp(22px, 2vw, 28px); font-family: var(--serif); font-weight: 400; letter-spacing: -.025em }
+  .src p { margin-top: 10px; font-size: 15px; color: var(--ink-2); max-width: 30ch }
+
+  /* 9. The figures. */
+  .ledger { margin-top: 44px; border-top: 1px solid var(--navy) }
+  .lrow { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 16px; align-items: baseline; padding: 20px 8px; border-bottom: 1px solid var(--line); transition: background .2s }
+  .lrow:hover { background: var(--blue-w) }
+  .lrow.head { padding: 12px 8px; color: var(--ink-3) }
+  .lrow.head:hover { background: none }
+  .lrow b { font-size: 22px; font-family: var(--serif); font-weight: 400; letter-spacing: -.02em }
+  .lrow small { display: block; font: 400 14px/1.4 var(--mono); color: var(--ink-3); letter-spacing: .04em }
+  .lrow .n { text-align: right; font-size: 22px; letter-spacing: -.02em; font-variant-numeric: tabular-nums }
+  .lrow .n.low { color: var(--blue-ink) }
+  .lrow .n small { text-transform: none; font-family: var(--sans); font-style: italic }
+  .ledger-note { margin-top: 14px; font-size: 13px; color: var(--ink-3) }
+
+  /* From the passage down, the page sits on a soft baby-blue sky. */
+  .sky { margin-top: clamp(90px, 14vh, 150px); padding-bottom: 1px }
+  .sky .passage { padding-top: clamp(80px, 12vh, 130px) }
+
+  /* 10. The close: a photograph beside the way in, not a glowing card. */
+  .close-out { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 64px); align-items: center; max-width: 1240px; margin: clamp(110px, 16vh, 170px) auto 0; padding: 0 var(--pad) }
+  .close-photo { margin: 0; aspect-ratio: 5 / 4; border-radius: 22px; overflow: hidden; box-shadow: 0 30px 70px rgba(1, 73, 124, .2) }
+  .close-photo img { width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s var(--ease) }
+  .close-out:hover .close-photo img { transform: scale(1.03) }
+  
+  .close-text h2 { margin-top: 16px; font-size: clamp(36px, 4.2vw, 62px) }
+  .close-text p { margin-top: 16px; max-width: 30em; color: var(--ink-2); font-size: clamp(15px, 1.2vw, 18px) }
+  .close-text .go { margin-top: 28px; padding: 15px 22px }
+
+  .foot { max-width: 1240px; margin: clamp(90px, 14vh, 140px) auto 0; padding: 0 var(--pad) 30px }
+  .foot .cols { display: grid; grid-template-columns: 1.3fr 1fr 1.4fr; gap: 32px; padding-top: 36px; border-top: 1px solid rgba(1, 42, 74, .12) }
+  .flogo { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; letter-spacing: -.02em; text-decoration: none }
+  .flogo i { width: 26px; height: 26px; display: grid; place-items: center; background: var(--ink); color: #fff; border-radius: 7px; font: 600 13.5px/1 var(--mono); font-style: normal }
+  .foot p { margin-top: 10px; color: var(--ink-2); font-size: 14px; max-width: 30em }
+  .foot .mono { display: block; margin-bottom: 12px; color: var(--ink-3) }
+  .foot .cols a:not(.flogo) { display: block; padding: 4px 0; font-size: 14px; color: var(--ink-2); text-decoration: none; transition: color .2s, transform .25s var(--ease) }
+  .foot .cols a:not(.flogo):hover { color: var(--ink); transform: translateX(3px) }
+  .foot .team h3 { font-size: clamp(22px, 2vw, 28px); font-family: var(--serif); font-weight: 400; letter-spacing: -.025em; color: var(--ink) }
+  .foot .team ul { list-style: none; margin: 14px 0 0; padding: 0 }
+  .foot .team li { border-top: 1px solid rgba(1, 42, 74, .1) }
+  .foot .team li:last-child { border-bottom: 1px solid rgba(1, 42, 74, .1) }
+  .foot .team li > * { display: flex !important; align-items: center; justify-content: space-between; padding: 11px 0 !important; font-size: 15px !important; color: var(--ink-2) }
+  .foot .team a svg { color: #01497C; transition: transform .25s }
+  .foot .team a:hover svg { transform: scale(1.15) }
+  .foot .base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-top: 40px; padding-top: 18px; border-top: 1px solid rgba(1, 42, 74, .08); color: var(--ink-3); font-size: 12.5px }
+
+  [data-fade] { will-change: opacity, transform }
+
+  @media (max-width: 980px) {
+    .nav ul { display: none }
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+    .trust { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 72px }
+    .rail { grid-auto-columns: calc((100% - 14px) / 2) }
+  }
+  @media (max-width: 640px) {
+    .bar span { display: none }
+    .stage { height: 460vh }
+    .find { grid-template-columns: 1fr }
+    .begin { justify-content: center; padding: 15px }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+    .scale, .trow { grid-template-columns: 1fr }
+    .scale > span:first-child { display: none }
+    .flag { left: auto; right: 6px; transform: translateY(-50%) }
+    .close-out { grid-template-columns: 1fr }
+    .foot .cols { grid-template-columns: 1fr }
+    .rail { grid-auto-columns: 100% }
+    .trust { grid-template-columns: 1fr; padding: 0 0 0 40px; row-gap: 40px } .trust::before { left: 7px; right: auto; top: 6px; bottom: 6px; width: 2px; height: auto; background: linear-gradient(180deg, var(--navy), #2C7DA0 45%, var(--blue-2) 85%, transparent) } .src i { top: 2px; left: -40px } .trust-ends { display: none }
+    .lrow { grid-template-columns: 1fr auto; row-gap: 4px }
+    .lrow .n:nth-child(3), .lrow .n:nth-child(4) { grid-column: 2 }
+    .lrow.head { display: none }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto }
+    .stage { height: auto } .pin { position: relative }
+    .night, #bld { display: none }
+    .hero-in { position: relative; height: 100vh; background: var(--navy) }
+    .city-photo { clip-path: none } .city-title, .city-copy { opacity: 1 }
+    .cue i::before { animation: none }
+  }
+</style>
+</head>
+<body>
+
+<!-- Turns a photograph into a navy pen drawing on white. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="pen" color-interpolation-filters="sRGB">
+    <feColorMatrix type="saturate" values="0"/>
+    <feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" preserveAlpha="true"/>
+    <feComponentTransfer><feFuncR type="linear" slope="-4.5" intercept="1.05"/><feFuncG type="linear" slope="-4.5" intercept="1.05"/><feFuncB type="linear" slope="-4.5" intercept="1.05"/></feComponentTransfer>
+    <feComponentTransfer><feFuncR type="table" tableValues="0.06 1"/><feFuncG type="table" tableValues="0.12 1"/><feFuncB type="table" tableValues="0.2 1"/></feComponentTransfer>
+  </filter>
+</svg>
+
+<nav class="nav" id="nav" aria-label="Second Site">
+  <a class="logo" href="landing.html"><i>S²</i>Second Site</a>
+  <ul><li><a href="#listings">Search</a></li><li><a href="#findings">Compare</a></li><li><a href="#weeks">Furnish</a></li><li><a href="#costs">Open</a></li></ul>
+  <a class="go" href="#top" id="nav-begin">Begin <span aria-hidden="true">→</span></a>
+</nav>
+
+<!-- 1 + 2: the building, then Los Angeles -->
+<section class="stage" id="top" aria-label="Second Site">
+  <div class="pin">
+    <!-- Photograph from Unsplash (Unsplash License): downtown Los Angeles from the hills. The drawing is the same photograph through the pen filter. -->
+    <div class="city-layer city-draw" id="city-draw"><img id="city-sketch" crossorigin="anonymous" src="https://images.unsplash.com/photo-1737438335008-b872da156ffe?w=1800&q=80&auto=format&fit=crop" alt="" onerror="this.onerror=null;this.src='jarvis-assets/city-aerial-large.jpg'"></div>
+    <div class="city-layer city-photo" id="city-photo"><img src="https://images.unsplash.com/photo-1737438335008-b872da156ffe?w=2400&q=80&auto=format&fit=crop" alt="Downtown Los Angeles seen from the hills" onerror="this.onerror=null;this.src='jarvis-assets/city-aerial-large.jpg'"></div>
+    <h2 class="city-title" id="city-title">Find it in Los Angeles.</h2>
+    <p class="city-copy" id="city-copy"><span class="mono">Real spaces, real costs</span>Every suite weighed by what it takes to open and the limits of the space, not by its advertised rent.</p>
+
+    <div class="night" id="night"></div>
+    <canvas id="bld" aria-hidden="true"></canvas>
+    <div class="phase" id="phase"><span class="mono">One room</span><p>Start with the room she will work in.</p></div>
+
+    <div class="hero-in" id="hero-in">
+      <h1>Your next location, <em>from search to opening.</em></h1>
+      <p class="lede">An assistant for choosing a second shop by what it really takes to open, not the cheapest advertised rent.</p>
+      <div class="find" id="find">
+        <div class="pick" data-name="business">
+          <button type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="m-business"><span class="lbl mono">Business</span><span class="val">Choose a business</span></button>
+          <ul class="menu" id="m-business" role="listbox" aria-label="Business"><li role="option" data-value="facial-studio" aria-selected="false">Facial studio <small>Skincare</small></li></ul>
+        </div>
+        <div class="pick" data-name="location">
+          <button type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="m-location"><span class="lbl mono">Location</span><span class="val">Choose a city</span></button>
+          <ul class="menu" id="m-location" role="listbox" aria-label="Location"><li role="option" data-value="los-angeles" aria-selected="false">Los Angeles <small>California</small></li></ul>
+        </div>
+        <button type="button" class="begin" id="begin">Begin <span aria-hidden="true">→</span></button>
+      </div>
+      <p class="hint" id="hint" aria-live="polite"></p>
+    </div>
+    <p class="cue mono" id="cue"><i></i>Scroll</p>
+  </div>
+</section>
+
+<!-- 3: the listings -->
+<section class="block wrap" id="listings">
+  <div class="head" data-fade><span class="mono">Step 1 · Search</span><h2>Select the spaces worth a closer look.</h2><p>Nine sample listings that fit a facial studio’s brief. Advertised rents are samples.</p></div>
+  <div class="grid" id="grid"></div>
+  <a class="more mono" href="workspace.html#reset">Open the map →</a>
+</section>
+
+<!-- 4: weeks to open -->
+<section class="block wrap" id="weeks">
+  <div class="head" data-fade><span class="mono">Step 3 · Furnish</span><h2>Build out, furnish, open.</h2><p>How long each finalist would take before the first client walks in.</p></div>
+  <div class="time" data-fade>
+    <div class="scale mono"><span>Weeks from signing</span><div class="ticks"><span style="left:0">Signing</span><span style="left:calc(100% * 5 / 26)">5</span><span style="left:calc(100% * 10 / 26)">10</span><span style="left:calc(100% * 15 / 26)">15</span><span style="left:calc(100% * 20 / 26)">20</span><span style="left:calc(100% * 25 / 26)">25</span></div></div>
+    <div id="time-rows"></div>
+    <p class="note">Weeks to open are the demo’s estimates for each suite.</p>
+  </div>
+</section>
+
+<!-- 5: the steps -->
+<section class="block wrap" id="steps">
+  <div class="head" data-fade><span class="mono">One visit</span><h2>From a first look to a decision you can explain.</h2></div>
+  <div class="rail-wrap">
+    <div class="rail" id="rail-steps">
+      <figure class="shot"><div class="ph"><img src="https://images.unsplash.com/photo-1598897270268-f7091c801c3d?w=1000&q=80&auto=format&fit=crop" alt="A city seen from above" loading="lazy" onerror="this.onerror=null;this.src='jarvis-assets/studio.jpg'"></div><figcaption>Select the spaces<small>Photographs, a map, and the brief she gave.</small></figcaption></figure>
+      <figure class="shot"><div class="ph"><img src="https://images.unsplash.com/photo-1716037991590-c975184b37df?w=1000&q=80&auto=format&fit=crop" alt="Someone in a hard hat checking a plan on site" loading="lazy" onerror="this.onerror=null;this.src='jarvis-assets/tower.jpg'"></div><figcaption>Read what each finding rests on<small>Documented, an estimate, or unknown.</small></figcaption></figure>
+      <figure class="shot"><div class="ph"><img src="https://images.unsplash.com/photo-1770200574989-a4cca2c70c00?w=1000&q=80&auto=format&fit=crop" alt="A model of a furnished floor plan" loading="lazy" onerror="this.onerror=null;this.src='jarvis-assets/loft.jpg'"></div><figcaption>Drag furniture into the plan<small>A price and a lead time for every piece.</small></figcaption></figure>
+      <figure class="shot"><div class="ph"><img src="https://images.unsplash.com/photo-1787651343620-8d5303006ecb?w=1000&q=80&auto=format&fit=crop" alt="A finished treatment room with a bed and basin" loading="lazy" onerror="this.onerror=null;this.src='jarvis-assets/retail.jpg'"></div><figcaption>Choose, and ask for a call<small>She decides on the page. Nothing is signed.</small></figcaption></figure>
+    </div>
+    <div class="arrows"><button type="button" data-rail="rail-steps" data-dir="-1" aria-label="Previous">←</button><button type="button" data-rail="rail-steps" data-dir="1" aria-label="Next">→</button></div>
+  </div>
+</section>
+
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><b class="glow"></b></div>
+<div class="sky">
+<!-- 6: the passage -->
+<section class="passage" data-fade>
+  <div class="pair"><h2>For owners who would rather be <em>running their studio.</em></h2>
+  <div><p>Maybe the first shop is full and the waitlist keeps growing. Maybe a landlord’s listing looks perfect until someone mentions the sinks. Opening a second location is mostly the work nobody advertises: drains, power, walls, lease charges, and how many weeks it all takes.</p>
+  <p>Second Site does that reading with her, place by place, and says plainly what is known, what is estimated, and what nobody knows yet.</p>
+  </div></div>
+  <ul class="unsaid" aria-label="The work nobody advertises">
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M8 10h8M7.5 14h9M12 6v12"/></svg><div><b>Drains</b><small>Where the sinks can go</small></div></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 6 13.5h5L10 21l7-10.5h-5z"/></svg><div><b>Power</b><small>Enough for the equipment</small></div></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18v12H3zM3 12h18M9 6v6M15 12v6"/></svg><div><b>Walls</b><small>What has to be built</small></div></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg><div><b>Lease charges</b><small>Beyond the advertised rent</small></div></li>
+    <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><div><b>Weeks</b><small>Until the first client</small></div></li>
+  </ul>
+  <p class="says">Every answer is marked <span class="k"><i></i>Known</span><span class="e"><i></i>Estimated</span><span class="u"><i></i>Unknown</span></p>
+</section>
+
+<!-- 7: the findings -->
+<section class="block wrap" id="findings">
+  <div class="head" data-fade><span class="mono">Step 2 · Compare</span><h2>Before you sign.</h2><p>Real findings from the three finalists, each tied to what it rests on.</p></div>
+  <div class="rail-wrap">
+    <div class="rail" id="rail-findings"></div>
+    <div class="arrows"><button type="button" data-rail="rail-findings" data-dir="-1" aria-label="Previous">←</button><button type="button" data-rail="rail-findings" data-dir="1" aria-label="Next">→</button></div>
+  </div>
+</section>
+
+<!-- 8: what a finding can rest on -->
+<section class="block wrap">
+  <div class="head" data-fade><span class="mono">Evidence</span><h2>Every finding says what it rests on.</h2></div>
+  <div class="trust-ends" aria-hidden="true"><span>Most certain</span><span>Not known</span></div>
+  <ol class="trust" data-fade>
+    <li class="src"><i></i><span class="mono">Documented</span><b>The listing</b><p>Size, lease type and advertised rent, as the listing states them.</p></li>
+    <li class="src"><i></i><span class="mono">Observed</span><b>The 3D scan</b><p>Rooms, fixtures and plumbing visible in a scan of the suite.</p></li>
+    <li class="src"><i></i><span class="mono">History</span><b>Permits</b><p>Old permits are history. They do not prove spare power or water today.</p></li>
+    <li class="src"><i></i><span class="mono">Unknown</span><b>What nobody said</b><p>Marked unknown, with the question to ask the broker.</p></li>
+  </ol>
+</section>
+
+<!-- 9: the figures -->
+<section class="block wrap" id="costs">
+  <div class="head" data-fade><span class="mono">Step 4 · Open</span><h2>The lowest rent isn’t always the cheapest place to open.</h2></div>
+  <div class="ledger" data-fade>
+    <div class="lrow head mono"><span>Same brief, three suites</span><span class="n">Advertised</span><span class="n">To open</span><span class="n">36 months</span></div>
+    <div class="lrow"><span><b>915 Mateo St</b><small>Suite 109 · Arts District</small></span><span class="n low">$2,211</span><span class="n">~$171,400</span><span class="n">~$250,996<small>before unstated charges</small></span></div>
+    <div class="lrow"><span><b>630 W 6th St</b><small>Suite 110B · Downtown</small></span><span class="n">$4,048</span><span class="n">~$121,600</span><span class="n">~$313,768</span></div>
+    <div class="lrow"><span><b>1125 S Beverly Dr</b><small>Suite 720 · Pico-Robertson</small></span><span class="n">$5,215</span><span class="n">~$68,900</span><span class="n">~$271,760</span></div>
+  </div>
+  <p class="ledger-note">Advertised rents are samples, a month. Opening costs and 36-month totals are the demo’s estimates.</p>
+</section>
+
+<!-- 10: the close: a photograph beside the way in -->
+<section class="close-out" data-fade>
+  <figure class="close-photo"><img src="https://images.unsplash.com/photo-1634141737018-96ab6e96c55f?w=1600&q=80&auto=format&fit=crop" alt="A pale stone building with deep fins and palm fronds against a blue Los Angeles sky" loading="lazy" onerror="this.onerror=null;this.src='jarvis-assets/loft.jpg'"></figure>
+  <div class="close-text">
+    <span class="mono">Ready when you are</span>
+    <h2>Find the place you can stand behind.</h2>
+    <p>Pick a business and a city. Second Site does the reading with you: the spaces, the findings, the plan and the decision.</p>
+    <a class="go" href="#top" id="cta-begin">Begin a search <span aria-hidden="true">→</span></a>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="cols">
+    <div><a class="flogo" href="landing.html"><i>S²</i>Second Site</a><p>Your next location, from search to opening.</p></div>
+    <div><span class="mono">The steps</span><a href="#listings">Search</a><a href="#findings">Compare</a><a href="#weeks">Furnish</a><a href="#costs">Open</a></div>
+    <div class="team"><h3>Made by</h3>
+      <ul>
+        <li><a href="https://www.linkedin.com/in/ira-tiwari/" target="_blank" rel="noopener">Ira Tiwari <svg viewBox="0 0 16 16" width="14" height="14" aria-label="LinkedIn"><rect width="16" height="16" rx="3" fill="currentColor"/><path d="M4.2 6.4h1.9v5.8H4.2zM5.1 3.6a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zM7.3 6.4h1.8v.8c.3-.5.9-1 1.9-1 2 0 2.3 1.3 2.3 3v3H11.4V9.6c0-.6 0-1.5-.9-1.5s-1.1.7-1.1 1.4v2.7H7.3z" fill="#EAF3FB"/></svg></a></li>
+        <li><a href="https://www.linkedin.com/in/jasleengarcha/" target="_blank" rel="noopener">Jasleen K. Garcha <svg viewBox="0 0 16 16" width="14" height="14" aria-label="LinkedIn"><rect width="16" height="16" rx="3" fill="currentColor"/><path d="M4.2 6.4h1.9v5.8H4.2zM5.1 3.6a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zM7.3 6.4h1.8v.8c.3-.5.9-1 1.9-1 2 0 2.3 1.3 2.3 3v3H11.4V9.6c0-.6 0-1.5-.9-1.5s-1.1.7-1.1 1.4v2.7H7.3z" fill="#D5EBF3"/></svg></a></li>
+        <li><a href="https://www.linkedin.com/in/mihirmalaviya/" target="_blank" rel="noopener">Mihir Malaviya <svg viewBox="0 0 16 16" width="14" height="14" aria-label="LinkedIn"><rect width="16" height="16" rx="3" fill="currentColor"/><path d="M4.2 6.4h1.9v5.8H4.2zM5.1 3.6a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zM7.3 6.4h1.8v.8c.3-.5.9-1 1.9-1 2 0 2.3 1.3 2.3 3v3H11.4V9.6c0-.6 0-1.5-.9-1.5s-1.1.7-1.1 1.4v2.7H7.3z" fill="#EAF3FB"/></svg></a></li>
+        <li><a href="https://www.linkedin.com/in/salavat-galimov/" target="_blank" rel="noopener">Salavat Galimov <svg viewBox="0 0 16 16" width="14" height="14" aria-label="LinkedIn"><rect width="16" height="16" rx="3" fill="currentColor"/><path d="M4.2 6.4h1.9v5.8H4.2zM5.1 3.6a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zM7.3 6.4h1.8v.8c.3-.5.9-1 1.9-1 2 0 2.3 1.3 2.3 3v3H11.4V9.6c0-.6 0-1.5-.9-1.5s-1.1.7-1.1 1.4v2.7H7.3z" fill="#EAF3FB"/></svg></a></li>
+      </ul></div>
+  </div>
+  <div class="base"><span>Los Angeles</span></div>
+</footer>
+</div>
+
+<script>
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const money = n => '$' + Math.round(n).toLocaleString('en-US');
+
+  /* ---- Data, matching the workspace demo exactly. ---- */
+  const UNS = (id, w = 900) => `https://images.unsplash.com/${id}?w=${w}&q=80&auto=format&fit=crop`;
+  const LISTINGS = [
+    ['915 Mateo St', 'Suite 109', 'Arts District', 2211, 171400, 'photo-1762908323020-4c577faeef59'],
+    ['630 W 6th St', 'Suite 110B', 'Downtown', 4048, 121600, 'photo-1761036784856-5370fcdd36f4'],
+    ['1125 S Beverly Dr', 'Suite 720', 'Pico-Robertson', 5215, 68900, 'photo-1767778607208-88aa53840336'],
+    ['5250 Lankershim Blvd', 'Suite 120', 'North Hollywood', 3300, null, 'photo-1591333971053-76b390512611'],
+    ['4311 W Sunset Blvd', 'Unit 2', 'Silver Lake', 3750, null, 'photo-1735382124939-26db377c790d'],
+    ['8560 W 3rd St', 'Suite 204', 'Beverly Grove', 5400, null, 'photo-1776822802080-02986bff2617'],
+    ['818 S Olive St', 'Suite B', 'South Park', 3150, null, 'photo-1770429952833-c546f445a792'],
+    ['11677 San Vicente Blvd', 'Suite 310', 'Brentwood', 7450, null, 'photo-1586115457464-3f3680fdec4c'],
+    ['1933 S Broadway', 'Unit 4', 'South Park', 8200, null, 'photo-1614899939445-4cb2089e9e5a'],
+  ];
+  $('#grid').innerHTML = LISTINGS.map(([a, s, h, rent, open, img]) => `
+    <a class="tile" href="workspace.html#reset">
+      <figure><img src="${UNS(img)}" alt="" loading="lazy" onerror="this.onerror=null;this.src='jarvis-assets/tower.jpg'"><span>Sample photo</span></figure>
+      <div class="meta"><b>${a}</b><small>${s} · ${h}</small><em>${money(rent)} / mo${open ? ` · ~${money(open)} to open` : ''}</em></div>
+    </a>`).join('') + `<a class="tile all" href="workspace.html#reset"><div><i>+</i><b>Open the map</b></div></a>`;
+
+  const WEEKS = [['915 Mateo St', 'Suite 109', 21], ['630 W 6th St', 'Suite 110B', 15], ['1125 S Beverly Dr', 'Suite 720', 7]];
+  $('#time-rows').innerHTML = WEEKS.map(([a, s, w]) => `<div class="trow"><div class="who"><b>${a}</b><small>${s}</small></div>
+    <div class="track"><div class="bar" style="--w:calc(100% * ${w} / 26)"><span>${w >= 10 ? 'Build-out and furnishing' : 'Build-out'}</span></div><span class="flag" style="--w:calc(100% * ${w} / 26)">Opens ~week ${w}</span></div></div>`).join('');
+
+  const FINDINGS = [
+    ['915 Mateo St', 'observed', 'Water and drains reach one corner only', '~$46,000 · 6 wks'],
+    ['915 Mateo St', 'unknown', 'Electrical capacity is not documented', 'Unknown'],
+    ['630 W 6th St', 'observed', 'A restaurant has to come out first', '~$24,000 · 3 wks'],
+    ['630 W 6th St', 'estimate', 'Triple net adds about $1,290 a month', '~$1,290 / mo'],
+    ['1125 S Beverly Dr', 'documented', 'You would pay for 1,490 SF and use about 1,080', '~$1,440 / mo'],
+    ['1125 S Beverly Dr', 'estimate', 'Evening and weekend air is billed by the hour', '~$420 / mo'],
+  ];
+  $('#rail-findings').innerHTML = FINDINGS.map(([a, k, t, imp]) => `<article class="finding"><span class="mono">${a}</span><span class="kind ${k}">${k}</span><h3>${t}</h3><span class="imp">${imp}</span></article>`).join('');
+  $$('[data-rail]').forEach(b => b.addEventListener('click', () => { const r = document.getElementById(b.dataset.rail); r.scrollBy({ left: +b.dataset.dir * (r.clientWidth + 14), behavior: still ? 'auto' : 'smooth' }); }));
+
+  /* ---- The two choices. ---- */
+  const picks = $$('.pick'), chosen = {}, hint = $('#hint');
+  const closeAll = except => picks.forEach(p => { if (p !== except) { p.classList.remove('open'); p.querySelector('button').setAttribute('aria-expanded', 'false'); } });
+  function openPick(p) { closeAll(p); p.classList.add('open'); p.querySelector('button').setAttribute('aria-expanded', 'true'); p.querySelector('li').classList.add('active'); }
+  function choose(p, li) {
+    chosen[p.dataset.name] = li.dataset.value; p.querySelector('.val').textContent = li.firstChild.textContent.trim();
+    p.classList.add('set'); li.setAttribute('aria-selected', 'true'); closeAll(); hint.textContent = '';
+    const next = picks.find(x => !chosen[x.dataset.name]); if (next) { next.querySelector('button').focus(); openPick(next); } else $('#begin').focus();
+  }
+  picks.forEach(p => {
+    const btn = p.querySelector('button');
+    btn.addEventListener('click', e => { e.stopPropagation(); p.classList.contains('open') ? closeAll() : openPick(p); });
+    btn.addEventListener('keydown', e => {
+      const isOpen = p.classList.contains('open');
+      if (!isOpen && ['ArrowDown', 'Enter', ' '].includes(e.key)) { e.preventDefault(); openPick(p); }
+      else if (isOpen && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); choose(p, p.querySelector('li')); }
+      else if (e.key === 'Escape') closeAll();
+    });
+    p.querySelectorAll('li').forEach(li => li.addEventListener('click', e => { e.stopPropagation(); choose(p, li); }));
+  });
+  document.addEventListener('click', () => closeAll());
+  $('#begin').addEventListener('click', () => {
+    const missing = picks.find(p => !chosen[p.dataset.name]);
+    if (missing) { hint.textContent = `Choose a ${missing.dataset.name === 'business' ? 'business' : 'city'} first.`; missing.querySelector('button').focus(); openPick(missing); return; }
+    location.href = 'workspace.html#reset';
+  });
+  ['#nav-begin', '#cta-begin'].forEach(sel => $(sel).addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation();
+    scrollTo({ top: 0, behavior: still ? 'auto' : 'smooth' });
+    const wait = () => { if (scrollY > 2) return requestAnimationFrame(wait); const p = picks.find(x => !chosen[x.dataset.name]) || picks[0]; p.querySelector('button').focus({ preventScroll: true }); openPick(p); };
+    requestAnimationFrame(wait);
+  }));
+
+  /* ---- Scroll-linked motion: every value follows the scroll position, up or down. ---- */
+  const stage = $('.stage'), night = $('#night'), heroIn = $('#hero-in'), cue = $('#cue'), phase = $('#phase');
+  const draw = $('#city-draw'), photo = $('#city-photo'), title = $('#city-title'), copy = $('#city-copy');
+
+  /* Bake the pen sketch once. Same steps as the #pen SVG filter (greyscale, edge kernel, ink curve, blue-black tint),
+     run a single time on a canvas so scrolling never re-filters a full-screen image. If the photo can't be read
+     (offline fallback, no CORS), the live SVG filter stays on as before. */
+  function bakeSketch(img) {
+    try {
+      const W = Math.min(img.naturalWidth, 1700), H = Math.round(img.naturalHeight * W / img.naturalWidth);
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, W, H);
+      const src = g.getImageData(0, 0, W, H), d = src.data, L = new Float32Array(W * H);
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) L[j] = (.2126 * d[i] + .7152 * d[i + 1] + .0722 * d[i + 2]) / 255;
+      const out = g.createImageData(W, H), o = out.data;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const j = y * W + x, xm = x ? -1 : 0, xp = x < W - 1 ? 1 : 0, ym = y ? -W : 0, yp = y < H - 1 ? W : 0;
+        const e = Math.min(1, Math.max(0, 8 * L[j] - L[j + xm] - L[j + xp] - L[j + ym] - L[j + yp] - L[j + ym + xm] - L[j + ym + xp] - L[j + yp + xm] - L[j + yp + xp]));
+        const v = Math.min(1, Math.max(0, 1.05 - 4.5 * e)), k = j * 4;
+        o[k] = (.06 + .94 * v) * 255; o[k + 1] = (.12 + .88 * v) * 255; o[k + 2] = (.2 + .8 * v) * 255; o[k + 3] = 255;
+      }
+      g.putImageData(out, 0, 0);
+      c.toBlob(b => { if (!b) return; img.onload = null; img.src = URL.createObjectURL(b); img.classList.add('baked'); }, 'image/jpeg', .9);
+    } catch (e) { /* tainted canvas: keep the live filter */ }
+  }
+  { const sk = $('#city-sketch'); const go = () => (window.requestIdleCallback || setTimeout)(() => bakeSketch(sk));
+    if (sk) sk.complete && sk.naturalWidth ? go() : sk.addEventListener('load', go, { once: true }); }
+  const fades = $$('[data-fade]'), tiles = $$('.tile'), bars = $$('.bar'), flags = $$('.flag');
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const ease = t => 1 - Math.pow(1 - t, 3);
+  const band = (t, a, b) => ease(clamp((t - a) / (b - a)));
+  const smooth = (t, a, b) => { const x = clamp((t - a) / (b - a)); return x * x * (3 - 2 * x); }; // even in, even out
+  // Captions for the opening, from the inside out.
+  const CAPS = [[.11, .21, 'One room', 'Start with the room she will work in.'], [.25, .32, 'The suite', 'Every room laid out and furnished.'], [.39, .5, 'The building', 'Then the street, and the floors above it.']];
+  let capIdx = -1;
+  const AUR_I = [...document.querySelectorAll('.aurora i')];
+  /* The background gradient: it drifts and deepens with the page's scroll, and leans towards the cursor.
+     Each pool answers the pointer by a different amount (some towards it, some away), so the colour seems to
+     move with her hand. Off on touch screens and with reduced motion. */
+  const AUR_N = [.22, -.16, .14, .3, -.1];          // how far each pool leans towards the cursor
+  const ptr = { x: .5, y: .5, cx: .5, cy: .5, gx: innerWidth / 2, gy: innerHeight / 2, on: matchMedia('(pointer: fine)').matches && !matchMedia('(prefers-reduced-motion: reduce)').matches };
+  function paintAurora() {
+    const vh = innerHeight, W = innerWidth;
+    const P = clamp(scrollY / Math.max(1, document.documentElement.scrollHeight - vh)), a = P * Math.PI * 2;
+    const dx = (ptr.cx - .5) * 100, dy = (ptr.cy - .5) * 100;
+    const pos = [
+      [18 + 30 * Math.sin(a * .9), 25 + 35 * Math.cos(a * .7), 1], [82 - 34 * Math.sin(a * 1.1), 18 + 40 * P + 10 * Math.sin(a * 1.6), 1],
+      [70 - 45 * P, 85 - 30 * Math.sin(a * .8), .4 + .55 * P], [30 + 40 * Math.sin(a * .6 + 1), 70 - 40 * P, 1], [50 + 30 * Math.sin(a), 120 - 45 * P, .2 + .6 * P]];
+    AUR_I.forEach((el, n) => { const [x, y, o] = pos[n], k = AUR_N[n] * 4;
+      el.style.transform = `translate3d(${((x + dx * k) * W / 100).toFixed(0)}px, ${((y + dy * k) * vh / 100).toFixed(0)}px, 0)`; el.style.opacity = o.toFixed(3); });
+  }
+  let ptrFrame = 0;
+  const GLOW = document.querySelector('.aurora .glow');
+  function followPointer() {
+    ptr.cx += (ptr.x - ptr.cx) * .07; ptr.cy += (ptr.y - ptr.cy) * .07;
+    paintAurora();
+    GLOW.style.transform = `translate3d(${(ptr.gx += (ptr.x * innerWidth - ptr.gx) * .12).toFixed(0)}px, ${(ptr.gy += (ptr.y * innerHeight - ptr.gy) * .12).toFixed(0)}px, 0)`;
+    ptrFrame = Math.abs(ptr.x - ptr.cx) + Math.abs(ptr.y - ptr.cy) > .0008 || Math.abs(ptr.x * innerWidth - ptr.gx) > 1 ? requestAnimationFrame(followPointer) : 0;
+  }
+  if (ptr.on) addEventListener('pointermove', e => { GLOW.parentNode.classList.add('live'); ptr.x = e.clientX / innerWidth; ptr.y = e.clientY / innerHeight; if (!ptrFrame) ptrFrame = requestAnimationFrame(followPointer); }, { passive: true });
+  let GEO = null;
+  const absTop = el => { let y = 0; for (let e = el; e; e = e.offsetParent) y += e.offsetTop; return y; }; // ignores transforms
+  function measure() { GEO = { fades: fades.map(el => [absTop(el), el.offsetHeight]), tiles: tiles.map(el => [absTop(el), el.offsetHeight]), time: absTop($('.time')) }; }
+  new ResizeObserver(() => { GEO = null; }).observe(document.body);
+  document.fonts?.ready.then(() => { GEO = null; });
+  const smoothBand = (t, a, b) => { const x = clamp((t - a) / (b - a)); return x * x * (3 - 2 * x); };
+  let ticking = false, ts = null;
+  function tick() {
+    ticking = false; if (still) return;
+    const vh = innerHeight, r = stage.getBoundingClientRect(), raw = clamp(-r.top / (r.height - vh));
+    // The opening follows the scroll through a gentle spring, so wheel steps glide instead of jumping.
+    ts = ts == null ? raw : ts + (raw - ts) * .35;
+    if (Math.abs(raw - ts) > .0003) { ticking = true; requestAnimationFrame(tick); } else ts = raw;
+    const t = ts;
+    // 0 → .1: the headline and search; they lift away as the building starts to rise.
+    const lift = band(t, .02, .1);
+    heroIn.style.opacity = (1 - lift).toFixed(3);
+    heroIn.style.transform = `translate3d(0, ${(-lift * 8).toFixed(2)}vh, 0)`;
+    heroIn.style.visibility = lift > .99 ? 'hidden' : 'visible';
+    cue.style.opacity = (1 - band(t, 0, .03)).toFixed(3);
+    $('#nav').classList.toggle('solid', scrollY > 10);
+    // .1 → .5: the building rises floor by floor (drawn by the module below). A caption holds while it does.
+    const ci = CAPS.findIndex(([a, b]) => t > a - .03 && t < b + .03);
+    if (ci >= 0 && ci !== capIdx) { capIdx = ci; phase.querySelector('.mono').textContent = CAPS[ci][2]; phase.querySelector('p').textContent = CAPS[ci][3]; }
+    phase.style.opacity = ci < 0 ? '0' : (band(t, CAPS[ci][0] - .03, CAPS[ci][0]) * (1 - band(t, CAPS[ci][1], CAPS[ci][1] + .03))).toFixed(3);
+    window.__bld?.(t);
+    // .56 → .8: the light sky clears slowly and the building pulls back into the city drawing.
+    night.style.opacity = (1 - smooth(t, .56, .8)).toFixed(3); // a long, slow crossfade from the building into the drawing
+    // .74 → .82: the title over the drawing. .84 → .97: the photograph rises through it.
+    const ti = band(t, .74, .82);
+    title.style.opacity = ti.toFixed(3); title.style.transform = `translate3d(0, ${((1 - ti) * 30).toFixed(1)}px, 0)`;
+    copy.style.opacity = band(t, .78, .86).toFixed(3);
+    const zoom = `scale(${(1.3 - band(t, .5, 1) * .28).toFixed(4)})`;
+    const cityOn = t > .55; // under the opaque sky until then; skipping it saves re-running the pen filter every frame
+    if (draw.style.visibility !== (cityOn ? 'visible' : 'hidden')) { draw.style.visibility = photo.style.visibility = cityOn ? 'visible' : 'hidden'; }
+    if (cityOn && draw.dataset.z !== zoom) { draw.dataset.z = zoom; draw.style.transform = zoom; photo.style.transform = zoom; }
+    const rise = smoothBand(t, .83, .98);
+    photo.style.clipPath = `inset(${((1 - rise) * 100).toFixed(2)}% 0 0 0)`;
+    stage.classList.toggle('photo', rise > .8); // the headline turns white only once the photo is behind it
+
+    paintAurora();
+    // Positions come from a cache measured once (and again on resize), so a frame only writes styles and never
+    // forces the browser to lay the page out again.
+    if (!GEO) measure();
+    const sy = scrollY;
+    GEO.fades.forEach(([top, h], i) => {
+      const bt = top - sy; if (bt + h < -200 || bt > vh + 200) return;
+      const k = (bt + h / 2 - vh / 2) / vh, el = fades[i];
+      el.style.opacity = (.2 + .8 * ease(clamp(1.3 - Math.abs(k) * 1.3))).toFixed(3);
+      el.style.transform = `translate3d(0, ${(k * 30).toFixed(1)}px, 0)`;
+    });
+    GEO.tiles.forEach(([top, h], i) => { const bt = top - sy; if (bt + h < -100 || bt > vh + 100) return; const k = (bt - vh / 2) / vh; tiles[i].style.translate = `0 ${(k * (10 + (i % 5) * 7)).toFixed(1)}px`; });
+    // The bars grow out to their week as the timeline crosses the window, and shrink back on the way up.
+    const g = { top: GEO.time - sy }, fill = clamp((vh - g.top) / (vh * 1.5)); // spread over a longer scroll so the bars grow slowly
+    bars.forEach((b, i) => { const v = ease(clamp(fill * 1.3 - i * .12)); b.style.setProperty('--g', v.toFixed(3)); flags[i].style.setProperty('--o', clamp((v - .85) / .15).toFixed(3)); });
+  }
+  window.__tick = tick;
+  addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(tick); } }, { passive: true });
+  addEventListener('resize', tick);
+  tick();
+</script>
+
+<script type="module">
+  /* The opening, from the inside out: one empty treatment room that furnishes itself as she scrolls, then the camera
+     pulls back into an open-top dollhouse of the whole suite, the shopfront glass closes it in, and the tower rises
+     above it with its street and neighbours. Real materials (oak, plaster, linen, stone, chrome, glass) in soft daylight
+     with ambient occlusion, kept a little idealised. Everything follows scroll progress, so it plays backwards too. */
+  import * as THREE from 'three';
+  import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+  import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+  import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+  const canvas = document.getElementById('bld');
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NoToneMapping; // keeps the palette's blues true
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(32, 1, .1, 900);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), .04).texture; scene.environmentIntensity = .42;
+
+    // ---- Procedural textures: no image files, just painted canvases ----
+    const R = Math.random;
+    function paint(w, h, fn, rep = [1, 1], srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; fn(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...rep); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
+    const speckle = (g, w, h, base, amp, n, s = 2) => { g.fillStyle = base; g.fillRect(0, 0, w, h); for (let i = 0; i < n; i++) { const v = (R() - .5) * amp; g.fillStyle = v > 0 ? `rgba(255,255,255,${v})` : `rgba(0,0,0,${-v})`; g.fillRect(R() * w, R() * h, s, s); } };
+    const sky = paint(4, 512, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#B7D7E7'); gr.addColorStop(.55, '#CFE5EF'); gr.addColorStop(1, '#C2DDEA'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+    scene.background = sky;
+    const woodImg = paint(1024, 1024, (g, w, h) => {
+      const rows = 8, ph = h / rows;
+      for (let r = 0; r < rows; r++) { let x = -R() * w * .5;
+        while (x < w) { const len = w * (.32 + R() * .4), l = 62 + R() * 5; g.fillStyle = `hsl(${30 + R() * 4}, ${26 + R() * 6}%, ${l}%)`; g.fillRect(x, r * ph, len, ph);
+          for (let k = 0; k < 18; k++) { g.strokeStyle = `rgba(110,72,36,${.03 + R() * .07})`; g.lineWidth = .8 + R() * 1.6; const y = r * ph + R() * ph; g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + len * .3, y + (R() - .5) * 8, x + len * .7, y + (R() - .5) * 8, x + len, y + (R() - .5) * 4); g.stroke(); }
+          g.fillStyle = 'rgba(80,52,26,.28)'; g.fillRect(x, r * ph, 2, ph); x += len; }
+        g.fillStyle = 'rgba(80,52,26,.25)'; g.fillRect(0, r * ph, w, 2); } });
+    const plasterImg = paint(512, 512, (g, w, h) => speckle(g, w, h, '#E4DFD6', .05, 26000, 2));
+    const linenImg = paint(256, 256, (g, w, h) => { g.fillStyle = '#89C2D9'; g.fillRect(0, 0, w, h); for (let i = 0; i < w; i += 2) { g.fillStyle = `rgba(255,255,255,${R() * .08})`; g.fillRect(i, 0, 1, h); g.fillStyle = `rgba(0,30,60,${R() * .06})`; g.fillRect(0, i, w, 1); } });
+    const woolImg = paint(256, 256, (g, w, h) => speckle(g, w, h, '#C9E2EC', .12, 9000, 2));
+    const concreteImg = paint(512, 512, (g, w, h) => { speckle(g, w, h, '#C9C5BD', .08, 20000, 2); g.strokeStyle = 'rgba(80,70,60,.18)'; g.lineWidth = 2; for (let i = 0; i <= w; i += w / 4) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.stroke(); g.beginPath(); g.moveTo(0, i); g.lineTo(w, i); g.stroke(); } });
+    const asphaltImg = paint(512, 512, (g, w, h) => speckle(g, w, h, '#454D55', .18, 40000, 2));
+    const grassImg = paint(512, 512, (g, w, h) => { speckle(g, w, h, '#7A9F64', .22, 40000, 3); });
+    const windowsImg = paint(256, 256, (g, w, h) => { g.fillStyle = '#ECEAE5'; g.fillRect(0, 0, w, h); const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#5E8FAA'); gr.addColorStop(1, '#2A5D7C'); g.fillStyle = gr; g.fillRect(w * .12, h * .2, w * .76, h * .62); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(w * .12, h * .2, w * .76, h * .12); g.fillStyle = '#ECEAE5'; g.fillRect(w * .49, h * .2, w * .02, h * .62); });
+    const printImg = paint(256, 320, (g, w, h) => { g.fillStyle = '#F6F3EE'; g.fillRect(0, 0, w, h); [['#A9D6E5', .3, .38, .34], ['#2C7DA0', .62, .5, .22], ['#012A4A', .45, .7, .1]].forEach(([c, x, y, r]) => { g.fillStyle = c; g.beginPath(); g.arc(w * x, h * y, w * r, 0, Math.PI * 2); g.fill(); }); });
+    const withRepeat = (t, x, y) => { const c = t.clone(); c.repeat.set(x, y); c.needsUpdate = true; return c; };
+
+    // ---- Materials ----
+    const S = (o) => new THREE.MeshStandardMaterial({ roughness: .8, metalness: 0, ...o });
+    const plaster = S({ map: plasterImg, roughness: .95 }), lacquer = S({ color: 0xF1EEE8, roughness: .38 }), stoneTop = S({ color: 0xECE8E2, roughness: .28 }),
+      ceramic = S({ color: 0xFBFAF8, roughness: .12 }), chrome = S({ color: 0xDCE1E6, metalness: 1, roughness: .16 }), brass = S({ color: 0xC8A46A, metalness: 1, roughness: .3 }),
+      linen = S({ map: withRepeat(linenImg, 3, 3), roughness: .95 }), wool = S({ map: withRepeat(woolImg, 4, 4), roughness: 1 }), towel = S({ color: 0xFFFFFF, roughness: 1 }),
+      oakFurn = S({ map: withRepeat(woodImg, .5, .5), roughness: .55 }), terracotta = S({ color: 0xC4876A, roughness: .9 }), soil = S({ color: 0x4A3A2C, roughness: 1 }),
+      leafA = S({ color: 0x5C8A55, roughness: .65 }), leafB = S({ color: 0x7EA56B, roughness: .65 }), leafC = S({ color: 0x4B7448, roughness: .65 }),
+      mirror = S({ color: 0xF2F6F8, metalness: 1, roughness: .04 }), shadeMat = S({ color: 0xFFF2DA, emissive: 0xFFE1A8, emissiveIntensity: .45, roughness: .9 }),
+      ink = S({ color: 0x012A4A, roughness: .45 }), slate = S({ color: 0x2A3B48, roughness: .5 }), print = S({ map: printImg, roughness: .7 }),
+      paperBox = S({ color: 0xA9D6E5, roughness: .6 }), jar = S({ color: 0xE8F3F7, roughness: .1, transparent: true, opacity: .75 });
+    const clearGlass = new THREE.MeshPhysicalMaterial({ color: 0xDDEFF5, roughness: .03, metalness: 0, transparent: true, opacity: .22, depthWrite: false, side: THREE.DoubleSide });
+    const towerGlass = new THREE.MeshStandardMaterial({ color: 0x2A6F97, roughness: .06, metalness: .75, transparent: true, opacity: .72, envMapIntensity: 1.4 });
+    const frame = S({ color: 0x1D2B36, roughness: .4, metalness: .4 });
+
+    scene.add(new THREE.HemisphereLight(0xFFFFFF, 0xCFE0E8, .55));
+    const sun = new THREE.DirectionalLight(0xFFF1DE, .95);
+    sun.castShadow = true; sun.shadow.mapSize.set(1536, 1536); sun.shadow.bias = -.0004; sun.shadow.normalBias = .03;
+    scene.add(sun, sun.target);
+
+    // ---- Builders ----
+    const sh = m => { m.castShadow = !m.material.transparent; m.receiveShadow = true; return m; };
+    function rbox(p, w, h, d, mat, x = 0, y = 0, z = 0, r = .025) { const g = new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2.01, h / 2.01, d / 2.01)); g.translate(0, h / 2, 0); const m = sh(new THREE.Mesh(g, mat)); m.position.set(x, y, z); p.add(m); return m; }
+    function box(p, w, h, d, mat, x = 0, y = 0, z = 0) { const g = new THREE.BoxGeometry(w, h, d); g.translate(0, h / 2, 0); const m = sh(new THREE.Mesh(g, mat)); m.position.set(x, y, z); p.add(m); return m; }
+    function cyl(p, rt, rb, h, mat, x = 0, y = 0, z = 0, seg = 18) { const g = new THREE.CylinderGeometry(rt, rb, h, seg); g.translate(0, h / 2, 0); const m = sh(new THREE.Mesh(g, mat)); m.position.set(x, y, z); p.add(m); return m; }
+    function blob(p, r, mat, x, y, z, sx = 1, sy = 1, sz = 1) { const m = sh(new THREE.Mesh(new THREE.SphereGeometry(r, 11, 8), mat)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); p.add(m); return m; }
+    const group = (p, x = 0, y = 0, z = 0, ry = 0) => { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; p.add(g); return g; };
+    const items = [], at = (o, a, b, how = 'drop') => { o.userData.y = o.position.y; items.push({ o, a, b, how }); return o; };
+    const root = group(scene), suite = group(root);
+    // a soft contact shadow under the suite, so the room sits on something before the street arrives
+    const contact = new THREE.Mesh(new THREE.PlaneGeometry(16, 13), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, map: paint(256, 256, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(1,42,74,.28)'); gr.addColorStop(.55, 'rgba(1,42,74,.12)'); gr.addColorStop(1, 'rgba(1,42,74,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }) }));
+    contact.rotation.x = -Math.PI / 2; contact.position.y = -.02; scene.add(contact);
+
+    // ---- The suite: 10 m × 7 m on the ground floor ----
+    const WH = 3, T = .14, SILL = .9;
+    const floorMat = (w, d) => S({ map: withRepeat(woodImg, w / 1.4, d / 1.4), roughness: .5 }); // narrower boards
+    const floor = (w, d, x, z) => box(suite, w, .06, d, floorMat(w, d), x, 0, z);
+    const wallX = (p, x0, x1, z, h = WH, y = 0) => box(p, x1 - x0, h, T, plaster, (x0 + x1) / 2, y, z);
+    const wallZ = (p, z0, z1, x, h = WH, y = 0) => box(p, T, h, z1 - z0, plaster, x, y, (z0 + z1) / 2);
+    const skirtX = (p, x0, x1, z) => box(p, x1 - x0, .09, .02, lacquer, (x0 + x1) / 2, .06, z);
+    // Room A: floor, the back wall with a window, the side wall with a framed print. The two sides facing her are open.
+    floor(4, 3.5, -3, -1.75);
+    wallX(suite, -5.07, -4.3, -3.5); wallX(suite, -1.9, -1, -3.5); wallX(suite, -4.3, -1.9, -3.5, .95); wallX(suite, -4.3, -1.9, -3.5, .6, 2.4);
+    box(suite, 2.4, 1.45, .03, clearGlass, -3.1, .95, -3.5); box(suite, 2.4, .05, .05, frame, -3.1, .95, -3.47); box(suite, 2.4, .05, .05, frame, -3.1, 2.35, -3.47); box(suite, .05, 1.45, .05, frame, -3.1, .95, -3.47);
+    box(suite, 2.5, .04, .22, stoneTop, -3.1, .95, -3.38);
+    wallZ(suite, -3.5, 0, -1); skirtX(suite, -4.3, -1.9, -3.42);
+    const art = group(suite, -1.09, 1.35, -1.6, -Math.PI / 2); rbox(art, .66, .82, .03, brass, 0, 0, 0, .008); box(art, .58, .74, .01, print, 0, .04, .02);
+    // The rest of the floor and walls arrive as the camera pulls back.
+    [[4, 3.5, 1, -1.75], [2, 3.5, 4, -1.75], [6, 3.5, -2, 1.75], [4, 3.5, 3, 1.75]].forEach(([w, d, x, z], i) => at(floor(w, d, x, z), .23 + i * .01, .27 + i * .01, 'pop'));
+    [wallX(suite, -1, 5.07, -3.5), wallZ(suite, -3.5, 3.57, 5), wallZ(suite, -3.5, 0, 3),
+     wallX(suite, -5, -2.2, 0), wallX(suite, -1.3, .1, 0), wallX(suite, 1, 3.3, 0), wallX(suite, 4.1, 5, 0), wallZ(suite, 0, 1.2, 1), wallZ(suite, 2.2, 3.5, 1),
+     wallZ(suite, -3.5, 3.57, -5, SILL), wallX(suite, -5, -2.6, 3.5, SILL), wallX(suite, -1, 5.07, 3.5, SILL)].forEach((w, i) => at(w, .24 + i * .006, .3 + i * .006, 'grow'));
+
+    // ---- Furniture ----
+    const bowl = new THREE.LatheGeometry([[0, 0], [.17, 0], [.2, .04], [.21, .12], [.19, .13], [.16, .03], [0, .03]].map(([x, y]) => new THREE.Vector2(x, y)), 40);
+    const bed = g => { rbox(g, .5, .5, 1.5, slate, 0, 0, 0, .03); rbox(g, .74, .14, 1.96, lacquer, 0, .5, 0, .04); rbox(g, .72, .14, 1.9, linen, 0, .64, .02, .07); const roll = cyl(g, .09, .09, .6, linen, 0, .86, -.62, 24); roll.rotation.z = Math.PI / 2; roll.position.set(.3, .87, -.62); rbox(g, .4, .1, .3, towel, 0, .78, .7, .04); rbox(g, .36, .08, .26, towel, 0, .88, .7, .04); };
+    const stool = g => { for (let k = 0; k < 5; k++) { const leg = box(g, .03, .03, .26, chrome, Math.sin(k * 1.257) * .1, .02, Math.cos(k * 1.257) * .1); leg.rotation.y = k * 1.257; } cyl(g, .025, .025, .48, chrome, 0, 0, 0, 16); cyl(g, .21, .2, .09, linen, 0, .48); };
+    const cart = g => { [[-.22, -.17], [.22, -.17], [-.22, .17], [.22, .17]].forEach(([x, z]) => cyl(g, .012, .012, .78, chrome, x, 0, z, 12)); box(g, .5, .015, .4, clearGlass, 0, .28); box(g, .5, .015, .4, clearGlass, 0, .76); cyl(g, .05, .05, .14, jar, -.12, .77, -.05); cyl(g, .04, .04, .18, ceramic, .02, .77, .06); rbox(g, .16, .07, .16, towel, .14, .29, 0, .03); rbox(g, .16, .07, .16, towel, .14, .36, 0, .03); };
+    const vanity = g => { rbox(g, 1.1, .8, .5, oakFurn, 0, .05, 0, .02); box(g, 1.14, .04, .54, stoneTop, 0, .85, 0); const b = sh(new THREE.Mesh(bowl, ceramic)); b.position.set(-.18, .89, .02); g.add(b); cyl(g, .012, .012, .26, chrome, -.18, .89, -.2, 12); const sp = box(g, .02, .02, .14, chrome, -.18, 1.13, -.14); const m = cyl(g, .34, .34, .02, mirror, 0, 1.55, -.24, 48); m.rotation.x = Math.PI / 2; m.position.set(0, 1.55, -.24); const fr = new THREE.Mesh(new THREE.TorusGeometry(.345, .012, 8, 64), brass); fr.position.set(0, 1.55, -.23); g.add(fr); cyl(g, .045, .045, .16, jar, .3, .89, .05); cyl(g, .035, .035, .12, ceramic, .4, .89, -.05); };
+    const plant = (g, s = 1) => { cyl(g, .2 * s, .15 * s, .42 * s, terracotta); cyl(g, .19 * s, .19 * s, .01, soil, 0, .4 * s); const L = [leafA, leafB, leafC]; for (let k = 0; k < 16; k++) { const a = k * 2.4, rr = (.08 + R() * .22) * s, y = (.55 + R() * .75) * s; const lf = blob(g, (.09 + R() * .06) * s, L[k % 3], Math.cos(a) * rr, y, Math.sin(a) * rr, .55, 1.5, .55); lf.rotation.set((R() - .5) * 1.2, a, (R() - .5) * 1.2); } };
+    const lamp = g => { cyl(g, .16, .17, .03, brass); cyl(g, .012, .012, 1.52, brass, 0, 0, 0, 12); cyl(g, .13, .2, .3, shadeMat, 0, 1.42); };
+    const rug = (g, w, d) => rbox(g, w, .02, d, wool, 0, .06, 0, .01);
+    const shelf = (g, w = 1.2) => { [0, .48, .96, 1.44].forEach(y => box(g, w, .03, .32, oakFurn, 0, y + .1, 0)); [-w / 2 + .02, w / 2 - .02].forEach(x => box(g, .025, 1.56, .32, oakFurn, x, .02, 0)); for (let k = 0; k < 3; k++) for (let j = 0; j < 4; j++) { const x = -w / 2 + .2 + j * (w - .4) / 3, y = .58 + k * .48 - .45 + .48; (j + k) % 3 === 0 ? (rbox(g, .2, .08, .2, towel, x, y, 0, .035), rbox(g, .2, .08, .2, towel, x, y + .08, 0, .035)) : (j + k) % 3 === 1 ? cyl(g, .05, .05, .18, jar, x, y, 0) : rbox(g, .14, .2, .12, paperBox, x, y, 0, .01); } };
+    const desk = g => { rbox(g, 2.2, 1.0, .6, oakFurn, 0, 0, 0, .03); box(g, 2.3, .04, .66, stoneTop, 0, 1.0); rbox(g, .6, .72, 1.3, lacquer, .85, 0, -.95, .02); box(g, .7, .03, 1.4, stoneTop, .85, .72, -.95); rbox(g, .46, .3, .02, slate, .85, .78, -1.3, .01); cyl(g, .07, .05, .16, ceramic, -.6, 1.04, 0); plantSmall(g, -.85, 1.04, .05); };
+    const plantSmall = (g, x, y, z) => { cyl(g, .07, .055, .12, terracotta, x, y, z, 20); for (let k = 0; k < 6; k++) blob(g, .05, k % 2 ? leafA : leafB, x + Math.cos(k) * .04, y + .16 + R() * .06, z + Math.sin(k) * .04, .6, 1.3, .6); };
+    const chair = g => { rbox(g, .78, .42, .74, linen, 0, .08, 0, .12); rbox(g, .78, .5, .16, linen, 0, .4, -.3, .07); [[-.3, -.28], [.3, -.28], [-.3, .28], [.3, .28]].forEach(([x, z]) => cyl(g, .02, .015, .1, brass, x, 0, z, 10)); };
+    const table = (g, r = .36) => { cyl(g, .025, .025, .42, brass, 0, 0, 0, 12); cyl(g, .2, .2, .02, brass, 0, 0); cyl(g, r, r, .03, stoneTop, 0, .42, 0, 48); };
+    const sofa = g => { rbox(g, 2.1, .3, .9, linen, 0, .1, 0, .06); rbox(g, 2.1, .52, .2, linen, 0, .38, -.35, .08); rbox(g, .18, .32, .9, linen, -.96, .38, 0, .07); rbox(g, .18, .32, .9, linen, .96, .38, 0, .07); rbox(g, .88, .14, .66, linen, -.45, .4, .08, .07); rbox(g, .88, .14, .66, linen, .45, .4, .08, .07); rbox(g, .4, .36, .12, wool, -.6, .5, -.2, .06); };
+    const piece = (make, x, z, ry, a, b, ...args) => { const g = group(suite, x, 0, z, ry); make(g, ...args); return at(g, a, b, 'drop'); };
+
+    [[g => rug(g, 2.4, 2.6), -3.1, -1.7, 0], [bed, -3.1, -1.75, 0], [vanity, -4.35, -3.17, 0], [stool, -2.25, -1.15, 0], [cart, -4.2, -.9, .3], [shelf, -1.27, -2.6, -Math.PI / 2], [lamp, -1.5, -.45, 0], [plant, -4.55, -.45, 0]]
+      .forEach(([m, x, z, r], i) => piece(m, x, z, r, .1 + i * .014, .135 + i * .014));
+    [[bed, 1, -1.75, 0], [vanity, 2.1, -3.17, 0], [stool, 1.8, -1.15, 0], [cart, -.2, -.9, -.2], [plant, -.55, -.45, 0, .9],
+     [shelf, 4.73, -2.6, -Math.PI / 2, 1.4], [shelf, 4.73, -1.0, -Math.PI / 2, 1.4],
+     [desk, -1.3, 1.5, 0], [g => rug(g, 2.4, 2.2), -3.4, 2.1, 0], [chair, -4.1, 1.55, Math.PI / 2], [chair, -4.1, 2.65, Math.PI / 2], [table, -3.2, 2.1, 0], [shelf, -4.2, .3, 0], [plant, -4.55, 3.05, 0, 1.1],
+     [sofa, 3, 3.0, Math.PI], [table, 3, 1.9, 0, .4], [plant, 4.55, .5, 0], [lamp, 1.45, 3.1, 0]]
+      .forEach(([m, x, z, r, ...args], i) => piece(m, x, z, r, .26 + i * .0045, .3 + i * .0045, ...args));
+
+    // ---- Closing it in: shopfront glass in slim dark frames, a header, a canopy over the door ----
+    const front = group(suite), GH = WH - SILL + .3;
+    box(front, .03, GH, 7.1, clearGlass, -5, SILL, 0); box(front, 2.5, GH, .03, clearGlass, -3.8, SILL, 3.5); box(front, 6.07, GH, .03, clearGlass, 2.03, SILL, 3.5); box(front, 1.6, WH + .3, .03, clearGlass, -1.8, 0, 3.5);
+    for (let z = -3.5; z <= 3.51; z += 1.175) box(front, .06, GH, .08, frame, -5, SILL, z);
+    for (let x = -5; x <= 5.01; x += 1.25) if (x < -2.6 || x > -1) box(front, .06, GH, .08, frame, x, SILL, 3.5);
+    box(front, 10.3, .34, .24, lacquer, 0, WH + .3, 3.5); box(front, .24, .34, 7.3, lacquer, -5, WH + .3, 0);
+    rbox(front, 2.7, .08, 1.3, frame, -1.8, WH - .15, 4.15, .02);
+    at(front, .34, .41, 'grow');
+
+    // ---- The tower: stone-white slabs, blue glass, slender fins, two planted setbacks, a roof garden ----
+    const FH = 3.4, FLOORS = 11, base = WH + .64, spec = i => i < 6 ? [10.4, 7.4] : i < 9 ? [8.6, 6.2] : [6.8, 5];
+    const finGeo = new RoundedBoxGeometry(.12, FH - .34, .5, 2, .03); finGeo.translate(0, (FH - .34) / 2 + .34, 0);
+    for (let i = 0; i < FLOORS; i++) {
+      const [w, d] = spec(i), f = group(root, 0, base + i * FH, 0);
+      box(f, w, .34, d, lacquer); box(f, w - .5, FH - .34, d - .5, towerGlass, 0, .34, 0);
+      const pos = [];
+      for (let x = -w / 2 + .5; x <= w / 2 - .4; x += 1.1) pos.push([x, d / 2 - .25, 0], [x, -d / 2 + .25, 0]);
+      for (let z = -d / 2 + .5; z <= d / 2 - .4; z += 1.1) pos.push([w / 2 - .25, z, Math.PI / 2], [-w / 2 + .25, z, Math.PI / 2]);
+      const fins = new THREE.InstancedMesh(finGeo, lacquer, pos.length), o = new THREE.Object3D();
+      pos.forEach(([x, z, r], k) => { o.position.set(x, 0, z); o.rotation.y = r; o.updateMatrix(); fins.setMatrixAt(k, o.matrix); });
+      fins.castShadow = fins.receiveShadow = true; f.add(fins);
+      if (i === 5 || i === 8) for (let x = -w / 2 + .6; x < w / 2; x += 1.4) { rbox(f, .9, .42, .5, lacquer, x, FH, d / 2 - .35, .04); for (let k = 0; k < 4; k++) blob(f, .2, k % 2 ? leafA : leafB, x - .25 + k * .17, FH + .55, d / 2 - .35, 1, .9, 1); }
+      at(f, .37 + i * .011, .41 + i * .011, 'grow');
+    }
+    const [rw, rd] = spec(FLOORS - 1), roof = group(root, 0, base + FLOORS * FH, 0);
+    box(roof, rw, .4, rd, lacquer); [[0, rd / 2 - .07, rw, .14], [0, -rd / 2 + .07, rw, .14]].forEach(([x, z, w, d]) => box(roof, w, .9, d, lacquer, x, .4, z)); [rw / 2 - .07, -rw / 2 + .07].forEach(x => box(roof, .14, .9, rd, lacquer, x, .4, 0));
+    [[-2, -1], [1.8, -1.2], [-1.5, 1.4], [2, 1.5]].forEach(([x, z]) => { rbox(roof, 1.2, .45, 1.2, lacquer, x, .4, z, .05); for (let k = 0; k < 5; k++) blob(roof, .3, [leafA, leafB, leafC][k % 3], x + (R() - .5) * .6, 1.05 + R() * .3, z + (R() - .5) * .6); });
+    for (let x = -2.6; x <= 2.61; x += .52) box(roof, .07, .1, 3.4, oakFurn, x, 3.2, 0); [[-2.7, -1.6], [2.7, -1.6], [-2.7, 1.6], [2.7, 1.6]].forEach(([x, z]) => box(roof, .12, 2.8, .12, frame, x, .4, z));
+    at(roof, .5, .54, 'grow');
+
+    // ---- The street: paving, asphalt, kerb, grass, trees, parked cars, neighbours with real windows ----
+    const site = group(root);
+    box(site, 120, .1, 120, S({ map: withRepeat(concreteImg, 60, 60), roughness: .9 }), 0, -.1, 0);
+    box(site, 120, .03, 9, S({ map: withRepeat(asphaltImg, 24, 2), roughness: .95 }), 0, 0, 13);
+    box(site, 120, .16, .22, S({ color: 0xCFCBC3 }), 0, 0, 8.6); box(site, 120, .16, .22, S({ color: 0xCFCBC3 }), 0, 0, 17.4);
+    const paintMat = S({ color: 0xF4F2EC, roughness: .7 });
+    for (let x = -56; x < 58; x += 4) box(site, 1.8, .01, .14, paintMat, x, .035, 13);
+    for (let k = 0; k < 7; k++) box(site, .5, .01, 8.4, paintMat, -9 + k * .9, .035, 13);
+    const grassMat = S({ map: withRepeat(grassImg, 4, 2), roughness: 1 });
+    [[-17, 4.6, 14, 3.4], [17, 4.6, 14, 3.4], [-14, -9, 10, 6], [14, -9, 10, 6]].forEach(([x, z, w, d]) => rbox(site, w, .08, d, grassMat, x, 0, z, .03));
+    at(site, .35, .42, 'pop');
+    for (let x = -22; x <= 22; x += 5.5) { const tr = group(root, x + (x === 0 ? 3 : 0), 0, 7.6); cyl(tr, .09, .14, 2.1, S({ color: 0x6B5A48 }), 0, 0, 0, 10); for (let k = 0; k < 9; k++) blob(tr, .7 + R() * .35, [leafA, leafB, leafC][k % 3], (R() - .5) * 1.4, 2.5 + R() * 1.3, (R() - .5) * 1.4); at(tr, .38 + Math.abs(x) * .002, .43 + Math.abs(x) * .002, 'drop'); }
+    [[-11, 11.2, 0x013A63], [6, 14.8, 0x89C2D9], [14, 11.2, 0xF1F1EE]].forEach(([x, z, c], i) => { const car = group(root, x, 0, z), body = S({ color: c, roughness: .25, metalness: .5 });
+      rbox(car, 4.3, .72, 1.84, body, 0, .26, 0, .22); rbox(car, 2.4, .62, 1.66, S({ color: 0x1E2A33, roughness: .05, metalness: .6 }), -.25, .86, 0, .2);
+      [[-1.35, -.84], [1.35, -.84], [-1.35, .84], [1.35, .84]].forEach(([a, b]) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(.34, .34, .24, 24), S({ color: 0x1A1E22, roughness: .8 })); w.rotation.x = Math.PI / 2; w.position.set(a, .34, b); sh(w); car.add(w); });
+      at(car, .4 + i * .01, .45 + i * .01, 'drop'); });
+    [[-20, -1, 9, 13, 10], [19, -1, 9, 9, 9], [-18, -20, 11, 19, 10], [2, -22, 13, 12, 9], [20, -19, 9, 16, 9], [-34, 2, 10, 8, 12], [35, 2, 10, 11, 11], [-6, -36, 12, 24, 11]]
+      .forEach(([x, z, w, h, d], i) => { const m = S({ map: withRepeat(windowsImg, Math.round(w / 2.4), Math.round(h / 3.3)), roughness: .6, metalness: .1 }); const b = box(root, w, h, d, m, x, 0, z); box(b, w + .3, .4, d + .3, lacquer, 0, h); at(b, .42 + i * .012, .5 + i * .012, 'grow'); });
+
+    // ---- Fewer draw calls: each animated group is merged into one mesh per material ----
+    const keep = ['position', 'normal', 'uv'];
+    function bake(g) {
+      g.updateMatrixWorld(true);
+      const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), byMat = new Map(), gone = [];
+      g.traverse(o => {
+        if (!o.isMesh || o.isInstancedMesh || o === g) return;
+        let geo = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+        if (geo.index) geo = geo.toNonIndexed();
+        for (const k of Object.keys(geo.attributes)) if (!keep.includes(k)) geo.deleteAttribute(k);
+        geo.morphAttributes = {};
+        if (!byMat.has(o.material)) byMat.set(o.material, []);
+        byMat.get(o.material).push(geo); gone.push(o);
+      });
+      gone.forEach(o => o.parent.remove(o));
+      for (const [m, list] of byMat) { const merged = mergeGeometries(list); if (!merged) continue; const mesh = new THREE.Mesh(merged, m); mesh.castShadow = !m.transparent; mesh.receiveShadow = true; g.add(mesh); }
+    }
+    items.forEach(({ o }) => { if (o.isGroup) bake(o); });
+    bake(suite.children.find(c => c.isGroup && !items.some(i => i.o === c)) || new THREE.Group()); // the framed print
+
+    // ---- Camera: just outside the room, back over the suite, out to the street, up the tower, then far away ----
+    const keys = [ // t, target x, y, z, distance, tilt, turn
+      [0, -2.9, 1.75, -1.7, 12, .5, -.6], [.22, -2.9, 1.7, -1.7, 10.8, .46, -.25], [.34, .2, .6, 0, 23, .95, .12],
+      [.44, 0, 7, 0, 42, .48, .5], [.55, 0, 19, 0, 100, .3, .95], [.8, 0, 19, 0, 190, .26, 1.25]];
+    const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v)), ease = t => 1 - Math.pow(1 - t, 3), smooth = x => x * x * (3 - 2 * x);
+    const band = (t, a, b) => ease(clamp((t - a) / (b - a))), lerp = (a, b, k) => a + (b - a) * k, target = new THREE.Vector3();
+
+    let shadowSpan = 0;
+    function size() {
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+    let lastT = -1;
+    function draw(t) {
+      if (Math.abs(t - lastT) < .00005) return; lastT = t; // nothing moved
+      for (const { o, a, b, how } of items) {
+        const k = band(t, a, b); o.visible = k > .001; if (!o.visible) continue;
+        if (how === 'drop') { o.position.y = o.userData.y + (1 - k) * 1.2; o.scale.setScalar(.5 + .5 * k); }
+        else if (how === 'grow') o.scale.y = Math.max(.001, k);
+        else o.scale.set(Math.max(.001, k), 1, Math.max(.001, k));
+      }
+      let i = 0; while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
+      const [t0, ...p0] = keys[i], [t1, ...p1] = keys[i + 1], u = smooth(clamp((t - t0) / (t1 - t0)));
+      const [tx, ty, tz, d0, tilt, turn] = p0.map((v, j) => lerp(v, p1[j], u));
+      const dist = d0 * (camera.aspect < 1 ? 1.15 / Math.max(.55, camera.aspect) : 1);
+      target.set(tx, ty, tz);
+      camera.position.set(tx + Math.sin(turn) * Math.cos(tilt) * dist, ty + Math.sin(tilt) * dist, tz + Math.cos(turn) * Math.cos(tilt) * dist);
+      camera.lookAt(target);
+      contact.material.opacity = 1 - band(t, .34, .42);
+      const span = Math.round(lerp(8, 52, band(t, .26, .5)));
+      if (span !== shadowSpan) { shadowSpan = span; Object.assign(sun.shadow.camera, { left: -span, right: span, top: span, bottom: -span, near: 1, far: 240 }); sun.shadow.camera.updateProjectionMatrix(); }
+      sun.target.position.copy(target); sun.position.set(tx - 9, ty + 60, tz + 15); // high sun: short shadows that fall behind the room
+      // hidden behind nothing: the room only fades in once the headline and search have lifted away
+      const x = clamp((t - .56) / .22), fade = smooth(clamp((t - .085) / .05)) * (1 - smooth(x));
+      canvas.style.opacity = fade.toFixed(3);
+      if (fade > 0) renderer.render(scene, camera);
+    }
+    addEventListener('resize', () => { size(); lastT = -1; window.__tick?.(); });
+    size();
+    window.__bld = draw;
+    window.__tick?.();
+  }
+</script>
+</body>
+</html>
