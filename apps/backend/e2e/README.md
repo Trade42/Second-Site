@@ -1,7 +1,7 @@
 # End-to-end harness (parts 1 to 3): the Rust service and the Python app together
 
 `run.sh` builds the Rust release binary, starts it **and** the Python app on loopback, both on one private
-PostgreSQL schema with one `AUTH_SECRET`, points each at the other, and runs `driver.py`. The driver runs 90
+PostgreSQL schema with one `AUTH_SECRET`, points each at the other, and runs `driver.py`. The driver runs 91
 numbered checks against both live services, then the harness stops both processes and drops the schema.
 Finding integration defects is the point: a check that fails is reported, never worked around.
 
@@ -52,7 +52,7 @@ Exactly two processes, both bound to `127.0.0.1` on free ports chosen at run tim
   explicitly. `run.sh` writes the exact environment of each process to `env-rust.txt` and `env-python.txt` in
   the run directory, with the two generated secrets masked. The Rust service also gets `TELNYX_PUBLIC_KEY`, the
   public half of an Ed25519 key pair generated per run (never a real Telnyx key; voice stays `fixture`); the
-  private half goes to the driver's environment only (K06 signs Telnyx events with it; H01 checks no kept file
+  private half goes to the driver's environment only (K06 and K08 sign Telnyx events with it; H01 checks no kept file
   holds it).
 - **No `.env`.** Both services read `.env` and `../../.env` relative to their working directory (the
   pydantic-settings `env_file` setting and the Rust port of it). Both are started from `<run dir>/cwd/a/b`, an
@@ -207,7 +207,10 @@ rows written by Rust); after the text, the call and the handoff read through bot
 `ACCEPTED`, `OWNER_JOINING`, "Calling you now..."; LATER: `DEFERRED`, `AI_RESUMED` with deferred questions); a
 second answer to the handoff is refused (409) by both services, and a second text gets "no call waiting". K07
 every `/owner` and Photon route in the live Python app's OpenAPI document is in `forward.rs` and reaches Python
-through Rust (a 404 is a FAIL here: this check is about the routes). In K01–K06 a route answered with the ordinary
+through Rust (a 404 is a FAIL here: this check is about the routes). K08 the call after JOIN: the owner leg and
+conference that Python's `owner_response` dialed and stored on Rust's call, driven by signed Telnyx events to
+Rust (owner answers, joins the conference, hangs up): `OWNER_JOINING`, `HUMAN_JOINED`, `AI_RESUMED`, the joined
+and left turns in the transcript, read identically by both services. In K01–K06 a route answered with the ordinary
 404 is a SKIP (exit 3), never a pass.
 
 **H. Hygiene.** H01 (runs last) no file the run keeps contains `AUTH_SECRET`, the Photon secret, any bearer token the
@@ -223,8 +226,8 @@ the repository settings must be passed explicitly. `bash -n apps/backend/e2e/run
 
 No browser and no web app. No live provider, no real model (the model-free supervisor only), no real Photon,
 Telnyx or Nessie. Not exercised at all: the in-process (Python) mode of the supervisor tools with another
-project's property, the call after the owner's JOIN (the owner leg Python's fixture telephony dialed, the
-conference, the hangup; K06 stops at `OWNER_JOINING`), the Telnyx webhook's refusals (bad signature, stale
+project's property, the end of the call after the owner left (the
+broker's remaining questions and the hangup), the Telnyx webhook's refusals (bad signature, stale
 timestamp), image texts, the APPROVE text, an unknown sender, the Nessie routes beyond their cross-project refusals
 (I06, I09), the media routes, the
 Studio routes the forwarder carries, concurrent writers of both services on one project, a restart of either

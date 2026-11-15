@@ -82,6 +82,15 @@ ACTION_REPLY = (
     "called, bought or approved. Ask me a question about your project and I'll answer from its records."
 )
 UNAVAILABLE_REPLY = "The assistant's model could not be reached: {why}. Nothing was done. Try again later."
+# The model has no tools, so a reply that says it acted is false; it is passed on with this notice appended.
+NO_ACTION_NOTICE = "(Note: this assistant cannot act. Nothing was sent, called, bought, booked or approved.)"
+_CLAIM_RE = re.compile(
+    r"\bI(?:'ve| have| just)?\s+(?:called|phoned|rang|dialed|e-?mailed|texted|messaged|contacted|reached out|"
+    r"got in touch|let|told|informed|sent|submitted|put in|placed|booked|reserved|scheduled|bought|purchased|"
+    r"paid|wired|ordered|approved|signed|accepted|locked|confirmed|made an offer)\b",
+    re.IGNORECASE,
+)
+MAX_REPLY_CHARS = 4_000  # the reply also goes out by text message (Photon); the rules ask for ~200 words
 
 # Messages that ask the assistant to act. They get ACTION_REPLY and never reach the model.
 _ACTION_RE = re.compile(
@@ -268,16 +277,20 @@ def run_codex(spec: CodexSpec, prompt: str, timeout_s: float | None = None) -> s
         workdir = Path(base, "work")
         workdir.mkdir()  # empty: the model has no files to look at
         out_file = Path(base, "last-message.txt")  # outside the working directory
-        proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
-            command(exe, spec, str(workdir), str(out_file)),
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=workdir,
-            env=_cli_env(),
-            text=True,
-            start_new_session=True,
-        )
+        try:
+            proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+                command(exe, spec, str(workdir), str(out_file)),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=workdir,
+                env=_cli_env(),
+                encoding="utf-8",
+                errors="replace",  # invalid UTF-8 from the CLI must not raise (that would be a 500)
+                start_new_session=True,
+            )
+        except OSError:
+            raise CodexUnavailable("start", "the Codex CLI could not be started") from None
         try:
             _stdout, stderr = proc.communicate(prompt, timeout=timeout_s or TIMEOUT_S)
         except subprocess.TimeoutExpired:
@@ -298,6 +311,10 @@ def run_codex(spec: CodexSpec, prompt: str, timeout_s: float | None = None) -> s
         answer = out_file.read_text(encoding="utf-8", errors="replace").strip() if out_file.exists() else ""
     if not answer:
         raise CodexUnavailable("empty", "the model returned an empty answer")
+    if len(answer) > MAX_REPLY_CHARS:
+        answer = answer[:MAX_REPLY_CHARS].rstrip() + " [reply cut: too long]"
+    if _CLAIM_RE.search(answer):
+        answer = f"{answer}\n\n{NO_ACTION_NOTICE}"
     return answer
 
 

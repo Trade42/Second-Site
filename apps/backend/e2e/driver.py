@@ -42,7 +42,7 @@ RUST_LOG = Path(os.environ["E2E_RUST_LOG"])
 PY_LOG = Path(os.environ["E2E_PY_LOG"])
 SECRET = os.environ["E2E_AUTH_SECRET"]
 PHOTON_SECRET = os.environ["E2E_PHOTON_SECRET"]
-TELNYX_TEST_KEY = os.environ.get("E2E_TELNYX_TEST_KEY", "")  # private half of the run's test key (K05)
+TELNYX_TEST_KEY = os.environ.get("E2E_TELNYX_TEST_KEY", "")  # private half of the run's test key (K06, K08)
 RESULTS = os.environ.get("E2E_RESULTS")
 DATABASE_URL = os.environ.get("E2E_DATABASE_URL")
 sys.path.insert(0, str(REPO / "apps" / "api"))
@@ -2439,8 +2439,8 @@ def ok(r: R, code: int) -> None:
 @check("K01", "set-up: a fresh project through rust is the one python files the owner's texts under")
 def k01() -> str:
     """Python files an owner text under the owner's latest project (`latest_project_id`: the newest created_at),
-    not under a project the text names. This owner has some 90 projects by now (C12), so K02-K05 first create one
-    through rust, search it, and ask python's own function which project an owner text would land in."""
+    not under a project the text names. This owner has some 90 projects by now (C12), so K01 first creates one
+    through rust, searches it, and asks python's own function which project an owner text would land in."""
     from app.domains.communications.owner_channel import latest_project_id
     from sqlalchemy.orm import Session
 

@@ -104,6 +104,8 @@ pid_of() { cat "$STATE/pids/$1.pid" 2>/dev/null || true; }
 port_free() { # 0 when nothing listens on or holds 127.0.0.1:PORT
   "$PY" -I -c 'import socket, sys
 s = socket.socket()
+# SO_REUSEADDR: a TIME_WAIT left by the last stop is not "taken"; a listener still is.
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 try:
     s.bind(("127.0.0.1", int(sys.argv[1])))
 except OSError:

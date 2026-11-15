@@ -185,7 +185,7 @@ RS_URL="http://127.0.0.1:$RS_PORT"
 PY_URL="http://127.0.0.1:$PY_PORT"
 AUTH_SECRET="e2e-$("$PY" -I -c 'import secrets; print(secrets.token_hex(24))')"
 PHOTON_SECRET="whsec_$("$PY" -I -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')"
-# A throwaway Ed25519 key pair for the Telnyx webhook (check K05): the Rust service gets the public half as
+# A throwaway Ed25519 key pair for the Telnyx webhook (checks K06, K08): the Rust service gets the public half as
 # TELNYX_PUBLIC_KEY (fixture voice mode, so nothing else changes), the driver signs with the private half. Never a
 # real Telnyx key; the private half goes to the driver's environment only, never to a kept file (H01 checks).
 read -r TELNYX_PRIV TELNYX_PUB < <("$PY" -I -c '
