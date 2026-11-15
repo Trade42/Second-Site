@@ -385,11 +385,8 @@ pub trait Tx: Send {
 
     async fn get(&mut self, table: &'static TableDef, id: Uuid) -> StoreResult<Option<Row>>;
 
-    /// `SELECT ... FOR NO KEY UPDATE`: other transactions updating, deleting or locking the row
-    /// wait until this one ends; inserting a row that references it (whose foreign-key check
-    /// takes `FOR KEY SHARE` on it) does not. Nothing may rely on this lock blocking such inserts:
-    /// that was the deadlock of rust-server-7 (see the lock order in `services::events`). (The
-    /// in-memory store runs one transaction at a time, so every read is locked.)
+    /// `SELECT ... FOR UPDATE`: other transactions writing or locking the row wait until this one
+    /// ends. (The in-memory store runs one transaction at a time, so every read is locked.)
     async fn get_for_update(
         &mut self,
         table: &'static TableDef,

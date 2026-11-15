@@ -27,17 +27,14 @@
 //! signature headers are never logged; a failure is logged with the method, the path (without
 //! the query) and the failure class only.
 //!
-//! Bounds: request bodies up to [`MAX_REQUEST_BYTES`] (larger is 413), read under the server's
-//! body idle bound ([`crate::http::BODY_IDLE_TIMEOUT`], between reads, not on the whole upload),
-//! answers up to [`MAX_RESPONSE_BYTES`], a connect timeout of 3 s, and an overall timeout of 60 s
-//! for the chat and the Studio routes and 15 s for everything else (request sent and answer read).
+//! Bounds: request bodies up to [`MAX_REQUEST_BYTES`] (larger is 413), answers up to
+//! [`MAX_RESPONSE_BYTES`], a connect timeout of 3 s, and an overall timeout of 60 s for the chat
+//! and the Studio routes and 15 s for everything else (request sent and answer read).
 //!
 //! Failure is honest, and never a 2xx (a provider whose webhook could not be forwarded retries
 //! it):
-//! - a request body that stopped arriving: 408 `REQUEST_TIMEOUT`, retryable, "nothing was
-//!   forwarded" (nothing is sent before the whole body is here);
-//! - `PYTHON_SERVICE_URL` unset (or not a valid http(s) URL, or one that leads back to this
-//!   service, below): 503 `PYTHON_SERVICE_NOT_CONFIGURED`, not retryable;
+//! - `PYTHON_SERVICE_URL` unset (or not a valid http(s) URL): 503 `PYTHON_SERVICE_NOT_CONFIGURED`,
+//!   not retryable;
 //! - connection refused or failed, or an answer that was cut off or too large: 502
 //!   `PYTHON_SERVICE_UNAVAILABLE`, retryable;
 //! - connect or overall timeout: 504 `PYTHON_SERVICE_UNAVAILABLE`, retryable. After the request
@@ -48,26 +45,10 @@
 //! (checked every 5 s in the background, 2 s timeout), never `LIVE` on the strength of
 //! configuration alone.
 //!
-//! A URL that leads back to this service is never followed round in circles (three checks, none
-//! of which adds anything to a forwarded request):
-//! - at start-up, a URL naming this service's own listener (`HOST` and `PORT`, including the
-//!   `localhost`, loopback and wildcard spellings, [`names_own_listener`]) is not usable, like a
-//!   URL with credentials: 503 `PYTHON_SERVICE_NOT_CONFIGURED`, `/ready` `BLOCKED`, nothing sent;
-//! - this service's own `/health` answer carries [`BACKEND_MARKER`]; a health check answered
-//!   with it (any other spelling of this service, or another instance of it) makes `/ready`
-//!   `BLOCKED` and the forwarded routes answer that 503 without sending, until a later check is
-//!   answered by something else;
-//! - a forwarded request that arrives here while this service is forwarding the same request
-//!   (same `x-request-id`, which is passed on, method, path, query and body) is answered 508
-//!   `PYTHON_SERVICE_LOOP` and not forwarded again, so a loop the first two checks did not catch
-//!   yet ends after one round.
-//!
 //! The client is hyper's (`hyper-util`), asynchronous, so a slow chat occupies no thread; it
 //! reads no proxy variables, adds no header but `host`, and speaks HTTP/1.1, over TLS (rustls,
 //! webpki roots) for an `https` URL.
 
-use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
@@ -81,7 +62,6 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::{TokioExecutor, TokioTimer};
 use serde_json::{json, Map, Value};
-use sha2::{Digest, Sha256};
 use ss_core::IntegrationStatus;
 
 use crate::app::{App, ProviderStatus};
@@ -102,18 +82,6 @@ pub const NOT_CONFIGURED: &str = "PYTHON_SERVICE_NOT_CONFIGURED";
 pub const UNAVAILABLE: &str = "PYTHON_SERVICE_UNAVAILABLE";
 /// How long an idle pooled connection to the Python service is kept.
 pub const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(4);
-/// The header this service's own `GET /health` answer carries (value [`BACKEND_MARKER_VALUE`]),
-/// so a health check can tell this Rust service from the Python service, whose `/health` body
-/// is the same. Only `/health` answers carry it.
-pub const BACKEND_MARKER: &str = "x-second-site-backend";
-pub const BACKEND_MARKER_VALUE: &str = "rust";
-/// The `error_code` of a request that came back to this service while it was forwarding it.
-pub const LOOP: &str = "PYTHON_SERVICE_LOOP";
-/// Why a target that leads back to this service is not usable.
-pub const SELF_TARGET: &str =
-    "it points at this service's own HOST and PORT, not at the Python service";
-/// The health outcome of a `/health` answered by a Rust backend (this one or another).
-const ANSWERED_BY_RUST: &str = "answered_by_this_service";
 
 /// Which overall timeout a forwarded route gets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,182 +162,6 @@ pub fn parse_target(raw: Option<&str>) -> Target {
     Target::Base(format!("{scheme}://{authority}{prefix}"))
 }
 
-/// `PYTHON_SERVICE_URL` checked ([`parse_target`]) and compared with this service's own listener
-/// (`HOST`, `PORT`): a URL that names the listener is not usable ([`SELF_TARGET`]).
-pub fn target_for(settings: &Settings) -> Target {
-    match parse_target(settings.python_service_url.as_deref()) {
-        Target::Base(base) if names_own_listener(&base, &settings.host, settings.port) => {
-            Target::Invalid(SELF_TARGET)
-        }
-        other => other,
-    }
-}
-
-/// How a host name or address reaches a listener.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum HostKind {
-    /// `0.0.0.0`, `::`: a listener on every address; as a destination, this machine.
-    Wildcard,
-    /// A loopback address (`127.0.0.0/8`, `::1`, also IPv4-mapped), or `None` for the name
-    /// `localhost` (whichever loopback address it resolves to).
-    Loopback(Option<IpAddr>),
-    /// Any other address or name (lower case).
-    Other(String),
-}
-
-/// The classic `inet_aton` forms the system resolver also accepts for an IPv4 address (`127.1`,
-/// `2130706433`, `0x7f.0.0.1`, `0177.0.0.1`): one to four parts, decimal, octal or hex.
-fn inet_aton(s: &str) -> Option<Ipv4Addr> {
-    let parts: Vec<&str> = s.split('.').collect();
-    if parts.is_empty() || parts.len() > 4 {
-        return None;
-    }
-    let mut nums = Vec::with_capacity(parts.len());
-    for p in &parts {
-        let (digits, radix) = if let Some(h) = p.strip_prefix("0x").or_else(|| p.strip_prefix("0X"))
-        {
-            (h, 16)
-        } else if p.len() > 1 && p.starts_with('0') {
-            (&p[1..], 8)
-        } else {
-            (*p, 10)
-        };
-        if digits.is_empty() {
-            return None;
-        }
-        if !digits.chars().all(|c| c.is_digit(radix)) {
-            return None;
-        }
-        nums.push(u64::from_str_radix(digits, radix).ok()?);
-    }
-    let (last, head) = nums.split_last()?;
-    if head.iter().any(|&n| n > 0xff) {
-        return None;
-    }
-    // The last part fills the remaining 32, 24, 16 or 8 bits.
-    let tail_bits = 8 * (4 - head.len() as u32);
-    if *last >= (1u64 << tail_bits) {
-        return None;
-    }
-    let mut v: u64 = 0;
-    for (i, n) in head.iter().enumerate() {
-        v |= n << (24 - 8 * i as u32);
-    }
-    v |= last;
-    u32::try_from(v).ok().map(Ipv4Addr::from)
-}
-
-fn host_kind(host: &str) -> HostKind {
-    let h = host.trim();
-    let h = h
-        .strip_prefix('[')
-        .and_then(|x| x.strip_suffix(']'))
-        .unwrap_or(h)
-        .to_ascii_lowercase();
-    if h == "localhost" {
-        return HostKind::Loopback(None);
-    }
-    let ip = h
-        .parse::<IpAddr>()
-        .ok()
-        .or_else(|| inet_aton(&h).map(IpAddr::V4));
-    match ip.map(|ip| ip.to_canonical()) {
-        Some(ip) if ip.is_unspecified() => HostKind::Wildcard,
-        Some(ip) if ip.is_loopback() => HostKind::Loopback(Some(ip)),
-        Some(ip) => HostKind::Other(ip.to_string()),
-        None => HostKind::Other(h),
-    }
-}
-
-/// Does `base` (a checked [`Target::Base`]) name the listener `host:port` of this service? The
-/// port must be the same (the scheme's default when the URL has none), and the host one that
-/// reaches the listener: for a wildcard listener (the default `0.0.0.0`) any loopback or wildcard
-/// spelling; for a listener on one loopback address, that address, `localhost` or the wildcard
-/// address; for a `localhost` listener, `127.0.0.1`, `::1`, `localhost` or the wildcard address;
-/// otherwise the same address or name. A name that resolves to one of this machine's other addresses (its host
-/// name, a container's service name) is not caught here; the health check catches that.
-pub fn names_own_listener(base: &str, host: &str, port: u16) -> bool {
-    let Ok(uri) = base.parse::<Uri>() else {
-        return false;
-    };
-    let Some(authority) = uri.authority() else {
-        return false;
-    };
-    let target_port = authority.port_u16().unwrap_or(match uri.scheme_str() {
-        Some("https") => 443,
-        _ => 80,
-    });
-    if target_port != port {
-        return false;
-    }
-    let any_loopback = |k: &HostKind| matches!(k, HostKind::Wildcard | HostKind::Loopback(_));
-    let target = host_kind(authority.host());
-    match host_kind(host) {
-        HostKind::Wildcard => any_loopback(&target),
-        HostKind::Loopback(None) => match target {
-            HostKind::Wildcard | HostKind::Loopback(None) => true,
-            HostKind::Loopback(Some(ip)) => {
-                ip == IpAddr::V4(Ipv4Addr::LOCALHOST) || ip == IpAddr::V6(Ipv6Addr::LOCALHOST)
-            }
-            HostKind::Other(_) => false,
-        },
-        HostKind::Loopback(Some(own)) => match target {
-            HostKind::Wildcard | HostKind::Loopback(None) => true,
-            HostKind::Loopback(Some(ip)) => ip == own,
-            HostKind::Other(_) => false,
-        },
-        HostKind::Other(own) => target == HostKind::Other(own),
-    }
-}
-
-/// The requests this service is forwarding right now, by [`fingerprint`]: a forwarded request
-/// whose fingerprint is already here came back to this service (or was sent twice at once).
-#[derive(Default)]
-struct InFlight {
-    keys: Mutex<HashSet<[u8; 32]>>,
-}
-
-/// Removes its fingerprint from [`InFlight`] when the forward ends (or is cancelled).
-struct InFlightGuard<'a> {
-    set: &'a InFlight,
-    key: [u8; 32],
-}
-
-impl InFlight {
-    /// Register `key`; `None` when it is already being forwarded.
-    fn enter(&self, key: [u8; 32]) -> Option<InFlightGuard<'_>> {
-        let mut keys = self.keys.lock().ok()?;
-        if !keys.insert(key) {
-            return None;
-        }
-        Some(InFlightGuard { set: self, key })
-    }
-}
-
-impl Drop for InFlightGuard<'_> {
-    fn drop(&mut self) {
-        if let Ok(mut keys) = self.set.keys.lock() {
-            keys.remove(&self.key);
-        }
-    }
-}
-
-/// SHA-256 over what a looped request repeats exactly: this request's id (the one passed on in
-/// `x-request-id`), the method, the path with the query, and the body.
-fn fingerprint(rid: &str, method: &Method, target: &str, body: &[u8]) -> [u8; 32] {
-    let mut h = Sha256::new();
-    for part in [
-        rid.as_bytes(),
-        method.as_str().as_bytes(),
-        target.as_bytes(),
-    ] {
-        h.update((part.len() as u64).to_be_bytes());
-        h.update(part);
-    }
-    h.update(body);
-    h.finalize().into()
-}
-
 type HttpsClient = Client<HttpsConnector<HttpConnector>, Full<Bytes>>;
 
 /// The latest `GET /health` of the Python service.
@@ -388,7 +180,6 @@ pub struct PythonLink {
     client: Option<HttpsClient>,
     timeouts: Timeouts,
     health: Mutex<Health>,
-    in_flight: InFlight,
 }
 
 /// Why a forward did not produce an answer from the Python service.
@@ -529,14 +320,14 @@ impl PythonLink {
             client,
             timeouts,
             health: Mutex::new(Health::NotChecked),
-            in_flight: InFlight::default(),
         }
     }
 
-    /// The link for `PYTHON_SERVICE_URL`, checked against this service's own listener
-    /// ([`target_for`]).
     pub fn from_settings(settings: &Settings, timeouts: Timeouts) -> Self {
-        Self::new(target_for(settings), timeouts)
+        Self::new(
+            parse_target(settings.python_service_url.as_deref()),
+            timeouts,
+        )
     }
 
     /// The registered link, or one built from the settings (no health checks) for an app that
@@ -563,56 +354,6 @@ impl PythonLink {
             (Target::Base(b), Some(c)) => Some((b.as_str(), c)),
             _ => None,
         }
-    }
-
-    /// Did the latest health check reach a Rust backend (this service) instead of Python?
-    fn answered_by_rust(&self) -> bool {
-        self.health.lock().is_ok_and(|h| {
-            matches!(
-                *h,
-                Health::Checked {
-                    outcome: Err(ANSWERED_BY_RUST),
-                    ..
-                }
-            )
-        })
-    }
-
-    fn loops_back(&self) -> Response {
-        problem(
-            StatusCode::SERVICE_UNAVAILABLE,
-            NOT_CONFIGURED,
-            format!(
-                "This part of Second Site runs in the Python service, and {SETTING} on this \
-                 server is not usable (its GET /health was answered by this service, the Rust \
-                 backend, not by the Python service). Nothing was forwarded."
-            ),
-            json!({"service": "python"}),
-            false,
-        )
-    }
-
-    fn looped(&self, method: &Method, path: &str) -> Response {
-        logging::warning(
-            "app.forward",
-            "forwarding loop",
-            &[
-                ("method", Value::String(method.to_string())),
-                ("path", Value::String(path.to_owned())),
-            ],
-        );
-        problem(
-            StatusCode::LOOP_DETECTED,
-            LOOP,
-            format!(
-                "This request reached this service while it was already forwarding the same \
-                 request (same x-request-id, method, path, query and body) to the Python \
-                 service: {SETTING} leads back to this service, or the request was sent twice \
-                 at once. It was not forwarded again."
-            ),
-            json!({"service": "python"}),
-            false,
-        )
     }
 
     fn not_configured(&self) -> Response {
@@ -693,9 +434,6 @@ impl PythonLink {
         let Some((base, client)) = self.base() else {
             return self.not_configured();
         };
-        if self.answered_by_rust() {
-            return self.loops_back();
-        }
         let started = Instant::now();
         let (parts, body) = req.into_parts();
         let path = parts.uri.path().to_owned();
@@ -715,32 +453,20 @@ impl PythonLink {
             {
                 return too_large()
             }
-            Err(e) => {
-                // The body stopped arriving (the server's idle bound): nothing was sent.
-                if let Some(t) = crate::http::body_idle_timeout(&*e) {
-                    return crate::http::body_stalled_response(t.bound, true);
-                }
+            Err(_) => {
                 return problem(
                     StatusCode::BAD_REQUEST,
                     "BAD_REQUEST",
                     "the request body could not be read".into(),
                     json!({}),
                     false,
-                );
+                )
             }
         };
-        let rid = logging::current_request_id().unwrap_or_default();
-        let path_and_query = match parts.uri.query() {
-            Some(q) => format!("{path}?{q}"),
-            None => path.clone(),
+        let target = match parts.uri.query() {
+            Some(q) => format!("{base}{path}?{q}"),
+            None => format!("{base}{path}"),
         };
-        let Some(_in_flight) =
-            self.in_flight
-                .enter(fingerprint(&rid, &parts.method, &path_and_query, &bytes))
-        else {
-            return self.looped(&parts.method, &path);
-        };
-        let target = format!("{base}{path_and_query}");
         let Ok(uri) = target.parse::<Uri>() else {
             return problem(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -825,19 +551,14 @@ impl PythonLink {
                 let exchange = async {
                     let resp = client.request(req).await.map_err(|e| classify(&e))?;
                     let status = resp.status().as_u16();
-                    let rust = resp
-                        .headers()
-                        .get(BACKEND_MARKER)
-                        .is_some_and(|v| v.as_bytes() == BACKEND_MARKER_VALUE.as_bytes());
                     // Read (at most 64 KiB of) the answer so the connection can be reused.
                     let _ = Limited::new(resp.into_body(), 64 * 1024).collect().await;
-                    Ok::<(u16, bool), Failure>((status, rust))
+                    Ok::<u16, Failure>(status)
                 };
                 match tokio::time::timeout(self.timeouts.health, exchange).await {
                     Err(_) => Err(Failure::Timeout.class()),
                     Ok(Err(f)) => Err(f.class()),
-                    Ok(Ok((_, true))) => Err(ANSWERED_BY_RUST),
-                    Ok(Ok((status, false))) => Ok(status),
+                    Ok(Ok(status)) => Ok(status),
                 }
             }
         };
@@ -898,16 +619,6 @@ impl PythonLink {
                     Health::Checked { at, outcome } => {
                         let age = at.elapsed().as_secs();
                         match outcome {
-                            Err(ANSWERED_BY_RUST) => entry(
-                                "forward",
-                                IntegrationStatus::Blocked,
-                                format!(
-                                    "{SETTING} leads back to this service: GET /health was \
-                                     answered {age} s ago by this service, the Rust backend (or \
-                                     another instance of it), not by the Python service. \
-                                     Forwarded routes answer 503 and send nothing."
-                                ),
-                            ),
                             Ok(s) if (200..300).contains(&s) => entry(
                                 "forward",
                                 IntegrationStatus::Live,
@@ -1072,34 +783,6 @@ mod tests {
             panic!()
         };
         assert!(!why.contains("secret"));
-    }
-
-    #[test]
-    fn inet_aton_spellings() {
-        for (s, want) in [
-            ("127.0.0.1", Some([127, 0, 0, 1])),
-            ("127.1", Some([127, 0, 0, 1])),
-            ("127.0.1", Some([127, 0, 0, 1])),
-            ("2130706433", Some([127, 0, 0, 1])),
-            ("0x7f.0.0.1", Some([127, 0, 0, 1])),
-            ("0X7F.1", Some([127, 0, 0, 1])),
-            ("0177.0.0.01", Some([127, 0, 0, 1])),
-            ("0", Some([0, 0, 0, 0])),
-            ("1.16777215", Some([1, 255, 255, 255])),
-            ("1.16777216", None),
-            ("256.0.0.1", None),
-            ("127.0.0.256", None),
-            ("4294967296", None),
-            ("1.2.3.4.5", None),
-            ("08", None),
-            ("0x", None),
-            ("", None),
-            ("127..1", None),
-            ("api", None),
-            ("1e3", None),
-        ] {
-            assert_eq!(inet_aton(s), want.map(Ipv4Addr::from), "{s}");
-        }
     }
 
     #[test]
