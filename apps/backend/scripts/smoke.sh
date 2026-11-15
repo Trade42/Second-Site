@@ -174,12 +174,22 @@ step "permit evidence attached"
 check 'props = J("props")
 permits = [(p, r) for p in props for r in p.get("permit_records") or []]
 need(permits, "no permit record is attached to any property")
+# Mode-aware like steps 8 and 18: the permit provider mode /ready reports decides the label. A
+# fixture-mode permit must say FIXTURE, a live-mode permit LIVE; in both modes a permit is history,
+# so every fact parsed from one is DOCUMENTED_HISTORICAL (never current capacity).
+mode = {e.get("provider"): e.get("mode") for e in J("ready").get("providers") or []}.get("la_open_data")
 for p, r in permits:
     need(r.get("property_id") == p["property_id"], "permit %s is attached to another property" % r.get("permit_number"))
     need(r.get("data_origin") and r.get("scope"), "permit %s has no data_origin or scope" % r.get("permit_number"))
+    if mode == "live":
+        need(r["data_origin"] == "LIVE", "permit %s: live permit provider, but data_origin %r" % (r["permit_number"], r["data_origin"]))
+    else:
+        need(r["data_origin"].startswith("FIXTURE"), "permit %s: %s permit provider, but data_origin %r" % (r["permit_number"], mode, r["data_origin"]))
+    for f in r.get("extracted_infrastructure_facts") or []:
+        need(f.get("classification") == "DOCUMENTED_HISTORICAL", "permit %s: fact %s is classified %r, not DOCUMENTED_HISTORICAL" % (r["permit_number"], f.get("fact_type"), f.get("classification")))
 origins = sorted({r["data_origin"] for _, r in permits})
 scopes = sorted({r["scope"] for _, r in permits})
-print("%d permit records (%s; scopes %s)" % (len(permits), ", ".join(origins), ", ".join(scopes)))'
+print("%d permit records (%s mode: %s; scopes %s; facts historical)" % (len(permits), mode, ", ".join(origins), ", ".join(scopes)))'
 
 step "infrastructure UNKNOWNs represented"
 check 'props = J("props")
