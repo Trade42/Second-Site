@@ -68,8 +68,6 @@ pub struct LiveTelnyxProvider {
     connection_id: String,
     allow_outbound: bool,
     configured: bool,
-    /// [`Settings::voice_live_missing`] at construction: while not empty, no dial is sent.
-    preflight_missing: Vec<&'static str>,
     base_url: String,
     client: HttpClient,
 }
@@ -102,27 +100,9 @@ impl LiveTelnyxProvider {
             connection_id: connection_id.to_owned(),
             allow_outbound,
             configured: !api_key.is_empty() && !connection_id.is_empty(),
-            preflight_missing: Vec::new(),
             base_url: base_url.trim_end_matches('/').to_owned(),
             client: HttpClient::new(PROVIDER, policy(), Self::auth_headers(api_key)),
         }
-    }
-
-    /// The settings (names only) without which this client refuses to dial: see
-    /// [`Settings::voice_live_missing`]. [`Voice::from_settings`] always sets it.
-    pub fn with_preflight(mut self, missing: Vec<&'static str>) -> Self {
-        self.preflight_missing = missing;
-        self
-    }
-
-    /// The text of the refusal for these missing settings (names only, never a value).
-    pub fn preflight_refusal(missing: &[&str]) -> String {
-        format!(
-            "live call not dialed, nothing was sent to the carrier: these settings are missing \
-             or unusable: {} (the server could not receive or verify the call's events; \
-             PUBLIC_BASE_URL must be https://<public host>, no path, no trailing slash)",
-            missing.join(", ")
-        )
     }
 
     fn auth_headers(api_key: &str) -> Vec<(String, String)> {
@@ -169,13 +149,6 @@ impl LiveTelnyxProvider {
             return Err(TelephonyError::Forbidden(
                 "live outbound calls disabled (ALLOW_LIVE_OUTBOUND_CALLS=false)".into(),
             ));
-        }
-        // Before any request: a phone must not ring while the server can hear nothing about the
-        // call (no public address for the webhooks, no key to verify them, no caller number).
-        if !self.preflight_missing.is_empty() {
-            return Err(TelephonyError::Forbidden(Self::preflight_refusal(
-                &self.preflight_missing,
-            )));
         }
         let mut body = json!({
             "connection_id": self.connection_id,
@@ -390,22 +363,14 @@ pub struct Voice {
 impl Voice {
     /// `build_container`'s choice.
     pub fn from_settings(s: &Settings) -> Self {
-        Self::from_settings_with_base_url(s, API)
-    }
-
-    /// [`Voice::from_settings`] against another carrier address (tests use a local mock server).
-    /// The live client carries the settings' preflight, so every live dial passes it.
-    pub fn from_settings_with_base_url(s: &Settings, base_url: &str) -> Self {
         match (&s.telnyx_api_key, s.voice_provider_mode) {
-            (Some(key), ProviderMode::Live) if !key.is_empty() => Self::live(Arc::new(
-                LiveTelnyxProvider::with_base_url(
+            (Some(key), ProviderMode::Live) if !key.is_empty() => {
+                Self::live(Arc::new(LiveTelnyxProvider::new(
                     key.expose(),
                     s.telnyx_connection_id.as_deref().unwrap_or(""),
                     s.allow_live_outbound_calls,
-                    base_url,
-                )
-                .with_preflight(s.voice_live_missing()),
-            )),
+                )))
+            }
             _ => Self::fixture(),
         }
     }
