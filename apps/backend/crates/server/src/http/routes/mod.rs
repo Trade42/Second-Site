@@ -14,9 +14,7 @@ pub mod media_matterport;
 pub mod nessie;
 pub mod projects;
 pub mod properties;
-pub mod recordings;
 pub mod tasks;
-pub mod voice_stream;
 pub mod webhooks;
 
 use axum::Router;
@@ -37,11 +35,9 @@ pub fn api_routes() -> Router<AppState> {
         .merge(media_matterport::router())
         .merge(design::router())
         .merge(nessie::router())
-        .merge(recordings::router())
         .merge(evidence::router())
         .merge(communications::router())
         .merge(webhooks::router())
-        .merge(voice_stream::router())
         // Routes the Python service keeps; a native route of the same path and method wins.
         .merge(forward::router())
 }

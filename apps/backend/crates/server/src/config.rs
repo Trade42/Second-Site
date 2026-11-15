@@ -145,17 +145,6 @@ pub struct Settings {
     pub telnyx_from_number: Option<String>,
     // XAI VOICE
     pub xai_api_key: Option<Secret>,
-    /// `VOICE_BRIDGE_ENABLED` (default false): the Grok Voice bridge carries the call's speech.
-    /// It is used only when this is on, `VOICE_PROVIDER_MODE=live` and `XAI_API_KEY` is set;
-    /// otherwise calls use the carrier's `speak` and transcription, as before.
-    pub voice_bridge_enabled: bool,
-    /// `XAI_REALTIME_URL` (default `xai_realtime::DEFAULT_REALTIME_URL`).
-    pub xai_realtime_url: String,
-    /// `XAI_VOICE` (default `eve`).
-    pub xai_voice: String,
-    /// `VOICE_INTRO_GRACE_S` (default 15): how long after the recording's own length the call
-    /// waits for the carrier's playback-ended event before it ends the call politely.
-    pub voice_intro_grace_s: u64,
     // OBJECT STORAGE
     pub object_storage_mode: String,
     pub object_storage_local_dir: String,
@@ -700,18 +689,6 @@ impl Settings {
             telnyx_connection_id: s.opt("TELNYX_CONNECTION_ID"),
             telnyx_from_number: s.opt("TELNYX_FROM_NUMBER"),
             xai_api_key: s.secret("XAI_API_KEY"),
-            voice_bridge_enabled: s.boolean("VOICE_BRIDGE_ENABLED", false)?,
-            xai_realtime_url: s.string(
-                "XAI_REALTIME_URL",
-                crate::integrations::xai_realtime::DEFAULT_REALTIME_URL,
-            ),
-            xai_voice: s.string("XAI_VOICE", "eve"),
-            voice_intro_grace_s: s
-                .string("VOICE_INTRO_GRACE_S", "15")
-                .trim()
-                .parse::<u64>()
-                .unwrap_or(15)
-                .min(120),
             object_storage_mode: s.string("OBJECT_STORAGE_MODE", "local"),
             object_storage_local_dir: s.string("OBJECT_STORAGE_LOCAL_DIR", "./.data/objects"),
             allow_live_outbound_calls: s.boolean("ALLOW_LIVE_OUTBOUND_CALLS", false)?,
@@ -810,14 +787,6 @@ impl Settings {
             "AUTH_SECRET" => !self.auth_secret.is_empty(),
             _ => false,
         }
-    }
-
-    /// Whether a call's speech goes through the Grok Voice bridge: the explicit switch, the live
-    /// voice provider and an xAI key, all three. Off, calls behave exactly as before.
-    pub fn voice_bridge_active(&self) -> bool {
-        self.voice_bridge_enabled
-            && self.voice_provider_mode == ProviderMode::Live
-            && self.xai_api_key.as_ref().is_some_and(|k| !k.is_empty())
     }
 
     /// Startup checks the Python service does not make. Refuses to run in production with the

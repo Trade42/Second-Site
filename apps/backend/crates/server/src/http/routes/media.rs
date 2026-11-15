@@ -222,11 +222,6 @@ fn binary(data: Vec<u8>, media_type: &'static str, cache: &'static str) -> Respo
     let h = resp.headers_mut();
     h.insert(CONTENT_TYPE, HeaderValue::from_static(media_type));
     h.insert(CACHE_CONTROL, HeaderValue::from_static(cache));
-    // Stored bytes are served with the type their key implies; the browser must not guess another.
-    h.insert(
-        axum::http::header::X_CONTENT_TYPE_OPTIONS,
-        HeaderValue::from_static("nosniff"),
-    );
     resp
 }
 
