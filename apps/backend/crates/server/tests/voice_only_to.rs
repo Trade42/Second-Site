@@ -629,3 +629,200 @@ both_backends!(ready_says_whether_the_number_is_set_never_its_value, |db| {
         not_printed(&ready.text);
     }
 });
+
+// REVIEW (voice-only-to-1-review): whatever number, address or text a dial asks for, the only
+// destination a live client ever sends is the test number; without it, or with a value that is
+// not one plain number, nothing is sent at all.
+#[test]
+fn review_no_recipient_of_any_shape_reaches_the_carrier() {
+    let stream = StreamOptions {
+        stream_url: "wss://calls.example.com/api/v1/voice/stream/b?token=t".into(),
+        track: StreamTrack::Inbound,
+        stream_codec: None,
+        bidirectional: None,
+        auth_token: None,
+    };
+    let hook = "https://calls.example.com/webhooks/telnyx";
+    let recipients = [
+        CONTACT,
+        "+1 555 555 0100",
+        "(555) 555-0100",
+        "15555550100",
+        "555-555-0100",
+        "0015555550100",
+        "+15555550100;ext=12",
+        "+15555550100x12",
+        "+15555550100,,12#",
+        "tel:+15555550100",
+        "sip:broker@pbx.invalid",
+        "sip:+15555550100@sip.telnyx.com",
+        "broker",
+        "",
+        " ",
+        "+442071838750",
+        "+15555550100\n+15555550101",
+        "+15555550100\",\"to\":\"+15555550101",
+        "+15555550177 ",
+        "5555550177",
+        OWNER_TEST,
+    ];
+    for extra in [
+        vec![("LIVE_CALLS_ONLY_TO", OWNER_TEST)],
+        vec![
+            ("LIVE_CALLS_ONLY_TO", OWNER_TEST),
+            ("LIVE_CALLS_TO_CONTACTS", "true"),
+        ],
+        vec![("LIVE_CALLS_ONLY_TO", " +15555550177\n")],
+    ] {
+        let server = carrier();
+        let voice = Voice::from_settings_with_base_url(
+            &test_settings(&vars(&extra)),
+            &format!("{}/v2", server.base),
+        );
+        for (i, r) in recipients.iter().enumerate() {
+            let key = format!("k{i}");
+            voice.telephony.dial(r, FROM, hook, &key, None).unwrap();
+            voice
+                .telephony
+                .dial_streaming(r, FROM, hook, &key, None, &stream)
+                .unwrap();
+        }
+        let requests = server.requests();
+        assert_eq!(requests.len(), recipients.len() * 2);
+        for r in &requests {
+            assert!(r.path.ends_with("/v2/calls"), "{}", r.path);
+            let text = String::from_utf8_lossy(&r.body).into_owned();
+            let body: Value = serde_json::from_str(&text).unwrap();
+            assert_eq!(body["to"], OWNER_TEST, "{text}");
+            // Nothing else in the request names anyone: no contact digits, no address.
+            for other in ["0100", "0101", "8750", "broker", "sip:", "tel:", "ext"] {
+                assert!(!text.contains(other), "{other} sent to the carrier: {text}");
+            }
+            assert_eq!(text.matches(OWNER_TEST).count(), 1, "{text}");
+        }
+    }
+    // Unset, blank, or not one plain number: every dial refused, zero requests, with or without
+    // the contacts switch for a value that is set.
+    let refused: [Extra; 17] = [
+        vec![],
+        vec![("LIVE_CALLS_ONLY_TO", "")],
+        vec![("LIVE_CALLS_ONLY_TO", "   ")],
+        vec![("LIVE_CALLS_TO_CONTACTS", "false")],
+        vec![("LIVE_CALLS_ONLY_TO", "+15555550177,+15555550178")],
+        vec![("LIVE_CALLS_ONLY_TO", "+15555550177 +15555550178")],
+        vec![("LIVE_CALLS_ONLY_TO", "Sal")],
+        vec![("LIVE_CALLS_ONLY_TO", "+1 555 555 0177")],
+        vec![("LIVE_CALLS_ONLY_TO", "(555) 555-0177")],
+        vec![("LIVE_CALLS_ONLY_TO", "+15555550177x12")],
+        vec![("LIVE_CALLS_ONLY_TO", "+15555550177;ext=1")],
+        vec![("LIVE_CALLS_ONLY_TO", "sip:+15555550177@pbx.invalid")],
+        vec![("LIVE_CALLS_ONLY_TO", "tel:+15555550177")],
+        vec![("LIVE_CALLS_ONLY_TO", "++15555550177")],
+        vec![("LIVE_CALLS_ONLY_TO", "+1555555")],
+        vec![("LIVE_CALLS_ONLY_TO", "+1234567890123456")],
+        vec![("LIVE_CALLS_ONLY_TO", "+１５５５５５５０１７７")],
+    ];
+    for (n, extra) in refused.into_iter().enumerate() {
+        let mut both = vec![extra.clone()];
+        if n >= 4 {
+            let mut with = extra.clone();
+            with.push(("LIVE_CALLS_TO_CONTACTS", "true"));
+            both.push(with);
+        }
+        for extra in both {
+            let server = carrier();
+            let voice = Voice::from_settings_with_base_url(
+                &test_settings(&vars(&extra)),
+                &format!("{}/v2", server.base),
+            );
+            assert_eq!(voice.mode(), "live");
+            for r in recipients {
+                for res in [
+                    voice.telephony.dial(r, FROM, hook, "k", None),
+                    voice
+                        .telephony
+                        .dial_streaming(r, FROM, hook, "k", None, &stream),
+                ] {
+                    assert!(
+                        matches!(res, Err(TelephonyError::Forbidden(_))),
+                        "{extra:?} {r:?}: {res:?}"
+                    );
+                }
+            }
+            assert!(server.requests().is_empty(), "{extra:?}");
+        }
+    }
+}
+
+// REVIEW (voice-only-to-1-review): a whole test call (dialed, answered, a question answered,
+// hung up) leaves the property's evidence and assessments byte for byte what they were, and the
+// contact's number in no request.
+both_backends!(
+    review_a_test_call_changes_nothing_about_the_property,
+    |db| {
+        use ss_server::store::repo::ASSESSMENTS;
+        let c = Ctx::new(db, &[("LIVE_CALLS_ONLY_TO", OWNER_TEST)]).await;
+        let snapshot = || async {
+            let mut tx = c.t.app.store.begin().await.unwrap();
+            let q = || Query::new().eq("property_id", c.property);
+            let mut ev: Vec<String> = EVIDENCE
+                .list(&mut *tx, q())
+                .await
+                .unwrap()
+                .iter()
+                .map(|e| serde_json::to_string(e).unwrap())
+                .collect();
+            let mut asm: Vec<String> = ASSESSMENTS
+                .list(&mut *tx, q())
+                .await
+                .unwrap()
+                .iter()
+                .map(|a| serde_json::to_string(a).unwrap())
+                .collect();
+            tx.commit().await.unwrap();
+            ev.sort();
+            asm.sort();
+            let props =
+                c.t.get(
+                    &format!("/api/v1/projects/{}/properties", c.pid),
+                    Some(&c.token),
+                )
+                .await
+                .text;
+            (ev, asm, props)
+        };
+        let before = snapshot().await;
+        let mut orch = CallOrchestrator::new(&c.t.app);
+        let mut tx = c.t.app.store.begin().await.unwrap();
+        let call = orch.start(&mut *tx, c.start()).await.unwrap();
+        tx.commit().await.unwrap();
+        c.talk(&mut orch, call.call_id).await;
+        c.event(&mut orch, "call.hangup").await;
+        let mut tx = c.t.app.store.begin().await.unwrap();
+        let ended = CALLS.require(&mut *tx, call.call_id).await.unwrap();
+        tx.commit().await.unwrap();
+        assert!(!ended.findings.is_empty());
+        assert!(
+            !matches!(ended.state, CallState::Active | CallState::Dialing),
+            "{:?}",
+            ended.state
+        );
+        assert_eq!(snapshot().await, before);
+        // The stored summary says whose phone rang before it says anything else.
+        let summary = ended.outcome_summary.clone().unwrap_or_default();
+        assert!(summary.starts_with(TEST_CALL_PREFIX), "{summary}");
+        assert!(dialed(&c.server).iter().all(|to| to == OWNER_TEST));
+        never_sent(&c.server, CONTACT);
+        let shown = format!(
+            "{} {} {:?}",
+            serde_json::to_string(&ended).unwrap(),
+            c.events_text().await,
+            orch.take_notices()
+                .iter()
+                .map(|n| n.text.clone())
+                .collect::<Vec<_>>()
+        );
+        not_printed(&shown);
+        println!("REVIEW-SHOWN {shown}");
+    }
+);

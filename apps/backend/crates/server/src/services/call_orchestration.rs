@@ -1605,7 +1605,14 @@ impl<'a> CallOrchestrator<'a> {
                 (summary, text)
             }
         };
-        call.outcome_summary = Some(summary);
+        // REVIEW FIX (voice-only-to-1-review F1): the stored summary of a live test call says,
+        // like the owner text (`notify_owner`), that the owner's test number was dialed and not
+        // the contact; it named the contact as the person called.
+        call.outcome_summary = Some(if is_test_call(&call) {
+            format!("{TEST_CALL_PREFIX}{summary}")
+        } else {
+            summary
+        });
         let call = self.save(tx, call).await?;
         if let Some(comm_id) = call.communication_id {
             if let Some(mut comm) = COMMUNICATIONS
