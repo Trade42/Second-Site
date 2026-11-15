@@ -2664,6 +2664,7 @@ def k05() -> str:
     expect(ev["payload"].get("handled_as") == "chat", "handled_as chat for an ordinary text", ev["payload"])
     expect(bool(ch.body.get("reply")), "a chat reply", ch.body)
     tools = sorted({x.get("path") for x in chat_reqs if x.get("path") != SIMULATE_TEXT})
+    expect(bool(tools), "the supervisor's tool called rust while the ordinary text was handled", chat_reqs)
     sp, _, _ = owner_text("STOP")
     expect(
         sp.body.get("reply") == "Okay, I'll stop texting you. Text START to turn updates back on.",
