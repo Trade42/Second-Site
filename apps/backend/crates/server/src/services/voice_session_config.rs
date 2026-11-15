@@ -6,14 +6,12 @@
 //! our sentence, spoken verbatim by the bridge before the model may speak.
 
 use serde_json::json;
-use ss_core::DataOrigin;
 use ss_domain::communications::call_purposes::{self as cp, Approved};
 use ss_domain::communications::response_agent::{
     may_not_key, owner_requirements, plan_questions, topic_of_claim, CallContext, KnownFact,
     OwnerRequirement, PlannedQuestion,
 };
-use ss_domain::contracts::{AuthorityScope, CallSession, PropertyDigitalProfile, SourceEvidence};
-use ss_domain::feasibility::engine::counts_for;
+use ss_domain::contracts::{AuthorityScope, CallSession};
 
 use crate::error::AppResult;
 use crate::integrations::xai_realtime::{FunctionTool, SessionSpec};
@@ -237,17 +235,6 @@ pub fn instructions_with(
     s
 }
 
-/// Whether a stored evidence row may be given to a call as a known fact of its property: the
-/// feasibility engine's rule ([`counts_for`]), so a call is never told a simulated answer about
-/// a listing that is not demo data. When the property record itself is missing there is no
-/// listing to be demo data, and invented evidence is left out.
-pub fn is_known_fact_of(prop: Option<&PropertyDigitalProfile>, e: &SourceEvidence) -> bool {
-    match prop {
-        Some(p) => counts_for(p, e),
-        None => e.data_origin != DataOrigin::FixtureSynthetic,
-    }
-}
-
 /// Build the configuration of `call` from the store.
 pub async fn build(
     tx: &mut dyn Tx,
@@ -281,24 +268,18 @@ pub async fn build(
     let mut property_summary = "your listed property".to_owned();
     let mut known_facts = Vec::new();
     if let Some(pid) = call.property_id {
-        let prop = PROPERTIES.get(tx, pid).await?;
-        if let Some(p) = &prop {
+        if let Some(p) = PROPERTIES.get(tx, pid).await? {
             let id = &p.property_identity;
             property_summary = match &id.unit_or_suite {
                 Some(u) if !u.is_empty() => format!("{}, {}, {}", id.street_address, u, id.city),
                 _ => format!("{}, {}", id.street_address, id.city),
             };
         }
-        // The engine's rule on what evidence counts for this property (`counts_for`): a
-        // simulated call's scripted answer (`FIXTURE_SYNTHETIC`) is a known fact only of a
-        // listing that is itself demo data. The facts go into the instructions, the Response
-        // Agent's context and its directions, so a row left out here reaches none of them.
         for e in EVIDENCE
             .list(tx, Query::new().eq("property_id", pid))
             .await?
             .into_iter()
             .filter(|e| !e.extracted_value.is_null())
-            .filter(|e| is_known_fact_of(prop.as_ref(), e))
             .take(MAX_FACTS)
         {
             known_facts.push(KnownFact {
