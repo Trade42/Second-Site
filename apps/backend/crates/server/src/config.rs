@@ -161,6 +161,11 @@ pub struct Settings {
     /// `PYTHON_SERVICE_URL`: base URL of the Python service (Photon, owner texts); unset means the
     /// owner cannot be texted from this service.
     pub python_service_url: Option<String>,
+    /// `NESSIE_PROVIDER_MODE`, `NESSIE_API_KEY`, `NESSIE_BASE_URL` (Rust-only), raw: the
+    /// `ss-nessie` crate parses them (`services::nessie::nessie_config`).
+    pub nessie_provider_mode: Option<String>,
+    pub nessie_api_key: Option<Secret>,
+    pub nessie_base_url: Option<String>,
 }
 
 /// The repository root as Python computes it (`Path(__file__).parents[4]`): resolved from this
@@ -348,16 +353,25 @@ fn quoted_value(s: &str, quote: char) -> Option<(String, &str)> {
 impl Settings {
     /// `get_settings()`: environment plus `.env` files relative to the working directory.
     pub fn from_env() -> Result<Self, ConfigError> {
+        Self::from_sources(Path::new(""), std::env::vars())
+    }
+
+    /// `from_env` with the `.env` files read relative to `dir` and `env` in place of the process
+    /// environment (tests).
+    pub fn from_sources(
+        dir: &Path,
+        env: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Self, ConfigError> {
         let mut vars: HashMap<String, String> = HashMap::new();
         // Lowest priority first; later sources overwrite.
         for file in [".env", "../../.env"] {
-            if let Ok(text) = std::fs::read_to_string(file) {
+            if let Ok(text) = std::fs::read_to_string(dir.join(file)) {
                 for (k, v) in parse_dotenv(&text) {
                     vars.insert(k.to_ascii_uppercase(), v);
                 }
             }
         }
-        for (k, v) in std::env::vars() {
+        for (k, v) in env {
             vars.insert(k.to_ascii_uppercase(), v);
         }
         Self::from_map(vars)
@@ -460,6 +474,9 @@ impl Settings {
                 .opt("PYTHON_SERVICE_URL")
                 .map(|v| v.trim().to_owned())
                 .filter(|v| !v.is_empty()),
+            nessie_provider_mode: s.opt("NESSIE_PROVIDER_MODE"),
+            nessie_api_key: s.secret("NESSIE_API_KEY"),
+            nessie_base_url: s.opt("NESSIE_BASE_URL"),
         })
     }
 

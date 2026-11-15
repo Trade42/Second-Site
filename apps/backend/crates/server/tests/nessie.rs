@@ -978,6 +978,23 @@ fn stub() -> (MockServer, Stub) {
                 }
                 None => problem(404, "transaction-not-found"),
             },
+            // The account's transactions, newest first (refresh of a MAY_EXIST purchase).
+            ("GET", ["accounts", id, "transactions"]) => {
+                let mut items: Vec<(u64, Value)> = st
+                    .txns
+                    .iter()
+                    .filter(|(_, t)| t["payer_id"] == json!(id) || t["payee_id"] == json!(id))
+                    .map(|(k, t)| {
+                        let n = k.trim_start_matches("txn_").parse::<u64>().unwrap_or(0);
+                        (n, t.clone())
+                    })
+                    .collect();
+                items.sort_by(|a, b| b.0.cmp(&a.0));
+                reply(
+                    200,
+                    json!({"items": items.into_iter().map(|(_, t)| t).collect::<Vec<_>>()}),
+                )
+            }
             _ => problem(404, "not-found"),
         }
     });
@@ -1154,7 +1171,14 @@ both_backends!(bank_failures_are_recorded_honestly, |db| {
         tokio::time::sleep(Duration::from_millis(delay)).await;
         assert_eq!(purchases(&srv), before + 1, "{item}");
         let r = execute(&t, &d, prop, item, &id).await;
-        assert_problem(&r, 409, "NESSIE_ALREADY_ATTEMPTED");
+        // nessie-3 F7: the refusal carries the label; an unknown outcome tells the owner to
+        // check the account.
+        labelled_problem(&r, 409, "NESSIE_ALREADY_ATTEMPTED", SANDBOX);
+        assert_eq!(r.body["details"]["attempt_status"], "MAY_EXIST");
+        assert!(r.body["message"]
+            .as_str()
+            .unwrap()
+            .contains("may have been made"));
         let r = t
             .call(
                 axum::http::Method::POST,
@@ -1163,7 +1187,34 @@ both_backends!(bank_failures_are_recorded_honestly, |db| {
                 None,
             )
             .await;
-        assert_problem(&r, 409, "NESSIE_NOTHING_TO_REFRESH");
+        if mode == Mode::Normal {
+            // nessie-3: the timed-out purchase did reach the stub, and its description names the
+            // attempt, so refresh finds it among the account's transactions and settles it.
+            labelled(&r, SANDBOX);
+            assert_eq!(r.body["attempt_status"], "SENT", "{}", r.text);
+            assert_eq!(r.body["record"]["outcome"], "SIMULATED_PENDING");
+            let stored = attempt(&t, pid, prop, item).await.unwrap();
+            assert_eq!(stored.attempt_status, "SENT");
+            assert_eq!(
+                stored.outcome_source.as_deref(),
+                Some(svc::SOURCE_REFRESH_FOUND)
+            );
+            assert_eq!(
+                stored.nessie_transaction_id,
+                r.body["record"]["nessie_transaction_id"]
+                    .as_str()
+                    .map(str::to_owned)
+            );
+            assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+        } else {
+            // A 503: nothing was created, and the bank cannot tell more; it stays MAY_EXIST.
+            assert_problem(&r, 409, "NESSIE_NOTHING_TO_REFRESH");
+            assert_eq!(r.body["details"]["found"], 0, "{}", r.text);
+            assert_eq!(
+                attempt(&t, pid, prop, item).await.unwrap().attempt_status,
+                "MAY_EXIST"
+            );
+        }
         assert_eq!(purchases(&srv), before + 1, "{item}: never sent twice");
     }
 

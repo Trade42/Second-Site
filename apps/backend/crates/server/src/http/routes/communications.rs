@@ -422,11 +422,21 @@ async fn start_call(
             .first()
             .cloned()
             .unwrap_or_default();
-        let simulated = if app.voice().mode() != "live" {
-            true
-        } else {
-            req.simulate.unwrap_or(false)
-        };
+        // With the fixture provider every call is simulated. With the live provider a call is
+        // always real, and Python's `simulate: true` there placed a real call labelled
+        // simulated (its answers stored as fixture evidence, "not a real conversation"); that is
+        // refused here with the simulator's own live-provider answer, before the approval is
+        // spent and before any carrier request, and nothing is stored.
+        let live = app.voice().mode() == "live";
+        if live && req.simulate == Some(true) {
+            return Err(AppError::conflict(
+                "a simulated call needs the fixture voice provider; with the live provider \
+                 this would place a real call. Start it without \"simulate\" to place the real \
+                 call.",
+            )
+            .code("SIMULATOR_DISABLED"));
+        }
+        let simulated = !live;
         let mut orch = CallOrchestrator::new(&app);
         let call = orch
             .start(
