@@ -199,24 +199,18 @@ pub const INNER_RECTANGLE_CELL: f64 = 0.2;
 /// Largest grid [`largest_inner_rectangle`] scans (cells).
 pub const MAX_GRID_CELLS: usize = 1_000_000;
 
-/// Work bound of [`largest_inner_rectangle`], in the work units of [`FrameWork::units`]. The
-/// scan's work is counted exactly before any cell is tested; an outline whose count exceeds
-/// this gets no rectangle (and [`frame_for_solver_checked`] says why).
-pub const MAX_FRAME_WORK: u64 = 4_000_000;
+/// Work bound of [`largest_inner_rectangle`]: boundary segments (floor vertices) times grid rows.
+/// The prepared scan visits each segment once per grid row it reaches, so this caps that part
+/// of the work; a floor beyond it gets no rectangle (and [`frame_for_solver_checked`] says why).
+/// 4,000,000 admits, for example, 2,004 vertices on a 199 m floor (995 rows) or 13,000 vertices
+/// on a 60 m floor.
+pub const MAX_FRAME_VERTEX_ROWS: usize = 4_000_000;
 
-/// Work units per boundary segment (preparing and sorting the segments).
-pub const FRAME_WORK_PER_SEGMENT: u64 = 1;
-/// Work units per grid cell (every cell is visited once).
-pub const FRAME_WORK_PER_CELL: u64 = 1;
-/// Work units per segment per grid row it reaches (the per-row preparation).
-pub const FRAME_WORK_PER_SEGMENT_ROW: u64 = 1;
-/// Work units per cell near the boundary (each runs the exact tolerance test).
-pub const FRAME_WORK_PER_NEAR_CELL: u64 = 1;
-/// Work units per segment near a near cell.
-pub const FRAME_WORK_PER_NEAR_SEGMENT: u64 = 1;
-/// Work units per pair of segments near the same near cell (the exact test of a cell with k
-/// segments near it costs about k squared).
-pub const FRAME_WORK_PER_NEAR_PAIR: u64 = 1;
+/// Second work bound of [`largest_inner_rectangle`]: the sum, over the grid cells that lie near
+/// the boundary, of the square of the number of boundary segments near the cell (the exact
+/// tolerance test of such a cell costs about that). Only outlines with many vertices packed
+/// within a few millimetres of each other reach it.
+pub const MAX_FRAME_NEAR_WORK: usize = 4_000_000;
 
 /// Tolerance of the containment test (Python's `poly.buffer(1e-6)`).
 const INNER_RECTANGLE_EPS: f64 = 1e-6;
@@ -228,41 +222,6 @@ pub struct WorkBoundExceeded {
     pub note: String,
 }
 
-/// The work of [`largest_inner_rectangle`]'s prepared scan of one outline, counted before the
-/// scan (the scan does exactly this work). Each field is a count; [`FrameWork::units`] weighs
-/// them by the measured cost of each kind of work.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct FrameWork {
-    /// Boundary segments.
-    pub segments: u64,
-    /// Grid cells.
-    pub cells: u64,
-    /// Sum over grid rows of the segments that reach the row (its band widened by the pad).
-    pub segment_rows: u64,
-    /// Cells that run the exact tolerance test: a segment is near, or the cell has no extent.
-    pub near_cells: u64,
-    /// Sum over near cells of the number of segments near the cell.
-    pub near_segments: u64,
-    /// Sum over near cells of the square of the number of segments near the cell.
-    pub near_pairs: u64,
-}
-
-impl FrameWork {
-    /// The weighted total, saturating.
-    pub fn units(&self) -> u64 {
-        [
-            (self.segments, FRAME_WORK_PER_SEGMENT),
-            (self.cells, FRAME_WORK_PER_CELL),
-            (self.segment_rows, FRAME_WORK_PER_SEGMENT_ROW),
-            (self.near_cells, FRAME_WORK_PER_NEAR_CELL),
-            (self.near_segments, FRAME_WORK_PER_NEAR_SEGMENT),
-            (self.near_pairs, FRAME_WORK_PER_NEAR_PAIR),
-        ]
-        .iter()
-        .fold(0u64, |acc, &(n, w)| acc.saturating_add(n.saturating_mul(w)))
-    }
-}
-
 /// An axis-aligned rectangle `(x0, y0, x1, y1)`.
 pub type Rect = (f64, f64, f64, f64);
 
@@ -270,8 +229,8 @@ pub type Rect = (f64, f64, f64, f64);
 /// (anchored at the polygon's lower-left bound) whose cells all lie inside
 /// `poly.buffer(1e-6)`, by the histogram method. `(x0, y0, x1, y1)`, or `None` when the grid has
 /// fewer than 2 cells in either direction, no cell fits, or a work bound is exceeded
-/// ([`MAX_GRID_CELLS`], [`MAX_FRAME_WORK`]; deliberate bounds, Python has none).
-/// [`largest_inner_rectangle_checked`] tells the two `None` cases apart.
+/// ([`MAX_GRID_CELLS`], [`MAX_FRAME_VERTEX_ROWS`], [`MAX_FRAME_NEAR_WORK`]; deliberate bounds,
+/// Python has none). [`largest_inner_rectangle_checked`] tells the two `None` cases apart.
 pub fn largest_inner_rectangle(poly: &[Coord], cell: f64) -> Option<Rect> {
     largest_inner_rectangle_checked(poly, cell).ok().flatten()
 }
@@ -298,371 +257,83 @@ pub fn largest_inner_rectangle(poly: &[Coord], cell: f64) -> Option<Rect> {
 /// The cost is about cells plus rows times vertices plus the near-cell tests, instead of cells
 /// times vertices. A non-finite vertex gives `Ok(None)` (contracts parsed from JSON cannot carry
 /// one).
-///
-/// **Work bound.** The scan's work ([`FrameWork`]) is counted exactly before any cell is tested,
-/// in two steps, each of which refuses (`Err`) as soon as the weighted count exceeds
-/// [`MAX_FRAME_WORK`]: first the segments, the cells and the rows each segment reaches (two
-/// binary searches per segment), then the cells near the boundary and the segments near each
-/// (the per-row preparation of the scan without the cell tests). A refused outline costs at most
-/// that counting; an accepted one does exactly the work it was counted for.
 pub fn largest_inner_rectangle_checked(
     poly: &[Coord],
     cell: f64,
 ) -> Result<Option<Rect>, WorkBoundExceeded> {
-    let Some(grid) = Grid::new(poly, cell)? else {
+    let Some(b) = Bounds::of(poly) else {
         return Ok(None);
     };
-    let mut segs = grid.segments();
-    let mut work = FrameWork {
-        segments: segs.len() as u64,
-        cells: (grid.nx as u64).saturating_mul(grid.ny as u64),
-        segment_rows: grid.segment_rows(&segs),
-        ..FrameWork::default()
-    };
-    if work.units() > MAX_FRAME_WORK {
+    let nx_f = ((b.maxx - b.minx) / cell).trunc();
+    let ny_f = ((b.maxy - b.miny) / cell).trunc();
+    if !(nx_f >= 2.0 && ny_f >= 2.0) || !nx_f.is_finite() || !ny_f.is_finite() {
+        return Ok(None);
+    }
+    // Bounded work: Python would scan any grid; floors with more cells than this (about
+    // 200 m x 200 m at 0.2 m) get no rectangle.
+    if nx_f * ny_f > MAX_GRID_CELLS as f64 {
         return Err(WorkBoundExceeded {
             note: format!(
-                "Floor outline too detailed to frame: {} boundary segments, which together cross {} rows of a {} x {} cell grid (estimated framing work {} units, above the bound of {MAX_FRAME_WORK}); no layout was generated. Simplify the measured outline.",
-                work.segments,
-                work.segment_rows,
-                grid.nx,
-                grid.ny,
-                work.units()
+                "Floor too large to frame: a {nx_f:.0} x {ny_f:.0} cell grid exceeds the bound of {MAX_GRID_CELLS} cells; no layout was generated."
             ),
         });
     }
-    segs.sort_by(|s, t| s.ymin.total_cmp(&t.ymin));
-    if !grid.count_near_work(&segs, &mut work, MAX_FRAME_WORK) {
+    let (nx, ny) = (nx_f as usize, ny_f as usize);
+    let ring = geometry::closed_ring(poly);
+    // `contains_with_tolerance` is false for every cell when the ring has fewer than 4 points.
+    if ring.len() < 4 || ring.iter().any(|p| !p.0.is_finite() || !p.1.is_finite()) {
+        return Ok(None);
+    }
+    let nseg = ring.len() - 1;
+    if nseg.saturating_mul(ny) > MAX_FRAME_VERTEX_ROWS {
         return Err(WorkBoundExceeded {
             note: format!(
-                "Floor outline too detailed to frame: boundary segments are packed too densely near the grid (estimated framing work above the bound of {MAX_FRAME_WORK} units); no layout was generated. Simplify the measured outline."
+                "Floor outline too detailed to frame: {nseg} boundary segments x {ny} grid rows exceeds the bound of {MAX_FRAME_VERTEX_ROWS}; no layout was generated. Simplify the measured outline."
             ),
         });
     }
-    Ok(grid.scan(&segs, &mut FrameWork::default()))
-}
+    let eps = INNER_RECTANGLE_EPS;
+    let max_abs = ring
+        .iter()
+        .fold(0.0f64, |m, p| m.max(p.0.abs()).max(p.1.abs()));
+    let pad = eps + 1e-3 + 1e-9 * max_abs;
+    let cell_x = |i: usize| b.minx + i as f64 * cell;
+    let cell_y = |j: usize| b.miny + j as f64 * cell;
+    let xs: Vec<f64> = (0..=nx).map(cell_x).collect();
 
-/// The work [`largest_inner_rectangle_checked`] counts for an outline before its scan, counted
-/// in full (no work bound; only [`MAX_GRID_CELLS`] applies). `None` when there is no grid to
-/// scan. For the tests and timing drivers; not for request paths.
-#[doc(hidden)]
-pub fn frame_work_estimate(poly: &[Coord], cell: f64) -> Option<FrameWork> {
-    let grid = Grid::new(poly, cell).ok().flatten()?;
-    let mut segs = grid.segments();
-    let mut work = FrameWork {
-        segments: segs.len() as u64,
-        cells: (grid.nx as u64).saturating_mul(grid.ny as u64),
-        segment_rows: grid.segment_rows(&segs),
-        ..FrameWork::default()
-    };
-    segs.sort_by(|s, t| s.ymin.total_cmp(&t.ymin));
-    grid.count_near_work(&segs, &mut work, u64::MAX);
-    Some(work)
-}
-
-/// The scan of [`largest_inner_rectangle_checked`] without its work bound (only
-/// [`MAX_GRID_CELLS`] applies), with the work the scan itself did, counted as it went. `None`
-/// when there is no grid to scan. For the tests that check [`frame_work_estimate`] against the
-/// scan; not for request paths.
-#[doc(hidden)]
-pub fn largest_inner_rectangle_counted(
-    poly: &[Coord],
-    cell: f64,
-) -> Option<(Option<Rect>, FrameWork)> {
-    let grid = Grid::new(poly, cell).ok().flatten()?;
-    let mut segs = grid.segments();
-    segs.sort_by(|s, t| s.ymin.total_cmp(&t.ymin));
-    let mut work = FrameWork {
-        segments: segs.len() as u64,
-        cells: (grid.nx as u64).saturating_mul(grid.ny as u64),
-        ..FrameWork::default()
-    };
-    let rect = grid.scan(&segs, &mut work);
-    Some((rect, work))
-}
-
-/// The grid of [`largest_inner_rectangle_checked`] and the closed boundary ring.
-struct Grid {
-    b: Bounds,
-    cell: f64,
-    nx: usize,
-    ny: usize,
-    ring: Vec<Coord>,
-    pad: f64,
-    /// Column edges `cell_x(0..=nx)`.
-    xs: Vec<f64>,
-}
-
-impl Grid {
-    /// The grid, `Ok(None)` when there is nothing to scan (fewer than 2 cells either way, fewer
-    /// than 4 ring points, a non-finite vertex), `Err` beyond [`MAX_GRID_CELLS`].
-    fn new(poly: &[Coord], cell: f64) -> Result<Option<Grid>, WorkBoundExceeded> {
-        let Some(b) = Bounds::of(poly) else {
-            return Ok(None);
-        };
-        let nx_f = ((b.maxx - b.minx) / cell).trunc();
-        let ny_f = ((b.maxy - b.miny) / cell).trunc();
-        if !(nx_f >= 2.0 && ny_f >= 2.0) || !nx_f.is_finite() || !ny_f.is_finite() {
-            return Ok(None);
-        }
-        // Bounded work: Python would scan any grid; floors with more cells than this (about
-        // 200 m x 200 m at 0.2 m) get no rectangle.
-        if nx_f * ny_f > MAX_GRID_CELLS as f64 {
-            return Err(WorkBoundExceeded {
-                note: format!(
-                    "Floor too large to frame: a {nx_f:.0} x {ny_f:.0} cell grid exceeds the bound of {MAX_GRID_CELLS} cells; no layout was generated."
-                ),
-            });
-        }
-        let (nx, ny) = (nx_f as usize, ny_f as usize);
-        let ring = geometry::closed_ring(poly);
-        // `contains_with_tolerance` is false for every cell when the ring has fewer than 4 points.
-        if ring.len() < 4 || ring.iter().any(|p| !p.0.is_finite() || !p.1.is_finite()) {
-            return Ok(None);
-        }
-        let max_abs = ring
-            .iter()
-            .fold(0.0f64, |m, p| m.max(p.0.abs()).max(p.1.abs()));
-        let pad = INNER_RECTANGLE_EPS + 1e-3 + 1e-9 * max_abs;
-        let mut grid = Grid {
-            b,
-            cell,
-            nx,
-            ny,
-            ring,
-            pad,
-            xs: Vec::new(),
-        };
-        grid.xs = (0..=nx).map(|i| grid.cell_x(i)).collect();
-        Ok(Some(grid))
-    }
-
-    fn cell_x(&self, i: usize) -> f64 {
-        self.b.minx + i as f64 * self.cell
-    }
-
-    fn cell_y(&self, j: usize) -> f64 {
-        self.b.miny + j as f64 * self.cell
-    }
-
-    /// Row `j`'s band, widened by the pad: `(lo, hi)`.
-    fn band(&self, j: usize) -> (f64, f64) {
-        (self.cell_y(j) - self.pad, self.cell_y(j + 1) + self.pad)
-    }
-
-    /// The ring's segments, in ring order.
-    fn segments(&self) -> Vec<Seg> {
-        self.ring
-            .windows(2)
-            .map(|w| Seg {
-                a: w[0],
-                b: w[1],
-                ymin: w[0].1.min(w[1].1),
-                ymax: w[0].1.max(w[1].1),
-            })
-            .collect()
-    }
-
-    /// [`FrameWork::segment_rows`]: the number of (segment, row) pairs the scan's sweep visits.
-    /// The sweep keeps a segment in row `j` exactly when `ymin <= hi(j)` and `ymax >= lo(j)` for
-    /// that row's band `(lo, hi)`; both band ends are non-decreasing in `j` (a positive cell, a
-    /// constant pad), so each segment's rows are one range, found by two binary searches.
-    fn segment_rows(&self, segs: &[Seg]) -> u64 {
-        let (los, his): (Vec<f64>, Vec<f64>) = (0..self.ny).map(|j| self.band(j)).unzip();
-        segs.iter().fold(0u64, |acc, s| {
-            let first = his.partition_point(|&hi| hi < s.ymin);
-            let end = los.partition_point(|&lo| lo <= s.ymax);
-            acc.saturating_add(end.saturating_sub(first) as u64)
+    let mut segs: Vec<Seg> = ring
+        .windows(2)
+        .map(|w| Seg {
+            a: w[0],
+            b: w[1],
+            ymin: w[0].1.min(w[1].1),
+            ymax: w[0].1.max(w[1].1),
         })
-    }
+        .collect();
+    segs.sort_by(|s, t| s.ymin.total_cmp(&t.ymin));
+    let mut next = 0usize;
+    let mut active: Vec<Seg> = Vec::new();
+    let mut near_work = 0usize;
 
-    /// Add the near-cell counts of [`FrameWork`] to `work`, row by row, with the scan's own row
-    /// preparation ([`RowSweep`]) and a difference array over the row's cells instead of the
-    /// cell tests. Stops, returning `false`, as soon as `work.units()` exceeds `limit`.
-    fn count_near_work(&self, segs: &[Seg], work: &mut FrameWork, limit: u64) -> bool {
-        let nx = self.nx;
-        let degenerate_cols = self.xs.windows(2).any(|w| w[1] == w[0]);
-        let mut sweep = RowSweep::new(segs);
-        let mut row: Vec<RowSeg> = Vec::new();
-        // diff[i]: segments whose near range starts at cell i minus those whose range ends there.
-        let mut diff = vec![0i64; nx + 1];
-        for j in 0..self.ny {
-            sweep.advance(self, j, &mut row);
-            let degenerate_row = self.cell_y(j + 1) == self.cell_y(j);
-            let (mut from, mut to) = (nx, 0usize);
-            for r in &row {
-                if r.i_lo < r.i_hi_end {
-                    diff[r.i_lo] += 1;
-                    diff[r.i_hi_end] -= 1;
-                    from = from.min(r.i_lo);
-                    to = to.max(r.i_hi_end);
-                }
-            }
-            // Cells with no extent run the exact test even with no segment near them.
-            if degenerate_row || degenerate_cols {
-                (from, to) = (0, nx);
-            }
-            let mut k = 0i64;
-            for i in from..to {
-                k += diff[i];
-                diff[i] = 0;
-                if k > 0 || degenerate_row || self.xs[i + 1] == self.xs[i] {
-                    work.add_near_cell(k.unsigned_abs());
-                }
-            }
-            if to <= nx {
-                diff[to] = 0;
-            }
-            if work.units() > limit {
-                return false;
-            }
+    let mut best = 0usize;
+    let mut best_rect: Option<(usize, usize, usize, usize)> = None;
+    let mut heights = vec![0usize; nx];
+    let mut row: Vec<RowSeg> = Vec::new();
+    let mut by_lo: Vec<usize> = Vec::new();
+    let mut by_xlo: Vec<usize> = Vec::new();
+    let mut levels: Vec<f64> = Vec::new();
+    let mut near: Vec<usize> = Vec::new();
+    let mut near_segs: Vec<(Coord, Coord)> = Vec::new();
+    for j in 0..ny {
+        let (y0, y1) = (cell_y(j), cell_y(j + 1));
+        let (band_lo, band_hi) = (y0 - pad, y1 + pad);
+        while next < segs.len() && segs[next].ymin <= band_hi {
+            active.push(segs[next]);
+            next += 1;
         }
-        true
-    }
-
-    /// The prepared scan: the largest rectangle, with the work done added to `work` (segment
-    /// rows and near cells).
-    fn scan(&self, segs: &[Seg], work: &mut FrameWork) -> Option<Rect> {
-        let (nx, ny) = (self.nx, self.ny);
-        let eps = INNER_RECTANGLE_EPS;
-        let xs = &self.xs;
-        let mut sweep = RowSweep::new(segs);
-        let mut best = 0usize;
-        let mut best_rect: Option<(usize, usize, usize, usize)> = None;
-        let mut heights = vec![0usize; nx];
-        let mut row: Vec<RowSeg> = Vec::new();
-        let mut by_lo: Vec<usize> = Vec::new();
-        let mut by_xlo: Vec<usize> = Vec::new();
-        let mut levels: Vec<f64> = Vec::new();
-        let mut near: Vec<usize> = Vec::new();
-        let mut near_segs: Vec<(Coord, Coord)> = Vec::new();
-        for j in 0..ny {
-            let (y0, y1) = (self.cell_y(j), self.cell_y(j + 1));
-            sweep.advance(self, j, &mut row);
-            work.segment_rows = work.segment_rows.saturating_add(row.len() as u64);
-            // Straddle parity of the segments right of the current cell: a Fenwick tree (XOR) over
-            // the row's distinct end heights; a segment straddles height y (GEOS's half-open rule,
-            // ymin <= y < ymax) exactly when an odd number of its two end heights are <= y.
-            levels.clear();
-            for r in &row {
-                levels.push(r.seg.ymin);
-                levels.push(r.seg.ymax);
-            }
-            levels.sort_by(f64::total_cmp);
-            levels.dedup();
-            let mut fenwick = vec![false; levels.len() + 1];
-            let rank = |levels: &[f64], y: f64| levels.partition_point(|&v| v < y);
-            let y_ref = (y0 + y1) / 2.0;
-            let mut parity_ref = false;
-            for r in &row {
-                fenwick_toggle(&mut fenwick, rank(&levels, r.seg.ymin));
-                fenwick_toggle(&mut fenwick, rank(&levels, r.seg.ymax));
-                parity_ref ^= r.seg.straddles(y_ref);
-            }
-            by_xlo.clear();
-            by_xlo.extend(0..row.len());
-            by_xlo.sort_by(|&a, &c| row[a].xlo.total_cmp(&row[c].xlo));
-            by_lo.clear();
-            by_lo.extend((0..row.len()).filter(|&k| row[k].i_lo < row[k].i_hi_end));
-            by_lo.sort_by_key(|&k| row[k].i_lo);
-            let (mut q, mut p) = (0usize, 0usize);
-            near.clear();
-            for (i, h) in heights.iter_mut().enumerate() {
-                let (cx0, cx1) = (xs[i], xs[i + 1]);
-                // Segments that start (in x) before this cell's right edge are no longer to its right.
-                while q < by_xlo.len() && row[by_xlo[q]].xlo <= cx1 {
-                    let s = row[by_xlo[q]].seg;
-                    fenwick_toggle(&mut fenwick, rank(&levels, s.ymin));
-                    fenwick_toggle(&mut fenwick, rank(&levels, s.ymax));
-                    parity_ref ^= s.straddles(y_ref);
-                    q += 1;
-                }
-                while p < by_lo.len() && row[by_lo[p]].i_lo <= i {
-                    near.push(by_lo[p]);
-                    p += 1;
-                }
-                near.retain(|&k| i < row[k].i_hi_end);
-                let cell_ring = [(cx0, y0), (cx1, y0), (cx1, y1), (cx0, y1)];
-                let degenerate = cx1 == cx0 || y1 == y0;
-                let inside = if near.is_empty() && !degenerate {
-                    parity_ref
-                        && geometry::ring_area(&[
-                            (cx0, y0),
-                            (cx1, y0),
-                            (cx1, y1),
-                            (cx0, y1),
-                            (cx0, y0),
-                        ]) > 0.0
-                } else {
-                    work.add_near_cell(near.len() as u64);
-                    near_segs.clear();
-                    near_segs.extend(near.iter().map(|&k| (row[k].seg.a, row[k].seg.b)));
-                    let mut locate = |m: Coord| -> Location {
-                        let mut odd =
-                            fenwick_prefix(&fenwick, levels.partition_point(|&v| v <= m.1));
-                        for &(a, c) in &near_segs {
-                            match geometry::ray_step(m, a, c) {
-                                RayStep::Boundary => return Location::Boundary,
-                                RayStep::Cross => odd = !odd,
-                                RayStep::Skip => {}
-                            }
-                        }
-                        if odd {
-                            Location::Interior
-                        } else {
-                            Location::Exterior
-                        }
-                    };
-                    geometry::covers_ring_near(&cell_ring, &near_segs, &mut locate, eps)
-                };
-                *h = if inside { *h + 1 } else { 0 };
-            }
-            histogram_step(&heights, j, &mut best, &mut best_rect);
-        }
-        let (i0, j0, i1, j1) = best_rect?;
-        Some((self.cell_x(i0), self.cell_y(j0), self.cell_x(i1), self.cell_y(j1)))
-    }
-}
-
-impl FrameWork {
-    /// Count one near cell with `k` segments near it.
-    fn add_near_cell(&mut self, k: u64) {
-        self.near_cells = self.near_cells.saturating_add(1);
-        self.near_segments = self.near_segments.saturating_add(k);
-        self.near_pairs = self.near_pairs.saturating_add(k.saturating_mul(k));
-    }
-}
-
-/// The segments of each grid row in turn: the active list of a sweep, row by row from the
-/// bottom, over the segments sorted by `ymin`.
-struct RowSweep<'a> {
-    segs: &'a [Seg],
-    next: usize,
-    active: Vec<Seg>,
-}
-
-impl<'a> RowSweep<'a> {
-    fn new(segs: &'a [Seg]) -> Self {
-        RowSweep {
-            segs,
-            next: 0,
-            active: Vec::new(),
-        }
-    }
-
-    /// Fill `row` with the segments of grid row `j` (called for `j = 0, 1, ...` in turn): those
-    /// whose y-range meets the row's padded band, each with the padded x-range of its part
-    /// inside the band and the cells that x-range meets.
-    fn advance(&mut self, grid: &Grid, j: usize, row: &mut Vec<RowSeg>) {
-        let (band_lo, band_hi) = grid.band(j);
-        let (xs, nx, pad) = (&grid.xs, grid.nx, grid.pad);
-        while self.next < self.segs.len() && self.segs[self.next].ymin <= band_hi {
-            self.active.push(self.segs[self.next]);
-            self.next += 1;
-        }
-        self.active.retain(|s| s.ymax >= band_lo);
+        active.retain(|s| s.ymax >= band_lo);
         row.clear();
-        for s in &self.active {
+        for s in &active {
             let (xlo, xhi) = x_range_in_band(s, band_lo, band_hi);
             let (xlo, xhi) = (xlo - pad, xhi + pad);
             // Cells i with xs[i + 1] >= xlo and xs[i] <= xhi are near (an empty range when
@@ -676,7 +347,91 @@ impl<'a> RowSweep<'a> {
                 i_hi_end,
             });
         }
+        // Straddle parity of the segments right of the current cell: a Fenwick tree (XOR) over
+        // the row's distinct end heights; a segment straddles height y (GEOS's half-open rule,
+        // ymin <= y < ymax) exactly when an odd number of its two end heights are <= y.
+        levels.clear();
+        for r in &row {
+            levels.push(r.seg.ymin);
+            levels.push(r.seg.ymax);
+        }
+        levels.sort_by(f64::total_cmp);
+        levels.dedup();
+        let mut fenwick = vec![false; levels.len() + 1];
+        let rank = |levels: &[f64], y: f64| levels.partition_point(|&v| v < y);
+        let y_ref = (y0 + y1) / 2.0;
+        let mut parity_ref = false;
+        for r in &row {
+            fenwick_toggle(&mut fenwick, rank(&levels, r.seg.ymin));
+            fenwick_toggle(&mut fenwick, rank(&levels, r.seg.ymax));
+            parity_ref ^= r.seg.straddles(y_ref);
+        }
+        by_xlo.clear();
+        by_xlo.extend(0..row.len());
+        by_xlo.sort_by(|&a, &c| row[a].xlo.total_cmp(&row[c].xlo));
+        by_lo.clear();
+        by_lo.extend((0..row.len()).filter(|&k| row[k].i_lo < row[k].i_hi_end));
+        by_lo.sort_by_key(|&k| row[k].i_lo);
+        let (mut q, mut p) = (0usize, 0usize);
+        near.clear();
+        for (i, h) in heights.iter_mut().enumerate() {
+            let (cx0, cx1) = (xs[i], xs[i + 1]);
+            // Segments that start (in x) before this cell's right edge are no longer to its right.
+            while q < by_xlo.len() && row[by_xlo[q]].xlo <= cx1 {
+                let s = row[by_xlo[q]].seg;
+                fenwick_toggle(&mut fenwick, rank(&levels, s.ymin));
+                fenwick_toggle(&mut fenwick, rank(&levels, s.ymax));
+                parity_ref ^= s.straddles(y_ref);
+                q += 1;
+            }
+            while p < by_lo.len() && row[by_lo[p]].i_lo <= i {
+                near.push(by_lo[p]);
+                p += 1;
+            }
+            near.retain(|&k| i < row[k].i_hi_end);
+            let cell_ring = [(cx0, y0), (cx1, y0), (cx1, y1), (cx0, y1)];
+            let degenerate = cx1 == cx0 || y1 == y0;
+            let inside = if near.is_empty() && !degenerate {
+                parity_ref
+                    && geometry::ring_area(&[(cx0, y0), (cx1, y0), (cx1, y1), (cx0, y1), (cx0, y0)])
+                        > 0.0
+            } else {
+                near_work = near_work.saturating_add(near.len().max(1).saturating_pow(2));
+                if near_work > MAX_FRAME_NEAR_WORK {
+                    return Err(WorkBoundExceeded {
+                        note: format!(
+                            "Floor outline too detailed to frame: boundary segments are packed too densely near the grid (work bound {MAX_FRAME_NEAR_WORK}); no layout was generated. Simplify the measured outline."
+                        ),
+                    });
+                }
+                near_segs.clear();
+                near_segs.extend(near.iter().map(|&k| (row[k].seg.a, row[k].seg.b)));
+                let mut locate = |m: Coord| -> Location {
+                    let mut odd = fenwick_prefix(&fenwick, levels.partition_point(|&v| v <= m.1));
+                    for &(a, c) in &near_segs {
+                        match geometry::ray_step(m, a, c) {
+                            RayStep::Boundary => return Location::Boundary,
+                            RayStep::Cross => odd = !odd,
+                            RayStep::Skip => {}
+                        }
+                    }
+                    if odd {
+                        Location::Interior
+                    } else {
+                        Location::Exterior
+                    }
+                };
+                geometry::covers_ring_near(&cell_ring, &near_segs, &mut locate, eps)
+            };
+            *h = if inside { *h + 1 } else { 0 };
+        }
+        histogram_step(&heights, j, &mut best, &mut best_rect);
     }
+    let (i0, j0, i1, j1) = match best_rect {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+    Ok(Some((cell_x(i0), cell_y(j0), cell_x(i1), cell_y(j1))))
 }
 
 /// A boundary segment and its y-range.

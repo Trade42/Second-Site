@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use crate::contracts::communications::{CallQuestion, StructuredFinding};
 use crate::contracts::infrastructure::{AssessmentStatus, InfrastructureAssessment};
-use crate::py::{self, PyMatch, PyRegex};
+use crate::py::{self, PyRegex};
 
 /// `(requirement suffix, question)` in Python's order: `QUESTION_BANK`.
 pub const QUESTION_BANK: [(&str, &str, &str); 4] = [
@@ -56,9 +56,8 @@ pub fn availability() -> CallQuestion {
     }
 }
 
-/// Python's patterns, verbatim (all compiled with `re.I`). `YES` keeps the original alternatives
-/// in the original order, grouped: 1 interjections, 2 predicates, 3 adverbs.
-pub const YES_PATTERN: &str = r"\b(?:(yes|yeah|yep)|(there is|there's|it has|it does|we have)|(definitely|absolutely|correct|sure))\b";
+/// Python's patterns, verbatim (all compiled with `re.I`).
+pub const YES_PATTERN: &str = r"\b(yes|yeah|yep|there is|there's|it has|it does|we have|definitely|absolutely|correct|sure)\b";
 pub const NO_PATTERN: &str =
     r"\b(no|nope|none|not really|there isn'?t|doesn'?t|don'?t have|it's all open|no plumbing)\b";
 pub const UNSURE_PATTERN: &str =
@@ -67,51 +66,12 @@ pub const AMPS_PATTERN: &str = r"(\d{2,4})\s*(?:-|\s)?(?:amps?|amperes?|a\b)";
 pub const SQFT_PATTERN: &str =
     r"(\d[\d,]{2,6})\s*(?:usable\s*)?(?:sq(?:uare)?\.?\s*(?:ft|feet)|sf\b)";
 
-// Truth rules for `extract`, written as Python's `call_script.py` writes them; the golden vectors
-// (`gen_domain4.py`) compare the two answer by answer. Characters: a word character is Python's
-// `\w` ([`py::is_py_word`]), a space is `str.isspace()` ([`py::is_space`]), a digit that counts as
-// part of a reported number is ASCII 0-9 only (any other Unicode decimal next to a number makes it
-// unclear), and the apostrophes below are read as `'` before any pattern runs.
-
-/// Read as `'`: right and left single quotation marks, modifier letter apostrophe.
-pub const APOSTROPHES: [char; 3] = ['\u{2019}', '\u{2018}', '\u{2BC}'];
-/// A word, with inner apostrophes ("doesn't", "there's").
-pub const WORD_PATTERN: &str = r"\w+(?:'\w+)*";
-/// Idioms whose "no" is not an answer (`re.I`).
-pub const NO_IDIOM_PATTERN: &str =
-    r"\b(?:no|not\s+an?)\s+(?:problems?|issues?|worries|doubts?|questions?|reason)\b";
-pub const NEGATIONS: [&str; 15] = [
-    "not", "no", "nope", "none", "never", "nor", "neither", "without", "cannot", "hardly", "barely",
-    "scarcely", "nothing", "nobody", "nowhere",
-];
-/// Contractions written without an apostrophe; any word ending in `n't` is one too.
-pub const CONTRACTIONS: [&str; 20] = [
-    "aint", "arent", "cant", "couldnt", "didnt", "doesnt", "dont", "hadnt", "hasnt", "havent",
-    "isnt", "mightnt", "mustnt", "neednt", "shant", "shouldnt", "wasnt", "werent", "wont",
-    "wouldnt",
-];
-/// Words that negate the affirmation right after them (and every contraction).
-pub const NEGATE_BEFORE: [&str; 6] = ["not", "never", "cannot", "hardly", "barely", "scarcely"];
-/// Words that negate an adverb affirmation right before them.
-pub const NEGATE_AFTER_ADVERB: [&str; 2] = ["not", "never"];
-/// Characters allowed directly before a reported number (besides a space or the start).
-pub const NUMBER_OPENERS: &str = "([{\"\u{201C}~:";
-/// Characters that join a number to an earlier one: hyphens, dashes, minus, `~ / , . : + &`.
-pub const NUMBER_JOINERS: &str =
-    "-\u{2010}\u{2011}\u{2012}\u{2013}\u{2014}\u{2015}\u{2212}~/,.:+&";
-pub const JOIN_WORDS_BEFORE: [&str; 9] = [
-    "to", "and", "or", "through", "thru", "till", "until", "vs", "versus",
-];
-pub const JOIN_WORDS_AFTER: [&str; 6] = ["to", "or", "through", "thru", "till", "until"];
-
 struct Patterns {
     yes: PyRegex,
     no: PyRegex,
     unsure: PyRegex,
     amps: PyRegex,
     sqft: PyRegex,
-    word: PyRegex,
-    no_idiom: PyRegex,
 }
 
 fn patterns() -> &'static Patterns {
@@ -122,8 +82,6 @@ fn patterns() -> &'static Patterns {
         unsure: PyRegex::new(UNSURE_PATTERN, true),
         amps: PyRegex::new(AMPS_PATTERN, true),
         sqft: PyRegex::new(SQFT_PATTERN, true),
-        word: PyRegex::new(WORD_PATTERN, false),
-        no_idiom: PyRegex::new(NO_IDIOM_PATTERN, true),
     })
 }
 
@@ -166,251 +124,46 @@ pub fn build_script(assessments: &[InfrastructureAssessment]) -> Vec<CallQuestio
     script
 }
 
-fn is_word(c: char) -> bool {
-    py::is_py_word(c)
-}
-
-/// ASCII lower case; a word with any non-ASCII character is never one of the listed words.
-fn folded(w: &str) -> String {
-    if w.is_ascii() {
-        w.to_ascii_lowercase()
-    } else {
-        String::new()
-    }
-}
-
-fn listed(list: &[&str], w: &str) -> bool {
-    let f = folded(w);
-    list.contains(&f.as_str())
-}
-
-fn is_contraction(w: &str) -> bool {
-    let mut tail = w.chars().rev();
-    let ends_nt = matches!(
-        (tail.next(), tail.next(), tail.next()),
-        (Some('t' | 'T'), Some('\''), Some('n' | 'N'))
-    );
-    ends_nt || listed(&CONTRACTIONS, w)
-}
-
-fn is_negation(w: &str) -> bool {
-    listed(&NEGATIONS, w) || is_contraction(w)
-}
-
-fn char_before(t: &str, i: usize) -> Option<char> {
-    t[..i].chars().next_back()
-}
-
-fn char_at(t: &str, i: usize) -> Option<char> {
-    t[i..].chars().next()
-}
-
-fn skip_space_back(t: &str, mut i: usize) -> usize {
-    while let Some(c) = char_before(t, i).filter(|&c| py::is_space(c)) {
-        i -= c.len_utf8();
-    }
-    i
-}
-
-fn skip_space_fwd(t: &str, mut i: usize) -> usize {
-    while let Some(c) = char_at(t, i).filter(|&c| py::is_space(c)) {
-        i += c.len_utf8();
-    }
-    i
-}
-
-/// Python's `_affirmed`: a YES match is an affirmation unless a negation is next to it, separated
-/// by spaces only: before it one of [`NEGATE_BEFORE`] or a contraction ("isn't correct"); after a
-/// predicate (group 2: there is, there's, it has, it does, we have) any negation word ("it does
-/// not", "there's no"); after an adverb (group 3: definitely, absolutely, correct, sure) one of
-/// [`NEGATE_AFTER_ADVERB`] ("absolutely not").
-fn affirmed(t: &str, m: &PyMatch<'_>, words: &[(usize, usize)]) -> bool {
-    let (start, end) = m.span();
-    let i = skip_space_back(t, start);
-    let before = if i < start {
-        words.iter().find(|w| w.1 == i).map(|w| &t[w.0..w.1])
-    } else {
-        None
-    };
-    let j = skip_space_fwd(t, end);
-    let after = if j > end {
-        words.iter().find(|w| w.0 == j).map(|w| &t[w.0..w.1])
-    } else {
-        None
-    };
-    if before.is_some_and(|w| listed(&NEGATE_BEFORE, w) || is_contraction(w)) {
-        return false;
-    }
-    if m.group(2).is_some() && after.is_some_and(is_negation) {
-        return false;
-    }
-    if m.group(3).is_some() && after.is_some_and(|w| listed(&NEGATE_AFTER_ADVERB, w)) {
-        return false;
-    }
-    true
-}
-
-/// Python's `_negation_before_no`: a negation word outside every NO match that comes before a NO
-/// match in the same clause (no punctuation between them), a double negative such as "it's not
-/// that there isn't a sink".
-fn negation_before_no(t: &str, negations: &[(usize, usize)], noes: &[(usize, usize)]) -> bool {
-    for &(s, e) in negations {
-        if noes.iter().any(|&(ns, ne)| ns <= s && e <= ne) {
-            continue;
-        }
-        for &(ns, _) in noes {
-            if ns >= e
-                && t[e..ns]
-                    .chars()
-                    .all(|c| is_word(c) || py::is_space(c) || c == '\'')
-            {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-fn yes_no(p: &Patterns, t: &str) -> Option<bool> {
-    let words: Vec<(usize, usize)> = p.word.search_all(t).iter().map(PyMatch::span).collect();
-    let noes: Vec<(usize, usize)> = p.no.search_all(t).iter().map(PyMatch::span).collect();
-    let affirmation = p.yes.search_all(t).iter().any(|m| affirmed(t, m, &words));
-    let negations: Vec<(usize, usize)> = words
-        .iter()
-        .copied()
-        .filter(|&(s, e)| is_negation(&t[s..e]))
-        .collect();
-    if affirmation && noes.is_empty() && negations.is_empty() {
-        return Some(true);
-    }
-    if !noes.is_empty()
-        && !affirmation
-        && !p.no_idiom.is_match(t)
-        && !negation_before_no(t, &negations, &noes)
-    {
-        return Some(false);
-    }
-    None
-}
-
-/// Python's `_plain_number`: ASCII digits, with commas only as thousands separators ("1,128";
-/// not "11,28", "1,1280" or "1,,128").
-fn plain_number(digits: &str) -> bool {
-    let groups: Vec<&str> = digits.split(',').collect();
-    if !groups
-        .iter()
-        .all(|g| !g.is_empty() && g.chars().all(|c| c.is_ascii_digit()))
-    {
-        return false;
-    }
-    groups.len() == 1 || (groups[0].len() <= 3 && groups[1..].iter().all(|g| g.len() == 3))
-}
-
-/// Python's `_stands_alone`: the number at `t[start..]` (its match ends at `end`) is a whole
-/// token, not part of a longer number or a range. The character before it is a space, the start
-/// or one of [`NUMBER_OPENERS`]; no digit is joined to it on the left by spaces alone ("1 128"),
-/// by one of [`NUMBER_JOINERS`] ("200-400", "200, 400") or by one of [`JOIN_WORDS_BEFORE`] ("200 to
-/// 400 amps"), nor on the right by one of [`JOIN_WORDS_AFTER`], unless that digit starts another
-/// unit match (in `starts`), which the caller compares ("200 amps or 400").
-fn stands_alone(t: &str, start: usize, end: usize, starts: &[usize]) -> bool {
-    if let Some(c) = char_before(t, start) {
-        if !(py::is_space(c) || NUMBER_OPENERS.contains(c)) {
-            return false;
-        }
-    }
-    let mut k = skip_space_back(t, start);
-    match char_before(t, k) {
-        Some(c) if NUMBER_JOINERS.contains(c) => k = skip_space_back(t, k - c.len_utf8()),
-        _ => {
-            let mut j = k;
-            while let Some(c) = char_before(t, j).filter(|&c| is_word(c)) {
-                j -= c.len_utf8();
-            }
-            if listed(&JOIN_WORDS_BEFORE, &t[j..k]) {
-                k = skip_space_back(t, j);
-            }
-        }
-    }
-    if char_before(t, k).is_some_and(py::is_decimal) {
-        return false;
-    }
-    let mut i = skip_space_fwd(t, end);
-    let mut j = i;
-    while let Some(c) = char_at(t, j).filter(|&c| is_word(c)) {
-        j += c.len_utf8();
-    }
-    if i > end && listed(&JOIN_WORDS_AFTER, &t[i..j]) {
-        i = skip_space_fwd(t, j);
-        if char_at(t, i).is_some_and(py::is_decimal) && !starts.contains(&i) {
-            return false;
-        }
-    }
-    true
-}
-
-/// Python's `_quantity`: the one value every unit match states; `None` if any match is not a
-/// whole plain number, if the matches disagree, or if the value is zero. Group 1 (the digits)
-/// starts each match.
-fn quantity(re: &PyRegex, t: &str) -> Option<i64> {
-    let matches = re.search_all(t);
-    let starts: Vec<usize> = matches.iter().map(|m| m.span().0).collect();
-    let mut values: Vec<i64> = Vec::new();
-    for m in &matches {
-        let digits = m.group(1)?;
-        let (start, end) = m.span();
-        if !(plain_number(digits) && stands_alone(t, start, end, &starts)) {
-            return None;
-        }
-        let n: i64 = digits.replace(',', "").parse().ok()?;
-        if !values.contains(&n) {
-            values.push(n);
-        }
-    }
-    match values.as_slice() {
-        [n] if *n != 0 => Some(*n),
-        _ => None,
-    }
-}
-
-/// `extract(question, answer)`: one finding, value `null` ("unclear") unless the answer clearly
-/// states one.
+/// `extract(question, answer)`: one finding, value `null` unless the answer clearly states one.
 ///
-/// - Typographic apostrophes ([`APOSTROPHES`]) are read as `'`; any hedge ("not sure", "would
-///   have to check", ...) leaves every claim unclear.
-/// - `tenant_subpanel_amps` (unit `A`) and `usable_area_sqft` (unit `sqft`, commas dropped): every
-///   unit match must be a whole plain number ([`plain_number`], [`stands_alone`]), all of them the
-///   same non-zero value; otherwise unclear. No other bounds than the patterns' own (amps 2 to 4
-///   digits, area 3 to 7 characters).
-/// - `in_unit_plumbing`, `hvac_zonable`: `true` only for an affirmation that is not negated
-///   ([`affirmed`]), no NO match and no negation word anywhere; `false` only for a NO match with no
-///   un-negated affirmation, no "no problem"-style idiom and no double negative
-///   ([`negation_before_no`]); otherwise unclear.
-/// - any other claim: the stripped answer's first 200 characters (as given), or `null` when empty.
+/// - Any hedge ("not sure", "would have to check", ...) leaves the value unclear.
+/// - `tenant_subpanel_amps`: the first `NN[NN] amps`-style number, as an integer, unit `A`.
+/// - `usable_area_sqft`: the first `N,NNN sq ft`-style number (commas dropped), unit `sqft`.
+/// - `in_unit_plumbing`, `hvac_zonable`: `true` or `false` only when exactly one of the yes and
+///   no patterns matches.
+/// - any other claim: the stripped answer's first 200 characters, or `null` when empty.
 pub fn extract(question: &CallQuestion, answer: &str) -> StructuredFinding {
     let p = patterns();
-    let text: String = answer
-        .chars()
-        .map(|c| if APOSTROPHES.contains(&c) { '\'' } else { c })
-        .collect();
     let mut value = Value::Null;
     let mut unit: Option<String> = None;
-    if !p.unsure.is_match(&text) {
+    if !p.unsure.is_match(answer) {
         match question.claim_type.as_str() {
             "tenant_subpanel_amps" => {
-                if let Some(n) = quantity(&p.amps, &text) {
+                if let Some(n) = p
+                    .amps
+                    .search(answer)
+                    .and_then(|m| m.group(1))
+                    .and_then(|g| py::int_of_str(g).ok())
+                {
                     value = Value::from(n);
                     unit = Some("A".into());
                 }
             }
             "usable_area_sqft" => {
-                if let Some(n) = quantity(&p.sqft, &text) {
+                if let Some(n) = p
+                    .sqft
+                    .search(answer)
+                    .and_then(|m| m.group(1))
+                    .and_then(|g| py::int_of_str(&g.replace(',', "")).ok())
+                {
                     value = Value::from(n);
                     unit = Some("sqft".into());
                 }
             }
             "in_unit_plumbing" | "hvac_zonable" => {
-                if let Some(b) = yes_no(p, &text) {
-                    value = Value::Bool(b);
+                let (yes, no) = (p.yes.is_match(answer), p.no.is_match(answer));
+                if yes != no {
+                    value = Value::Bool(yes);
                 }
             }
             _ => {

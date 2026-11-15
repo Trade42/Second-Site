@@ -495,12 +495,6 @@ pub fn decimal_and_space_to_ascii(s: &str) -> String {
         .collect()
 }
 
-/// `str.isdecimal()` for one character (what `\d` matches in a str pattern): Unicode general
-/// category Nd.
-pub fn is_decimal(c: char) -> bool {
-    c.is_ascii_digit() || (!c.is_ascii() && unicode_decimal(c).is_some())
-}
-
 /// The value of a Unicode decimal digit (general category Nd). Unicode encodes those digits in
 /// runs of exactly ten consecutive code points, 0 to 9, so the value is the offset from the
 /// start of the maximal Nd range containing `c`, modulo 10.
@@ -801,23 +795,6 @@ impl PyRegex {
     pub fn is_match(&self, text: &str) -> bool {
         let (norm, _) = self.normalize(text);
         self.re.is_match(&norm)
-    }
-
-    /// `list(pattern.finditer(text))`: every non-overlapping match, left to right, with every
-    /// group. Only for patterns that cannot match the empty string (Python and the regex crate
-    /// place empty matches differently); for the others both engines resume at the end of the
-    /// previous match with leftmost-first semantics.
-    pub fn search_all<'t>(&self, text: &'t str) -> Vec<PyMatch<'t>> {
-        let (norm, at) = self.normalize(text);
-        self.re
-            .captures_iter(&norm)
-            .map(|caps| PyMatch {
-                text,
-                groups: (0..caps.len())
-                    .map(|i| caps.get(i).map(|m| (at[m.start()], at[m.end()])))
-                    .collect(),
-            })
-            .collect()
     }
 }
 
