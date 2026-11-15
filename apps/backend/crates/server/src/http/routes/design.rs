@@ -16,10 +16,6 @@
 //! unstructured revision (the service's 409 `STALE_DESIGN_VERSION` / `REVISION_NOT_STRUCTURED`)
 //! are therefore 202 with a FAILED task (`NotFoundError` / `ConflictError`), exactly as Python
 //! answers them.
-//!
-//! The request checks run in their own short transaction; the work then runs in the design
-//! service's three phases (`DesignService::run_layout_task`), so the provider fetch and the
-//! solve hold no transaction, pool connection or lock.
 
 use axum::body::Bytes;
 use axum::extract::State;
@@ -41,7 +37,7 @@ use crate::http::extract::{
     bearer_user, body_errors_with_input, early_json_body, AuthUser, PathParams,
 };
 use crate::http::routes::properties::property_in_project;
-use crate::services::design::{DesignService, LayoutJob};
+use crate::services::design::DesignService;
 use crate::store::repo::{DESIGNS, GEOMETRIES, PROPERTIES};
 use crate::store::{Query, Tx};
 
@@ -96,6 +92,13 @@ fn object_of<T: serde::Serialize>(v: &T) -> AppResult<JsonMap> {
     }
 }
 
+fn ids(created: &[DesignVersion]) -> Value {
+    json!(created
+        .iter()
+        .map(|d| d.design_version_id.to_string())
+        .collect::<Vec<_>>())
+}
+
 async fn generate(
     State(app): State<AppState>,
     params: PathParams,
@@ -105,24 +108,37 @@ async fn generate(
     let decoded = early_json_body(&headers, &body)?;
     let user = bearer_user(&headers, app.settings.auth_secret.expose())?;
     let project_id = params.uuid("project_id")?;
-    let (project_id, req) = crate::in_tx!(app, |tx| {
+    let task = crate::in_tx!(app, |tx| {
         let project_id = owned(&app, tx, project_id, user).await?;
         let obj = decoded.into_object()?;
         let req = LayoutGenerationRequest::from_json_value(Value::Object(obj.clone()))
             .map_err(|e| body_errors_with_input(e, &obj))?;
         // Python: `repos.properties.get(db, body.property_id) is None` (any project).
         property_in_project(tx, project_id, req.property_id).await?;
-        (project_id, req)
+        let input = object_of(&req)?;
+        let task = app
+            .tasks()
+            .create(
+                tx,
+                project_id,
+                TaskType::GenerateLayout,
+                Subsystem::PropertySpatial,
+                input,
+            )
+            .await?;
+        let running = app.tasks().start(tx, task).await?;
+        let correlation_id = running.task.correlation_id;
+        let outcome: AppResult<JsonMap> = async {
+            let created = DesignService::new(&app)
+                .generate(tx, project_id, &req, correlation_id, None, None)
+                .await?;
+            let mut out = JsonMap::new();
+            out.insert("design_version_ids".into(), ids(&created));
+            Ok(out)
+        }
+        .await;
+        app.tasks().finish(tx, running, outcome).await?
     });
-    let task = TaskRecord::new(
-        project_id,
-        TaskType::GenerateLayout,
-        Subsystem::PropertySpatial,
-        object_of(&req)?,
-    );
-    let task = DesignService::new(&app)
-        .run_layout_task(task, &LayoutJob::Generate(req))
-        .await?;
     Ok((StatusCode::ACCEPTED, Json(accepted(task))))
 }
 
@@ -174,7 +190,7 @@ async fn revise(
     let decoded = early_json_body(&headers, &body)?;
     let user = bearer_user(&headers, app.settings.auth_secret.expose())?;
     let project_id = params.uuid("project_id")?;
-    let rev = crate::in_tx!(app, |tx| {
+    let task = crate::in_tx!(app, |tx| {
         let project_id = owned(&app, tx, project_id, user).await?;
         let layout_id = params.uuid("layout_id")?;
         let obj = decoded.into_object()?;
@@ -194,22 +210,42 @@ async fn revise(
             status: RevisionStatus::default(),
         };
         rev.validate()?;
-        rev
+        let mut input = JsonMap::new();
+        input.insert(
+            "revision_request_id".into(),
+            json!(rev.revision_request_id.to_string()),
+        );
+        let task = app
+            .tasks()
+            .create(
+                tx,
+                project_id,
+                TaskType::ReviseLayout,
+                Subsystem::PropertySpatial,
+                input,
+            )
+            .await?;
+        let running = app.tasks().start(tx, task).await?;
+        let correlation_id = running.task.correlation_id;
+        let outcome: AppResult<JsonMap> = async {
+            let (updated, created) = DesignService::new(&app)
+                .revise(tx, &rev, correlation_id)
+                .await?;
+            let current = created
+                .first()
+                .map_or(base.design_version_id, |d| d.design_version_id);
+            let mut out = JsonMap::new();
+            out.insert("revision_status".into(), json!(updated.status.as_str()));
+            out.insert("design_version_ids".into(), ids(&created));
+            out.insert(
+                "current_valid_version_id".into(),
+                json!(current.to_string()),
+            );
+            Ok(out)
+        }
+        .await;
+        app.tasks().finish(tx, running, outcome).await?
     });
-    let mut input = JsonMap::new();
-    input.insert(
-        "revision_request_id".into(),
-        json!(rev.revision_request_id.to_string()),
-    );
-    let task = TaskRecord::new(
-        rev.project_id,
-        TaskType::ReviseLayout,
-        Subsystem::PropertySpatial,
-        input,
-    );
-    let task = DesignService::new(&app)
-        .run_layout_task(task, &LayoutJob::Revise(rev))
-        .await?;
     Ok((StatusCode::ACCEPTED, Json(accepted(task))))
 }
 

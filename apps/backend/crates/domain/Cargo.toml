@@ -20,13 +20,6 @@ csv = "1"
 # Polygon overlay (intersection, union, difference) and robust orientation predicates for the
 # Shapely-based layout validation; no default features (no threads, no triangulation).
 geo = { version = "0.33", default-features = false }
-# Telnyx client_state and webhook signatures (base64, hmac, sha2: the versions ss-server uses;
-# ed25519-dalek: maintained Ed25519 verification, no hand-written cryptography).
-base64 = "0.22"
-hmac = "0.12"
-sha2 = "0.10"
-subtle = "2"
-ed25519-dalek = "2"
 
 [dev-dependencies]
 indexmap = "2"

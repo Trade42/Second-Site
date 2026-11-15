@@ -2,19 +2,14 @@
 //! by adding one `.merge(...)` line to [`api_routes`].
 
 pub mod approvals;
-pub mod communications;
 pub mod design;
 pub mod dev;
 pub mod events;
-pub mod evidence;
-pub mod forward;
 pub mod health;
 pub mod media;
-pub mod nessie;
 pub mod projects;
 pub mod properties;
 pub mod tasks;
-pub mod webhooks;
 
 use axum::Router;
 
@@ -32,12 +27,6 @@ pub fn api_routes() -> Router<AppState> {
         .merge(properties::router())
         .merge(media::router())
         .merge(design::router())
-        .merge(nessie::router())
-        .merge(evidence::router())
-        .merge(communications::router())
-        .merge(webhooks::router())
-        // Routes the Python service keeps; a native route of the same path and method wins.
-        .merge(forward::router())
 }
 
 /// Open a transaction, run `$body` with `tx: &mut dyn Tx`, commit on success. An early return

@@ -1,8 +1,7 @@
 """HTTP client for the Rust Second Site API, used by the supervisor tools when BACKEND_API_URL is set.
 
 - Each request carries a fresh short-lived access token minted for the project owner with `issue_token`, so the
-  Rust API applies the same owner and project checks as for the web app. It also carries the `x-request-id` of the
-  request being served, when there is one, so both services log the same id.
+  Rust API applies the same owner and project checks as for the web app.
 - Only the routes the tools need can be called (`ALLOWED_ROUTES`, method + path). Path ids are UUIDs, checked
   before a path is built. Nothing here can execute an external action: the one outreach write,
   `POST .../outreach`, only creates a PENDING approval and a draft.
@@ -35,7 +34,6 @@ from app.contracts import (
     TaskStatus,
 )
 from app.core.config import Settings
-from app.core.logging import request_id_var
 from app.core.security import issue_token
 
 TOKEN_TTL_S = 300
@@ -130,22 +128,6 @@ def _problem(resp: httpx.Response) -> BackendAPIError:
     )
 
 
-def _request_id_header() -> dict[str, bytes]:
-    """`x-request-id` of the request being served (`request_id_var`, set by the app's request middleware from the
-    incoming header, or generated there), so one supervisor answer can be traced through both services' logs.
-    Outside a request (the Photon poller, a script) nothing is set and nothing is sent; an id is never invented here.
-    Sent as the latin-1 bytes Starlette decoded it from, i.e. exactly what came in; a str value outside ASCII would
-    make httpx raise."""
-    rid = request_id_var.get()
-    if not rid:
-        return {}
-    try:
-        return {"x-request-id": rid.encode("latin-1")}
-    except UnicodeEncodeError:
-        # Not from a header (only code could set such a value): send none rather than fail the call.
-        return {}
-
-
 def _contract(adapter: TypeAdapter, data: Any, name: str) -> Any:
     try:
         return adapter.validate_python(data)
@@ -203,11 +185,7 @@ class BackendClient:
                     method,
                     path,
                     json=body,
-                    headers={
-                        "Authorization": f"Bearer {token}",
-                        "Accept": "application/json",
-                        **_request_id_header(),
-                    },
+                    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
                 )
         except httpx.TimeoutException as exc:
             outcome = "" if method == "GET" else " Whether the request took effect is unknown."

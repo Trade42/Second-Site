@@ -39,22 +39,6 @@ pub const MIGRATIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Rust-owned tables (`migrations/rust-owned/`), NOT alembic revisions: [`migrate`] creates them
-/// idempotently (`CREATE TABLE IF NOT EXISTS`) after the alembic revisions, in the same
-/// transaction and under the same migration lock, and never records them in `alembic_version`.
-/// Alembic does not know them, so the Python app's `alembic upgrade head` is unaffected.
-pub const RUST_OWNED_MIGRATIONS: &[(&str, &str)] = &[(
-    "nessie_simulation_records",
-    include_str!("../../migrations/rust-owned/nessie_simulation_records.sql"),
-)];
-
-async fn ensure_rust_owned(conn: &mut PgConnection) -> Result<(), sqlx::Error> {
-    for (_, sql) in RUST_OWNED_MIGRATIONS {
-        sqlx::raw_sql(sql).execute(&mut *conn).await?;
-    }
-    Ok(())
-}
-
 /// Result of [`migrate`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MigrationOutcome {
@@ -340,9 +324,7 @@ impl PgStore {
 }
 
 /// Bring the schema to alembic head, alembic-compatibly. Safe to run concurrently (advisory
-/// lock per schema) and a no-op when already at head. Then (on every outcome, under the same
-/// lock) create the [`RUST_OWNED_MIGRATIONS`] tables if they are missing, without touching
-/// `alembic_version`.
+/// lock per schema) and a no-op when already at head.
 pub async fn migrate(pool: &PgPool) -> StoreResult<MigrationOutcome> {
     let m = |e: sqlx::Error| StoreError::Migration(e.to_string());
     let mut tx = pool.begin().await.map_err(m)?;
@@ -374,15 +356,12 @@ pub async fn migrate(pool: &PgPool) -> StoreResult<MigrationOutcome> {
         Some(v) => match MIGRATIONS.iter().position(|(rev, _)| rev == v) {
             Some(i) => i + 1,
             None => {
-                // The alembic tables are left alone; the Rust-owned ones only need `projects`.
-                ensure_rust_owned(&mut tx).await.map_err(m)?;
-                tx.commit().await.map_err(m)?;
+                tx.rollback().await.map_err(m)?;
                 return Ok(MigrationOutcome::UnknownRevision(v.clone()));
             }
         },
     };
     if start == MIGRATIONS.len() {
-        ensure_rust_owned(&mut tx).await.map_err(m)?;
         tx.commit().await.map_err(m)?;
         return Ok(MigrationOutcome::UpToDate);
     }
@@ -408,7 +387,6 @@ pub async fn migrate(pool: &PgPool) -> StoreResult<MigrationOutcome> {
         previous = Some((*rev).to_owned());
         applied.push(*rev);
     }
-    ensure_rust_owned(&mut tx).await.map_err(m)?;
     tx.commit().await.map_err(m)?;
     Ok(MigrationOutcome::Applied(applied))
 }
