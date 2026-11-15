@@ -177,7 +177,8 @@ const fits = () => POOL.filter(matches);
 function refill() {
   S.slots = S.slots.map(id => (id && matches(P[id]) ? id : null));
   S.slots.forEach((id, i) => { if (!id) S.slots[i] = FILL.find(f => matches(P[f]) && !S.slots.includes(f)) || null; });
-  if (S.open && !S.slots.includes(S.open)) S.open = null;
+  if (S.open && !matches(P[S.open])) S.open = null;
+  if (preview && !matches(P[preview])) preview = null;
 }
 async function research(noteFor) {
   $$('.frame').forEach(f => f.classList.add('loading'));
@@ -206,10 +207,19 @@ function toggleSave(id) {
   save();
 }
 function dismiss(id) {
+  preview = null; clearTimeout(previewTimer);
   S.dismissed.push(id); S.saved = S.saved.filter(x => x !== id);
   refill(); if (S.step >= STEPS.length) offer(); renderDiscover(); save();
 }
-function inspect(id) { S.open = S.open === id ? null : id; renderDiscover(); save(); }
+let preview = null, previewTimer;
+function inspect(id) { clearTimeout(previewTimer); preview = null; S.open = S.open === id ? null : id; renderDiscover(); save(); }
+function previewSpace(id, delay = 100) {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    if (S.stage !== 'discover' || (id && S.dismissed.includes(id))) return;
+    preview = id; renderStrip(); renderInspect(); renderMap();
+  }, delay);
+}
 function toCompare() {
   if (S.saved.length < 2) return a('Save at least two first.');
   if (!S.saved.includes(S.finalist)) S.finalist = S.saved[0];
@@ -230,7 +240,7 @@ function renderStrip() {
       el.dataset.id = id;
       if (id) { el.innerHTML = frameHTML(P[id]); el.tabIndex = 0; } else { el.innerHTML = 'No more spaces fit'; el.removeAttribute('tabindex'); }
     }
-    el.className = 'frame' + (id ? '' : ' none') + (S.saved.includes(id) ? ' saved' : '') + (S.open === id && id ? ' open' : '');
+    el.className = 'frame' + (id ? '' : ' none') + (S.saved.includes(id) ? ' saved' : '') + ((preview || S.open) === id && id ? ' open' : '');
     $('[data-act=save]', el)?.setAttribute('aria-pressed', S.saved.includes(id));
   });
 }
@@ -241,14 +251,26 @@ function renderBrief() {
     (S.saved.length ? `<div class="savedrow">${S.saved.map(id => `<button type="button" class="th" data-open="${id}" aria-label="${esc(P[id].address)}"><img src="${asset(P[id].src, P[id].photo)}" alt="" style="${P[id].hue ? `filter:hue-rotate(${P[id].hue}deg)` : ''}"></button>`).join('')}${S.saved.length >= 2 ? '<button type="button" class="btn sm" data-go="compare">Compare</button>' : ''}</div>` : '');
 }
 function renderInspect() {
-  const el = $('#inspect'), p = P[S.open];
-  el.hidden = !p; if (!p) return;
+  const el = $('#inspect'), p = P[preview || S.open], previous = el.dataset.id;
+  el.hidden = !p; $('#brief').inert = !!p;
+  if (!p) { delete el.dataset.id; return; }
+  const focus = el.contains(document.activeElement) && document.activeElement.dataset.act;
+  el.dataset.id = p.id;
   const on = S.saved.includes(p.id);
   el.innerHTML = `<button type="button" class="close" data-act="close" aria-label="Close">${ICON.x}</button>
+    <div class="inspect-scroll">
     <div class="aerial"><img src="${asset(p.src, 'vexcel-oblique-n.jpg')}" alt="" style="${p.hue ? `filter:hue-rotate(${p.hue}deg)` : ''}"></div>
-    <div class="body"><h3>${esc(p.address)}</h3><p class="sub">${esc(p.suite)} · ${esc(p.hood)}</p>
-    <div class="facts"><div><span>Rent</span>${money(p.rent)}</div><div><span>Size</span>${p.sqft.toLocaleString()} SF</div><div><span>Lease</span>${p.lease}</div><div><span>Use</span>${p.use}</div></div>
-    <div class="row"><button type="button" class="btn ${on ? '' : 'solid'} grow" data-act="save">${on ? 'Saved' : 'Save'}</button><button type="button" class="btn grow" data-act="dismiss">Dismiss</button></div></div>`;
+    <div class="body"><h3 id="inspect-title">${esc(p.address)}</h3><p class="sub">${esc(p.suite)} · ${esc(p.hood)}</p>
+    <p class="inspect-rent"><strong>${money(p.rent)}</strong><span>/ month</span></p>
+    <dl class="inspect-facts"><div><dt>Size</dt><dd>${p.sqft.toLocaleString()} SF</dd></div><div><dt>Rent per SF</dt><dd>$${(p.rent / p.sqft).toFixed(2)} / mo</dd></div><div><dt>Lease</dt><dd>${esc(p.lease)}</dd></div><div><dt>Use</dt><dd>${esc(p.use)}</dd></div></dl>
+    <p class="broker"><span>Listed by</span>${esc(p.broker)}</p></div></div>
+    <div class="inspect-actions"><div class="row"><button type="button" class="btn ${on ? '' : 'solid'} grow" data-act="save" aria-pressed="${on}">${on ? 'Saved' : 'Save space'}</button><button type="button" class="btn grow" data-act="dismiss">Dismiss</button></div>
+    ${S.saved.length >= 2 ? `<button type="button" class="compare-saved" data-go="compare">Compare ${S.saved.length} saved spaces</button>` : ''}
+    <p class="provenance">${p.id === p.src ? 'Listing snapshot · availability unverified' : 'Demo listing · borrowed imagery'}</p></div>`;
+  if (focus) $(`[data-act="${focus}"]`, el)?.focus({ preventScroll: true });
+  if (previous && previous !== p.id && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    $('.inspect-scroll', el).animate([{ opacity: .25, filter: 'blur(3px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 240, easing: 'ease-out' });
+  }
 }
 
 let map, pins = {}, fitKey = '';
@@ -258,9 +280,11 @@ function initMap() {
   POOL.forEach(p => {
     const wrap = document.createElement('div'), el = document.createElement('button');
     el.type = 'button'; el.textContent = '$' + (p.rent / 1000).toFixed(1) + 'k'; el.setAttribute('aria-label', p.address);
-    el.onclick = () => (S.slots.includes(p.id) ? inspect(p.id) : null);
-    el.onmouseenter = () => $(`.frame[data-id="${p.id}"]`)?.classList.add('open');
-    el.onmouseleave = () => S.open !== p.id && $(`.frame[data-id="${p.id}"]`)?.classList.remove('open');
+    el.onclick = () => inspect(p.id);
+    el.onpointerenter = e => { if (e.pointerType !== 'touch') previewSpace(p.id); };
+    el.onpointerleave = () => previewSpace(null, 240);
+    el.onfocus = () => previewSpace(p.id, 0);
+    el.onblur = () => previewSpace(null, 240);
     wrap.append(el); pins[p.id] = el;
     new maplibregl.Marker({ element: wrap }).setLngLat([p.lon, p.lat]).addTo(map);
   });
@@ -268,7 +292,7 @@ function initMap() {
 function renderMap() {
   if (!map) return;
   const vis = fits();
-  POOL.forEach(p => { pins[p.id].className = 'pin' + (vis.includes(p) ? '' : ' off') + (S.slots.includes(p.id) ? '' : ' dot') + (S.saved.includes(p.id) ? ' saved' : '') + (S.open === p.id ? ' on' : ''); });
+  POOL.forEach(p => { pins[p.id].className = 'pin' + (vis.includes(p) ? '' : ' off') + (S.slots.includes(p.id) ? '' : ' dot') + (S.saved.includes(p.id) ? ' saved' : '') + ((preview || S.open) === p.id ? ' on' : ''); });
   const key = vis.map(p => p.id).join();
   if (key === fitKey || !vis.length) return; // only move the map when the search itself changes
   fitKey = key;
@@ -611,6 +635,7 @@ function renderNav() {
   $$('.stages button').forEach(b => { b.disabled = !can[b.dataset.go]; b.toggleAttribute('aria-current', b.dataset.go === S.stage); });
 }
 function go(stage) {
+  clearTimeout(previewTimer); preview = null;
   if (stage === 'compare' && S.saved.length < 2) return;
   if (stage === 'compare' && !S.saved.includes(S.finalist)) S.finalist = S.saved[0];
   if (stage === 'furnish' && !S.chosen) return;
@@ -644,7 +669,11 @@ document.addEventListener('click', e => {
   if (t.dataset.go) return go(t.dataset.go);
   if (t.dataset.edit) return editBrief(t.dataset.edit);
   if (t.dataset.open) return inspect(t.dataset.open);
-  if (act === 'save' || act === 'dismiss') { const id = frame?.dataset.id || (insp && S.open); if (id) (act === 'save' ? toggleSave : dismiss)(id); return; }
+  if (act === 'save' || act === 'dismiss') {
+    const id = frame?.dataset.id || insp?.dataset.id;
+    if (id) { if (act === 'save' && insp) { S.open = id; preview = null; clearTimeout(previewTimer); } (act === 'save' ? toggleSave : dismiss)(id); }
+    return;
+  }
   if (act === 'close') return inspect(S.open);
   if (t.classList.contains('frame')) return t.dataset.id && inspect(t.dataset.id);
   if (t.dataset.finalist) return selectFinalist(t.dataset.finalist);
@@ -668,11 +697,27 @@ document.addEventListener('click', e => {
   if (t.dataset.room) { S.room = S.room === t.dataset.room ? null : t.dataset.room; S.sel = null; return renderFurnish(); }
   if (t.dataset.key) return selectPiece(t.dataset.key);
 });
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList?.contains('frame')) inspect(e.target.dataset.id); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.classList?.contains('frame')) inspect(e.target.dataset.id);
+  if (e.key === 'Escape' && S.stage === 'discover' && !$('#inspect').hidden) {
+    const origin = $(`.frame[data-id="${S.open || preview}"]`), inside = $('#inspect').contains(document.activeElement);
+    inspect(null); if (inside) { origin?.focus({ preventScroll: true }); clearTimeout(previewTimer); }
+  }
+});
 // Opening an issue points the viewer at its evidence.
 $('#findings').addEventListener('toggle', e => { const el = e.target; if (el.open) showIssue(el.dataset.issue, false); else if (S.issue === el.dataset.issue) { S.issue = null; renderViewer(); } }, true);
-$('#strip').addEventListener('mouseover', e => { const id = e.target.closest('.frame')?.dataset.id; $$('.pin.hot').forEach(x => x.classList.remove('hot')); if (id) pins[id]?.classList.add('hot'); });
-$('#strip').addEventListener('mouseleave', () => $$('.pin.hot').forEach(x => x.classList.remove('hot')));
+$('#strip').addEventListener('pointerover', e => {
+  if (e.pointerType === 'touch') return;
+  const frame = e.target.closest('.frame');
+  if (frame?.dataset.id && e.relatedTarget?.closest?.('.frame') !== frame) previewSpace(frame.dataset.id);
+});
+$('#strip').addEventListener('pointerleave', () => previewSpace(null, 240));
+$('#strip').addEventListener('focusin', e => { const id = e.target.closest('.frame')?.dataset.id; if (id) previewSpace(id, 0); });
+$('#strip').addEventListener('focusout', () => previewSpace(null, 240));
+$('#inspect').addEventListener('pointerenter', () => clearTimeout(previewTimer));
+$('#inspect').addEventListener('pointerleave', () => { if (!$('#inspect').contains(document.activeElement)) previewSpace(null, 240); });
+$('#inspect').addEventListener('focusin', () => clearTimeout(previewTimer));
+$('#inspect').addEventListener('focusout', e => { if (!$('#inspect').contains(e.relatedTarget)) previewSpace(null, 240); });
 $('#composer').addEventListener('submit', e => { e.preventDefault(); const v = $('#say').value; $('#say').value = ''; send(v); });
 // One floating label for anything with data-tip: pieces, catalog tiles, cost parts.
 const tip = $('#tip');
