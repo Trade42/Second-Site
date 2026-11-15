@@ -9,7 +9,7 @@
 //! | `GET /properties/{property_id}/nessie/plan` | 200 `MoveInPaymentPlan` and the inputs it was built from |
 //! | `GET /properties/{property_id}/nessie/affordability` | 200 `AffordabilityReport` for the sandbox account |
 //! | `POST /properties/{property_id}/nessie/payments/{plan_item_id}/approval` | 201 new, 200 existing open approval |
-//! | `POST /properties/{property_id}/nessie/payments/{plan_item_id}/execute` `{approval_id}` | 200 sent, 422 refused by the bank, 502 may exist (or not recorded), 409 already attempted or not sent |
+//! | `POST /properties/{property_id}/nessie/payments/{plan_item_id}/execute` `{approval_id}` | 200 sent, 422 refused by the bank, 502 may exist |
 //! | `POST /properties/{property_id}/nessie/payments/{plan_item_id}/refresh` | 200 the stored transaction read again |
 //!
 //! Request checks run in the existing order: a body that is not valid JSON first (routes with a
@@ -127,12 +127,9 @@ fn status_problem(status: StatusCode, e: AppError) -> Response {
     (status, Json(e.to_problem_detail())).into_response()
 }
 
-/// Runs a flow that calls the bank on a task of its own, so it records its outcome even when the
-/// client goes away during the bank call: hyper drops the handler's future when the connection
-/// closes. Set-up calls the bank inside its transaction (a dropped future would roll it back after
-/// the bank acted); execute commits its claim first and records the outcome in a second
-/// transaction after the call (a dropped future would leave the claim unrecorded, so `MAY_EXIST`).
-/// Graceful shutdown waits for executes between their phases (`services::nessie::wait_for_flows`).
+/// Runs a flow that calls the bank inside its transaction on a task of its own, so it commits its
+/// outcome even when the client goes away during the bank call: hyper drops the handler's future
+/// when the connection closes, which would roll the transaction back after the bank acted.
 async fn detached<T, F>(flow: F) -> AppResult<T>
 where
     T: Send + 'static,
@@ -282,7 +279,6 @@ async fn execute(
         Executed::Sent(view) => (StatusCode::OK, Json(*view)).into_response(),
         Executed::Refused(e) => status_problem(StatusCode::UNPROCESSABLE_ENTITY, e),
         Executed::MayExist(e) => status_problem(StatusCode::BAD_GATEWAY, e),
-        Executed::NotSent(e) => return Err(e),
     })
 }
 

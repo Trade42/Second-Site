@@ -10,12 +10,6 @@
 //!   same frame as the pre-F3 implementation, kept as `largest_inner_rectangle_reference`;
 //! - outlines beyond the work bounds get no frame, quickly, with a note saying why, and
 //!   `generate_candidates` reports that note instead of "No usable rectangular area".
-//!
-//! Finding R2 of the part 4 review (rust-domain-6): the work is now counted exactly before the
-//! scan (`frame_work_estimate`), in units proportional to its measured cost, and an outline is
-//! refused before any cell is tested. These tests also pin that the count equals the work the
-//! scan itself does, that refusals come before the scan, and that every fixture and golden
-//! floor is still accepted with an unchanged rectangle.
 
 mod common;
 
@@ -25,9 +19,9 @@ use serde_json::Value;
 use ss_core::Contract;
 use ss_domain::contracts::geometry::{Coord, Fixture, LayoutPreferences, Opening, SiteGeometry};
 use ss_domain::design::geometry::framing::{
-    frame_for_solver, frame_for_solver_checked, frame_for_solver_reference, frame_work_estimate,
-    largest_inner_rectangle, largest_inner_rectangle_checked, largest_inner_rectangle_counted,
-    largest_inner_rectangle_reference, Frame, MAX_FRAME_WORK, MIN_FRAME_AREA,
+    frame_for_solver, frame_for_solver_checked, frame_for_solver_reference,
+    largest_inner_rectangle, largest_inner_rectangle_checked, largest_inner_rectangle_reference,
+    Frame, MAX_FRAME_NEAR_WORK, MAX_FRAME_VERTEX_ROWS, MIN_FRAME_AREA,
 };
 use ss_domain::design::geometry::solver::generate_candidates;
 
@@ -115,60 +109,24 @@ fn many_vertex_floors_match_python_and_are_fast() {
     // compete with the differential test of this file for the CPU.
 }
 
-/// Thin spikes hanging from the top of a 199.95 m x 199.8 m floor into its right margin (beyond
-/// the last whole grid column): each of the 2n spike segments reaches almost every grid row but
-/// no cell, so the outline's work is all per-row preparation.
-fn margin_spikes(n: usize) -> Vec<Coord> {
-    let (w, h) = (199.95, 199.8);
-    let mut pts = vec![(0.0, 0.0), (w, 0.0), (w, h)];
-    let (x0, x1) = (199.81, 199.94);
-    let step = (x1 - x0) / n as f64;
-    for i in (0..n).rev() {
-        let x = x0 + i as f64 * step;
-        pts.push((x + step * 0.5, 0.1));
-        pts.push((x, h));
-    }
-    pts.push((0.0, h));
-    pts
-}
-
-/// n slots 2 grid rows tall cut 150 m deep into the left wall of a 199.8 m floor, every 4 rows:
-/// their long edges lie on grid lines, so about 3,000 cells per slot run the exact test.
-fn grid_slots(n: usize) -> Vec<Coord> {
-    let (w, h) = (199.8, 199.8);
-    let mut pts = vec![(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)];
-    for i in (0..n).rev() {
-        let (y0, y1) = ((4 * i + 1) as f64 * 0.2, (4 * i + 3) as f64 * 0.2);
-        if y1 < h {
-            pts.extend([(0.0, y1), (150.0, y1), (150.0, y0), (0.0, y0)]);
-        }
-    }
-    pts
-}
-
 #[test]
-fn outlines_with_too_many_segment_rows_are_refused_before_the_scan() {
-    // 8,000 spike segments, each reaching about 998 of the 999 grid rows: 8 million segment rows.
-    let boundary = margin_spikes(4000);
-    let site = site_with(boundary.clone(), Some(((0.0, 5.0), (0.0, 6.0))));
+fn outlines_beyond_the_vertex_row_bound_get_no_frame_and_a_note() {
+    // 3,600 teeth: 14,404 vertices x 300 rows = 4.3 million > MAX_FRAME_VERTEX_ROWS.
+    let boundary = toothed_bottom(60.0, 60.0, 3600);
+    assert!(boundary.len() * 300 > MAX_FRAME_VERTEX_ROWS);
+    let site = site_with(boundary, Some(((0.0, 5.0), (0.0, 6.0))));
     let t = Instant::now();
     let err = frame_for_solver_checked(&site, MIN_FRAME_AREA).expect_err("bounded");
-    let refused_in = t.elapsed();
     assert!(
-        err.note.starts_with("Floor outline too detailed to frame: 8004 boundary segments, which together cross 7994000 rows of a 999 x 999 cell grid (estimated framing work "),
+        t.elapsed() < Duration::from_millis(500),
+        "{:?}",
+        t.elapsed()
+    );
+    assert!(
+        err.note.starts_with("Floor outline too detailed to frame: 14404 boundary segments x 300 grid rows exceeds the bound of 4000000"),
         "{}",
         err.note
     );
-    assert!(
-        err.note.ends_with(&format!(
-            "units, above the bound of {MAX_FRAME_WORK}); no layout was generated. Simplify the measured outline."
-        )),
-        "{}",
-        err.note
-    );
-    // Refused by the first count (two binary searches per segment), before any row is prepared:
-    // a few milliseconds in a debug build; the scan would take seconds.
-    assert!(refused_in < Duration::from_millis(200), "{refused_in:?}");
     assert_eq!(frame_for_solver(&site, MIN_FRAME_AREA), None);
     assert_eq!(largest_inner_rectangle(&site.floor_boundary, 0.2), None);
     let cands = generate_candidates(&site, &[], &LayoutPreferences::default(), 2).unwrap();
@@ -177,62 +135,20 @@ fn outlines_with_too_many_segment_rows_are_refused_before_the_scan() {
     assert!(!cands[0].report.valid);
     assert_eq!(cands[0].report.issues[0].code, "INFEASIBLE");
     assert_eq!(cands[0].report.issues[0].message, err.note);
-    // The refusal is cheap compared with the scan it avoided (a smaller outline of the same
-    // family, refused too, against its unbounded scan).
-    let smaller = margin_spikes(1500);
-    let w = frame_work_estimate(&smaller, 0.2).expect("grid");
-    assert!(w.units() > MAX_FRAME_WORK, "{w:?}");
-    let t = Instant::now();
-    assert!(largest_inner_rectangle_checked(&smaller, 0.2).is_err());
-    let refused_in = t.elapsed();
-    let t = Instant::now();
-    let (_, counted) = largest_inner_rectangle_counted(&smaller, 0.2).expect("grid");
-    let scanned_in = t.elapsed();
-    assert_eq!(counted, w);
-    assert!(
-        refused_in * 10 < scanned_in,
-        "refused in {refused_in:?}, the scan takes {scanned_in:?}"
-    );
 }
 
 #[test]
-fn floors_refused_by_the_old_vertex_row_bound_but_cheap_are_now_framed() {
-    // 3,600 teeth along the bottom wall: 14,404 vertices x 300 rows = 4.3 million exceeded the
-    // old vertex-row bound, although each tooth segment reaches only one or two rows. Counted
-    // exactly, the work is small (15,001 segment rows, 898 near cells), so the floor is framed.
-    let boundary = toothed_bottom(60.0, 60.0, 3600);
-    assert_eq!(boundary.len(), 14404);
-    let w = frame_work_estimate(&boundary, 0.2).expect("grid");
-    assert!(w.units() * 10 < MAX_FRAME_WORK, "{w:?}");
-    let (rect, counted) = largest_inner_rectangle_counted(&boundary, 0.2).expect("grid");
-    assert_eq!(counted, w);
-    assert_eq!(largest_inner_rectangle_checked(&boundary, 0.2), Ok(rect));
-    // The reference scan (cells x vertices) gives this rectangle too; it takes minutes, so the
-    // value is pinned here (run in rust-domain-6, a release build).
-    assert_eq!(
-        bits(rect),
-        bits(Some((0.0, 0.15000000000000002, 60.0, 59.95)))
-    );
-    let site = site_with(boundary, Some(((0.0, 5.0), (0.0, 6.0))));
-    let fr = frame_for_solver_checked(&site, MIN_FRAME_AREA)
-        .expect("within the bound")
-        .expect("frame");
-    assert_eq!(fr.notes[0], "Layout uses the largest rectangular area of the measured floor (60.0 x 59.8 m = 3588 m2 of 3605 m2); the rest is left unprogrammed.");
-}
-
-#[test]
-fn densely_packed_vertices_are_refused_before_the_scan() {
-    // A 30 m floor whose bottom wall carries 20,000 zigzag points packed into 0.4 m: few rows and
-    // few segment rows, but about 10,000 segments near each of a few cells, whose exact tolerance
-    // tests cost about the square of that (200 million segment pairs).
+fn densely_packed_vertices_hit_the_near_work_bound() {
+    // A 30 m floor whose bottom wall carries 20,000 zigzag points packed into 0.4 m: few rows
+    // (vertex-row product 3 million, within its bound), but thousands of segments near a few
+    // cells, whose exact tolerance tests would cost about the square of that.
     let mut boundary = vec![(0.0, 0.0), (10.0, 0.0)];
     for k in 0..20_000 {
         let x = 10.0 + 0.4 * k as f64 / 20_000.0;
         boundary.push((x, if k % 2 == 0 { 0.0 } else { -0.01 }));
     }
     boundary.extend([(10.4, 0.0), (30.0, 0.0), (30.0, 30.0), (0.0, 30.0)]);
-    let w = frame_work_estimate(&boundary, 0.2).expect("grid");
-    assert!(w.near_pairs > 200_000_000, "{w:?}");
+    assert!(boundary.len() * 150 <= MAX_FRAME_VERTEX_ROWS);
     let t = Instant::now();
     let err = largest_inner_rectangle_checked(&boundary, 0.2).expect_err("bounded");
     assert!(
@@ -240,31 +156,11 @@ fn densely_packed_vertices_are_refused_before_the_scan() {
         "{:?}",
         t.elapsed()
     );
-    assert_eq!(
-        err.note,
-        format!("Floor outline too detailed to frame: boundary segments are packed too densely near the grid (estimated framing work above the bound of {MAX_FRAME_WORK} units); no layout was generated. Simplify the measured outline.")
-    );
-}
-
-#[test]
-fn many_near_cells_are_refused_before_the_scan() {
-    // 249 slots whose edges lie on grid lines: 750,242 cells run the exact test, about 0.6 s in a
-    // release build and 2 s in a debug build. The second count refuses it after the per-row
-    // preparation alone.
-    let boundary = grid_slots(249);
-    let w = frame_work_estimate(&boundary, 0.2).expect("grid");
-    assert_eq!(w.near_cells, 750_242);
-    let t = Instant::now();
-    let err = largest_inner_rectangle_checked(&boundary, 0.2).expect_err("bounded");
-    let refused_in = t.elapsed();
-    assert!(err.note.contains("packed too densely near the grid"), "{}", err.note);
-    let t = Instant::now();
-    let (_, counted) = largest_inner_rectangle_counted(&boundary, 0.2).expect("grid");
-    let scanned_in = t.elapsed();
-    assert_eq!(counted, w);
     assert!(
-        refused_in * 4 < scanned_in,
-        "refused in {refused_in:?}, the scan takes {scanned_in:?}"
+        err.note
+            .contains(&format!("work bound {MAX_FRAME_NEAR_WORK}")),
+        "{}",
+        err.note
     );
 }
 
@@ -487,7 +383,6 @@ fn frames_equal(a: &Option<Frame>, b: &Option<Frame>) -> bool {
 fn prepared_scan_matches_the_pre_f3_scan_on_360_outlines() {
     let mut rng = Rng(0x00F3_1AFE_B98F);
     let mut framed = 0;
-    let mut estimated = 0;
     let mut kinds = [0usize; 9];
     // SS_F3_DIFF_CASES widens the run (and SS_F3_DIFF_SEED reseeds it), for example in a
     // release build: `cargo test --release -p ss-domain --test framing_work prepared_scan`.
@@ -512,19 +407,6 @@ fn prepared_scan_matches_the_pre_f3_scan_on_360_outlines() {
             bits(reference),
             "case {case} (kind {kind}): {rect:?} vs reference {reference:?} for {boundary:?}"
         );
-        // The work counted before the scan is the work the scan does.
-        let estimate = frame_work_estimate(&boundary, 0.2);
-        let counted = largest_inner_rectangle_counted(&boundary, 0.2);
-        assert_eq!(
-            estimate,
-            counted.map(|c| c.1),
-            "case {case} (kind {kind}): work for {boundary:?}"
-        );
-        if let Some((counted_rect, w)) = counted {
-            assert!(w.units() <= MAX_FRAME_WORK, "case {case}: {w:?}");
-            assert_eq!(bits(counted_rect), bits(rect), "case {case}");
-            estimated += 1;
-        }
         // A frame needs a valid site: skip outlines the contract rejects (bowties, spikes).
         let b = boundary.clone();
         let door = match rng.below(5) {
@@ -571,11 +453,8 @@ fn prepared_scan_matches_the_pre_f3_scan_on_360_outlines() {
             framed += 1;
         }
     }
-    eprintln!(
-        "differential: {n} outlines {kinds:?}, {framed} frames compared, {estimated} work counts"
-    );
+    eprintln!("differential: {n} outlines {kinds:?}, {framed} frames compared");
     assert!(framed * 9 >= n as usize * 5, "{framed}");
-    assert!(estimated * 9 >= n as usize * 8, "{estimated}");
 }
 
 #[test]
@@ -664,79 +543,4 @@ fn vertices_on_row_centre_lines_match_the_pre_f3_scan() {
         }
     }
     assert_eq!(checked, 288);
-}
-
-/// Every `floor_boundary` in a JSON document, as points (entries that are not lists of numeric
-/// pairs are skipped).
-fn floor_boundaries(v: &Value, out: &mut Vec<Vec<Coord>>) {
-    match v {
-        Value::Object(m) => {
-            for (k, x) in m {
-                if k == "floor_boundary" {
-                    let pts: Option<Vec<Coord>> = x.as_array().and_then(|a| {
-                        a.iter()
-                            .map(|p| Some((p.get(0)?.as_f64()?, p.get(1)?.as_f64()?)))
-                            .collect()
-                    });
-                    if let Some(pts) = pts {
-                        out.push(pts);
-                    }
-                }
-                floor_boundaries(x, out);
-            }
-        }
-        Value::Array(a) => a.iter().for_each(|x| floor_boundaries(x, out)),
-        _ => {}
-    }
-}
-
-#[test]
-fn fixture_and_golden_floors_are_still_framed_with_unchanged_rectangles() {
-    // Every floor outline of the geometry fixture and of the domain and server golden vectors
-    // (293 outlines, the review floors with 404 and 2,004 vertices among them).
-    let mut files: Vec<String> = vec!["fixtures/geometry/hollywood_302_synthetic.json".into()];
-    for dir in ["domain", "server"] {
-        let mut names: Vec<String> = std::fs::read_dir(common::golden_dir(dir))
-            .expect("golden dir")
-            .filter_map(|e| e.ok()?.file_name().into_string().ok())
-            .filter(|n| n.ends_with(".json"))
-            .collect();
-        names.sort();
-        files.extend(names.iter().map(|n| format!("apps/backend/tests-golden/{dir}/{n}")));
-    }
-    let mut outlines = Vec::new();
-    for f in &files {
-        floor_boundaries(&common::read_json(f), &mut outlines);
-    }
-    assert!(outlines.len() >= 290, "{}", outlines.len());
-    let (mut framed, mut compared, mut most) = (0, 0, 0u64);
-    for poly in &outlines {
-        let got = largest_inner_rectangle_checked(poly, 0.2);
-        let Some(w) = frame_work_estimate(poly, 0.2) else {
-            assert_eq!(got, Ok(None), "{poly:?}");
-            continue;
-        };
-        most = most.max(w.units());
-        // Accepted with room to spare: a tenth of the bound at most.
-        assert!(w.units() * 10 <= MAX_FRAME_WORK, "{w:?} for {} vertices", poly.len());
-        let rect = got.expect("accepted");
-        framed += 1;
-        // The reference scan costs cells x vertices; compare wherever that is affordable here
-        // (the two large review floors are compared with Python in
-        // many_vertex_floors_match_python_and_are_fast).
-        if w.cells * w.segments <= 20_000_000 {
-            assert_eq!(
-                bits(rect),
-                bits(largest_inner_rectangle_reference(poly, 0.2)),
-                "{poly:?}"
-            );
-            compared += 1;
-        }
-    }
-    eprintln!(
-        "{} outlines, {framed} with a grid, {compared} compared with the reference; largest work {most} units ({:.1}% of the bound)",
-        outlines.len(),
-        most as f64 * 100.0 / MAX_FRAME_WORK as f64
-    );
-    assert!(compared * 10 >= framed * 9, "{compared} of {framed}");
 }

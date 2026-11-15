@@ -585,13 +585,6 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
         .clone()
         .unwrap();
     let attempt_id = exact["attempt_id"].as_str().unwrap().to_owned();
-    // nessie-3: an attempt id of digits only (about 1 run in 280) has no upper case, so the
-    // "upper case" tamper would be the exact payload; then one digit becomes an upper-case letter.
-    let upper = if attempt_id.chars().any(|c| c.is_ascii_alphabetic()) {
-        attempt_id.to_uppercase()
-    } else {
-        format!("{}A", &attempt_id[..attempt_id.len() - 1])
-    };
     let tampers: Vec<(&str, Value)> = vec![
         (
             "amount_minor",
@@ -609,7 +602,7 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
             json!(format!("{} ", exact["description"].as_str().unwrap())),
         ),
         ("attempt_id", json!("0123456789ab")),
-        ("attempt_id", json!(upper)),
+        ("attempt_id", json!(attempt_id.to_uppercase())),
         ("simulation", json!(FIXTURE)),
         ("scenario_id", json!(Uuid::new_v4())),
         ("property_id", json!(a.alhambra)),
@@ -1331,9 +1324,6 @@ async fn review_memory_store_requests_wait_for_a_slow_bank_call() {
     let r = slow.await.unwrap();
     assert_eq!(r.status, StatusCode::OK, "{}", r.text);
     eprintln!("REVIEW-N5 memory store: GET /projects during a 1.5 s bank call took {waited:?}");
-    // nessie-3 (F5 for execute): the bank call runs with no transaction open, so the store's
-    // global lock is free during it (before: 1.30 s, the whole call).
-    assert!(waited < Duration::from_millis(700), "{waited:?}");
     db.finish().await;
 }
 
@@ -1483,17 +1473,6 @@ async fn review_pg_ten_concurrent_set_ups() {
 /// search, a profile update, a layout generation, an approval decision, another approval request
 /// and a plan read. Nothing deadlocks; who waits for the bank call is measured. The locks the
 /// execute holds during its bank call are read from `pg_locks`.
-///
-/// nessie-3: the execute holds nothing during its bank call (asserted below), so these writers
-/// now run at the same time as each other instead of queueing behind the execute. Run all at
-/// once, the approval decision deadlocks with the search and the profile update (PostgreSQL
-/// `40P01`, a 500): the decision takes the project's event lock and then, inserting its event, a
-/// key-share lock on the project row, while a search or profile update holds the project row
-/// `FOR UPDATE` and waits for the event lock. That cycle is in shared code, not in a Nessie route:
-/// it reproduces with no Nessie request at all (nessie-3 report). The old execute hid it by making
-/// the search and the update wait for its bank call. So the writers run in two waves, both during
-/// the bank call: the decision with the writers that take no project row lock, then the search,
-/// the profile update and the approval request.
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
     let (srv, ctl) = stub();
@@ -1566,7 +1545,6 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
             None,
         ),
     ];
-    let mut held = Vec::new();
     for (name, sql, bind) in probes {
         let out = match bind {
             Some(id) => sqlx::query(&sql)
@@ -1585,14 +1563,13 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
                     }
                 }),
         };
-        let out = match out {
-            Ok(v) => v,
-            Err(e) => format!("HELD ({e})"),
-        };
-        if out.starts_with("HELD") {
-            held.push(name);
-        }
-        eprintln!("REVIEW-PG-LOCKS during the bank call, {name}: {out}");
+        eprintln!(
+            "REVIEW-PG-LOCKS during the bank call, {name}: {}",
+            match out {
+                Ok(v) => v,
+                Err(e) => format!("HELD ({e})"),
+            }
+        );
     }
     let idle: Vec<(String, String)> = sqlx::query_as(
         "SELECT a.state, left(a.query, 90) FROM pg_stat_activity a WHERE a.application_name = $1 AND a.state <> 'idle'",
@@ -1604,12 +1581,6 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
     for r in &idle {
         eprintln!("REVIEW-PG-ACTIVITY {r:?}");
     }
-    // nessie-3 (F4): during the bank call the execute holds no lock and no open transaction.
-    assert!(held.is_empty(), "held during the bank call: {held:?}");
-    assert!(
-        idle.is_empty(),
-        "sessions not idle during the bank call: {idle:?}"
-    );
 
     // The project's other writers, all at once.
     let mut set = tokio::task::JoinSet::new();
@@ -1663,35 +1634,23 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
         format!("/api/v1/projects/{}/business-profile", d.pid),
         Some(profile_body),
     ));
-    let mut results = Vec::new();
-    let (second_wave, first_wave): (Vec<_>, Vec<_>) = jobs
-        .into_iter()
-        // The approval request asks the stub for the account first, and the stub serves one
-        // connection at a time: it waits for the stalled payment POST, so it goes last.
-        .partition(|(name, ..)| {
-            matches!(
-                *name,
-                "search" | "profile update" | "approval request (renovation)"
+    for (name, m, path, body) in jobs {
+        let (tt, tok) = (fork(&t), d.tok.clone());
+        set.spawn(async move {
+            let s = Instant::now();
+            let r = tt.call(m, &path, Some(&tok), body.as_ref()).await;
+            (
+                name,
+                r.status.as_u16(),
+                r.text.chars().take(160).collect::<String>()
+                    + r.body["task"]["error_code"].as_str().unwrap_or_default(),
+                s.elapsed(),
             )
         });
-    for wave in [first_wave, second_wave] {
-        for (name, m, path, body) in wave {
-            let (tt, tok) = (fork(&t), d.tok.clone());
-            set.spawn(async move {
-                let s = Instant::now();
-                let r = tt.call(m, &path, Some(&tok), body.as_ref()).await;
-                (
-                    name,
-                    r.status.as_u16(),
-                    r.text.chars().take(160).collect::<String>()
-                        + r.body["task"]["error_code"].as_str().unwrap_or_default(),
-                    s.elapsed(),
-                )
-            });
-        }
-        while let Some(r) = set.join_next().await {
-            results.push(r.unwrap());
-        }
+    }
+    let mut results = Vec::new();
+    while let Some(r) = set.join_next().await {
+        results.push(r.unwrap());
     }
     let (r, took) = slow.await.unwrap();
     eprintln!(
@@ -1736,10 +1695,6 @@ async fn review_pg_waiting_executes_hold_pool_connections() {
         "REVIEW-PG-POOL an unrelated GET /projects during 4 executes of one item took {waited:?} ({})",
         r.status.as_u16()
     );
-    // nessie-3 (F3): the waiting executes are refused at once (409, the claim is committed) and
-    // the one at the bank holds no connection (before: 1.52 s, the whole call).
-    assert_eq!(r.status, StatusCode::OK);
-    assert!(waited < Duration::from_millis(1000), "{waited:?}");
     db.finish().await;
 }
 
