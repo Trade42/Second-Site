@@ -6752,6 +6752,113 @@
         "title": "VerificationStatus",
         "type": "string"
       },
+      "VoiceSessionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "const": "assistant",
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "VoiceSessionRequest",
+        "type": "object"
+      },
+      "VoiceSessionResponse": {
+        "additionalProperties": false,
+        "description": "One short-lived voice session with the assistant (xAI realtime). The secret is returned once, never stored.",
+        "properties": {
+          "claim_pattern": {
+            "description": "Regular expression (JavaScript-compatible, use the i flag)",
+            "title": "Claim Pattern",
+            "type": "string"
+          },
+          "client_secret": {
+            "title": "Client Secret",
+            "type": "string"
+          },
+          "data_notice": {
+            "title": "Data Notice",
+            "type": "string"
+          },
+          "disclosure": {
+            "description": "Spoken first (disclosure_event) and kept on screen",
+            "title": "Disclosure",
+            "type": "string"
+          },
+          "disclosure_event": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disclosure Event"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "grounded_record_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Grounded Record Ids",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "mode": {
+            "const": "assistant",
+            "title": "Mode",
+            "type": "string"
+          },
+          "no_action_notice": {
+            "title": "No Action Notice",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "session_update": {
+            "additionalProperties": true,
+            "title": "Session Update",
+            "type": "object"
+          },
+          "websocket_url": {
+            "title": "Websocket Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "provider",
+          "websocket_url",
+          "client_secret",
+          "expires_at",
+          "session_update",
+          "disclosure",
+          "disclosure_event",
+          "label",
+          "no_action_notice",
+          "claim_pattern",
+          "data_notice",
+          "grounded_record_ids"
+        ],
+        "title": "VoiceSessionResponse",
+        "type": "object"
+      },
       "WorkCategory": {
         "enum": [
           "PLUMBING",
@@ -9179,6 +9286,76 @@
         "summary": "Get Task",
         "tags": [
           "tasks"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/voice/session": {
+      "post": {
+        "description": "A short-lived xAI voice session grounded like the chat (app/agents/voice_session.py). Never cached.",
+        "operationId": "voice_session_route_api_v1_projects__project_id__voice_session_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Voice Session Route",
+        "tags": [
+          "projects"
         ]
       }
     },
