@@ -247,10 +247,130 @@ ANSWERS = {
     "other": ["medical spa is allowed", "", "have to check", "ok"],
 }
 
+# Commission rust-domain-5 (extraction truth fix): negations never read as yes, cut numbers never
+# reported. Appended after ANSWERS so the earlier vectors keep their order. Includes the canned
+# answers of both call simulators and the answers of the Python tests.
+TRUTH_ANSWERS = {
+    "amps": [
+        # simulator, Python tests, plain readings that must keep their value
+        "The suite has its own 200 amp panel, I'd guess about a third of it is in use.",
+        "400a", "400 a", "400A", "400 A", "400amp", "400 amp", "400-amp", "400 Amps", "400 AMPERES",
+        "400 ampere", "400 amps.", "(400 amps)", "~400 amps", "\u201c400 amps\u201d", "panel: 400 amps",
+        "Panel:400 amps", "a 120/208 volt, 400 amp service", "3 phase 400 amp", "200 amps and 3 phase",
+        "400\u00a0amps", "400\u2009amps", "\u00a0400 amps", "400 amps, yes 400 amps", "400A (400 amps)",
+        "200 amp panel, about 80 in use", "200 amp, 200 amp", "2 x 200 amps", "It's 400 amps or so",
+        "about 200A", "x" * 3000 + " 400 amps", "400 amps " + "and so on " * 300,
+        # cut, joined or malformed numbers
+        "1,200 amps", "1.200 amps", "1 200 amps", "1\u00a0200 amps", "4\u202f000 amps", "123456 amps",
+        "12345 amp", "2x200 amps", "x400 amps", "_400 amps", "-400 amps", "+400 amps", "400.5 amps",
+        "400.50 amps", "approx.400 amps", "#400 amps", "2,000 a month", "\u2018400 amps\u2019",
+        "1'200 amps", "1\u2019200 amps",
+        # several values and ranges
+        "the panel is 60 amps, service 400 amps", "200 to 400 amps", "200-400 amps", "200 - 400 amps",
+        "200\u2013400 amps", "200\u2014400 amps", "200 or 400 amps", "200/400 amps", "200~400 amps",
+        "between 200 and 400 amps", "from 200 to 400 amps", "200 amps to 400 amps", "200 amps or 400",
+        "200 amps to 400", "200, 400 amps", "200 & 400 amps", "200 a 300 amps",
+        "mostly 225 amp service; about 80 amps in use", "60 amps in use of a 200 amp panel",
+        # zero and decimals
+        "0 amps", "00 amps", "000 amps", "0000 amps", "00 A",
+        # Unicode digits and spaces
+        "\u0664\u0660\u0660 amps", "\u0664\u0660\u0660 amps or 400 amps", "\u0663\u0664\u0665 4 amps",
+        "\u0661\u0662\u066345 amps", "4\u0660\u0660 amps", "\uff14\uff10\uff10 amps", "400\u3000amps",
+        "\u096a\u0966\u0966 amps",
+        # hedges with typographic apostrophes
+        "I don\u2019t know, 100 amps?", "I\u2019ll find out, maybe 200 amps", "I don\u02bct know, 200 amps",
+        "200 amps or 400 amps", "400 amps or 400 amps", "200A service, 100A in use", "About 400. Amps",
+        "400 amp service", "1, 200 amps",
+    ],
+    "sqft": [
+        "It's about 1,250 usable square feet.", "about 1,128 square feet", "1,128 sf", "1,128SF",
+        "1128 sq. ft.", "1128 square ft", "1128 sq feet", "1128 usable sq ft", "1128 usable square feet",
+        "1128 SQUARE FEET", "1128sqft", "1128 sq. feet", "1,128 sq ft.", "12,345 sq ft", "123,456 sq ft",
+        "1234567 sf", "100 sq ft", "approximately 1,128 sf", "~1,128 sf", "(1,128 sf)", "\u00a01,128 sf",
+        "1,128\u00a0sf", "1,128 sf, I mean 1,128 sf", "1,128 sf or 1128 sf",
+        # cut, joined or malformed numbers
+        "9,500,000 sf", "1234567890 sf", "1.200 sq ft", "1 128 sq ft", "1\u202f128 sq ft", "1\u2009128 sq ft",
+        "1'128 sq ft", "1\u2019128 sq ft", "11,28 sf", "1,1280 sf", "1,128,000 sf", "1,000,000 sq ft",
+        "1234,567 sf", "12345678 sf", "1,128, sq ft", ",128 sq ft", "1,,128 sf", "#1,128 sf", "$1,128 sf",
+        "1128.5 sf", "1,128.5 sq ft", "1128.50 sf", "1128.500 sf", "1-128 sf",
+        # several values and ranges
+        "between 1,000 and 1,200 sf", "1,000 to 1,200 sf", "1,000-1,200 sf", "1,000 - 1,200 sq ft",
+        "1,000\u20131,200 sf", "1,128 sf per CoStar, 1,100 sf measured",
+        "The suite is 1,128 sf; the building is 20,000 sf", "1,128 sf or 1,200 sf", "1,128 sf to 1,200",
+        "1,000 or 1,200 square feet",
+        # zero
+        "000 sf", "0,000 sf", "0000 sq ft",
+        # Unicode digits
+        "\u0661\u0661\u0662\u0668 sf", "1\u066128 sf", "\uff11\uff11\uff12\uff18 sf", "1,128 \u0665 sf",
+        "\u0665 1,128 sf",
+        "1,128 sf or 1,128 sf", "1,128 sf to 1,128", "1,128 sq ft and 1,128 sq ft", "1, 128 sq ft",
+        "1,128 square feet, roughly",
+    ],
+    "plumbing": [
+        # simulator, Python tests
+        "Yes, there's a sink in the back room and a restroom inside the suite.", "Yes, there's a sink in back",
+        "No, it's all open",
+        # plain yes
+        "Yes", "yes.", "Yes!", "Yeah, there is.", "Yep, there's a sink.", "Yes, there is a floor drain.",
+        "There is a sink by the back door.", "There's a floor drain in the storage room.",
+        "It has a small kitchenette sink.", "It does.", "We have a sink and a floor drain.", "Definitely.",
+        "Absolutely, yes.", "That's correct.", "Sure.", "Sure thing, there's a sink.", "YES THERE IS",
+        "there\u2019s a sink", "that\u2018s correct", "Yes,\u2003there is a sink", "ye\u017f",
+        # plain no
+        "No", "no.", "No!", "Nope.", "None.", "Not really.", "There isn't.", "There isnt any", "It doesn't.",
+        "It doesnt", "We don't have one.", "We dont have that", "It's all open.", "No plumbing at all.",
+        "No, there isn't.", "No, we don't.", "No, never had any.", "No, nothing in the suite.", "Nope, none.",
+        "Not really, no.", "no no no", "No it's not", "We don't, no.", "I don't think so, no.",
+        "There isn\u2019t any plumbing.", "It doesn\u2019t.", "We don\u2019t have one.", "No, it\u2019s all open.",
+        "don\u02bct have one", "It doesn\u2018t", "no\u00a0plumbing", "there\u00a0is no sink",
+        # negated affirmations: never yes
+        "No, it does not.", "There is no plumbing in the suite.", "There's no sink.", "There\u2019s no sink.",
+        "It has no plumbing.", "We have no plumbing.", "Absolutely not.", "Absolutely not!", "Definitely not.",
+        "It does not.", "It does not have plumbing.", "There is not a sink.", "There's not a sink.",
+        "There\u2019s not a sink.", "We have not had plumbing there.", "Not correct.", "That's not correct.",
+        "Not definitely.", "Not absolutely.", "Not yes.", "it does NOT", "IT DOES NOT", "it does\u00a0not",
+        "It has never had a sink.", "We have nothing like that.", "There is nothing there.", "it does n't",
+        "That isn\u2019t correct.", "Absolutely not, it's all open.", "Definitely not, no plumbing.",
+        "No, absolutely not.", "Definitely never.", "Correct, there is no sink.", "There is hardly any plumbing.",
+        "We have barely a drain.", "Absolutely none.", "Definitely none.", "Absolutely no plumbing.",
+        "\u0131t doe\u017f not", "absolutely not \u2013 it\u2019s all open",
+        # double negatives
+        "It's not that there isn't a sink.", "I wouldn't say there's no plumbing.", "There isn't no sink.",
+        "Never had none.", "It's not like we don't have one.", "I can't say there's no drain.",
+        "There is not no sink.", "Not no.", "I don\u2019t think there\u2019s no sink",
+        # hedges
+        "I'm not sure, I'd have to check.", "I don\u2019t know.", "No idea.", "I\u2019ll find out.",
+        "I\u2019ll find out, yes", "Unsure, maybe.", "Maybe yes.", "Probably.", "I think so.",
+        "I don't think so.", "Yes but I don\u2019t know where",
+        # mixed and idioms
+        "Yes and no.", "Yes, no.", "yes no", "Yes, but no drain.", "No, yes there is.", "Sure, no problem.",
+        "No problem.", "We have no problem with that.", "There's no issue, it has a sink.",
+        "Yes, it doesn't leak.", "Yes there's a sink, no drain.", "Absolutely, no doubt.", "no yes",
+        "No, but there is a sink.", "Yes, without a doubt.", "Yes, nothing unusual.", "Yes, not a problem.",
+        "Yes, neither a sink nor a drain is missing.", "Yes, it cannot leak.", "No, not a problem.",
+        "We have no reason to think it can't.",
+        # empty and long
+        "", "   ", "yes " * 300, "no " * 300, "Yes, " + "there is a sink and " * 50 + "it does not drain",
+    ],
+    "hvac": [
+        "Yes, the landlord's mechanical contractor said it can be split into zones.",
+        "Absolutely, it can be zoned.", "It can't be zoned, no.", "It cannot be zoned.", "It can be zoned.",
+        "No, it's a single zone.", "Definitely not.", "Absolutely not.", "It does not.", "No, it does not.",
+        "No problem.", "We have no problem zoning it.", "Sure, no problem.", "We have VAV boxes, yes.",
+        "Not correct, it's one zone.", "Yes.", "No.",
+        "It can be zoned, absolutely.", "It does not, no.", "It does not have one, no.",
+        "Not really, it doesn\u2019t", "Yes it does", "Yes, it does.", "No, it doesn't.", "Yes, it has.",
+        "Yes we have", "Nah", "Nah, yes",
+    ],
+    "available": [
+        "It's available December first.", "I\u2019ll find out", "I don\u2019t know yet", "January 1st",
+    ],
+}
+
 
 def finding_cases():
     out = []
-    for key, answers in ANSWERS.items():
+    for key, answers in [*ANSWERS.items(), *TRUTH_ANSWERS.items()]:
         q = QUESTIONS[key]
         for ans in answers:
             f = extract(q, ans)

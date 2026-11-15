@@ -13,8 +13,19 @@ from app.core.security import verify_token
 from app.db.session import get_db
 
 
-def db_session() -> Iterator[Session]:
+def _request_transaction() -> Iterator[Session]:
     yield from get_db()
+
+
+def db_session(db: Session = Depends(_request_transaction, scope="function")) -> Session:
+    """The request's one session. `scope="function"` makes FastAPI finish `get_db` (commit, or rollback on an
+    exception, then close) as soon as the path function has returned and its response has been built, and before the
+    response is sent. So a 2xx means the transaction has committed, and a refused commit becomes an error answer.
+    (The default "request" scope finishes yield dependencies only after the response has been sent.) This function is
+    a plain function so that every existing `Depends(db_session)`, direct or through `owned_project`, keeps sharing
+    this one session without changing any route. Nothing may use the session after the path function returns: the
+    events stream opens its own sessions."""
+    return db
 
 
 def container() -> Container:
