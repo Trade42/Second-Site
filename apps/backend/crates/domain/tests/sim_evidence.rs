@@ -72,15 +72,13 @@ fn shape(a: &[InfrastructureAssessment], w: &[RenovationWorkItem]) -> Shape {
     )
 }
 
+type Outcome = (Vec<InfrastructureAssessment>, Vec<RenovationWorkItem>);
+type Run = Box<dyn Fn(&PropertyDigitalProfile, &[SourceEvidence]) -> Outcome>;
+
 struct Case {
     prop: PropertyDigitalProfile,
     evidence: Vec<SourceEvidence>,
-    run: Box<
-        dyn Fn(
-            &PropertyDigitalProfile,
-            &[SourceEvidence],
-        ) -> (Vec<InfrastructureAssessment>, Vec<RenovationWorkItem>),
-    >,
+    run: Run,
 }
 
 /// A fixture property whose plumbing and HVAC are not documented in the unit, so that a call's
@@ -225,6 +223,35 @@ fn a_real_calls_answers_count_for_a_real_listing() {
     // And exactly as for the synthetic listing with the same answers.
     let (a2, w2) = (c.run)(&c.prop, &answers(&c, DataOrigin::Live));
     assert_eq!(shape(&a1, &w1).1.len(), shape(&a2, &w2).1.len());
+    // Reviewer: evidence of every origin but the synthetic one counts on every listing that is not
+    // demo data exactly as on the demo listing, where the rule changes nothing (the engine reads
+    // the listing's origin nowhere else): the outcome is the same, line for line.
+    for ev_origin in [
+        DataOrigin::Live,
+        DataOrigin::FixtureReal,
+        DataOrigin::UserProvided,
+        DataOrigin::Derived,
+    ] {
+        let ev = answers(&c, ev_origin);
+        let (ah, wh) = (c.run)(&c.prop, &ev);
+        let mut unlisted = c.prop.clone();
+        unlisted.commercial_listing = None;
+        assert!(ev.iter().all(|e| counts_for(&unlisted, e)), "{ev_origin:?}");
+        for origin in [
+            DataOrigin::Live,
+            DataOrigin::FixtureReal,
+            DataOrigin::UserProvided,
+            DataOrigin::Derived,
+        ] {
+            let p = with_origin(&c.prop, origin);
+            assert!(ev.iter().all(|e| counts_for(&p, e)));
+            let (a, w) = (c.run)(&p, &ev);
+            assert_eq!(shape(&a, &w), shape(&ah, &wh), "{ev_origin:?} {origin:?}");
+            assert!(a
+                .iter()
+                .all(|x| !x.limitations.iter().any(|l| l == SIMULATED_NOT_COUNTED)));
+        }
+    }
 }
 
 #[test]

@@ -55,6 +55,9 @@ struct Snapshot {
     ranking: Value,
     /// The Nessie plan's payments without ids (status and body when there is no plan).
     plan: Value,
+    /// The other routes that show a property's decisions (added by the reviewer): the Nessie
+    /// affordability answer, the evidence validation's problem list and the property itself.
+    other: Vec<Value>,
 }
 
 struct Flow<'a> {
@@ -144,11 +147,37 @@ impl Flow<'_> {
         } else {
             json!({"status": r.status.as_u16(), "body": stable(&r.body)})
         };
+        let mut other = Vec::new();
+        for path in ["/nessie/affordability", "/evidence/validation", ""] {
+            let r = self
+                .t
+                .get(
+                    &format!(
+                        "/api/v1/projects/{}/properties/{}{path}",
+                        self.pid, self.prop
+                    ),
+                    Some(&self.token),
+                )
+                .await;
+            let mut body = stable(&r.body);
+            if let Some(list) = body
+                .get_mut("infrastructure_assessments")
+                .and_then(Value::as_array_mut)
+            {
+                for a in list {
+                    if let Some(l) = a.get_mut("limitations").and_then(Value::as_array_mut) {
+                        l.retain(|x| x.as_str() != Some(SIMULATED_NOT_COUNTED));
+                    }
+                }
+            }
+            other.push(json!({"path": path, "status": r.status.as_u16(), "body": body}));
+        }
         Snapshot {
             assessments,
             scenario,
             ranking,
             plan,
+            other,
         }
     }
 
@@ -339,6 +368,8 @@ both_backends!(a_real_listing_is_not_moved_by_a_simulated_call, |db| {
     assert_eq!(before.scenario, after.scenario);
     assert_eq!(before.ranking, after.ranking);
     assert_eq!(before.plan, after.plan);
+    assert_eq!(before.other, after.other);
+    println!("REVIEW other: {}", json!(before.other));
     assert!(before.plan["payments"].is_array(), "{}", before.plan);
     // The script answers the panel, the plumbing and the HVAC: the three rules that read those
     // answers say that a simulated answer exists and was not counted; no other assessment does.
