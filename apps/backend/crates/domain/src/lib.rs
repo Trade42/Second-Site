@@ -18,9 +18,15 @@
 //!   [`logistics`]
 //! - `integrations/{catalog,ifc}` (fixture catalog; IFC STEP-text reader only) ->
 //!   [`integrations::catalog`], [`integrations::ifc`]
+//! - `contracts/communications.py` -> [`contracts::communications`]
+//! - `domains/communications/{call_script,escalation}.py` and `call_payload` from
+//!   `services/call_orchestration` -> [`communications`]
+//! - `integrations/telnyx` (client state, fixture provider), `integrations/xai_voice` ->
+//!   [`integrations::telnyx`], [`integrations::xai_voice`]
 //! - The Shapely/GEOS operations the layout code uses -> [`geometry`]
 //! - Python built-in semantics the port depends on -> [`py`]
 
+pub mod communications;
 pub mod contracts;
 pub mod design;
 pub mod error;
