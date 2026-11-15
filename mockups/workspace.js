@@ -9,7 +9,6 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const asset = (src, f) => `assets/${src}/${f}`;
 const ICON = {
-  save: '<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="m8 1.5 2 4.1 4.5.65-3.25 3.17.77 4.48L8 11.78l-4.02 2.12.77-4.48L1.5 6.25 6 5.6Z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/></svg>',
   x: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
 };
 
@@ -224,7 +223,8 @@ function toCompare() {
 
 function frameHTML(p) {
   return `<img src="${asset(p.src, p.photo)}" alt="${esc(p.address)}" style="${p.hue ? `filter:hue-rotate(${p.hue}deg)` : ''}">
-    <div class="acts"><button type="button" data-act="save" aria-label="Save ${esc(p.address)}">${ICON.save}</button><button type="button" data-act="dismiss" aria-label="Dismiss ${esc(p.address)}">${ICON.x}</button></div>
+    <button type="button" class="save-card" data-act="save" data-property="${p.id}" aria-label="Save ${esc(p.address)}"></button>
+    <div class="acts"><button type="button" data-act="dismiss" aria-label="Dismiss ${esc(p.address)}">${ICON.x}</button></div>
     <div class="cap"><div><b>${esc(p.address)}</b><small>${esc(p.suite)} · ${p.sqft.toLocaleString()} SF</small></div><div class="rent"><b>${money(p.rent)}</b><small>a month</small></div></div>`;
 }
 function renderStrip() {
@@ -235,7 +235,7 @@ function renderStrip() {
     if (id) el.dataset.property = id; else delete el.dataset.property;
     if (el.dataset.id !== id) {
       el.dataset.id = id;
-      if (id) { el.innerHTML = frameHTML(P[id]); el.tabIndex = 0; } else { el.innerHTML = 'No more spaces fit'; el.removeAttribute('tabindex'); }
+      if (id) { el.innerHTML = frameHTML(P[id]); } else { el.innerHTML = 'No more spaces fit'; }
     }
     el.className = 'frame' + (id ? '' : ' none') + (S.saved.includes(id) ? ' saved' : '') + (S.open === id && id ? ' open' : '');
     $('[data-act=save]', el)?.setAttribute('aria-pressed', S.saved.includes(id));
@@ -645,7 +645,6 @@ document.addEventListener('click', e => {
     if (id) (act === 'save' ? toggleSave : dismiss)(id);
     return;
   }
-  if (t.classList.contains('frame')) return t.dataset.id && selectSpace(t.dataset.id);
   if (t.dataset.finalist) return selectFinalist(t.dataset.finalist);
   if (t.dataset.view) { S.view = t.dataset.view; renderViewer(); return save(); }
   if (act?.startsWith('dollhouse-') && T?.cur) {
@@ -669,7 +668,6 @@ document.addEventListener('click', e => {
   if (t.dataset.key) return selectPiece(t.dataset.key);
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.target.classList?.contains('frame')) selectSpace(e.target.dataset.id);
   if (e.key === 'Escape' && S.stage === 'discover' && S.open) selectSpace(null);
 });
 // Opening an issue points the viewer at its evidence.

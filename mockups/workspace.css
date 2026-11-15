@@ -66,7 +66,7 @@ main { min-height: 0; }
   transition: flex-grow .5s var(--ease), opacity .2s var(--ease);
   animation: drift var(--t) ease-in-out var(--d) infinite alternate;
 }
-.frame:not(.saved):not(.none) { opacity: .84; }
+.frame:not(.saved):not(.none) { opacity: .7; }
 /* Vertical-only drift: horizontal gaps never change. */
 @keyframes drift { from { transform: translateY(-1.5px); } to { transform: translateY(1.5px); } }
 .frame:hover, .frame:focus-within, .frame.open { flex-grow: calc(var(--g) * 1.3); }
@@ -76,7 +76,9 @@ main { min-height: 0; }
   transform: translate(-50%, -50%); object-fit: cover; animation: fade .5s ease;
 }
 .frame::after { content: ""; position: absolute; inset: 40% 0 0; background: linear-gradient(transparent, rgba(20, 21, 17, .72)); pointer-events: none; }
-.cap { position: absolute; z-index: 1; left: 14px; right: 14px; bottom: 12px; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; text-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+.save-card { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border-radius: 10px; }
+.save-card:focus-visible { outline-offset: -3px; }
+.cap { position: absolute; z-index: 1; left: 14px; right: 14px; bottom: 12px; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; text-shadow: 0 1px 2px rgba(0, 0, 0, .3); pointer-events: none; }
 .cap > * { min-width: 0; }
 .cap b { display: block; font-weight: 600; font-size: 15.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cap small { display: block; font-size: 13px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -85,8 +87,6 @@ main { min-height: 0; }
 .acts { position: absolute; z-index: 2; top: 10px; right: 10px; display: flex; gap: 6px; }
 .acts button, .close { width: 30px; height: 30px; border-radius: 50%; background: rgba(252, 251, 248, .92); color: var(--ink); display: grid; place-items: center; }
 .acts button:hover, .close:hover { background: #fff; }
-.acts button[data-act=save] { background: none; color: #E5B94F; }
-.acts [data-act=save] svg { filter: drop-shadow(0 1px 2px rgb(0 0 0 / .65)); }
 .acts [data-act=dismiss] { visibility: hidden; opacity: 0; transition: opacity .15s; }
 .frame:hover .acts [data-act=dismiss], .frame:focus-within .acts [data-act=dismiss], .frame.open .acts [data-act=dismiss] { visibility: visible; opacity: 1; }
 .frame.loading img { opacity: .35; transition: opacity .3s; }
