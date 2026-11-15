@@ -1,0 +1,9 @@
+# Build context of the images in infra/docker (compose builds them from the repository root).
+# Only paths that no Dockerfile copies are listed, so no image changes. They stay out of the
+# context for size (a local Rust build directory can be gigabytes) and so that secrets and local
+# data (the CoStar kit, uploads) are never sent to the Docker daemon.
+.git
+.env
+.env.*
+.data
+apps/backend/target
