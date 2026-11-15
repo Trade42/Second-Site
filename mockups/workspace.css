@@ -92,6 +92,13 @@ main { min-height: 0; }
 .frame.loading img { opacity: .55; }
 .frame.none { cursor: default; background: var(--tint); color: var(--ink3); display: grid; place-items: center; font-size: 14px; animation: none; }
 .frame.none::after { display: none; }
+/* No blank cards before a search has put listings in them (the owner, 2026-11-15): while no frame holds a
+   listing or a text, the strip's row is closed and the map and chat take its height; it opens when the first
+   card arrives. A card is never drawn below the strip's row while the row opens. */
+body:not(.search-boot) #discover { transition: grid-template-rows .45s var(--ease); } /* never at start-up */
+#discover:has(.frame):not(:has(.frame:not(:empty))) { grid-template-rows: 0px minmax(0, 1fr); }
+.strip { clip-path: inset(-100vh -100vw 0 -100vw); }
+.frame.none:empty { visibility: hidden; }
 
 .below { display: grid; grid-template-columns: minmax(0, 1fr) var(--sidebar); gap: var(--region-gap); min-height: 0; }
 .mapbox { container: search-map / inline-size; position: relative; border-radius: var(--r); overflow: hidden; background: var(--tint) url(jims-assets/los-angeles-map.png) center/cover; min-height: 0; }
@@ -363,6 +370,7 @@ button.room:hover { background: rgba(110, 126, 114, .1); }
   .strip { overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 calc(-1 * var(--pad)); padding: 0 var(--pad); align-items: stretch; flex: none; height: var(--strip-h); }
   .frame, .frame:hover, .frame:focus-within, .frame.open { flex: 0 0 76vw; height: calc(100% - 8px); margin-top: 0; scroll-snap-align: center; animation: none; }
   .strip .frame:nth-child(even) { margin-top: 8px; }
+  #discover:has(.frame):not(:has(.frame:not(:empty))) .strip { display: none; }
   .frame img { width: 100%; }
   .acts [data-act=dismiss] { visibility: visible; opacity: 1; }
   .below { display: flex; flex-direction: column; gap: var(--space-5); }

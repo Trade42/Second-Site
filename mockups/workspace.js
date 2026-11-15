@@ -175,8 +175,11 @@ function enterSearch() {
 }
 
 const WORDNUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+// The questions' wording follows the chosen business: what it calls its place and its rooms. A facial studio reads as before.
+const bizPlace = () => (S.req.business || '').toLowerCase().match(/(studio|office|clinic|salon|café|cafe|boutique|shop|store|restaurant|bakery|gym|spa|practice)$/)?.[1] || 'business';
+const roomKind = r => { const b = r.business || ''; return /medical|doctor|physician|pediatric|urgent care/i.test(b) ? 'exam ' : /facial|skin|dental|dentist|clinic|therap|massage|spa\b|chiro|acupunct|derm/i.test(b) ? 'treatment ' : /yoga|pilates|fitness|dance|barre|gym/i.test(b) ? 'studio ' : ''; };
 const STEPS = [
-  { key: 'business', label: 'Business', replies: ['A facial and skincare studio', 'A pilates studio', 'A café'],
+  { key: 'business', label: 'Business', replies: ['A facial and skincare studio', 'A pilates studio', 'A café', 'A dental office', 'A medical clinic', 'A physical therapy clinic', 'A hair salon', 'A yoga studio', 'A retail boutique'],
     ask: 'What kind of business is this location for?',
     set: t => { if (FURNISH_COMMAND.test(t.trim())) return false; S.req.business = /facial|skin/i.test(t) ? 'Facial studio' : cap(t.replace(/^(an?|the)\s+/i, '').replace(/[.!]+$/, '')).slice(0, 28); },
     show: r => r.business || 'Not set', note: n => `Industrial space set aside · ${n} fit` },
@@ -185,13 +188,13 @@ const STEPS = [
     set: t => { const z = []; if (/downtown|dtla|arts/i.test(t)) z.push('downtown'); if (/west|beverly|brentwood|santa monica/i.test(t)) z.push('westside'); if (/east|silver|echo/i.test(t)) z.push('eastside'); if (/valley|noho|north holly/i.test(t)) z.push('valley'); S.req.zones = z.length ? z : null; },
     show: r => r.zones ? r.zones.map(z => ZONE[z]).join(' or ') : 'Anywhere in LA', note: n => `${STEPS[1].show(S.req)} · ${n} fit` },
   { key: 'rent', label: 'Rent', replies: ['Up to $5,500', 'Up to $7,500', 'Under $3,500'],
-    ask: 'What monthly rent can the studio carry?',
+    get ask() { return `What monthly rent can the ${bizPlace()} carry?`; },
     set: t => { const m = t.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(k)?/i); S.req.rent = m ? Math.round(m[1] * (m[2] || m[1] < 100 ? 1000 : 1)) : null; },
     show: r => r.rent ? `Up to ${money(r.rent)} / month` : 'No limit', note: n => `${S.req.rent ? 'Up to ' + money(S.req.rent) : 'Any rent'} · ${n} fit` },
   { key: 'rooms', label: 'Space', replies: ['Three, plus reception', 'Two', 'Four'],
-    ask: 'How many treatment rooms do you need?',
+    get ask() { return `How many ${roomKind(S.req)}rooms do you need?`; },
     set: t => { const m = t.match(/\d+/) || t.toLowerCase().match(/one|two|three|four|five|six/); S.req.rooms = m ? (WORDNUM[m[0]] || +m[0]) : 3; },
-    show: r => `${r.rooms} treatment ${r.rooms === 1 ? 'room' : 'rooms'} + reception`, note: n => `${minSqft().toLocaleString()} SF or more · ${n} fit` },
+    show: r => `${r.rooms} ${roomKind(r)}${r.rooms === 1 ? 'room' : 'rooms'} + reception`, note: n => `${minSqft().toLocaleString()} SF or more · ${n} fit` },
   { key: 'opening', label: 'Opening', replies: ['By March', 'This summer', 'No fixed date'],
     ask: 'When would you like to open?',
     set: t => { S.req.opening = cap(t.replace(/[.!]+$/, '')).slice(0, 28); },
@@ -480,7 +483,7 @@ function renderPane() {
   $('#pane tr.on')?.scrollIntoView({ block: 'nearest' }); FV?.annotate(pane);
 }
 function renderFurnish() { furnishHead(); renderPane(); renderViewer(); renderNav(); }
-const furnishReplies = () => !S.placed.length ? ['Warm and minimal, three treatment rooms, under $25k'] : [
+const furnishReplies = () => !S.placed.length ? [`Warm and minimal, three ${roomKind(S.req)}rooms, under $25k`] : [
   S.placed.some(i => i.st === 'proposed') && 'Accept the proposals', S.placed.some(i => i.c === 'desk') && 'Use a smaller reception desk',
   S.placed.some(i => i.c === 'retail') && 'Remove the retail shelving'].filter(Boolean).slice(0, 2);
 const findCat = text => CAT.find(c => new RegExp(c.kw, 'i').test(text));
@@ -849,7 +852,7 @@ const start = location.hash.slice(1); // #reset clears saved state
 if (['searched', 'compare', 'furnish', 'reset'].includes(start)) S = fresh();
 if (start === 'reset') history.replaceState(null, '', location.pathname);
 S.msgs.forEach(m => log.append(bubble(m)));
-replies(S.replies);
+replies(STEPS.find(s => S.replies.length && S.replies.every((r, i) => r === s.replies[i]))?.replies ?? S.replies); // saved choices of a question are shown as that question's choices are now
 initMap();
 go(S.stage);
 if (!S.msgs.length) ask();
