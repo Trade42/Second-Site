@@ -1,8 +1,7 @@
 //! Domain contracts: ports of `apps/api/app/contracts/{evidence,permits,property,infrastructure,
-//! finance,geometry,procurement,communications}.py` and `ProviderStatusEntry` from `api.py`. Field order, defaults, enum strings and
+//! finance,geometry,procurement}.py` and `ProviderStatusEntry` from `api.py`. Field order, defaults, enum strings and
 //! validators are Python's; see [`ss_core::Contract`] for the validation entry points.
 
-pub mod communications;
 pub mod evidence;
 pub mod finance;
 pub mod geometry;
@@ -13,12 +12,6 @@ pub mod property;
 pub mod provider;
 pub mod values;
 
-pub use communications::{
-    AuthorityScope, CallQuestion, CallSession, CallState, Channel, CommunicationSession,
-    CommunicationState, HandoffReason, HandoffStatus, OutreachRequest, OwnerChannel,
-    OwnerChannelStatus, OwnerHandoffRequest, ParticipantState, StructuredFinding, TranscriptTurn,
-    CALL_TRANSITIONS, HANDOFF_TRANSITIONS,
-};
 pub use evidence::SourceEvidence;
 pub use finance::{
     CostKind, CostLineItem, CostScenario, HardConstraintResult, PropertyRankingResult,

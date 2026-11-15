@@ -77,19 +77,27 @@ jobs:
       # The Rust tests create one schema per test in this database and migrate it themselves.
       TEST_DATABASE_URL: postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test
       CARGO_TERM_COLOR: always
+      # Keep the build small. The hosted runner has little free disk: a debug build with full debug
+      # info on top of a restored target directory that grew with every run filled it, and the
+      # linker died with a bus error. No debug info, no incremental data.
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
     defaults: { run: { working-directory: apps/backend } }
     steps:
       - uses: actions/checkout@v4
       - name: Stable toolchain
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
+      # Exact key only (no restore-keys): a cache is built from scratch whenever Cargo.lock changes,
+      # so stale artifacts of earlier builds never pile up in it.
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             apps/backend/target
-          key: rust-${{ runner.os }}-${{ hashFiles('apps/backend/Cargo.lock') }}
-          restore-keys: rust-${{ runner.os }}-
+          key: rust-v2-${{ runner.os }}-${{ hashFiles('apps/backend/Cargo.lock') }}
+      - name: Disk space before the build
+        run: df -h / | tail -1
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
