@@ -257,7 +257,11 @@ fn many_near_cells_are_refused_before_the_scan() {
     let t = Instant::now();
     let err = largest_inner_rectangle_checked(&boundary, 0.2).expect_err("bounded");
     let refused_in = t.elapsed();
-    assert!(err.note.contains("packed too densely near the grid"), "{}", err.note);
+    assert!(
+        err.note.contains("packed too densely near the grid"),
+        "{}",
+        err.note
+    );
     let t = Instant::now();
     let (_, counted) = largest_inner_rectangle_counted(&boundary, 0.2).expect("grid");
     let scanned_in = t.elapsed();
@@ -702,7 +706,11 @@ fn fixture_and_golden_floors_are_still_framed_with_unchanged_rectangles() {
             .filter(|n| n.ends_with(".json"))
             .collect();
         names.sort();
-        files.extend(names.iter().map(|n| format!("apps/backend/tests-golden/{dir}/{n}")));
+        files.extend(
+            names
+                .iter()
+                .map(|n| format!("apps/backend/tests-golden/{dir}/{n}")),
+        );
     }
     let mut outlines = Vec::new();
     for f in &files {
@@ -718,7 +726,11 @@ fn fixture_and_golden_floors_are_still_framed_with_unchanged_rectangles() {
         };
         most = most.max(w.units());
         // Accepted with room to spare: a tenth of the bound at most.
-        assert!(w.units() * 10 <= MAX_FRAME_WORK, "{w:?} for {} vertices", poly.len());
+        assert!(
+            w.units() * 10 <= MAX_FRAME_WORK,
+            "{w:?} for {} vertices",
+            poly.len()
+        );
         let rect = got.expect("accepted");
         framed += 1;
         // The reference scan costs cells x vertices; compare wherever that is affordable here

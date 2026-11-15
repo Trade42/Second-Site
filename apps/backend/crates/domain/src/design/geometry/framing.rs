@@ -464,15 +464,15 @@ impl Grid {
     }
 
     /// `xs[1..].partition_point(|&x| x < xlo)`: the first cell whose right edge reaches `xlo`.
-    /// The column edges are non-decreasing, so the partition point is the one `r` with
-    /// `xs[r] < xlo` (or `r == 0`) and `!(xs[r + 1] < xlo)` (or `r == nx`); the grid's
+    /// The column edges are non-decreasing and, like `xlo`, finite, so the partition point is the
+    /// one `r` with `xs[r] < xlo` (or `r == 0`) and `xs[r + 1] >= xlo` (or `r == nx`); the grid's
     /// arithmetic gives it directly except in rounding corner cases, which fall back to the
     /// binary search.
     fn first_near_cell(&self, xlo: f64) -> usize {
         let (xs, nx) = (&self.xs, self.nx);
         // `as` saturates (NaN and negatives give 0).
         let r = ((((xlo - self.b.minx) / self.cell).ceil() - 1.0) as usize).min(nx);
-        if (r == 0 || xs[r] < xlo) && (r == nx || !(xs[r + 1] < xlo)) {
+        if (r == 0 || xs[r] < xlo) && (r == nx || xs[r + 1] >= xlo) {
             r
         } else {
             xs[1..].partition_point(|&x| x < xlo)
@@ -481,11 +481,11 @@ impl Grid {
 
     /// `xs[..nx].partition_point(|&x| x <= xhi)`: one past the last cell whose left edge is at
     /// most `xhi`. As [`Grid::first_near_cell`]: the one `r` with `xs[r - 1] <= xhi` (or
-    /// `r == 0`) and `!(xs[r] <= xhi)` (or `r == nx`), with the binary search as the fallback.
+    /// `r == 0`) and `xs[r] > xhi` (or `r == nx`), with the binary search as the fallback.
     fn near_cells_end(&self, xhi: f64) -> usize {
         let (xs, nx) = (&self.xs, self.nx);
         let r = ((((xhi - self.b.minx) / self.cell).floor() + 1.0) as usize).min(nx);
-        if (r == 0 || xs[r - 1] <= xhi) && (r == nx || !(xs[r] <= xhi)) {
+        if (r == 0 || xs[r - 1] <= xhi) && (r == nx || xs[r] > xhi) {
             r
         } else {
             xs[..nx].partition_point(|&x| x <= xhi)
@@ -678,7 +678,12 @@ impl Grid {
             histogram_step(&heights, j, &mut best, &mut best_rect);
         }
         let (i0, j0, i1, j1) = best_rect?;
-        Some((self.cell_x(i0), self.cell_y(j0), self.cell_x(i1), self.cell_y(j1)))
+        Some((
+            self.cell_x(i0),
+            self.cell_y(j0),
+            self.cell_x(i1),
+            self.cell_y(j1),
+        ))
     }
 }
 
@@ -687,7 +692,9 @@ impl FrameWork {
     fn add_row(&mut self, a: u64) {
         self.segment_rows = self.segment_rows.saturating_add(a);
         let bits = u64::from(u64::BITS - a.leading_zeros());
-        self.segment_row_steps = self.segment_row_steps.saturating_add(a.saturating_mul(bits));
+        self.segment_row_steps = self
+            .segment_row_steps
+            .saturating_add(a.saturating_mul(bits));
     }
 
     /// Count one near cell with `k` segments near it.

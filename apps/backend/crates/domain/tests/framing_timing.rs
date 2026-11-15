@@ -199,9 +199,8 @@ const FAMILIES: [Family; 7] = [
 /// The largest n in `lo..=hi` whose outline the bound accepts, by bisection on the counted work
 /// (`lo` must be accepted).
 fn largest_accepted(make: fn(usize) -> Vec<Coord>, lo: usize, hi: usize) -> usize {
-    let accepted = |n: usize| {
-        frame_work_estimate(&make(n), 0.2).is_some_and(|w| w.units() <= MAX_FRAME_WORK)
-    };
+    let accepted =
+        |n: usize| frame_work_estimate(&make(n), 0.2).is_some_and(|w| w.units() <= MAX_FRAME_WORK);
     assert!(accepted(lo));
     if accepted(hi) {
         return hi;
@@ -227,10 +226,7 @@ fn worst_accepted_outlines_frame_within_the_budget_and_larger_ones_are_refused_w
         let poly = make(n);
         let w = frame_work_estimate(&poly, 0.2).expect("grid");
         let (took, got) = fastest_of_3(|| largest_inner_rectangle_checked(&poly, 0.2));
-        assert!(
-            matches!(got, Ok(Some(_))),
-            "{name}({n}) accepted: {got:?}"
-        );
+        assert!(matches!(got, Ok(Some(_))), "{name}({n}) accepted: {got:?}");
         report.push(format!(
             "{name}({n}): {} vertices, {:.0}% of the bound, framed in {took:?}",
             poly.len(),
@@ -254,7 +250,10 @@ fn worst_accepted_outlines_frame_within_the_budget_and_larger_ones_are_refused_w
         + w.cells * FRAME_WORK_PER_CELL
         + w.segment_rows * FRAME_WORK_PER_SEGMENT_ROW
         + w.segment_row_steps * FRAME_WORK_PER_SEGMENT_ROW_STEP;
-    assert!(first_count <= MAX_FRAME_WORK && w.units() > MAX_FRAME_WORK, "{w:?}");
+    assert!(
+        first_count <= MAX_FRAME_WORK && w.units() > MAX_FRAME_WORK,
+        "{w:?}"
+    );
     let (took, got) = fastest_of_3(|| largest_inner_rectangle_checked(&poly, 0.2));
     let note = got.expect_err("refused").note;
     assert!(note.contains("packed too densely near the grid"), "{note}");
