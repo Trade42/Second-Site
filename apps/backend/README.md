@@ -30,7 +30,7 @@ cargo fmt --all -- --check
 
 - With `TEST_DATABASE_URL` set, every PostgreSQL test creates its own schema, migrates it and drops it; the database itself is not reset. A test that prints `SKIPPED` did not run.
 - Tests read `fixtures/` and `packages/contracts/schemas/` from the repository.
-- `ss-domain` is compiled with `opt-level = 1` in the dev and test profiles (`Cargo.toml`). Its tests run 4-5 times faster that way, and its library rebuilds about as fast as unoptimised.
+- `ss-domain` is compiled with `opt-level = 1` in the dev and test profiles (`Cargo.toml`). Its tests run about 3-4 times faster that way, and its library rebuilds about as fast as unoptimised.
 - The rest of a debug build is unoptimised, and the layout solver is about 14 times slower in a debug build of the service than in a release build. Run the service from a release build.
 
 ## Run locally
@@ -40,7 +40,7 @@ apps/backend/scripts/run-local.sh            # PostgreSQL: needs DATABASE_URL
 apps/backend/scripts/run-local.sh --memory   # in-memory demo store, no database, nothing durable
 ```
 
-- The script builds the release binary and runs it in the foreground on `127.0.0.1:8000` (`HOST` and `PORT` change that).
+- The script builds the release binary and runs it in the foreground on `127.0.0.1:8000` (`HOST` and `PORT` in the environment change that). It sets `STORE_BACKEND`, `HOST`, `PORT` and `FIXTURES_DIR` itself, so a line for one of those four in a `.env` file has no effect here.
 - It prints which store, database, fixture directory and address are in use.
 - It refuses to start instead of falling back when `DATABASE_URL` is missing or `FIXTURES_DIR` does not hold the fixture files.
 - Like the Python app, the service reads `.env` and `../../.env` relative to its working directory (`apps/backend`, so the repository `.env`); the environment wins.
@@ -72,7 +72,7 @@ Details:
 API_HOST_PORT=8000 API_BACKEND_API_URL= docker compose -f infra/compose.yaml up --build postgres redis api worker
 ```
 
-Add `web` to the service list for the web app. `API_BACKEND_API_URL=` (empty) gives the supervisor its in-process tools again.
+Add `web` to the service list for the web app. `API_BACKEND_API_URL=` (empty) gives the supervisor its in-process tools again. Stop the default stack first (`docker compose -f infra/compose.yaml down`): a running `backend` container keeps host port 8000.
 
 **Health.** The image has no curl. Its `HEALTHCHECK` and the compose health check run `scripts/healthcheck.sh` (bash `/dev/tcp`, `GET /health`, expects 200 and `"status":"ok"`).
 

@@ -806,3 +806,76 @@ def test_proxy_environment_does_not_change_where_the_request_goes(monkeypatch, l
     assert verify_token(SECRET, rust_hits[0][2]["authorization"].split(" ", 1)[1]) == owner
     assert len(proxy_hits) == 1  # only the control request; the owner's token never reached the proxy
     assert "authorization" not in proxy_hits[0][2]
+
+
+# ---- the request id crosses from Python to Rust (e2e-1 D5) ---------------------------------------------------
+
+
+def test_the_current_request_id_goes_to_rust_and_none_is_invented(rust):
+    from app.core.logging import request_id_var
+
+    tools = {t.name: t for t in build_tools(rust.ctx())}
+
+    def call_tools() -> list[httpx.Request]:
+        rust.requests.clear()
+        tools["get_ranking"].invoke({})
+        tools["get_project_state"].invoke({})
+        tools["run_property_analysis"].invoke({})
+        assert [(r.method, r.url.path.rsplit("/", 1)[-1]) for r in rust.requests] == [
+            ("GET", "rankings"),
+            ("GET", str(rust.project.project_id)),
+            ("POST", "search"),
+        ]
+        return list(rust.requests)
+
+    # Outside a request (the Photon poller, a script): nothing is set, so nothing is sent.
+    assert request_id_var.get() is None
+    assert all("x-request-id" not in r.headers for r in call_tools())
+    for rid, wire in (
+        ("e2e-chat-1", b"e2e-chat-1"),
+        # Starlette decodes header values as latin-1, so a received id is sent back as exactly the bytes that came in.
+        ("caf\xe9-7", b"caf\xe9-7"),
+    ):
+        token = request_id_var.set(rid)
+        try:
+            sent = call_tools()
+        finally:
+            request_id_var.reset(token)
+        assert [r.headers.get_list("x-request-id") for r in sent] == [[rid]] * 3
+        assert all(dict(r.headers.raw)[b"x-request-id"] == wire for r in sent)
+        _assert_owner_token(sent[0], rust.owner)  # the other headers are unchanged
+    assert all("x-request-id" not in r.headers for r in call_tools())
+
+
+def test_chat_route_sends_its_request_id_to_rust(client, container, local_http, monkeypatch):
+    from app.core.security import issue_token
+
+    rust_url, hits = local_http(lambda _m, _p: (200, []))  # no ranking yet
+    owner = uuid4()
+    h = {"Authorization": f"Bearer {issue_token(container.settings.auth_secret.get_secret_value(), owner)}"}
+    r = client.post(
+        "/api/v1/projects",
+        json={"project_name": "Chat request id", "market": {"city": "Los Angeles", "state": "CA"}},
+        headers=h,
+    )
+    assert r.status_code == 201, r.text
+    project_id = r.json()["project"]["project_id"]
+    monkeypatch.setattr(container.settings, "backend_api_url", rust_url)  # HTTP mode, real socket transport
+    chat = f"/api/v1/projects/{project_id}/chat"
+
+    r = client.post(
+        chat, json={"message": "rank the properties"}, headers={**h, "x-request-id": "e2e-chat-42"}
+    )
+    assert r.status_code == 200 and r.headers["x-request-id"] == "e2e-chat-42", r.text
+    # No ranking yet, so the model-free supervisor also runs the search: both calls carry the chat's id.
+    assert [(p, hdrs.get("x-request-id")) for _m, p, hdrs in hits] == [
+        (f"/api/v1/projects/{project_id}/rankings", "e2e-chat-42"),
+        (f"/api/v1/projects/{project_id}/properties/search", "e2e-chat-42"),
+    ]
+
+    # Without one, the app's request middleware assigns an id; Rust receives that same id.
+    hits.clear()
+    r = client.post(chat, json={"message": "rank the properties"}, headers=h)
+    assert r.status_code == 200, r.text
+    assigned = r.headers["x-request-id"]
+    assert UUID(assigned) and [hdrs.get("x-request-id") for _m, _p, hdrs in hits] == [assigned, assigned]

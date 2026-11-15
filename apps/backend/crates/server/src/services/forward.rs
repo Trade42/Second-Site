@@ -1,7 +1,7 @@
-//! The link to the Python service, which keeps Photon (owner messaging) and the LangChain
-//! supervisor (project chat). After the switch the browser and the providers talk to this
-//! service only; it forwards the paths listed in [`crate::http::routes::forward`] to
-//! `PYTHON_SERVICE_URL` and passes the answer back.
+//! The link to the Python service, which keeps Photon (owner messaging), the LangChain
+//! supervisor (project chat) and the Studio routes of the frontend-product stream. After the
+//! switch the browser and the providers talk to this service only; it forwards the paths listed
+//! in [`crate::http::routes::forward`] to `PYTHON_SERVICE_URL` and passes the answer back.
 //!
 //! What is passed through, unchanged:
 //! - the method, the path and the raw query string;
@@ -29,7 +29,7 @@
 //!
 //! Bounds: request bodies up to [`MAX_REQUEST_BYTES`] (larger is 413), answers up to
 //! [`MAX_RESPONSE_BYTES`], a connect timeout of 3 s, and an overall timeout of 60 s for the chat
-//! and 15 s for everything else (request sent and answer read).
+//! and the Studio routes and 15 s for everything else (request sent and answer read).
 //!
 //! Failure is honest, and never a 2xx (a provider whose webhook could not be forwarded retries
 //! it):
@@ -86,7 +86,7 @@ pub const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(4);
 /// Which overall timeout a forwarded route gets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Budget {
-    /// The supervisor chat (a model call): 60 s.
+    /// The supervisor chat (a model call) and the Studio routes (external searches): 60 s.
     Chat,
     /// Everything else: 15 s.
     Default,
@@ -363,7 +363,7 @@ impl PythonLink {
                  server is not usable ({why})."
             ),
             _ => format!(
-                "This part of Second Site (owner messaging and the project chat) runs in the \
+                "This part of Second Site (owner messaging, the project chat and the Studio) runs in the \
                  Python service, and {SETTING} is not set on this server."
             ),
         };
@@ -584,8 +584,8 @@ impl PythonLink {
                 "not_configured",
                 IntegrationStatus::NotStarted,
                 format!(
-                    "NOT_CONFIGURED: {SETTING} is not set. Owner messaging, the Photon webhook \
-                     and the project chat run in the Python service; their routes answer 503 \
+                    "NOT_CONFIGURED: {SETTING} is not set. Owner messaging, the Photon webhook, \
+                     the project chat and the Studio run in the Python service; their routes answer 503 \
                      {NOT_CONFIGURED} here."
                 ),
             ),
@@ -624,8 +624,8 @@ impl PythonLink {
                                 IntegrationStatus::Live,
                                 format!(
                                     "GET /health of the Python service answered HTTP {s} {age} s \
-                                     ago. Photon owner messaging and the project chat are \
-                                     forwarded to it."
+                                     ago. Photon owner messaging, the project chat and \
+                                     the Studio are forwarded to it."
                                 ),
                             ),
                             Ok(s) => entry(

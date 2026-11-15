@@ -152,16 +152,21 @@ step "properties (fixture data labelled)"
 http props GET "$P/properties" 200
 check 'props = J("props")
 need(len(props) >= 2, "expected at least 2 properties, got %d" % len(props))
+# Provider modes as /ready reports them: in fixture mode every record must say fixture, whatever
+# provider name or label it carries (a synthetic listing must never read as a live CoStar record).
+modes = {e.get("provider"): e.get("mode") for e in J("ready").get("providers") or []}
+fixture_listings = modes.get("costar") == "fixture"
+fixture_scans = fixture_listings and modes.get("matterport") == "fixture"
 origins = []
 for p in props:
     street = p["property_identity"]["street_address"]
     listing = p.get("commercial_listing") or {}
     need(listing.get("data_origin"), "%s: listing has no data_origin" % street)
-    if listing.get("provider") == "fixture":
-        need(listing["data_origin"].startswith("FIXTURE"), "%s: fixture listing labelled %r" % (street, listing["data_origin"]))
+    if fixture_listings or listing.get("provider") == "fixture":
+        need(listing.get("provider") == "fixture" and listing["data_origin"].startswith("FIXTURE"), "%s: fixture listing labelled provider %r, %r" % (street, listing.get("provider"), listing["data_origin"]))
     for a in p.get("interior_assets") or []:
-        if a.get("provider") == "fixture":
-            need(str(a.get("data_origin")).startswith("FIXTURE"), "%s: fixture scan labelled %r" % (street, a.get("data_origin")))
+        if fixture_scans or a.get("provider") == "fixture":
+            need(a.get("provider") == "fixture" and str(a.get("data_origin")).startswith("FIXTURE"), "%s: fixture scan labelled provider %r, %r" % (street, a.get("provider"), a.get("data_origin")))
     origins.append(listing["data_origin"])
 print("%d properties; listings: %s" % (len(props), ", ".join(sorted(set(origins)))))'
 
@@ -284,8 +289,9 @@ http geometry GET "$P/layouts/geometry/$GEOMETRY_ID" 200
 check 'g = J("geometry")
 need(g.get("source_id") == ARGS[0], "geometry comes from %r, not the scan %s" % (g.get("source_id"), ARGS[0]))
 need(g.get("data_origin"), "geometry has no data_origin")
-if g.get("geometry_source") == "FIXTURE":
-    need(g["data_origin"].startswith("FIXTURE"), "fixture geometry labelled %r" % g["data_origin"])
+modes = {e.get("provider"): e.get("mode") for e in J("ready").get("providers") or []}
+if modes.get("matterport") == "fixture" or g.get("geometry_source") == "FIXTURE":
+    need(g.get("geometry_source") == "FIXTURE" and g["data_origin"].startswith("FIXTURE"), "fixture geometry labelled %r, %r" % (g.get("geometry_source"), g["data_origin"]))
 print("%s, %s, scale_verified=%s" % (g.get("geometry_source"), g["data_origin"], g.get("scale_verified")))' "$SCAN_ID"
 
 cat >"$TMP/revise_body.json" <<'EOF'

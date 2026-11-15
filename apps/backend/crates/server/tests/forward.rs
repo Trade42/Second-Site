@@ -23,11 +23,11 @@ use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, StatusCode};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::Router;
 use serde_json::{json, Value};
 use ss_server::app::AppState;
-use ss_server::http::routes::forward::{forwarded, CALL_FLOW_ROUTES_UNTIL_PART_4, PYTHON_ROUTES};
+use ss_server::http::routes::forward::{forwarded, PYTHON_ROUTES, STUDIO_ROUTES};
 use ss_server::services::forward::{install, parse_target, PythonLink, Timeouts};
 use uuid::Uuid;
 
@@ -294,6 +294,7 @@ fn concrete(template: &str) -> String {
         .replace("{project_id}", &pid())
         .replace("{call_id}", "11111111-2222-4333-8444-555555555555")
         .replace("{handoff_id}", "66666666-7777-4888-9999-000000000000")
+        .replace("{plan_id}", "plan_7.v2~x-y")
 }
 
 fn request(method: &str, uri: &str, headers: &[(&str, &[u8])], body: Vec<u8>) -> Request<Body> {
@@ -360,14 +361,10 @@ both_backends!(every_listed_route_is_forwarded, |db| {
         .map(|c| (c.method, c.target))
         .collect();
     assert_eq!(got, expected);
-    assert_eq!(
-        expected.len(),
-        PYTHON_ROUTES.len() + CALL_FLOW_ROUTES_UNTIL_PART_4.len()
-    );
-    // The whole service: the Python routes are always forwarded; a temporary call-flow entry is
-    // forwarded unless a native route of the same path and method answers it (part 4).
+    assert_eq!(expected.len(), PYTHON_ROUTES.len() + STUDIO_ROUTES.len());
+    // The whole service: every listed route is forwarded (none is native).
     let before = up.forwarded().len();
-    for f in PYTHON_ROUTES {
+    for f in forwarded() {
         let (path, req) = listed_request(f);
         let r = t.send(req).await;
         assert_eq!(
@@ -377,26 +374,63 @@ both_backends!(every_listed_route_is_forwarded, |db| {
             r.text
         );
     }
-    assert_eq!(up.forwarded().len(), before + PYTHON_ROUTES.len());
-    for f in CALL_FLOW_ROUTES_UNTIL_PART_4 {
-        let n = up.forwarded().len();
-        let (path, req) = listed_request(f);
-        let r = t.send(req).await;
-        let was_forwarded = up.forwarded().len() == n + 1;
-        if was_forwarded {
-            assert_eq!(r.body, json!({"method": f.method, "target": path}));
-        }
-        eprintln!(
-            "call-flow entry {} {}: {}",
-            f.method,
-            f.path,
-            if was_forwarded {
-                "forwarded"
-            } else {
-                "answered natively"
+    assert_eq!(up.forwarded().len(), before + expected.len());
+});
+
+// The call routes, forwarded until the Rust call flow landed (server part 4), are answered
+// natively now and never reach the Python service, with or without a token.
+both_backends!(the_call_routes_are_native_and_never_forwarded, |db| {
+    let up = Upstream::echo();
+    let t = app_for(db, &up.base);
+    let (tok, _) = t.dev_token().await;
+    let p = pid();
+    let call = "11111111-2222-4333-8444-555555555555";
+    let handoff = "66666666-7777-4888-9999-000000000000";
+    for (method, path) in [
+        ("POST", format!("/api/v1/projects/{p}/outreach")),
+        ("GET", format!("/api/v1/projects/{p}/communications")),
+        ("POST", format!("/api/v1/projects/{p}/calls")),
+        ("GET", format!("/api/v1/projects/{p}/calls")),
+        (
+            "POST",
+            format!("/api/v1/projects/{p}/calls/{call}/simulate"),
+        ),
+        ("GET", format!("/api/v1/projects/{p}/handoffs")),
+        (
+            "POST",
+            format!("/api/v1/projects/{p}/handoffs/{handoff}/response"),
+        ),
+        ("POST", "/webhooks/telnyx".to_owned()),
+    ] {
+        for auth in [None, Some(tok.as_str())] {
+            let mut h: Vec<(&str, Vec<u8>)> = vec![("content-type", b"application/json".to_vec())];
+            if let Some(a) = auth {
+                h.push(("authorization", format!("Bearer {a}").into_bytes()));
             }
-        );
+            let h: Vec<(&str, &[u8])> = h.iter().map(|(k, v)| (*k, v.as_slice())).collect();
+            let r = t.send(request(method, &path, &h, b"{}".to_vec())).await;
+            assert!(
+                r.status.is_client_error(),
+                "{method} {path}: {} {}",
+                r.status,
+                r.text
+            );
+            assert!(
+                r.body["error_code"].is_string(),
+                "{method} {path}: {}",
+                r.text
+            );
+            assert!(
+                !r.body["error_code"]
+                    .as_str()
+                    .unwrap()
+                    .starts_with("PYTHON_SERVICE"),
+                "{method} {path}: {}",
+                r.text
+            );
+        }
     }
+    assert!(up.forwarded().is_empty(), "{:#?}", up.forwarded());
 });
 
 both_backends!(bodies_and_headers_pass_unchanged, |db| {
@@ -679,6 +713,74 @@ both_backends!(answers_come_back_unchanged, |db| {
     assert!(vary.iter().any(|v| v == "Accept-Encoding"), "{vary:?}");
 });
 
+both_backends!(the_studio_routes_pass_csv_and_plan_ids_unchanged, |db| {
+    // A bill of materials as CSV: a UTF-8 byte order mark, quotes, commas, CRLF, non-ASCII.
+    let csv: Vec<u8> = b"\xef\xbb\xbfitem,qty,unit_cents\r\n\"Chair, \"\"lounge\"\"\",2,15900\r\nCaf\xc3\xa9 table,1,24900\r\n".to_vec();
+    let csv2 = csv.clone();
+    let up = Upstream::start(move |r| {
+        if r.target.ends_with("/bom.csv") {
+            Reply::new(200, csv2.clone())
+                .header("content-type", "text/csv; charset=utf-8")
+                .header("content-disposition", "attachment; filename=\"bom.csv\"")
+        } else {
+            Reply::json(200, json!({"target": r.target}))
+        }
+    });
+    let t = app_for(db, &up.base);
+    let r = t
+        .send(request(
+            "GET",
+            "/api/v1/studio/plans/plan_7.v2~x-y/bom.csv",
+            &[],
+            vec![],
+        ))
+        .await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.headers["content-type"], "text/csv; charset=utf-8");
+    assert_eq!(
+        r.headers["content-disposition"],
+        "attachment; filename=\"bom.csv\""
+    );
+    assert_eq!(r.text.as_bytes(), csv.as_slice(), "the CSV bytes changed");
+    // Plan ids of the agreed shape reach Python as sent.
+    let long_id = "p".repeat(128);
+    for id in [
+        "plan-1",
+        "PLAN_2",
+        "a.b~c-d_e",
+        "..a",
+        "a..",
+        "v1.2.3",
+        "0",
+        long_id.as_str(),
+    ] {
+        for (m, suffix) in [
+            ("GET", ""),
+            ("POST", "/mutate"),
+            ("POST", "/propose"),
+            ("GET", "/bom"),
+        ] {
+            let path = format!("/api/v1/studio/plans/{id}{suffix}");
+            let r = t.send(request(m, &path, &[], b"{}".to_vec())).await;
+            assert_eq!(r.status, StatusCode::OK, "{m} {path}: {}", r.text);
+            assert_eq!(r.body["target"], path);
+        }
+    }
+    // A query string with dots and slashes is not part of the path.
+    let r = t
+        .send(request(
+            "GET",
+            "/api/v1/studio/plans/p1?next=../../internal",
+            &[],
+            vec![],
+        ))
+        .await;
+    assert_eq!(
+        r.body["target"],
+        "/api/v1/studio/plans/p1?next=../../internal"
+    );
+});
+
 // ---- what is not forwarded -------------------------------------------------------------------
 
 // Paths and methods next to the list, answered here; the upstream sees none of them.
@@ -702,6 +804,22 @@ both_backends!(paths_next_to_the_list_are_not_forwarded, |db| {
         ("POST", "/webhooks/telnyx/x".to_owned()),
         ("POST", "/webhooks/other".to_owned()),
         ("POST", format!("/api/v1/projects/{p}/calls/x/y/simulate")),
+        ("GET", "/api/v1/studio".to_owned()),
+        ("GET", "/api/v1/studio/".to_owned()),
+        ("GET", "/api/v1/studio/other".to_owned()),
+        ("GET", "/api/v1/studio/status/x".to_owned()),
+        ("GET", "/api/v1/studio/plans/x/y".to_owned()),
+        ("GET", "/api/v1/studio/plans/x/bom.json".to_owned()),
+        ("GET", "/api/v1/studio/plans/x/bom.csv/".to_owned()),
+        ("POST", "/api/v1/studio/products".to_owned()),
+        ("POST", "/api/v1/studio/scopes/x".to_owned()),
+        // Plan ids outside the agreed shape: dots only, too long, encoded.
+        ("GET", "/api/v1/studio/plans/..".to_owned()),
+        ("GET", "/api/v1/studio/plans/./bom".to_owned()),
+        ("GET", format!("/api/v1/studio/plans/{}", "p".repeat(129))),
+        ("GET", "/api/v1/studio/plans/a%2Fb/bom.csv".to_owned()),
+        ("POST", "/api/v1/studio/plans/%2e%2e/mutate".to_owned()),
+        ("POST", "/api/v1/studio/plans/a+b/propose".to_owned()),
     ] {
         let r = t
             .send(request(
@@ -721,6 +839,10 @@ both_backends!(paths_next_to_the_list_are_not_forwarded, |db| {
     }
     // Methods the list does not name, on forwarded paths: the ordinary 405.
     for (method, path) in [
+        ("GET", "/api/v1/studio/plans".to_owned()),
+        ("POST", "/api/v1/studio/status".to_owned()),
+        ("PUT", "/api/v1/studio/plans/plan-1".to_owned()),
+        ("POST", "/api/v1/studio/plans/plan-1/bom.csv".to_owned()),
         ("DELETE", "/api/v1/owner/channel".to_owned()),
         ("POST", "/api/v1/owner/channel".to_owned()),
         ("HEAD", "/api/v1/owner/channel".to_owned()),
@@ -748,6 +870,7 @@ fn strict(path: &str) -> bool {
         || path.contains("/owner/channel")
         || path.starts_with("/webhooks/photon/")
         || path.contains("/chat")
+        || path.contains("/studio/")
 }
 
 /// The paths that must never reach the upstream: the internal link, and tricks around it.
@@ -783,6 +906,12 @@ fn internal_tricks() -> Vec<String> {
         format!("/api/v1/projects/{p}/chat/../../../../internal/v1/owner/notify"),
         format!("/api/v1/projects/{p}/chat%2F..%2F..%2F..%2F..%2Finternal%2Fv1%2Fowner%2Fnotify"),
         format!("/api/v1/projects/{p}/calls/..%2F..%2F..%2F..%2Finternal%2Fv1%2Fowner%2Fnotify/simulate"),
+        "/api/v1/studio/plans/..%2F..%2F..%2F..%2Finternal%2Fv1%2Fowner%2Fnotify".into(),
+        "/api/v1/studio/plans/../../../../internal/v1/owner/notify".into(),
+        "/api/v1/studio/plans/../mutate".into(),
+        "/api/v1/studio/plans/%2e%2e/bom.csv".into(),
+        "/api/v1/studio/plans/%2E%2E%2F%2E%2E%2Finternal/propose".into(),
+        "/api/v1/studio/../../internal/v1/owner/notify".into(),
     ]
 }
 
@@ -902,11 +1031,12 @@ async fn a_native_route_wins_over_a_forwarded_one() {
     let up = Upstream::echo();
     let db = TestDb::new(Kind::Memory).await.unwrap();
     let t = app_for(&db, &up.base);
+    // Native routes on two forwarded paths (as if a Rust port of them landed).
     let natives = || {
         Router::<AppState>::new()
-            .route("/api/v1/projects/{project_id}/outreach", post(native))
-            .route("/api/v1/projects/{project_id}/calls", post(native))
-            .route("/webhooks/telnyx", post(native))
+            .route("/api/v1/owner/channel", get(native))
+            .route("/api/v1/studio/plans", post(native))
+            .route("/webhooks/photon", post(native))
     };
     let fwd = ss_server::http::routes::forward::router;
     // In either merge order.
@@ -925,27 +1055,25 @@ async fn a_native_route_wins_over_a_forwarded_one() {
                 (status, String::from_utf8_lossy(&bytes).into_owned())
             }
         };
-        let p = pid();
-        assert_eq!(
-            send("POST", format!("/api/v1/projects/{p}/outreach")).await,
-            (StatusCode::OK, "native".into())
-        );
-        assert_eq!(
-            send("POST", format!("/api/v1/projects/{p}/calls")).await,
-            (StatusCode::OK, "native".into())
-        );
-        assert_eq!(
-            send("POST", "/webhooks/telnyx".into()).await,
-            (StatusCode::OK, "native".into())
-        );
+        for (m, p) in [
+            ("GET", "/api/v1/owner/channel"),
+            ("POST", "/api/v1/studio/plans"),
+            ("POST", "/webhooks/photon"),
+        ] {
+            assert_eq!(
+                send(m, p.into()).await,
+                (StatusCode::OK, "native".into()),
+                "{m} {p}"
+            );
+        }
         // The forwarded method of a partly native path still goes to Python.
-        let (s, body) = send("GET", format!("/api/v1/projects/{p}/calls")).await;
+        let (s, body) = send("PUT", "/api/v1/owner/channel".into()).await;
         assert_eq!(s, StatusCode::OK);
         assert_eq!(
             serde_json::from_str::<Value>(&body).unwrap()["method"],
-            "GET"
+            "PUT"
         );
-        let (s, _) = send("DELETE", format!("/api/v1/projects/{p}/calls")).await;
+        let (s, _) = send("DELETE", "/api/v1/owner/channel".into()).await;
         assert_eq!(s, StatusCode::METHOD_NOT_ALLOWED);
     }
     let got: Vec<String> = up
@@ -955,10 +1083,7 @@ async fn a_native_route_wins_over_a_forwarded_one() {
         .collect();
     assert_eq!(
         got,
-        [
-            format!("GET /api/v1/projects/{}/calls", pid()),
-            format!("GET /api/v1/projects/{}/calls", pid())
-        ]
+        ["PUT /api/v1/owner/channel", "PUT /api/v1/owner/channel"]
     );
 }
 
@@ -1082,6 +1207,16 @@ both_backends!(timeouts_are_honest_504s, |db| {
         ))
         .await;
     assert_problem(&r, 504, "PYTHON_SERVICE_UNAVAILABLE");
+    // The Studio routes have the long budget too.
+    let r = t
+        .send(request(
+            "POST",
+            "/api/v1/studio/products/search",
+            &[],
+            b"{}".to_vec(),
+        ))
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
     // A GET that timed out says to try again.
     let r = t
         .send(request("GET", "/api/v1/owner/channel", &[], vec![]))

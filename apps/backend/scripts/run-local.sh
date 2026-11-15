@@ -18,6 +18,8 @@
 #   STORE_BACKEND  postgres (default) or memory.
 #   FIXTURES_DIR   default: the repository's fixtures/ directory.
 #   HOST, PORT     default 127.0.0.1 and 8000 here (the binary's own default host is 0.0.0.0).
+#   This script exports STORE_BACKEND, FIXTURES_DIR, HOST and PORT, so a line for one of those
+#   four in a .env file has no effect: set them in the environment.
 #   CARGO          cargo command used to build (default: cargo).
 set -euo pipefail
 

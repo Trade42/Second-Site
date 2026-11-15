@@ -142,9 +142,10 @@ run_pass() {
     tail -n 20 "$log" | sed 's/^/    /'
     return "$rc"
   fi
-  if grep -q '"level":"ERROR"' "$log"; then
+  # The service logs Python-style JSON ("level": "ERROR", with a space).
+  if grep -Eq '"level": ?"ERROR"' "$log"; then
     say "[$pass] the service logged errors:"
-    grep '"level":"ERROR"' "$log" | sed 's/^/    /'
+    grep -E '"level": ?"ERROR"' "$log" | sed 's/^/    /'
     return 1
   fi
   say "[$pass] PASSED; service stopped cleanly"

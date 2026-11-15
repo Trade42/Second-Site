@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/core", "crates/domain", "crates/server", "crates/nessie"]
 
 # ss-domain holds the layout solver and the geometry engines, which are slow unoptimised. At
-# opt-level 1 its tests run 4-5 times faster, and its library rebuilds about as fast as at
+# opt-level 1 its tests run about 3-4 times faster, and its library rebuilds about as fast as at
 # opt-level 0. opt-level 2 runs them a little faster still, but rebuilds the crate's tests
 # about 3 times slower. Applies to the test profile too, which inherits dev.
 [profile.dev.package.ss-domain]

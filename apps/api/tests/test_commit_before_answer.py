@@ -165,13 +165,20 @@ def test_a_refused_commit_of_a_new_project_is_a_non_2xx_and_nothing_is_stored(
     name = f"refused-{uuid4().hex}"
     body = {**demo_project_body, "project_name": name}  # with a CONFIRMED profile, so an event is written too
     remove = refuse_commit("projects", f"NEW.data->>'project_name' = '{name}'")
-    before = {t: _count(f"SELECT count(*) FROM {t}") for t in ("projects", "business_requirements", "activity_events")}
+    before = {
+        t: _count(f"SELECT count(*) FROM {t}")
+        for t in ("projects", "business_requirements", "activity_events")
+    }
     sessions.clear()
     r = TestClient(app, raise_server_exceptions=False).post("/api/v1/projects", json=body, headers=h)
     # Before the fix: 201 with the new project, while the teardown commit failed after the answer.
     assert r.status_code == 500, r.text
     problem = r.json()
-    assert problem["error_code"] == "INTERNAL_ERROR" and problem["retryable"] is True and "project" not in problem
+    assert (
+        problem["error_code"] == "INTERNAL_ERROR"
+        and problem["retryable"] is True
+        and "project" not in problem
+    )
     assert sessions == [["commit", "rollback", "close"]]
     after = {t: _count(f"SELECT count(*) FROM {t}") for t in before}
     assert after == before and _projects_named(name) == 0  # project, profile and event: none stored
@@ -182,7 +189,9 @@ def test_a_refused_commit_of_a_new_project_is_a_non_2xx_and_nothing_is_stored(
     assert _projects_named(name) == 1
 
 
-def test_a_refused_commit_of_the_owner_channel_is_a_non_2xx_and_nothing_is_stored(client, auth, refuse_commit):
+def test_a_refused_commit_of_the_owner_channel_is_a_non_2xx_and_nothing_is_stored(
+    client, auth, refuse_commit
+):
     from app.main import app
 
     h, _ = auth
@@ -256,7 +265,8 @@ def test_the_session_commits_on_success_and_rolls_back_on_a_handler_exception(
 
 
 def _read_until(lines, predicate, limit: int = 100) -> list[str]:
-    """Lines of the event stream up to and including the first one that satisfies `predicate`."""
+    """Lines of the event stream up to and including the first one that satisfies `predicate`. `lines` must be one
+    iterator kept by the caller: a temporary `r.iter_lines()` is closed on return, which closes the stream."""
     out: list[str] = []
     for line in lines:
         out.append(line)
@@ -281,7 +291,7 @@ def test_the_events_stream_still_streams_stored_and_new_events(client, auth, dem
         assert r.headers["content-type"].startswith("text/event-stream")
         lines = r.iter_lines()
         first = _read_until(lines, lambda line: line.startswith("data: "))
-        assert first[-3:-1] == ["id: 1", "event: PROJECT_PROFILE_CONFIRMED"], first
+        assert first[-3:-1] == ["id: 1", "event: project.profile.confirmed"], first
         _read_until(lines, lambda line: line == ": keepalive")
         # A new event written while the stream is open still arrives (the stream polls with sessions of its own).
         put = client.put(
@@ -289,7 +299,7 @@ def test_the_events_stream_still_streams_stored_and_new_events(client, auth, dem
         )
         assert put.status_code == 200, put.text
         second = _read_until(lines, lambda line: line.startswith("data: "), limit=200)
-        assert second[-3:-1] == ["id: 2", "event: PROJECT_PROFILE_CONFIRMED"], second
+        assert second[-3:-1] == ["id: 2", "event: project.profile.confirmed"], second
 
 
 def test_the_events_stream_holds_no_database_connection_while_it_waits(client, auth, demo_project_body):
@@ -297,7 +307,8 @@ def test_the_events_stream_holds_no_database_connection_while_it_waits(client, a
     pid = _new_project(client, h, demo_project_body)
     with client.stream("GET", f"/api/v1/projects/{pid}/events/stream", headers=h) as r:
         assert r.status_code == 200
-        _read_until(r.iter_lines(), lambda line: line == ": keepalive")
+        lines = r.iter_lines()  # kept: dropping the iterator would close the stream and cancel the route
+        _read_until(lines, lambda line: line == ": keepalive")
         # The route's own session (the ownership check) is already committed and closed, and the stream closes its
         # poll session before each keepalive. Before the fix the ownership-check session stayed checked out, idle in
         # a transaction, for as long as the stream was open (up to an hour): one pool connection per open stream.
@@ -311,7 +322,9 @@ def test_a_media_route_still_answers_with_its_bytes(client, container, auth, dem
     props = client.get(f"/api/v1/projects/{pid}/properties", headers=h).json()
     prop = next(p for p in props if p["property_identity"]["latitude"] is not None)
     jpeg = b"\xff\xd8\xff\xe0" + b"fixture-test-image" * 8
-    monkeypatch.setattr(container.vexcel, "ortho_image", lambda _lat, _lon: jpeg)  # fixture mode has no imagery
+    monkeypatch.setattr(
+        container.vexcel, "ortho_image", lambda _lat, _lon: jpeg
+    )  # fixture mode has no imagery
     r = client.get(f"/api/v1/media/vexcel/ortho/{prop['property_id']}")
     assert r.status_code == 200 and r.content == jpeg
     assert r.headers["content-type"] == "image/jpeg"
