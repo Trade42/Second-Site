@@ -17,7 +17,7 @@
 //!   says so (see `ingest_permits_or_skip`); after a timeout the rest of the search skips the
 //!   provider. Python lets the `ProviderError` fail the whole task.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use indexmap::IndexMap;
@@ -25,7 +25,7 @@ use serde_json::{json, Value};
 use ss_core::{utcnow, BusinessExpansionProfile, ProjectStatus};
 use ss_domain::contracts::{
     AssessmentStatus, CostScenario, InfrastructureAssessment, PropertyDigitalProfile,
-    PropertyIdentity, PropertyRankingResult, PropertySearchRequest, SourceManifestEntry,
+    PropertyRankingResult, PropertySearchRequest, SourceManifestEntry,
 };
 use ss_domain::feasibility::FeasibilityEngine;
 use ss_domain::finance::FinancialCalculationService;
@@ -35,7 +35,7 @@ use ss_domain::ranking::RankingEngine;
 use ss_domain::requirements::templates::requirements_for;
 use uuid::Uuid;
 
-use super::enrichment::{enrich_exterior, enrich_interior_pool};
+use super::enrichment::{enrich_exterior, enrich_interior};
 use crate::app::{App, EventHandler};
 use crate::contracts::{ActivityEvent, ActorType, EventType, JsonMap};
 use crate::error::{AppError, AppResult};
@@ -50,65 +50,6 @@ use crate::store::repo::{
 use crate::store::{schema, Query, Tx};
 
 pub const AGENT: &str = "expansion-supervisor";
-
-/// Provider requests of one search that may be in flight at once (exterior enrichment, permit
-/// fetches). Tests set another bound with `app.extensions.insert(Arc::new(SearchConcurrency(n)))`.
-pub const PROVIDER_CONCURRENCY: usize = 8;
-
-/// An override of [`PROVIDER_CONCURRENCY`] (values below 1 count as 1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SearchConcurrency(pub usize);
-
-/// `items.map(claim).map(work)`, with at most `bound` `work` calls running at once on scoped
-/// threads, results in the order of `items`. `claim` runs for one item at a time, in the order of
-/// `items` (under the queue lock), so a decision it takes from shared state (for example "the
-/// provider has timed out: do not call it") applies to a suffix of `items`. With a bound of 1
-/// (or one item) everything runs on the calling thread, one item after the other, as before.
-pub fn bounded_map<T, S, R>(
-    items: Vec<T>,
-    bound: usize,
-    claim: impl Fn(T) -> S + Sync,
-    work: impl Fn(S) -> R + Sync,
-) -> Vec<R>
-where
-    T: Send,
-    R: Send,
-{
-    let n = items.len();
-    let workers = bound.max(1).min(n);
-    if workers <= 1 {
-        return items.into_iter().map(|t| work(claim(t))).collect();
-    }
-    let queue = Mutex::new(items.into_iter().enumerate());
-    let slots: Vec<Mutex<Option<R>>> = (0..n).map(|_| Mutex::new(None)).collect();
-    std::thread::scope(|scope| {
-        for _ in 0..workers {
-            scope.spawn(|| loop {
-                let next = {
-                    let mut q = queue.lock().unwrap_or_else(|e| e.into_inner());
-                    q.next().map(|(i, t)| (i, claim(t)))
-                };
-                let Some((i, claimed)) = next else { break };
-                let r = work(claimed);
-                *slots[i].lock().unwrap_or_else(|e| e.into_inner()) = Some(r);
-            });
-        }
-    });
-    // A worker that panicked has already made `scope` panic; every slot is filled here.
-    slots
-        .into_iter()
-        .map(|m| {
-            m.into_inner()
-                .unwrap_or_else(|e| e.into_inner())
-                .expect("every item was processed")
-        })
-        .collect()
-}
-
-/// A permit fetch done ahead of the per-property loop: the matched answer, or the provider error
-/// and whether the provider was called (`false`: skipped after an earlier timeout). The outer
-/// `Err` is a failure that is not a provider error (it still fails the task).
-type Prefetched = AppResult<Result<permits::Fetched, (ProviderError, bool)>>;
 
 /// `current_profile`: the project's latest business profile, or 404 `PROFILE_REQUIRED`.
 pub async fn current_profile(
@@ -139,14 +80,6 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
             app,
             providers: app.integrations(),
         }
-    }
-
-    /// The bound on concurrent provider requests of one search.
-    fn concurrency(&self) -> usize {
-        self.app
-            .extensions
-            .get::<SearchConcurrency>()
-            .map_or(PROVIDER_CONCURRENCY, |c| c.0.max(1))
     }
 
     /// `with_profile_limits`: fill unset search limits from the owner's business profile (area
@@ -200,25 +133,23 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
         let vexcel = self.providers.vexcel.clone();
         let media_base = self.app.settings.public_base_url.clone();
         let limit = usize::try_from(req.limit).unwrap_or(0);
-        let bound = self.concurrency();
         let found = blocking(move || -> AppResult<Vec<PropertyDigitalProfile>> {
             let pool = PropertyScoutService::new(costar).search(project_id, &pool_req)?;
-            // One `model_summaries` call for the whole pool (see `enrich_interior_pool`).
-            let mut pool = enrich_interior_pool(pool, &*matterport);
+            let mut pool: Vec<PropertyDigitalProfile> = pool
+                .into_iter()
+                .map(|p| enrich_interior(p, &*matterport))
+                .collect();
             // Prefer candidates whose listed suite has a measured interior scan (stable).
             pool.sort_by_key(|p| {
                 !p.interior_assets
                     .iter()
                     .any(|a| a.matches_listing_unit == Some(true))
             });
-            // The `limit` best, enriched concurrently, in their order.
-            let best: Vec<PropertyDigitalProfile> = pool.into_iter().take(limit).collect();
-            Ok(bounded_map(
-                best,
-                bound,
-                |p| p,
-                |p| enrich_exterior(p, &*vexcel, &media_base),
-            ))
+            Ok(pool
+                .into_iter()
+                .take(limit)
+                .map(|p| enrich_exterior(p, &*vexcel, &media_base))
+                .collect())
         })
         .await??;
         let mut saved: Vec<PropertyDigitalProfile> = Vec::new();
@@ -326,67 +257,13 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
         skip: Option<&ProviderError>,
     ) -> AppResult<(PropertyDigitalProfile, Option<PermitSkip>)> {
         let provider = self.providers.permits.clone();
+        let live = provider.mode() == "live";
         let fetched = match skip {
             Some(earlier) => Err((earlier.clone(), false)),
             None => permits::fetch(provider, &prop.property_identity, prop.project_id)
                 .await?
                 .map_err(|e| (e, true)),
         };
-        self.store_fetched_permits(tx, prop, correlation_id, fetched)
-            .await
-    }
-
-    /// Fetch the permits of every property of a search before any is stored, at most
-    /// [`Self::concurrency`] at a time, answers in the order of `props`. After a fetch has timed
-    /// out, the fetches not yet started are skipped (`provider_called: false`); those already in
-    /// flight finish on their own. Nothing touches the database.
-    async fn prefetch_permits(
-        &self,
-        props: &[PropertyDigitalProfile],
-    ) -> AppResult<Vec<Prefetched>> {
-        let provider = self.providers.permits.clone();
-        let bound = self.concurrency();
-        let work: Vec<(PropertyIdentity, Uuid)> = props
-            .iter()
-            .map(|p| (p.property_identity.clone(), p.project_id))
-            .collect();
-        blocking(move || {
-            let timed_out: Mutex<Option<ProviderError>> = Mutex::new(None);
-            let earlier = || timed_out.lock().unwrap_or_else(|e| e.into_inner()).clone();
-            bounded_map(
-                work,
-                bound,
-                |item| (earlier(), item),
-                |(skip, (identity, project_id))| -> Prefetched {
-                    if let Some(e) = skip {
-                        return Ok(Err((e, false)));
-                    }
-                    let answer = permits::fetch_blocking(provider.clone(), &identity, project_id)?;
-                    if let Err(e) = &answer {
-                        if e.kind == ProviderErrorKind::Timeout {
-                            let mut t = timed_out.lock().unwrap_or_else(|e| e.into_inner());
-                            if t.is_none() {
-                                *t = Some(e.clone());
-                            }
-                        }
-                    }
-                    Ok(answer.map_err(|e| (e, true)))
-                },
-            )
-        })
-        .await
-    }
-
-    /// The database half of the permit step, given the fetch's answer (see
-    /// [`Self::ingest_permits_or_skip`]).
-    async fn store_fetched_permits(
-        &self,
-        tx: &mut dyn Tx,
-        prop: PropertyDigitalProfile,
-        correlation_id: Uuid,
-        fetched: Result<permits::Fetched, (ProviderError, bool)>,
-    ) -> AppResult<(PropertyDigitalProfile, Option<PermitSkip>)> {
-        let live = self.providers.permits.mode() == "live";
         let fetched = match fetched {
             Ok(fetched) => fetched,
             Err((error, provider_called)) => {
@@ -596,17 +473,18 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
         if props.is_empty() {
             return Err(AppError::conflict("no candidate properties found").code("NO_CANDIDATES"));
         }
-        // The permit fetches run first, concurrently (`prefetch_permits`); after a permit
-        // timeout, the fetches not yet started skip the provider: one slow provider costs about
-        // one timeout per search, not one per property. Then each property is stored, attached
-        // and evaluated in order, exactly as when the fetch was made in the loop.
-        let fetched = self.prefetch_permits(&props).await?;
+        // After a permit timeout, the remaining properties of this search skip the provider:
+        // one slow provider costs one timeout per search, not one per property.
+        let mut timed_out: Option<ProviderError> = None;
         let mut skipped: Vec<PermitSkip> = Vec::new();
-        for (p, answer) in props.iter().zip(fetched) {
+        for p in &props {
             let (p, skip) = self
-                .store_fetched_permits(tx, p.clone(), correlation_id, answer?)
+                .ingest_permits_or_skip(tx, p.clone(), correlation_id, timed_out.as_ref())
                 .await?;
             if let Some(skip) = skip {
+                if skip.error.kind == ProviderErrorKind::Timeout && timed_out.is_none() {
+                    timed_out = Some(skip.error.clone());
+                }
                 skipped.push(skip);
             }
             self.evaluate(tx, p, correlation_id, None).await?;

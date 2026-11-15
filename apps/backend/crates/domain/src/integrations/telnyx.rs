@@ -99,207 +99,6 @@ pub struct DialResult {
     pub state: String,
 }
 
-/// `stream_track`: which audio of the call Telnyx streams to `stream_url`
-/// (<https://developers.telnyx.com/api-reference/call-commands/streaming-start>; Telnyx's default
-/// is `inbound_track`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StreamTrack {
-    #[default]
-    Inbound,
-    Outbound,
-    Both,
-}
-
-impl StreamTrack {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            StreamTrack::Inbound => "inbound_track",
-            StreamTrack::Outbound => "outbound_track",
-            StreamTrack::Both => "both_tracks",
-        }
-    }
-}
-
-/// A codec value of `stream_codec` or `stream_bidirectional_codec` (Telnyx's `StreamCodec` /
-/// `StreamBidirectionalCodec` enums, case sensitive). Telnyx's `stream_codec` also accepts
-/// `default`: that is `None` in [`StreamOptions::stream_codec`] (the field is then not sent).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StreamCodec {
-    Pcmu,
-    Pcma,
-    G722,
-    Opus,
-    AmrWb,
-    L16,
-}
-
-impl StreamCodec {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            StreamCodec::Pcmu => "PCMU",
-            StreamCodec::Pcma => "PCMA",
-            StreamCodec::G722 => "G722",
-            StreamCodec::Opus => "OPUS",
-            StreamCodec::AmrWb => "AMR-WB",
-            StreamCodec::L16 => "L16",
-        }
-    }
-}
-
-/// `stream_bidirectional_target_legs` (Telnyx's default is `opposite`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StreamTargetLegs {
-    Both,
-    Own,
-    Opposite,
-}
-
-impl StreamTargetLegs {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            StreamTargetLegs::Both => "both",
-            StreamTargetLegs::Own => "self",
-            StreamTargetLegs::Opposite => "opposite",
-        }
-    }
-}
-
-/// Bidirectional streaming: `stream_bidirectional_mode = "rtp"`, so that the base64 RTP payloads
-/// our service sends back over the WebSocket (`{"event":"media","media":{"payload":..}}`) are
-/// played into the call. Fields left `None` are not sent and take Telnyx's default.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Bidirectional {
-    /// `stream_bidirectional_codec` (Telnyx's default `PCMU`, 8 kHz).
-    pub codec: StreamCodec,
-    pub target_legs: Option<StreamTargetLegs>,
-    /// `stream_bidirectional_sampling_rate`: 8000, 16000, 22050, 24000 or 48000.
-    pub sampling_rate: Option<u32>,
-}
-
-/// The media-stream parameters of `streaming_start` and of a dial that streams from the start
-/// (the same field names on both; see the Telnyx pages cited at [`TelephonyProvider::start_streaming`]).
-/// Optional fields left `None` are not sent at all.
-#[derive(Clone, PartialEq, Eq)]
-pub struct StreamOptions {
-    /// `stream_url`: the `wss://` address Telnyx connects to.
-    pub stream_url: String,
-    /// `stream_track`.
-    pub track: StreamTrack,
-    /// `stream_codec` of the audio Telnyx sends us (`None`: the call's codec).
-    pub stream_codec: Option<StreamCodec>,
-    /// `None`: one-way stream (Telnyx's default `mp3` bidirectional mode is not requested).
-    pub bidirectional: Option<Bidirectional>,
-    /// `stream_auth_token`, sent by Telnyx when it opens the WebSocket (at most 4000
-    /// characters). Never printed by `Debug` and never in the fixture's JSON record.
-    pub auth_token: Option<String>,
-}
-
-impl std::fmt::Debug for StreamOptions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StreamOptions")
-            .field("stream_url", &self.stream_url)
-            .field("track", &self.track)
-            .field("stream_codec", &self.stream_codec)
-            .field("bidirectional", &self.bidirectional)
-            .field(
-                "auth_token",
-                &self.auth_token.as_ref().map(|_| "<redacted>"),
-            )
-            .finish()
-    }
-}
-
-impl StreamOptions {
-    /// What a voice agent on the call needs: the callee's audio (`inbound_track`) as PCMU, and
-    /// bidirectional RTP in PCMU so that what we send back is played into the call.
-    pub fn voice_agent(stream_url: &str) -> Self {
-        Self {
-            stream_url: stream_url.to_owned(),
-            track: StreamTrack::Inbound,
-            stream_codec: Some(StreamCodec::Pcmu),
-            bidirectional: Some(Bidirectional {
-                codec: StreamCodec::Pcmu,
-                target_legs: None,
-                sampling_rate: None,
-            }),
-            auth_token: None,
-        }
-    }
-
-    /// The request fields, Telnyx's names, only those set.
-    pub fn to_fields(&self) -> Map<String, Value> {
-        let mut m = Map::new();
-        m.insert("stream_url".into(), Value::from(self.stream_url.as_str()));
-        m.insert("stream_track".into(), Value::from(self.track.as_str()));
-        if let Some(c) = self.stream_codec {
-            m.insert("stream_codec".into(), Value::from(c.as_str()));
-        }
-        if let Some(b) = &self.bidirectional {
-            m.insert("stream_bidirectional_mode".into(), Value::from("rtp"));
-            m.insert(
-                "stream_bidirectional_codec".into(),
-                Value::from(b.codec.as_str()),
-            );
-            if let Some(t) = b.target_legs {
-                m.insert(
-                    "stream_bidirectional_target_legs".into(),
-                    Value::from(t.as_str()),
-                );
-            }
-            if let Some(r) = b.sampling_rate {
-                m.insert("stream_bidirectional_sampling_rate".into(), Value::from(r));
-            }
-        }
-        if let Some(t) = &self.auth_token {
-            m.insert("stream_auth_token".into(), Value::from(t.as_str()));
-        }
-        m
-    }
-}
-
-/// The carrier events of a media stream (`data.event_type`), named here so that the call
-/// orchestrator can match on them. Until something is wired to them the orchestrator ignores
-/// them as it ignores every event type it does not handle.
-/// <https://developers.telnyx.com/docs/voice/programmable-voice/media-streaming>,
-/// <https://developers.telnyx.com/api-reference/callbacks/call-streaming-started>.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StreamEvent {
-    Started,
-    Stopped,
-    Failed,
-}
-
-impl StreamEvent {
-    pub const STARTED: &'static str = "streaming.started";
-    pub const STOPPED: &'static str = "streaming.stopped";
-    pub const FAILED: &'static str = "streaming.failed";
-
-    pub fn parse(event_type: &str) -> Option<Self> {
-        match event_type {
-            Self::STARTED => Some(StreamEvent::Started),
-            Self::STOPPED => Some(StreamEvent::Stopped),
-            Self::FAILED => Some(StreamEvent::Failed),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            StreamEvent::Started => Self::STARTED,
-            StreamEvent::Stopped => Self::STOPPED,
-            StreamEvent::Failed => Self::FAILED,
-        }
-    }
-}
-
-fn unsupported(what: &str) -> TelephonyError {
-    TelephonyError::Provider(ProviderError::new(
-        "telnyx",
-        ProviderErrorKind::NotConfigured,
-        format!("{what} is not supported by this telephony provider"),
-    ))
-}
-
 /// Why a telephony command failed: a provider error (Python `ProviderError`), or live outbound
 /// calls being disabled (Python `ForbiddenError`, HTTP 403 `FORBIDDEN`).
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -340,53 +139,6 @@ pub trait TelephonyProvider: Send + Sync {
         call_control_id: &str,
     ) -> Result<(), TelephonyError>;
     fn status(&self) -> ProviderStatusEntry;
-
-    // The media-stream commands. The defaults refuse (`NOT_CONFIGURED`) without doing anything,
-    // so that a provider written before them (a test double) still compiles; the live and the
-    // fixture provider implement every one.
-
-    /// [`TelephonyProvider::dial`] that also asks for the media stream from the first moment
-    /// (`stream_url` and the other stream fields on `POST /calls`).
-    /// <https://developers.telnyx.com/api-reference/call-commands/dial>
-    fn dial_streaming(
-        &self,
-        _to: &str,
-        _from: &str,
-        _webhook_url: &str,
-        _idempotency_key: &str,
-        _client_state: Option<&IndexMap<String, Value>>,
-        _stream: &StreamOptions,
-    ) -> Result<DialResult, TelephonyError> {
-        Err(unsupported("dial_streaming"))
-    }
-    /// `POST /calls/{id}/actions/streaming_start`.
-    /// <https://developers.telnyx.com/api-reference/call-commands/streaming-start>
-    fn start_streaming(
-        &self,
-        _call_control_id: &str,
-        _stream: &StreamOptions,
-    ) -> Result<(), TelephonyError> {
-        Err(unsupported("streaming_start"))
-    }
-    /// `POST /calls/{id}/actions/streaming_stop`; `stream_id` `None` stops every stream of the
-    /// call. <https://developers.telnyx.com/api-reference/call-commands/streaming-stop>
-    fn stop_streaming(
-        &self,
-        _call_control_id: &str,
-        _stream_id: Option<&str>,
-    ) -> Result<(), TelephonyError> {
-        Err(unsupported("streaming_stop"))
-    }
-    /// `POST /calls/{id}/actions/transcription_stop`.
-    /// <https://developers.telnyx.com/api-reference/call-commands/transcription-stop>
-    fn stop_transcription(&self, _call_control_id: &str) -> Result<(), TelephonyError> {
-        Err(unsupported("transcription_stop"))
-    }
-    /// `POST /calls/{id}/actions/playback_stop` with `stop = "all"` (the current audio and the
-    /// queue). <https://developers.telnyx.com/api-reference/call-commands/stop-audio-playback>
-    fn stop_playback(&self, _call_control_id: &str) -> Result<(), TelephonyError> {
-        Err(unsupported("playback_stop"))
-    }
 }
 
 /// One dial the fixture provider recorded (Python's `calls` entries).
@@ -396,41 +148,15 @@ pub struct FixtureCall {
     pub to: String,
     pub idempotency_key: String,
     pub client_state: Option<IndexMap<String, Value>>,
-    /// The stream asked for on the dial (`dial_streaming`); `None` for a plain `dial`.
-    pub stream: Option<StreamOptions>,
 }
 
 /// One command the fixture provider recorded (Python's `commands` entries).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TelephonyCommand {
-    Speak {
-        leg: String,
-        text: String,
-    },
-    PlaybackStart {
-        leg: String,
-        audio_url: String,
-    },
-    TranscriptionStart {
-        leg: String,
-    },
-    Hangup {
-        leg: String,
-    },
-    StreamingStart {
-        leg: String,
-        stream: StreamOptions,
-    },
-    StreamingStop {
-        leg: String,
-        stream_id: Option<String>,
-    },
-    TranscriptionStop {
-        leg: String,
-    },
-    PlaybackStop {
-        leg: String,
-    },
+    Speak { leg: String, text: String },
+    PlaybackStart { leg: String, audio_url: String },
+    TranscriptionStart { leg: String },
+    Hangup { leg: String },
 }
 
 impl TelephonyCommand {
@@ -441,10 +167,6 @@ impl TelephonyCommand {
             TelephonyCommand::PlaybackStart { .. } => "playback_start",
             TelephonyCommand::TranscriptionStart { .. } => "transcription_start",
             TelephonyCommand::Hangup { .. } => "hangup",
-            TelephonyCommand::StreamingStart { .. } => "streaming_start",
-            TelephonyCommand::StreamingStop { .. } => "streaming_stop",
-            TelephonyCommand::TranscriptionStop { .. } => "transcription_stop",
-            TelephonyCommand::PlaybackStop { .. } => "playback_stop",
         }
     }
 
@@ -454,17 +176,11 @@ impl TelephonyCommand {
             TelephonyCommand::Speak { leg, .. }
             | TelephonyCommand::PlaybackStart { leg, .. }
             | TelephonyCommand::TranscriptionStart { leg }
-            | TelephonyCommand::Hangup { leg }
-            | TelephonyCommand::StreamingStart { leg, .. }
-            | TelephonyCommand::StreamingStop { leg, .. }
-            | TelephonyCommand::TranscriptionStop { leg }
-            | TelephonyCommand::PlaybackStop { leg } => leg,
+            | TelephonyCommand::Hangup { leg } => leg,
         }
     }
 
-    /// Python's dict: `{"cmd", "leg"}` plus `"text"` or `"audio_url"`; for the stream commands
-    /// (Rust only) `"stream_url"` and `"stream_track"`, or `"stream_id"` when one was given. The
-    /// stream's auth token is never in it.
+    /// Python's dict: `{"cmd", "leg"}` plus `"text"` or `"audio_url"`.
     pub fn to_json(&self) -> Value {
         let mut m = Map::new();
         m.insert("cmd".into(), Value::from(self.cmd()));
@@ -475,16 +191,6 @@ impl TelephonyCommand {
             }
             TelephonyCommand::PlaybackStart { audio_url, .. } => {
                 m.insert("audio_url".into(), Value::from(audio_url.as_str()));
-            }
-            TelephonyCommand::StreamingStart { stream, .. } => {
-                m.insert("stream_url".into(), Value::from(stream.stream_url.as_str()));
-                m.insert("stream_track".into(), Value::from(stream.track.as_str()));
-            }
-            TelephonyCommand::StreamingStop {
-                stream_id: Some(id),
-                ..
-            } => {
-                m.insert("stream_id".into(), Value::from(id.as_str()));
             }
             _ => {}
         }
@@ -552,13 +258,18 @@ impl FixtureTelephonyProvider {
     }
 }
 
-impl FixtureTelephonyProvider {
-    fn dial_inner(
+impl TelephonyProvider for FixtureTelephonyProvider {
+    fn mode(&self) -> &str {
+        "fixture"
+    }
+
+    fn dial(
         &self,
         to: &str,
+        _from: &str,
+        _webhook_url: &str,
         idempotency_key: &str,
         client_state: Option<&IndexMap<String, Value>>,
-        stream: Option<&StreamOptions>,
     ) -> Result<DialResult, TelephonyError> {
         self.with(|s| {
             if s.fail_next_dial {
@@ -585,35 +296,12 @@ impl FixtureTelephonyProvider {
                 to: to.to_owned(),
                 idempotency_key: idempotency_key.to_owned(),
                 client_state: client_state.cloned(),
-                stream: stream.cloned(),
             });
             Ok(DialResult {
                 call_control_id: id,
                 state: "initiated".into(),
             })
         })
-    }
-
-    fn record(&self, cmd: TelephonyCommand) -> Result<(), TelephonyError> {
-        self.with(|s| s.commands.push(cmd));
-        Ok(())
-    }
-}
-
-impl TelephonyProvider for FixtureTelephonyProvider {
-    fn mode(&self) -> &str {
-        "fixture"
-    }
-
-    fn dial(
-        &self,
-        to: &str,
-        _from: &str,
-        _webhook_url: &str,
-        idempotency_key: &str,
-        client_state: Option<&IndexMap<String, Value>>,
-    ) -> Result<DialResult, TelephonyError> {
-        self.dial_inner(to, idempotency_key, client_state, None)
     }
 
     fn speak(&self, call_control_id: &str, text: &str) -> Result<(), TelephonyError> {
@@ -689,51 +377,5 @@ impl TelephonyProvider for FixtureTelephonyProvider {
             false,
             "Simulated calls; no PSTN traffic.",
         )
-    }
-
-    fn dial_streaming(
-        &self,
-        to: &str,
-        _from: &str,
-        _webhook_url: &str,
-        idempotency_key: &str,
-        client_state: Option<&IndexMap<String, Value>>,
-        stream: &StreamOptions,
-    ) -> Result<DialResult, TelephonyError> {
-        self.dial_inner(to, idempotency_key, client_state, Some(stream))
-    }
-
-    fn start_streaming(
-        &self,
-        call_control_id: &str,
-        stream: &StreamOptions,
-    ) -> Result<(), TelephonyError> {
-        self.record(TelephonyCommand::StreamingStart {
-            leg: call_control_id.to_owned(),
-            stream: stream.clone(),
-        })
-    }
-
-    fn stop_streaming(
-        &self,
-        call_control_id: &str,
-        stream_id: Option<&str>,
-    ) -> Result<(), TelephonyError> {
-        self.record(TelephonyCommand::StreamingStop {
-            leg: call_control_id.to_owned(),
-            stream_id: stream_id.map(str::to_owned),
-        })
-    }
-
-    fn stop_transcription(&self, call_control_id: &str) -> Result<(), TelephonyError> {
-        self.record(TelephonyCommand::TranscriptionStop {
-            leg: call_control_id.to_owned(),
-        })
-    }
-
-    fn stop_playback(&self, call_control_id: &str) -> Result<(), TelephonyError> {
-        self.record(TelephonyCommand::PlaybackStop {
-            leg: call_control_id.to_owned(),
-        })
     }
 }

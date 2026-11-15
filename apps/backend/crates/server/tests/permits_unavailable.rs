@@ -20,7 +20,6 @@ use ss_domain::contracts::ProviderStatusEntry;
 use ss_domain::integrations::base::{ProviderError, ProviderErrorKind};
 use ss_domain::integrations::la_permits::{LaPermitProvider, RawPermit};
 use ss_server::integrations::Integrations;
-use ss_server::workflows::property_analysis::{SearchConcurrency, PROVIDER_CONCURRENCY};
 
 use common::*;
 
@@ -358,8 +357,6 @@ both_backends!(timeout_skips_the_remaining_properties, |db| {
     let baseline = assessments(&t, &tok, &base_pid).await;
 
     let empty = empty_run(&t, &tok).await;
-    // Fetches one at a time (bound 1): the sequential rule exactly.
-    t.app.extensions.insert(Arc::new(SearchConcurrency(1)));
     let calls = install(&t, Script::Fail(ProviderErrorKind::Timeout));
     let pid = new_project(&t, &tok).await;
     let r = search(&t, &tok, &pid).await;
@@ -375,35 +372,6 @@ both_backends!(timeout_skips_the_remaining_properties, |db| {
         .map(|s| s["provider_called"].as_bool().unwrap())
         .collect();
     assert_eq!(called, vec![true, false]);
-    for s in &skipped {
-        assert_eq!(s["error_kind"], "TIMEOUT");
-    }
-    assert_permit_dependent_unknown(&baseline, &empty, &assessments(&t, &tok, &pid).await);
-
-    // Concurrent fetches (the default bound): fetches already started when the first timeout
-    // came back finish on their own, the ones not yet started skip the provider. So 1 or 2
-    // properties called it, the called ones come first in the search's order, and the rest say
-    // they were not called.
-    t.app
-        .extensions
-        .insert(Arc::new(SearchConcurrency(PROVIDER_CONCURRENCY)));
-    let calls = install(&t, Script::Fail(ProviderErrorKind::Timeout));
-    let pid = new_project(&t, &tok).await;
-    let r = search(&t, &tok, &pid).await;
-    assert_unavailable_outcome(&t, &tok, &pid, &r, "TIMEOUT").await;
-    let n = calls.load(Ordering::SeqCst);
-    assert!((1..=2).contains(&n), "{n} calls");
-    let skipped = r.body["task"]["output_reference"]["permit_step_skipped"]
-        .as_array()
-        .unwrap()
-        .clone();
-    let called: Vec<bool> = skipped
-        .iter()
-        .map(|s| s["provider_called"].as_bool().unwrap())
-        .collect();
-    let mut want = vec![true; n];
-    want.resize(2, false);
-    assert_eq!(called, want);
     for s in &skipped {
         assert_eq!(s["error_kind"], "TIMEOUT");
     }
