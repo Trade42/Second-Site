@@ -161,6 +161,13 @@ pub struct Settings {
     pub object_storage_local_dir: String,
     // SAFETY
     pub allow_live_outbound_calls: bool,
+    /// `LIVE_CALLS_ONLY_TO`: the owner's own test number (`+` and 8 to 15 digits). In live voice
+    /// mode every dial goes to it instead of the recipient's number. Private: never printed
+    /// except masked to its last two digits ([`mask_number`]).
+    pub live_calls_only_to: Option<Secret>,
+    /// `LIVE_CALLS_TO_CONTACTS` (default false): without it no listing contact's own number can
+    /// be dialed. While `LIVE_CALLS_ONLY_TO` is set, the test number still wins.
+    pub live_calls_to_contacts: bool,
     pub allow_live_purchases: bool,
     /// `PUBLIC_PATH_GUARD` (default false): a request that came through a tunnel reaches only the
     /// carrier's routes; every other path is 404 (`http::public_path_guard`).
@@ -573,6 +580,41 @@ fn variable_at(s: &[char], i: usize) -> Option<(usize, String, Option<String>)> 
     Some((default_start + default_len + 1, name, Some(default)))
 }
 
+/// Whom a live dial may ring: [`Settings::live_call_target`].
+#[derive(Clone, PartialEq, Eq)]
+pub enum LiveCallTarget {
+    /// Only this number (the owner's own), instead of any recipient's.
+    TestNumber(String),
+    /// The recipient's own number.
+    Contacts,
+    /// Every dial is refused.
+    Nobody,
+}
+
+impl fmt::Debug for LiveCallTarget {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Never the number.
+        f.write_str(match self {
+            Self::TestNumber(_) => "TestNumber(**)",
+            Self::Contacts => "Contacts",
+            Self::Nobody => "Nobody",
+        })
+    }
+}
+
+/// `+` and 8 to 15 digits.
+pub fn is_phone_number(n: &str) -> bool {
+    n.strip_prefix('+')
+        .is_some_and(|d| (8..=15).contains(&d.len()) && d.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// A phone number as it may be shown: its last two digits only (`number ending in 42`).
+pub fn mask_number(n: &str) -> String {
+    let digits: Vec<char> = n.chars().filter(char::is_ascii_digit).collect();
+    let tail: String = digits[digits.len().saturating_sub(2)..].iter().collect();
+    format!("number ending in {tail}")
+}
+
 impl Settings {
     /// `get_settings()`: environment plus `.env` files relative to the working directory.
     pub fn from_env() -> Result<Self, ConfigError> {
@@ -718,6 +760,8 @@ impl Settings {
             object_storage_mode: s.string("OBJECT_STORAGE_MODE", "local"),
             object_storage_local_dir: s.string("OBJECT_STORAGE_LOCAL_DIR", "./.data/objects"),
             allow_live_outbound_calls: s.boolean("ALLOW_LIVE_OUTBOUND_CALLS", false)?,
+            live_calls_only_to: s.secret("LIVE_CALLS_ONLY_TO"),
+            live_calls_to_contacts: s.boolean("LIVE_CALLS_TO_CONTACTS", false)?,
             allow_live_purchases: s.boolean("ALLOW_LIVE_PURCHASES", false)?,
             public_path_guard: s.boolean("PUBLIC_PATH_GUARD", false)?,
             store_backend,
@@ -915,6 +959,35 @@ impl Settings {
             out.push("XAI_API_KEY");
         }
         out
+    }
+
+    /// Whom a live dial may ring. `LIVE_CALLS_ONLY_TO` set to a phone number: that number only,
+    /// whatever the request says (`LIVE_CALLS_TO_CONTACTS` changes nothing). Unset or blank:
+    /// nobody, unless `LIVE_CALLS_TO_CONTACTS=true`. Set but not a phone number: nobody (the
+    /// owner meant a restriction; a typing error must not ring a contact).
+    pub fn live_call_target(&self) -> LiveCallTarget {
+        let only = self
+            .live_calls_only_to
+            .as_ref()
+            .map(|n| n.expose().trim())
+            .filter(|n| !n.is_empty());
+        match only {
+            Some(n) if is_phone_number(n) => LiveCallTarget::TestNumber(n.to_owned()),
+            Some(_) => LiveCallTarget::Nobody,
+            None if self.live_calls_to_contacts => LiveCallTarget::Contacts,
+            None => LiveCallTarget::Nobody,
+        }
+    }
+
+    /// The owner's test number when live calls are restricted to it: `Some` only with
+    /// `VOICE_PROVIDER_MODE=live` and a usable `LIVE_CALLS_ONLY_TO`.
+    pub fn live_test_number(&self) -> Option<String> {
+        match self.live_call_target() {
+            LiveCallTarget::TestNumber(n) if self.voice_provider_mode == ProviderMode::Live => {
+                Some(n)
+            }
+            _ => None,
+        }
     }
 
     /// Startup checks the Python service does not make. Refuses to run in production with the

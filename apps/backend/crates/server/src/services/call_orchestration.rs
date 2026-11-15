@@ -105,6 +105,37 @@ pub const TERMINAL: [CallState; 4] = [
 /// Python's dial fallback when `TELNYX_FROM_NUMBER` is unset.
 pub const DEFAULT_FROM: &str = "+10000000000";
 pub const ACTOR: &str = "voice-handoff";
+/// What everything shown about a live test call starts with: the call was dialed to the owner's
+/// own test number (`LIVE_CALLS_ONLY_TO`) instead of the listing's contact.
+pub const TEST_CALL_LABEL: &str = "TEST CALL: ";
+
+/// The first transcript line of a live test call (a system line). `masked` is the test number
+/// as [`crate::config::mask_number`] shows it; the number itself is never written.
+pub fn test_call_note(masked: &str) -> String {
+    format!(
+        "{TEST_CALL_LABEL}this call was dialed to the owner's test number ({masked}) instead of \
+         the listing's contact. Nothing was sent to the contact. The person answering is the \
+         owner, so nothing said on this call is stored as evidence about the property."
+    )
+}
+
+/// What an event or an owner text about a live test call starts with.
+pub const TEST_CALL_PREFIX: &str = "TEST CALL: dialed to the owner's test number instead of the \
+     listing's contact; nothing was sent to the contact. ";
+
+/// The system line when the owner accepts a handoff on a live test call.
+pub const TEST_CALL_OWNER_LINE: &str = "[test mode: the owner is already the person on the \
+     line (the call was dialed to the owner's test number), so no second call was placed]";
+
+/// Was this call dialed to the owner's test number instead of its recipient? Read from the
+/// stored record (its first transcript line, which only the server writes), so it holds after a
+/// restart and whatever the settings are by then.
+pub fn is_test_call(call: &CallSession) -> bool {
+    call.transcript
+        .first()
+        .is_some_and(|t| t.speaker == "system" && t.text.starts_with(TEST_CALL_LABEL))
+}
+
 /// The label every owner text about a simulated call starts with (Python's summary prefix).
 pub const SIMULATED_LABEL: &str = "[Simulated call] ";
 
@@ -507,6 +538,12 @@ impl<'a> CallOrchestrator<'a> {
         detail: Option<&str>,
         key: Option<String>,
     ) -> AppResult<()> {
+        let test_detail = is_test_call(call).then(|| {
+            format!("{TEST_CALL_PREFIX}{}", detail.unwrap_or(""))
+                .trim_end()
+                .to_owned()
+        });
+        let detail = test_detail.as_deref().or(detail);
         let key = key.unwrap_or_else(|| {
             format!(
                 "call:{}:{}:{}",
@@ -564,6 +601,12 @@ impl<'a> CallOrchestrator<'a> {
 
     /// `_notify_owner`: queued, sent after the commit.
     fn notify_owner(&mut self, call: &CallSession, text: String, purpose: &str, key: String) {
+        // Every owner text about a live test call says so first.
+        let text = if is_test_call(call) {
+            format!("{TEST_CALL_PREFIX}{text}")
+        } else {
+            text
+        };
         self.notices.push(NotifyRequest {
             owner_id: call.owner_id,
             project_id: call.project_id,
@@ -654,6 +697,22 @@ impl<'a> CallOrchestrator<'a> {
         }
         let Some(phone) = get(&s.recipient, "phone").map(str::to_owned) else {
             return Err(AppError::conflict("recipient has no phone number"));
+        };
+        // Live calls restricted to the owner's test number (`LIVE_CALLS_ONLY_TO`): that number
+        // is dialed instead of the recipient's, which never leaves this function (the carrier
+        // client substitutes it again), and the record says so in its first line.
+        let test_number = (!s.simulated && self.telephony.mode() == "live")
+            .then(|| self.app.settings.live_test_number())
+            .flatten();
+        let phone = match test_number {
+            Some(n) => {
+                call.transcript.push(turn(
+                    "system",
+                    test_call_note(&crate::config::mask_number(&n)),
+                ));
+                n
+            }
+            None => phone,
         };
         CALLS.add(tx, &call).await?;
         let mut call = call.transition(CallState::Dialing)?;
@@ -1074,7 +1133,10 @@ impl<'a> CallOrchestrator<'a> {
     ) -> AppResult<()> {
         let mut evidence_id: Option<Uuid> = None;
         let claim = finding.claim_type.clone().unwrap_or_default();
-        if let Some(property_id) = call.property_id {
+        // A live test call is answered by the owner, not the contact: nothing said on it becomes
+        // evidence about the property. The finding stays on the call's own event, labelled.
+        let test_call = is_test_call(call);
+        if let Some(property_id) = call.property_id.filter(|_| !test_call) {
             if !finding.value.is_null() && finding.claim_type.as_deref() != Some("available_from") {
                 let who = get_or(&call.recipient, "name", "the listing contact");
                 let who = if who.is_empty() {
@@ -1153,7 +1215,15 @@ impl<'a> CallOrchestrator<'a> {
                         "call_id": call.call_id.to_string(),
                         "claim_type": finding.claim_type,
                         "evidence_id": evidence_id.map(|e| e.to_string()),
-                        "summary": describe(finding),
+                        "summary": if test_call {
+                            format!(
+                                "{TEST_CALL_LABEL}said by the owner on the test number, not by \
+                                 the listing's contact; not stored as evidence. {}",
+                                describe(finding)
+                            )
+                        } else {
+                            describe(finding)
+                        },
                     }),
                 ),
             )
@@ -1543,7 +1613,11 @@ impl<'a> CallOrchestrator<'a> {
                 .await?
             {
                 comm.state = CommunicationState::Completed;
-                comm.structured_findings = call.findings.clone();
+                // A live test call was answered by the owner: what was said stays on the call
+                // record and is not copied to the contact's communication.
+                if !is_test_call(&call) {
+                    comm.structured_findings = call.findings.clone();
+                }
                 comm.transcript_reference =
                     Some(format!("call_sessions/{}/transcript", call.call_id));
                 COMMUNICATIONS.upsert(tx, &comm).await?;
@@ -1755,6 +1829,22 @@ impl<'a> CallOrchestrator<'a> {
             if response != HandoffStatus::Accepted {
                 join_tokens().remove(r);
             }
+        }
+        if response == HandoffStatus::Accepted && is_test_call(&call) {
+            // The owner's own leg would ring the phone that is already on this call: it is not
+            // dialed. The accepted handoff is stored above; the record says why nobody joined.
+            let mut call = call;
+            call.transcript.push(turn("system", TEST_CALL_OWNER_LINE));
+            let call = self.save(tx, call).await?;
+            return self
+                .resume(
+                    tx,
+                    call,
+                    &h.question,
+                    "test mode: the owner is already the person on the line, no second call \
+                     was placed",
+                )
+                .await;
         }
         if response == HandoffStatus::Accepted {
             let Some(phone) = self.owner_phone(tx, call.owner_id).await? else {
