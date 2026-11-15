@@ -219,5 +219,28 @@ await t('the card: one click, one decision, even when the stage is opened again 
   for (let i = 0; i < 40; i++) { await w.sleep(10); w.h.open(); w.B('Approve')?.click(); }
   await w.settle(); assert.equal(w.sent(/decision$/), 1); N.unmount();
 });
+await t('web-link-12: the payments card’s request function sends nothing before sign-in has finished', async () => {
+  const order = []; let done;
+  const be = { signIn: () => new Promise(r => { done = () => { order.push('signed'); r(); }; }), req: async (...a) => { order.push(a.join(' ')); return 'ok'; } };
+  const p = N.signedReq(be)('GET', '/x/nessie/plan');
+  await new Promise(r => setTimeout(r, 20)); assert.deepEqual(order, [], 'sign-in under way: nothing sent');
+  done(); assert.equal(await p, 'ok'); assert.deepEqual(order, ['signed', 'GET /x/nessie/plan']);
+  const bad = N.signedReq({ signIn: async () => { throw new Error('refused'); }, req: async () => { order.push('sent'); } });
+  await assert.rejects(bad('GET', '/y'), /refused/); assert.ok(!order.includes('sent'), 'a refused sign-in sends nothing');
+  const src = readFileSync(new URL('./next-steps.js', import.meta.url), 'utf8');
+  assert.match(src, /m\.nessieCard\(be\.project, id, signedReq\(be\), box\)/, 'the card gets the waiting function');
+  assert.doesNotMatch(src, /nessieCard\([^\n]*be\.req\(/);
+});
+await t('web-link-12 item 6: the script sentence says the ticked questions are asked first; a question’s raw text in the transcript and the summary stays text', () => {
+  assert.equal(N.TEXT.script, 'The simulated call asks your ticked questions first (the first 20). The simulated contact has scripted answers only for the standard questions; any other stays open. The visit and the rent limits are kept with the approval, but the scripted call does not use them.');
+  const q = `Is parking included? ${HOSTILE}<script>window.__pwn=6</script>`;
+  const c = N.callParts({ simulated: true, state: 'COMPLETED', transcript: [{ speaker: 'ai', text: q + 'x'.repeat(2000) }], findings: [], deferred_questions: [q], outcome_summary: `Asked: ${q}` + 'y'.repeat(5000) }, []);
+  assert.ok(c.transcript[0].startsWith('ai: Is parking included? <img') && c.transcript[0].length <= 4 + 400, 'a plain string, cut');
+  assert.ok(c.summary.includes('<script>') && c.summary.length <= 1500); assert.ok(c.deferred[0].length <= 240);
+  // every one of these strings reaches the page through el(tag, cls, text) -> textContent; the file writes no HTML
+  const src = readFileSync(new URL('./next-steps.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+  assert.match(src, /list\('ul', c\.transcript\)/); assert.match(src, /el\('p', 'ns-pre', c\.summary\)/); assert.match(src, /u\.append\(el\('li', null, t\)\)/);
+});
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

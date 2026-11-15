@@ -1439,6 +1439,61 @@ await t('next steps: bind() loads the last stage, hands it the link’s own clie
   const src = (await import('node:fs')).readFileSync(new URL('./backend.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /\/outreach|\/calls|\/decision|\/handoffs|\/simulate/);
 });
+/* ------------------------------------------------ web-link-12 (browser sweep 2) */
+await t('web-link-12: a sign-in in flight is shared (one token request for every caller); a failed one is not kept', async () => {
+  let n = 0, refuse = true;
+  const f = async u => { assert.match(u, /\/api\/v1\/dev\/token$/); n++; await new Promise(r => setTimeout(r, 20)); return refuse ? { ok: false, status: 503, text: async () => '' } : { ok: true, status: 200, text: async () => JSON.stringify({ access_token: 'T' }) }; };
+  const be = new B.Backend('http://x', f);
+  const r = await Promise.allSettled([be.signIn(), be.signIn(), be.signIn()]);
+  assert.ok(r.every(x => x.status === 'rejected' && /Sign-in refused/.test(x.reason.message))); assert.equal(n, 1); assert.equal(be.token, null);
+  refuse = false;
+  await Promise.all([be.signIn(), be.signIn(), be.signIn()]); assert.equal(n, 2, 'three callers, one request'); assert.equal(be.token, 'T');
+  await be.signIn(); assert.equal(n, 2, 'signed in: no request');
+});
+await t('web-link-12: between the search’s answer and the first cards no frame says "No more spaces fit"', () => withDoc(async () => {
+  const frames = [0, 1, 2, 3].map(() => ({ dataset: { id: '' }, textContent: '' })), wait = ms => new Promise(r => setTimeout(r, ms));
+  const pool = { list: [] }, { doc, S, ctx } = await waitPage({ fits: () => pool.list, minSqft: () => 0 });
+  pool.list = ctx.POOL; doc.querySelectorAll = sel => (sel === '#strip .frame' ? frames : []);
+  await B.search(S); assert.ok(ctx.POOL.length > 0);
+  assert.equal(B.emptyFrame(), '', 'the search has answered, the cards are not drawn yet');
+  await wait(130); assert.deepEqual(frames.map(f => f.textContent), ['', '', '', '']);
+  frames[0].dataset.id = ctx.POOL[0].id; // the page draws its cards (workspace.js renderStrip)
+  await wait(130);
+  assert.deepEqual(frames.map(f => f.textContent), ['', 'No more spaces fit', 'No more spaces fit', 'No more spaces fit'], 'only the frames that stay empty');
+  assert.equal(B.emptyFrame(), 'No more spaces fit');
+  // a search that finds nothing that fits: no card will come, the text is true at once
+  const none = await waitPage({ fits: () => [], minSqft: () => 0 }); frames.forEach(f => { f.dataset.id = ''; f.textContent = ''; });
+  none.doc.querySelectorAll = sel => (sel === '#strip .frame' ? frames : []);
+  await B.search(none.S); assert.deepEqual(frames.map(f => f.textContent), Array(4).fill('No more spaces fit'));
+}));
+await t('web-link-12 review: an empty frame that comes before the first card still says "No more spaces fit" (a reload after a dismissal)', () => withDoc(async () => {
+  const frames = [0, 1, 2, 3].map(() => ({ dataset: {}, textContent: '' }));
+  const pool = { list: [] }, { doc, S, ctx } = await waitPage({ fits: () => pool.list, minSqft: () => 0 });
+  pool.list = ctx.POOL; doc.querySelectorAll = sel => (sel === '#strip .frame' ? frames : []);
+  await B.search(S); assert.ok(ctx.POOL.length > 0);
+  assert.equal(B.emptyFrame(), '', 'answered, nothing slotted, nothing drawn');
+  S.slots = [null, ctx.POOL[0].id, null, null]; // the page has slotted its cards and is at its first frame: no frame has its card yet
+  assert.equal(B.emptyFrame(), 'No more spaces fit');
+}));
+await t('web-link-12: "Ask the broker" in Compare never goes to the assistant; without a layout one plain line; the risk question still goes', () => withDoc(async () => {
+  const { S, ctx, notes, said } = await waitPage();
+  await B.search(S); const id = ctx.POOL[0].id; S.saved = [id]; S.finalist = id; S.stage = 'compare';
+  const seen = [], chats = () => seen.filter(p => /\/chat$/.test(p)).length; current = (u, o) => { seen.push(new URL(u).pathname); return strictFetch(u, o); };
+  await B.turn('compare', 'Ask the broker', S, 5);
+  assert.equal(seen.length, 0, 'no request at all'); assert.equal(notes.at(-1), B.html(B.ASK_TEXT.noLayout));
+  assert.equal(await B.furnish(S), true); S.stage = 'compare'; const n = seen.length;
+  await B.turn('compare', ' ask the broker. ', S, 5); // a layout, and no last stage mounted here (Node): said, not chatted
+  assert.equal(seen.length, n); assert.equal(notes.at(-1), B.html(B.ASK_TEXT.notOpened));
+  await B.turn('compare', 'What is the biggest risk here?', S, 5);
+  assert.equal(chats(), 1); assert.ok(said.at(-1)?.includes('from the backend'), said.at(-1));
+  await B.turn('compare', 'Ask the broker about parking', S, 5); assert.equal(chats(), 2, 'only the quick reply itself is taken');
+  for (const s of Object.values(B.ASK_TEXT)) assert.doesNotMatch(s, /\b(called|contacted|sent|asked)\b/i);
+}));
+await t('web-link-12: the phone rule for the "to open" badge is in the live style block, under 860px only', () => {
+  const src = readFileSync(new URL('./backend.js', import.meta.url), 'utf8'), at = src.indexOf('@media (max-width: 860px) {\n  .finalists');
+  assert.ok(at > src.indexOf('const RESULT_STYLE') && at < src.indexOf('function waitStyle'));
+  assert.match(src.slice(at, at + 600), /\.fin \.toopen \{ position: relative;/);
+});
 /* ----------------------------------------------------------------- (b) */
 const URL_ = process.env.BACKEND_URL, ORIGIN = process.env.MOCKUP_ORIGIN || 'http://localhost:8090';
 if (!URL_) console.log('SKIPPED (b) end to end: BACKEND_URL is not set');

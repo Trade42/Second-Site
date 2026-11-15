@@ -811,7 +811,7 @@ export function ownerTextNotes(comms) {
 
 export class Backend {
   // The wrapper matters in a browser: window.fetch called as a method of this object throws "Illegal invocation".
-  constructor(api, fetchImpl = globalThis.fetch) { this.api = api; this.fetch = (...args) => fetchImpl(...args); this.token = null; this.project = null; }
+  constructor(api, fetchImpl = globalThis.fetch) { this.api = api; this.fetch = (...args) => fetchImpl(...args); this.token = null; this.signingIn = null; this.project = null; }
   async req(method, path, body) {
     const headers = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
@@ -825,12 +825,20 @@ export class Backend {
     if (!res.ok) throw Object.assign(new Error(`${method} ${path} answered ${res.status}${data?.error_code || data?.code ? ' ' + (data.error_code || data.code) : ''}`), { status: res.status, data });
     return data;
   }
-  async signIn() {
-    if (this.token) return;
-    try { this.token = (await this.req('POST', '/api/v1/dev/token')).access_token; } catch (e) {
+  // One sign-in at a time: every caller that arrives while one is under way waits for that same request
+  // (a reload starts several readers at once). A failed sign-in is not kept: the next call asks again.
+  signIn() {
+    if (this.token) return Promise.resolve();
+    if (!this.signingIn) this.signingIn = this.signInNow().finally(() => { this.signingIn = null; });
+    return this.signingIn;
+  }
+  async signInNow() {
+    let token;
+    try { token = (await this.req('POST', '/api/v1/dev/token'))?.access_token; } catch (e) {
       throw Object.assign(new Error(`Sign-in refused: the backend's dev sign-in is not available (${e.message}). Live mode needs a local backend with ALLOW_DEV_TOKENS=true; no token was invented.`), { status: e.status });
     }
-    if (!this.token) throw new Error('Sign-in answered without a token.');
+    if (!token) throw new Error('Sign-in answered without a token.');
+    this.token = token;
   }
   async ensureProject(req) {
     await this.signIn();
@@ -1040,7 +1048,15 @@ const RESULT_STYLE = `
 #v-dollhouse .poster:not([src]) { visibility: hidden; }
 /* Defect 10: the backend's one overhead image is never enlarged past its own size. Defect 11: the hover summary is not see-through. */
 #v-aerial > img { object-fit: scale-down; }
-.tip.space-tip { background: rgb(232 233 230 / .98); }`;
+.tip.space-tip { background: rgb(232 233 230 / .98); }
+/* Browser sweep 2, phone width: the "to open" badge lay on the address of a Compare card (the card is
+   short there and the wrapped caption reaches the badge). Badge and caption stack, and the card grows to hold both. */
+@media (max-width: 860px) {
+  .finalists { height: auto; min-height: 104px; align-items: stretch; }
+  .fin { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 6px; padding: 9px 10px 10px; min-height: 104px; }
+  .fin .toopen { position: relative; top: auto; left: auto; flex: none; }
+  .fin .cap { position: relative; left: auto; right: auto; bottom: auto; align-self: stretch; }
+}`;
 function waitStyle() {
   const doc = globalThis.document, at = doc?.head || doc?.documentElement;
   if (!at || doc.getElementById('live-wait-style')) return;
@@ -1177,8 +1193,26 @@ function addPin(p) {
   if (typeof p.lat === 'number' && typeof p.lon === 'number') markers[p.id] = new window.maplibregl.Marker({ element: wrap }).setLngLat([p.lon, p.lat]).addTo(map);
 }
 function dropPin(id) { markers[id]?.remove(); page.pins[id]?.parentElement?.remove?.(); delete markers[id]; delete page.pins[id]; } // also a marker the page itself made after a reload
-// The text of an empty card frame (workspace.js renderStrip): nothing before a search has answered.
-export const emptyFrame = () => (searched ? 'No more spaces fit' : '');
+// The text of an empty card frame (workspace.js renderStrip): nothing before a search has answered, and
+// nothing between the answer and the page's first cards (the page draws them about a second later, and
+// until then every frame is empty: "No more spaces fit" would be false of a search that found some).
+let framesSettled = false;
+const stripFrames = () => [...(globalThis.document?.querySelectorAll?.('#strip .frame') || [])];
+// The page has drawn what the search found: a card is in the strip, or nothing fits (no card will come),
+// or there is no strip to draw in. The page's own slots count as drawn: it fills them and draws in the same
+// step, frame by frame, so on a reload an empty frame that comes before the first card is asked for its text
+// while no frame has its card yet (review of web-link-12: that frame stayed blank after a reload).
+const cardsDrawn = () => { const f = stripFrames(); return !f.length || f.some(el => el.dataset?.id) || !!page?.S?.()?.slots?.some?.(Boolean) || (typeof page?.fits === 'function' && !page.fits().length); };
+export const emptyFrame = () => (searched && (framesSettled || (framesSettled = cardsDrawn())) ? 'No more spaces fit' : '');
+// After a search's answer: the frames that stay empty get their text once the cards are in (the page
+// rewrites a frame only when its listing changes, so a frame that stays empty is written here).
+let settling = 0;
+function settleFrames(n = ++settling, tries = 100) {
+  if (n !== settling) return; // a newer search took over
+  const text = emptyFrame();
+  for (const el of stripFrames()) if (!el.dataset?.id && el.textContent !== text) el.textContent = text;
+  if (!text && tries > 0) setTimeout(() => settleFrames(n, tries - 1), 100)?.unref?.(); // unref: Node only
+}
 // Stage 1: after each search-stage answer. Replaces the listing pool with the backend's results.
 let waitNoted = false;
 // One search at a time: the page's inline answer edit (workspace.js line 332) is not guarded by its
@@ -1207,7 +1241,7 @@ async function searchNow(S, fromSend = false) {
   const locals = hits.map(h => (h && uses(h.slug) === 1 ? h : null));
   fill(S, results, locals, true);
   searched = true; lastSearchKey = key;
-  for (const el of globalThis.document?.querySelectorAll?.('#strip .frame.none') || []) if (!el.dataset.id) el.textContent = emptyFrame();
+  framesSettled = false; settleFrames(); // empty frames say nothing until the first cards are drawn
   link = { v: LINK_VERSION, api: backend.api, project: backend.project, profileKey: backend.profileKey, lastRooms: backend.lastRooms, searchKey: key, results: results.map(r => ({ rec: r.rec, assessments: r.assessments })), scenarios: results[0]?.scenarios || [], locals, layouts: {}, at: new Date().toISOString() };
   persist();
   // What the page will show, by its own rule (fits and minSqft come from workspace.js through bind()).
@@ -1355,7 +1389,27 @@ export function cleanReply(text) {
   s = s.replace(/([(\[])\s*[;,:]+\s*/g, '$1').replace(/\s*[;,:]+\s*([)\]])/g, '$1').replace(/[ \t]*(\(\s*\)|\[\s*\])/g, '').replace(/[ \t]+([,.;:!?)\]])/g, '$1').replace(/([(\[])[ \t]+/g, '$1').replace(/[,;:]+(?=[.;!?])/g, '').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]*[,;:–—-]?[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
   return s || (raw.trim() ? ONLY_IDS_TEXT : '');
 }
+// Compare's quick reply "Ask the broker" (workspace.js go()). In live mode the words are never sent to the
+// assistant as chat: asking the contact is the last stage's second card, by the owner's own approval there.
+// A listing with a layout: the last stage opens for it, through the page's own "Try a layout" (no request
+// for a listing that has its layout) and the stage's own open(). Without one: one plain line.
+export const ASK_BROKER = /^\s*ask the broker\s*[.!?]*\s*$/i;
+export const ASK_TEXT = {
+  noLayout: 'Asking this listing’s contact comes after “Try a layout”: it is in Next steps, which opens once this listing has a layout.',
+  notOpened: 'Asking this listing’s contact is in Next steps, after Furnish; it could not be opened from here.',
+};
+async function askBroker() {
+  const at = () => { const S = page.S(), p = page.P[S.finalist]; return { S, p, d: page.D[p?.src] }; };
+  const { p, d } = at();
+  if (!p?.live || !d?.rooms?.length) { page.note(page.esc(ASK_TEXT.noLayout)); return; }
+  const ns = await nextSteps, there = () => { const { S } = at(); return S.stage === 'furnish' && S.chosen === S.finalist; };
+  if (ns && !there()) globalThis.document?.querySelector?.('#vextra [data-act=explore]')?.click();
+  for (let i = 0; ns && i < 40 && !there(); i++) await new Promise(r => setTimeout(r, 50));
+  if (ns && there()) { ns.open(); if (ns.state?.open) return; }
+  page.note(page.esc(ASK_TEXT.notOpened));
+}
 export function turn(stage, text, S, steps) {
+  if (stage === 'compare' && ASK_BROKER.test(text)) return askBroker();
   if ((stage === 'discover' && S.step < steps) || PAGE_COMMANDS[stage].test(text)) { // the page handles it, still inside its send()
     inSend = true; queueMicrotask(() => { inSend = false; }); return null;
   }

@@ -38,7 +38,7 @@ export const TEXT = {
   chose: 'What you chose',
   ask: 'Ask the listing’s contact',
   sim: 'No phone will ring. This is a simulation of the call: the backend plays the contact’s side from a script, and nothing it “says” came from a real person.',
-  script: 'The simulation follows the backend’s own fixed script of questions. Your ticked questions, the visit and the rent limits are kept with the approval, but the scripted call does not use them.',
+  script: 'The simulated call asks your ticked questions first (the first 20). The simulated contact has scripted answers only for the standard questions; any other stays open. The visit and the rent limits are kept with the approval, but the scripted call does not use them.',
   live: 'The backend is in live calling mode, where starting a call would dial the contact’s number. This page never rings a phone, so it offers no start button and asks for no new approval here.',
   liveRefused: 'The backend refused a simulated call because it is in live calling mode. This page never rings a phone: no call was started and the approval was not used.',
   unknownMode: 'This page could not read from the backend that its calls are simulated, so it asks for no approval and offers no start button here: this page never rings a phone.',
@@ -238,6 +238,10 @@ const kv = {
   set: v => { try { if (v) globalThis.localStorage?.setItem(OPEN_KEY, v); else globalThis.localStorage?.removeItem(OPEN_KEY); } catch { /* storage unavailable */ } },
 };
 
+// The card's request function (card 3): no request of the card leaves before sign-in has finished. After a
+// reload the stage opens while sign-in is still under way, and a request sent then carries no token (401).
+export const signedReq = be => async (...a) => { await be.signIn(); return be.req(...a); };
+
 let mounted = null;
 export function mount(ctx) {
   const doc = globalThis.document, furnish = doc?.getElementById?.('furnish'), main = furnish?.parentElement;
@@ -436,7 +440,7 @@ export function mount(ctx) {
       const box = st.nessie, be = ctx.backend();
       const id = st.id;
       // One card per listing; nothing is shown, and nothing is said, when the module is absent or fails.
-      import('./nessie.js').then(m => { if (typeof m.nessieCard === 'function' && be?.project && st.nessie === box && st.id === id) st.payments = m.nessieCard(be.project, id, (...a) => be.req(...a), box); }).catch(() => { box.textContent = ''; });
+      import('./nessie.js').then(m => { if (typeof m.nessieCard === 'function' && be?.project && st.nessie === box && st.id === id) st.payments = m.nessieCard(be.project, id, signedReq(be), box); }).catch(() => { box.textContent = ''; });
     }
     col.replaceChildren(top, cardChose(f), cardAsk(f), st.nessie, el('p', 'ns-end', TEXT.end));
     stage.scrollTop = y; keep?.focus?.();
