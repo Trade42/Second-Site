@@ -7,6 +7,9 @@
 //!
 //! One addition: the scripted loop stops after [`MAX_TURNS`] broker turns (Python's loop ends on
 //! its own for every input; the bound only guards against a future change that would not).
+//!
+//! A second one: a request's own question that is not a bank question gets
+//! [`NO_SCRIPTED_ANSWER`] (Python's simulated call never asks the request's questions).
 
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
@@ -16,7 +19,7 @@ use uuid::Uuid;
 
 use crate::app::App;
 use crate::error::{AppError, AppResult};
-use crate::services::call_orchestration::CallOrchestrator;
+use crate::services::call_orchestration::{is_request_question, CallOrchestrator};
 use crate::store::comms::{CALLS, HANDOFFS};
 use crate::store::Tx;
 
@@ -39,6 +42,11 @@ pub const DEFAULT_ANSWERS: [(&str, &str); 5] = [
 pub const ESCALATION_LINE: &str = "Before we go further, the landlord will want first month and a deposit by Friday. Can you commit to that?";
 pub const UNSURE: &str = "I'm not sure, I'd have to check.";
 pub const OWNER_LINE: &str = "Hi, it's the owner. Let's talk deposit terms directly.";
+/// What the simulated contact says to a request's own question that is not a bank question:
+/// the script knows no answer, and none is made up. The question is recorded as unanswered.
+pub const NO_SCRIPTED_ANSWER: &str = "I can't answer that one right now.";
+/// The bound on a simulated call: broker turns (answers and the escalation line together).
+/// Questions past it are not asked; the call's summary names the request's own among them.
 pub const MAX_TURNS: usize = 200;
 
 /// `_event(event_type, payload)`.
@@ -118,6 +126,27 @@ impl<'a> CallSimulator<'a> {
         answers: &IndexMap<String, String>,
         escalate_after: usize,
     ) -> AppResult<CallSession> {
+        self.run_bounded(
+            tx,
+            call_id,
+            owner_action,
+            answers,
+            escalate_after,
+            MAX_TURNS,
+        )
+        .await
+    }
+
+    /// [`Self::run`] with its bound on broker turns given (`run` uses [`MAX_TURNS`]).
+    pub async fn run_bounded(
+        &mut self,
+        tx: &mut dyn Tx,
+        call_id: Uuid,
+        owner_action: &str,
+        answers: &IndexMap<String, String>,
+        escalate_after: usize,
+        max_turns: usize,
+    ) -> AppResult<CallSession> {
         let call = CALLS.require(tx, call_id).await?;
         if !call.simulated {
             return Err(
@@ -145,7 +174,7 @@ impl<'a> CallSimulator<'a> {
         let mut turns = 0usize;
         while matches!(call.state, CallState::Active | CallState::AiResumed)
             && call.question_index < call.script.len() as i64
-            && turns < MAX_TURNS
+            && turns < max_turns
         {
             turns += 1;
             if asked == escalate_after && call.handoff_request_id.is_none() {
@@ -154,15 +183,18 @@ impl<'a> CallSimulator<'a> {
                 continue;
             }
             let idx = usize::try_from(call.question_index).unwrap_or(0);
-            let claim = call
-                .script
-                .get(idx)
-                .map(|q| q.claim_type.clone())
-                .unwrap_or_default();
-            let answer = merged
-                .get(&claim)
-                .cloned()
-                .unwrap_or_else(|| UNSURE.to_owned());
+            let question = call.script.get(idx);
+            let claim = question.map(|q| q.claim_type.clone()).unwrap_or_default();
+            // A request's own question has no scripted answer, and a caller's `answers` cannot
+            // give it one: the contact says the fixed line.
+            let answer = if question.is_some_and(is_request_question) {
+                NO_SCRIPTED_ANSWER.to_owned()
+            } else {
+                merged
+                    .get(&claim)
+                    .cloned()
+                    .unwrap_or_else(|| UNSURE.to_owned())
+            };
             call = self.say_broker(tx, call, &answer).await?;
             asked += 1;
         }
