@@ -315,6 +315,117 @@ await t('review: two searches at once create one project; short is safe for the 
   assert.equal(f.sev, 'high'); assert.equal(f.impact, 'Does not meet');
 });
 
+// web-link-3: saved copies of a suite's own scan. The places records here are SYNTHETIC (invented slugs,
+// the synthetic records' invented scan ids); the real assets/places.json is never copied into a test.
+const SYN_PLACES = () => [
+  { slug: 'syn-suite-a', matterport_model_id: 'SYNSCAN0001', images: [
+    { file: 'syn-suite-a/costar-01.jpg', source: 'costar', kind: 'photo' },
+    { file: 'syn-suite-a/matterport-01.jpg', source: 'matterport', kind: 'photo' },
+    { file: 'syn-suite-a/matterport-floorplan-08.png', source: 'matterport', kind: 'floorplan' },
+    { file: 'syn-suite-a/vexcel-ortho.jpg', source: 'vexcel', kind: 'ortho' },
+    { file: 'syn-suite-a/vexcel-oblique-n.jpg', source: 'vexcel', kind: 'oblique-n' },
+    { file: 'syn-suite-a/../x.jpg', source: 'costar', kind: 'photo' }, { file: 'syn-suite-a/costar-"x.jpg', source: 'costar', kind: 'photo' },
+    { file: 'other/costar-02.jpg', source: 'costar', kind: 'photo' }, { file: 'syn-suite-a/matterport-02.jpg', source: 'costar', kind: 'photo' },
+  ] },
+  { slug: 'syn-building', matterport_model_id: 'SYNSCAN0002', images: [{ file: 'syn-building/costar-01.jpg', source: 'costar', kind: 'photo' }] },
+];
+const SCRIPTED = 'SCRIPTED-DEMO-TEXT';
+async function livePage(places) {
+  const notes = [], real = globalThis.fetch;
+  // The page's scripted tables keyed by the slug, as workspace.js has them before bind() (shape only).
+  const ctx = { POOL: [{ id: 'syn-suite-a', src: 'syn-suite-a' }], P: { 'syn-suite-a': { id: 'syn-suite-a', rent: 999999 } }, CAT: [{ id: 'bed', name: SCRIPTED, price: 2450 }], C: {}, FIRST: ['syn-suite-a'], FILL: [], pins: {}, a() {}, note: h => notes.push(h), esc: B.html, selectSpace() {},
+    D: { 'syn-suite-a': { extras: null, build: 142000, other: 29400, weeks: 21, photos: ['costar-01.jpg'], rooms: [{ id: 't1', name: SCRIPTED }], issues: [{ id: 'plumbing', title: SCRIPTED, impact: '~$46,000 · 6 wks' }] } },
+    SPACE_NOTES: { 'syn-suite-a': { description: SCRIPTED, pros: [SCRIPTED], cons: [SCRIPTED] } } };
+  const S = { stage: 'discover', step: 5, req: { business: 'Facial studio', rent: null, rooms: 3 }, slots: [], saved: [], open: null, finalist: null, chosen: null, placed: [] };
+  globalThis.fetch = strictFetch; routes.length = 0; bodies.length = 0;
+  try { B.bind({ ...ctx, S: () => S, map: () => null }); B.useLocalPlaces(places); await B.search(S); } finally { globalThis.fetch = real; }
+  return { ctx, S, notes };
+}
+// What workspace.js prints for a listing: card (252-255), finalist (348), hover (746-752), compare cost (343).
+const printed = (ctx, p) => {
+  const d = ctx.D[p.src], n = ctx.SPACE_NOTES[p.id];
+  return [p.id !== p.src ? 'Demo property' : '', p.address, p.short, p.suite, String(p.rent), String(p.sqft), n.description, ...n.pros, ...n.cons, String(d.build), String(d.other), String(d.extras), ...d.issues.flatMap(i => [i.title, i.impact, i.sum]), ...d.rooms.map(r => r.name)].join(' | ');
+};
+await t('local copies: a listing whose own suite scan id is in places.json gets its local files and only backend facts', async () => {
+  const plain = await livePage(null), { ctx, S, notes } = await livePage(SYN_PLACES()); // asset() reads the last bound page
+  assert.deepEqual(notes.filter(n => /failed/i.test(n)), [], notes.join(' | '));
+  const p = ctx.P['syn-suite-a'], q = plain.ctx.P[k1.property_id];
+  assert.ok(p && !ctx.P[k1.property_id], 'keyed by the slug'); assert.equal(p.src, 'syn-suite-a'); assert.equal(p.live.property_id, k1.property_id);
+  const text = printed(ctx, p);
+  assert.doesNotMatch(text, /Demo property|SCRIPTED|142000|29400|46,000|999999|Demo data|synthetic|fixture/, text);
+  for (const k of ['address', 'short', 'suite', 'rent', 'sqft', 'rentKnown', 'sqftKnown', 'use', 'lease', 'broker', 'lat', 'lon', 'zone', 'hood']) assert.deepEqual(p[k], q[k], k);
+  const { photos: dp, ...dRest } = ctx.D[p.src], { photos: qp, ...qRest } = plain.ctx.D[q.src];
+  assert.deepEqual(dRest, qRest, 'findings, costs and rooms are the backend ones, unchanged');
+  assert.deepEqual(dp, ['costar-01.jpg', 'matterport-01.jpg', 'vexcel-ortho.jpg']);
+  assert.equal(p.photo, 'costar-01.jpg');
+  assert.equal(B.asset(p.src, p.photo), 'assets/syn-suite-a/costar-01.jpg');
+  assert.equal(B.asset(p.src, 'matterport-01.jpg'), 'assets/syn-suite-a/matterport-01.jpg');
+  assert.equal(B.asset(p.src, 'vexcel-oblique-n.jpg'), 'assets/syn-suite-a/vexcel-oblique-n.jpg');
+  assert.equal(B.asset(p.src, 'vexcel-oblique-e.jpg'), q.live.aerial?.url ?? B.asset(q.src, 'vexcel-oblique-e.jpg'), 'a direction with no saved copy: as before');
+  assert.match(decodeURIComponent(B.asset(p.src, 'matterport-floorplan-08.png')), /No floor plan image/, 'the scan floor plan image is not used (overlay would not line up)');
+  for (const bad of ['../x.jpg', 'costar-"x.jpg', 'costar-02.jpg', 'matterport-02.jpg']) assert.ok(!B.asset(p.src, bad).startsWith('assets/'), bad);
+  assert.equal(`assets/dollhouses/${p.src}.png`, 'assets/dollhouses/syn-suite-a.png'); assert.equal(`assets/meshes/${p.src}.obj`, 'assets/meshes/syn-suite-a.obj'); // workspace.js 587, 593
+  const n = ctx.SPACE_NOTES[p.id].description;
+  assert.match(n, /^CoStar listing \(data-kit snapshot\)\. 3D scan of this suite \(Matterport\): its mesh and dollhouse view and stills are saved copies from this scan, the photos are saved copies of this listing's CoStar photos, and the aerial images are saved Vexcel images of the building \(files on this computer\)\./, n);
+  assert.doesNotMatch(n, /\blive\b/i);
+  assert.equal(p.live.scan_text, '3D scan of this suite (Matterport)');
+  assert.ok(ctx.CAT.every(c => c.name !== SCRIPTED) && !ctx.FIRST.length, 'scripted catalog and order are gone');
+  // The layout request goes to the backend's own id.
+  const real = globalThis.fetch; globalThis.fetch = strictFetch; bodies.length = 0;
+  try { S.finalist = 'syn-suite-a'; assert.equal(await B.furnish(S), true); } finally { globalThis.fetch = real; }
+  assert.equal(bodies.find(b => b.route.endsWith('/layouts/generate')).body.property_id, k1.property_id);
+  assert.doesNotMatch(printed(ctx, p), /SCRIPTED/);
+  // Unmatched: a building-only scan with a places.json id (k2) and the fixture listing are as before.
+  for (const id of [k2.property_id, hw.record.property_id]) assert.deepEqual(ctx.P[id], plain.ctx.P[id], id);
+  assert.deepEqual(ctx.D[ctx.P[k2.property_id].src], plain.ctx.D[plain.ctx.P[k2.property_id].src]);
+  assert.match(decodeURIComponent(B.asset(ctx.P[hw.record.property_id].src, 'costar-01.jpg')), /Demo data from the backend \(fixture\)/);
+});
+await t('local copies: building-only scan, fixture listing, demo scan, other unit, duplicates and malformed places.json never match', async () => {
+  const idx = B.localIndex(SYN_PLACES());
+  assert.equal(B.localMatch(k1, idx)?.slug, 'syn-suite-a');
+  assert.equal(B.localMatch(k2, idx), null, 'building-only scan, same id');
+  const scan = k1.interior_assets[0];
+  for (const g of [false, undefined, 'true']) assert.equal(B.localMatch({ ...k1, interior_assets: [{ ...scan, has_measured_geometry: g, matches_listing_unit: null }] }, idx), null, `building scan, geometry ${g}`);
+  assert.equal(B.localMatch({ ...k1, interior_assets: [{ ...scan, data_origin: 'FIXTURE_SYNTHETIC' }] }, idx), null, 'demo scan');
+  assert.equal(B.localMatch({ ...k1, interior_assets: [{ ...scan, matches_listing_unit: false }] }, idx), null, 'another unit');
+  assert.equal(B.localMatch({ ...k1, commercial_listing: { ...k1.commercial_listing, data_origin: 'FIXTURE_SYNTHETIC' } }, idx), null, 'synthetic listing');
+  assert.equal(B.localMatch(hw.record, new Map([[hw.record.interior_assets[0].asset_id, { slug: 'x', photos: [], aerial: {}, captions: {} }]])), null, 'fixture listing');
+  assert.equal(B.localMatch({ ...k1, property_identity: { ...k1.property_identity, street_address: 'anything' }, interior_assets: [] }, idx), null, 'never by address');
+  // review: the matched scan must be the one scansOf() (and so the hover text and live.scan) calls the suite's.
+  for (const first of [{ ...scan, asset_id: 'SYNDEMO0001', data_origin: 'FIXTURE_SYNTHETIC' }, { ...scan, asset_id: 'SYNUNIT0001', matches_listing_unit: false }]) {
+    assert.equal(B.localMatch({ ...k1, interior_assets: [first, scan] }, idx), null, `another measured scan named first: ${first.asset_id}`);
+  }
+  for (const bad of [null, undefined, 'x', 42, {}, [null, 1, 'a', { slug: '../x', matterport_model_id: 'SYNSCAN0001' }, { slug: 'ok', matterport_model_id: 'a b' }]]) assert.equal(B.localIndex(bad).size, 0, JSON.stringify(bad));
+  assert.equal(B.localIndex([...SYN_PLACES(), { slug: 'dup', matterport_model_id: 'SYNSCAN0001', images: [] }]).has('SYNSCAN0001'), false, 'one id claimed twice: neither');
+  assert.equal(B.localIndex([...SYN_PLACES(), { slug: 'syn-suite-a', matterport_model_id: 'SYNSCAN0009', images: [] }]).has('SYNSCAN0001'), false, 'one slug twice: neither');
+  const { ctx: none } = await livePage(null);
+  // Two listings of one result with the same suite scan: neither gets the slug.
+  const keep = k2.interior_assets; k2.interior_assets = [{ ...k1.interior_assets[0] }];
+  try {
+    const { ctx } = await livePage(SYN_PLACES());
+    assert.equal(ctx.P['syn-suite-a'], undefined); assert.ok(ctx.P[k1.property_id] && ctx.P[k2.property_id]);
+  } finally { k2.interior_assets = keep; }
+  for (const places of [null, [], 'garbage', [{ slug: 'syn-suite-a' }]]) {
+    const { ctx } = await livePage(places);
+    assert.deepEqual(ctx.POOL, none.POOL, JSON.stringify(places)); assert.deepEqual(ctx.SPACE_NOTES, none.SPACE_NOTES);
+  }
+  // The browser loader: missing (404), unreadable JSON and a refused request leave live mode as before, no error.
+  const realF = globalThis.fetch, hadLoc = 'location' in globalThis, loc = globalThis.location;
+  for (const answer of [() => ({ ok: false, status: 404, json: async () => ({}) }), () => ({ ok: true, json: async () => { throw new SyntaxError('Unexpected token <'); } }), () => { throw new TypeError('Failed to fetch'); }]) {
+    const notes = [], seen = [];
+    const ctx = { POOL: [], P: {}, D: {}, CAT: [], C: {}, FIRST: [], FILL: [], SPACE_NOTES: {}, pins: {}, a() {}, note: h => notes.push(h), esc: B.html, selectSpace() {} };
+    const S = { stage: 'discover', step: 5, req: { business: 'Facial studio', rooms: 3 }, slots: [], saved: [], open: null, finalist: null, chosen: null, placed: [] };
+    Object.defineProperty(globalThis, 'location', { value: { href: 'http://localhost:8090/workspace.html?live=1', search: '' }, configurable: true, writable: true });
+    globalThis.fetch = function (u, o) { if (String(u).endsWith('/assets/places.json')) { seen.push(u); return Promise.resolve().then(answer); } return strictFetch.call(this, u, o); };
+    try { B.bind({ ...ctx, S: () => S, map: () => null }); B.useLocalPlaces(undefined); await B.search(S); }
+    finally { globalThis.fetch = realF; if (hadLoc) globalThis.location = loc; else delete globalThis.location; }
+    assert.deepEqual(seen, ['http://localhost:8090/assets/places.json']);
+    assert.deepEqual(notes.filter(n => /failed|error/i.test(n)), [], notes.join(' | '));
+    assert.deepEqual(ctx.POOL, none.POOL);
+  }
+  B.useLocalPlaces(null);
+});
+
 /* ----------------------------------------------------------------- (b) */
 const URL_ = process.env.BACKEND_URL, ORIGIN = process.env.MOCKUP_ORIGIN || 'http://localhost:8090';
 if (!URL_) console.log('SKIPPED (b) end to end: BACKEND_URL is not set');
@@ -332,7 +443,7 @@ else {
     const other = await fetch(URL_ + '/health', { headers: { Origin: 'http://evil.example' } });
     assert.equal(other.headers.get('access-control-allow-origin'), null, 'another origin is not allowed');
   });
-  let results;
+  let results, narrowed;
   await t('stage 1 search: dev sign-in, project + profile from the answers, search, ranked listings', async () => {
     const req = { business: 'Facial studio', zones: null, rent: null, rooms: 3 };
     results = await be.search(req);
@@ -352,9 +463,32 @@ else {
     const show = p => (p.live.source === 'synthetic' ? `${p.address} [${p.suite}]` : `[${p.suite.replace(/^[^·]*·/, '<unit> ·')}] ${p.photo} / ${p.live.scan_text}`);
     console.log('      kinds:', JSON.stringify(kinds), '; first three:', pool.slice(0, 3).map(show).join('; '));
     console.log('      note:', B.searchNote(pool));
-    const narrower = await be.search({ ...req, rent: 5000 }); // a changed answer: PUT business-profile, then search again
+    const narrower = narrowed = await be.search({ ...req, rent: 5000 }); // a changed answer: PUT business-profile, then search again
     assert.ok(narrower.every(r => r.rec.commercial_listing.asking_rent_monthly <= 500000), 'rent limit honoured');
     console.log('      with rent up to $5,000:', narrower.length, 'listings');
+  });
+  await t('local copies: live listings whose own suite scan id is in assets/places.json (read at run time, not copied)', async () => {
+    let places;
+    try { places = JSON.parse(readFileSync(new URL('./assets/places.json', import.meta.url))); } catch { console.log('      no readable assets/places.json: nothing to match'); return; }
+    const index = B.localIndex(places), urls = [];
+    for (const [label, set] of [['no rent limit', results], ['rent up to $5,000', narrowed || []]]) {
+    console.log(`      search with ${label}: ${set.length} listings`);
+    const pool = B.disambiguate(set.map(r => B.poolEntry(r.rec, be.api)));
+    for (const [i, r] of set.entries()) {
+      const h = B.localMatch(r.rec, index); if (!h) continue;
+      const p = B.withLocal(pool[i], h), page = { [p.id]: p };
+      const files = [p.photo, ...p.live.images, ...['ortho', 'oblique-n', 'oblique-e', 'oblique-s', 'oblique-w'].map(d => `vexcel-${d}.jpg`)];
+      const got = [...new Set(files.map(f => B.asset(p.src, f, page)).filter(u => u.startsWith('assets/')))];
+      got.push(`assets/dollhouses/${p.src}.png`, `assets/meshes/${p.src}.obj`); urls.push(...got);
+      const notes = B.spaceNotes(r.rec, be.api, h);
+      assert.doesNotMatch([p.suite, notes.description].join(' '), /Demo|synthetic|fixture/i);
+      console.log(`      listing ${i + 1} -> ${p.src}: ${got.length} local files (${p.live.images.length} in Photos); scan ${p.live.scan_text}; suite line [${p.suite.replace(/^[^·]*·/, '<unit> ·')}]`);
+      const same = set.filter(x => (x.rec.interior_assets || []).some(a => a.asset_id === r.rec.interior_assets.find(b => b.has_measured_geometry)?.asset_id)).length;
+      console.log(`        listings in this result carrying that model id at all: ${same} (a building-only copy does not match)`);
+    }
+    }
+    console.log(`      matched ${urls.length ? new Set(urls.map(u => u.split('/')[u.startsWith('assets/dollhouses') || u.startsWith('assets/meshes') ? 2 : 1].replace(/\.(png|obj)$/, ''))).size : 0} of ${index.size} local suites`);
+    if (process.env.LOCAL_URLS_OUT) (await import('node:fs')).writeFileSync(process.env.LOCAL_URLS_OUT, [...new Set(urls)].join('\n') + '\n');
   });
   await t('images: the listing photo link or the Vexcel aerial route (no token) for each listing', async () => {
     const pool = results.map(r => B.poolEntry(r.rec, be.api));

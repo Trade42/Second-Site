@@ -127,8 +127,9 @@ export function imagesOf(rec, api = '') {
 // One backend property record -> one POOL entry.
 // `src`: a synthetic (demo) listing gets "live-<id>", so the page's own "Demo property" label
 // (id !== src) shows for it. A real listing (CoStar kit snapshot or live) gets src = id, so that label
-// does not show. Either way src is never one of the page's three listing asset folders, and asset()
-// below answers for every backend listing, so no local photo, scan or plan of another listing is used.
+// does not show. Here src is never one of the page's local asset folders; only withLocal() below
+// sets it to a slug, for a listing whose own suite scan has that slug's model id. asset() answers for
+// every backend listing, so no local photo, scan or plan of another listing is used.
 export function poolEntry(rec, api = '') {
   const id = rec.property_id, ident = rec.property_identity || {}, cl = rec.commercial_listing || {};
   const source = listingSource(cl), fixture = source.kind === 'synthetic';
@@ -150,7 +151,7 @@ export function poolEntry(rec, api = '') {
     broker: cl.broker_contact?.company || cl.brokerage_company || 'Broker not stated',
     lat: ident.latitude, lon: ident.longitude,
     live: {
-      fixture, source: source.kind, source_label: source.label, provider: cl.provider, data_origin: cl.data_origin,
+      property_id: id, fixture, source: source.kind, source_label: source.label, provider: cl.provider, data_origin: cl.data_origin,
       disclaimer: cl.disclaimer || null, listing_id: cl.provider_listing_id, unit: unit || null, source_record_date: cl.source_record_date || null,
       photo_url: img.photo, photo_caption: img.photoCaption, aerial: img.aerial, images: img.files,
       scan: scans.suite, scans: scans.all, scan_text: scans.text,
@@ -165,14 +166,86 @@ export function disambiguate(pool) {
   for (const p of pool) if (n[p.short] > 1 && reSafe(p.live?.unit || '')) p.short = `${p.short}, ${clip(reSafe(p.live.unit), 20)}`;
   return pool;
 }
+/* ------------------------------------- local saved copies of a suite's own scan (assets/places.json) */
+
+// The page's asset folder (git-ignored, licensed) holds saved copies for a few suites, one folder per
+// slug, indexed by assets/places.json. It is read at run time only; nothing from it is in this file.
+// A live listing uses that folder only when the suite's own Matterport scan (measured geometry, the
+// backend's own record, not demo data) has exactly the model id of one places.json record.
+const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/, MODEL = /^[A-Za-z0-9]{6,32}$/, FILE = /^[a-z0-9][a-z0-9._-]{0,80}\.(jpe?g|png|webp)$/i;
+const LOCAL_CAPTION = { costar: 'CoStar photo (saved copy)', matterport: 'Matterport still (saved copy)', vexcel: 'Vexcel aerial (saved copy)' };
+const MAX_PHOTOS = 6; // per source in the Photos view
+// places.json -> Map(model id -> { slug, photos, aerial, captions }). Anything malformed is skipped;
+// a model id claimed by two records is used by neither.
+export function localIndex(places) {
+  const out = new Map(), twice = new Set();
+  for (const r of Array.isArray(places) ? places : []) {
+    if (!r || typeof r !== 'object' || !SLUG.test(String(r.slug)) || !MODEL.test(String(r.matterport_model_id))) continue;
+    const slug = r.slug, captions = {}, photos = { costar: [], matterport: [] }, aerial = {};
+    for (const im of Array.isArray(r.images) ? r.images : []) {
+      const [dir, name, more] = String(im?.file || '').split('/');
+      if (dir !== slug || more !== undefined || !FILE.test(name || '') || !LOCAL_CAPTION[im.source] || !name.startsWith(im.source + '-')) continue;
+      if (im.kind === 'photo' && im.source !== 'vexcel') { photos[im.source].push(name); captions[name] = LOCAL_CAPTION[im.source]; }
+      else if (im.source === 'vexcel' && /^(ortho|oblique-[nesw])$/.test(im.kind) && name === `vexcel-${im.kind}.jpg`) { aerial[im.kind] = name; captions[name] = LOCAL_CAPTION.vexcel; }
+    }
+    const rec = { slug, photos: [...photos.costar.slice(0, MAX_PHOTOS), ...photos.matterport.slice(0, MAX_PHOTOS)], aerial, captions };
+    if (out.has(r.matterport_model_id)) twice.add(r.matterport_model_id); else out.set(r.matterport_model_id, rec);
+  }
+  for (const m of twice) out.delete(m);
+  const slugs = [...out.values()].map(x => x.slug);
+  for (const [m, x] of out) if (slugs.filter(s => s === x.slug).length > 1) out.delete(m);
+  return out;
+}
+// The suite's own scan as the backend reports it, or null: a Matterport model with measured geometry,
+// not demo data, on a listing that is not demo data, and not marked as another unit's scan.
+function ownSuiteScan(rec) {
+  if (listingSource(rec.commercial_listing || {}).kind === 'synthetic') return null;
+  // Only the scan scansOf() names as the suite's (the one live.scan and the hover text describe).
+  const a = (rec.interior_assets || []).filter(x => x.provider === 'matterport' || x.asset_type === 'matterport_model').find(x => x.has_measured_geometry);
+  return a && a.provider === 'matterport' && a.has_measured_geometry === true && a.matches_listing_unit !== false
+    && sourceOf(a.provider, a.data_origin) !== 'synthetic' && typeof a.asset_id === 'string' ? a : null;
+}
+export const localMatch = (rec, index) => { const s = ownSuiteScan(rec); return (s && index?.get(s.asset_id)) || null; };
+// Give one POOL entry its local files. id and src both become the slug: the page builds the mesh and
+// dollhouse paths from src (workspace.js 587, 593) and prints "Demo property" when id !== src. Every
+// table the page keys by id or src was emptied by bind(), so the slug finds only backend facts. The
+// backend's own id stays in live.property_id (used for the layout request).
+export function withLocal(p, local) {
+  p.id = p.src = local.slug;
+  const first = local.photos[0];
+  if (first) p.photo = first;
+  p.live.local = local;
+  p.live.images = [...local.photos, ...(local.aerial.ortho ? [local.aerial.ortho] : p.live.aerial ? ['aerial-vexcel'] : [])];
+  if (!p.live.images.length) p.live.images = ['none'];
+  p.live.scan_text = '3D scan of this suite (Matterport)';
+  return p;
+}
+let localLoad = null;
+// Tests pass the parsed places.json in; null or anything malformed means no local files; undefined
+// makes the next search fetch it again.
+export function useLocalPlaces(places) { localLoad = places === undefined ? null : Promise.resolve(localIndex(places)); } // undefined: load again
+function localPlaces() {
+  if (!localLoad) localLoad = (async () => {
+    try {
+      if (!globalThis.location?.href) return new Map();
+      const r = await globalThis.fetch(new URL('assets/places.json', globalThis.location.href).href, { headers: { accept: 'application/json' } });
+      return r.ok ? localIndex(await r.json()) : new Map();
+    } catch { return new Map(); } // a clone without the folder: live mode as before
+  })();
+  return localLoad;
+}
+
 // The tooltip text for a live listing (page's SPACE_NOTES shape), from the record only.
-export function spaceNotes(rec, api = '') {
+export function spaceNotes(rec, api = '', local = null) {
   const cl = rec.commercial_listing || {}, a = rec.infrastructure_assessments || [];
   const count = s => a.filter(x => x.status === s).length;
   const source = listingSource(cl), img = imagesOf(rec, api), scans = scansOf(rec);
-  const image = [img.photoCaption ? `Image: ${img.photoCaption}.` : null, img.aerial ? `${img.photoCaption ? 'Also: ' : 'Image: '}${img.aerial.caption}.` : null].filter(Boolean).join(' ');
+  const has = k => Object.values(local?.captions || {}).includes(LOCAL_CAPTION[k]);
+  const image = local
+    ? `${scans.text} (Matterport): its mesh and dollhouse view${has('matterport') ? ' and stills' : ''} are saved copies from this scan${has('costar') ? `, the photos are saved copies of this listing's CoStar photos` : ''}${has('vexcel') ? ', and the aerial images are saved Vexcel images of the building' : ''} (files on this computer).`
+    : [img.photoCaption ? `Image: ${img.photoCaption}.` : null, img.aerial ? `${img.photoCaption ? 'Also: ' : 'Image: '}${img.aerial.caption}.` : null].filter(Boolean).join(' ');
   return {
-    description: [`${source.label}.`, `${scans.text}.`, image || null, cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null].filter(Boolean).join(' '),
+    description: [`${source.label}.`, local ? null : `${scans.text}.`, image || null, cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null].filter(Boolean).join(' '),
     pros: [scans.suite ? '3D scan of this suite (a layout can be generated)' : null, ...a.filter(x => x.status === 'MEETS').map(x => requirementLabel(x.requirement_id) + ': meets')].filter(Boolean).concat(count('MEETS') ? [] : ['No requirement confirmed as met']).slice(0, 2),
     cons: [scans.suite ? null : `${scans.text}: no layout without a scan of the suite`, count('UNKNOWN') ? `${count('UNKNOWN')} requirement(s) unknown` : null, count('MAY_REQUIRE_WORK') ? `${count('MAY_REQUIRE_WORK')} may need work` : null, ...(rec.missing_information || [])].filter(Boolean).slice(0, 3),
   };
@@ -411,6 +484,7 @@ export function asset(src, f, P = page?.P) {
   src = String(src);
   const p = P?.[src.startsWith('live-') ? src.slice(5) : src], L = p?.live;
   if (!L && !src.startsWith('live-')) return undefined;
+  if (L?.local?.captions[f]) return `assets/${L.local.slug}/${f}`; // a saved copy from this suite's own scan or listing
   if (L && f === 'listing-photo' && L.photo_url) return L.photo_url;
   if (L && (f === 'aerial-vexcel' || /vexcel/.test(f)) && L.aerial) return L.aerial.url; // the ortho image for every direction
   return NEUTRAL(/floorplan/.test(f) ? 'No floor plan image' : /vexcel/.test(f) ? 'No aerial image' : 'No photo',
@@ -452,13 +526,16 @@ async function searchNow(S) {
   backend.lastRooms = Number.isInteger(S.req.rooms) ? { treatment: S.req.rooms, reception: 1, storage: 1 } : null;
   let results;
   try { results = await backend.search(S.req); } catch (e) { page.note(page.esc(`Live search failed: ${e.message}`)); return; }
-  const { POOL, P, D, FILL, SPACE_NOTES } = page;
-  for (const id of Object.keys(P)) if (!results.some(r => r.rec.property_id === id)) { dropPin(id); delete P[id]; }
+  const { POOL, P, D, FILL, SPACE_NOTES } = page, index = await localPlaces();
+  // A slug is used only when exactly one listing of this result has that suite scan.
+  const hits = results.map(r => localMatch(r.rec, index)), uses = s => hits.filter(h => h?.slug === s).length;
+  const entries = results.map((r, i) => { const p = poolEntry(r.rec, backend.api), h = hits[i]; return h && uses(h.slug) === 1 ? withLocal(p, h) : p; });
+  for (const id of Object.keys(P)) if (!entries.some(p => p.id === id)) { dropPin(id); delete P[id]; }
   POOL.length = 0; FILL.length = 0;
-  for (const { rec, assessments, scenarios } of results) {
-    const p = poolEntry(rec, backend.api); POOL.push(p); P[p.id] = p; FILL.push(p.id);
+  for (const [i, { rec, assessments, scenarios }] of results.entries()) {
+    const p = entries[i]; POOL.push(p); P[p.id] = p; FILL.push(p.id);
     D[p.src] = { ...detailEntry(rec, assessments, scenarios), photos: p.live.images.length ? p.live.images : ['none'] };
-    SPACE_NOTES[p.id] = spaceNotes(rec, backend.api); addPin(p);
+    SPACE_NOTES[p.id] = spaceNotes(rec, backend.api, p.live.local || null); addPin(p);
   }
   disambiguate(POOL);
   // Remove saved or shown ids the backend no longer returns (the page would look them up and fail).
@@ -473,7 +550,7 @@ export async function furnish(S) {
   if (!p || !d) return false;
   if (!d.rooms.length) {
     let out;
-    try { out = await backend.layout(p.id); } catch (e) { page.note(page.esc(`No layout for ${p.address}: ${e.message}`)); return false; }
+    try { out = await backend.layout(p.live?.property_id ?? p.id); } catch (e) { page.note(page.esc(`No layout for ${p.address}: ${e.message}`)); return false; }
     const { plan, rooms } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms);
     Object.assign(d, { plan, rooms, bom: cat, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
     for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
