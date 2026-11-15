@@ -26,6 +26,7 @@ pub mod matterport_geometry;
 pub mod storage;
 pub mod telnyx;
 pub mod vexcel;
+pub mod xai_realtime;
 
 use std::sync::Arc;
 

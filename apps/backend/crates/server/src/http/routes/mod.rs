@@ -14,6 +14,7 @@ pub mod media_matterport;
 pub mod nessie;
 pub mod projects;
 pub mod properties;
+pub mod recordings;
 pub mod tasks;
 pub mod webhooks;
 
@@ -35,6 +36,7 @@ pub fn api_routes() -> Router<AppState> {
         .merge(media_matterport::router())
         .merge(design::router())
         .merge(nessie::router())
+        .merge(recordings::router())
         .merge(evidence::router())
         .merge(communications::router())
         .merge(webhooks::router())

@@ -616,10 +616,17 @@ doc_table!(NESSIE_SIMULATION_RECORDS = "nessie_simulation_records" {
     indexes: [ix("ix_nessie_simulation_records_approval_id", &["approval_id"])],
 });
 
+doc_table!(OWNER_INTRO_RECORDINGS = "owner_intro_recordings" {
+    columns: [uuid("owner_id"), varchar("status", 16), varchar_null("link_token_sha256", 64)],
+    uniques: [],
+    foreign_keys: [fk("fk_owner_intro_recordings_owner_id_users", "owner_id", "users", Cascade)],
+    indexes: [ix("ix_owner_intro_recordings_owner_id", &["owner_id"]), ix("ix_owner_intro_recordings_link_token_sha256", &["link_token_sha256"])],
+});
+
 /// Tables the Rust service owns and creates itself (`migrations/rust-owned/`, see
 /// `store::postgres::RUST_OWNED_MIGRATIONS`), outside alembic: alembic does not know them and
 /// `alembic_version` never changes for them. Not in [`ALL_TABLES`], which mirrors alembic head.
-pub static RUST_OWNED_TABLES: &[&TableDef] = &[&NESSIE_SIMULATION_RECORDS];
+pub static RUST_OWNED_TABLES: &[&TableDef] = &[&NESSIE_SIMULATION_RECORDS, &OWNER_INTRO_RECORDINGS];
 
 #[cfg(test)]
 mod tests {
