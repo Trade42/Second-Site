@@ -254,3 +254,92 @@ impl<'a> CallSimulator<'a> {
         self.orch.expire_stale_handoffs(tx, call.call_id).await
     }
 }
+
+// ---- Fixture voice bridge ---------------------------------------------------------------------
+
+/// A bridge launcher for tests and simulations: it records every control the orchestrator
+/// sends (`say:<text>`, `pause`, `resume`, `stop`) and keeps each call's spec, so a script can
+/// drive the spec's [`crate::services::voice_bridge::BridgeEvents`] exactly as a live bridge
+/// would (counterparty lines, tool calls, the end). Nothing reaches a carrier or xAI.
+#[derive(Clone, Default)]
+pub struct FixtureBridge {
+    state: std::sync::Arc<std::sync::Mutex<FixtureBridgeState>>,
+}
+
+#[derive(Default)]
+struct FixtureBridgeState {
+    specs: Vec<(String, crate::services::voice_bridge::CallBridgeSpec)>,
+    log: Vec<String>,
+    removed: Vec<String>,
+}
+
+impl FixtureBridge {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, FixtureBridgeState> {
+        self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The controls received, in order.
+    pub fn log(&self) -> Vec<String> {
+        self.lock().log.clone()
+    }
+
+    /// The bridges registered: `(bridge_id, spec)`.
+    pub fn specs(&self) -> Vec<(String, crate::services::voice_bridge::CallBridgeSpec)> {
+        self.lock().specs.clone()
+    }
+
+    /// The bridge ids removed (the call ended or the bridge was let go).
+    pub fn removed(&self) -> Vec<String> {
+        self.lock().removed.clone()
+    }
+}
+
+struct FixtureControl {
+    bridge: FixtureBridge,
+}
+
+#[async_trait::async_trait]
+impl crate::services::call_orchestration::BridgeControl for FixtureControl {
+    async fn say(&self, text: String) -> bool {
+        self.bridge.lock().log.push(format!("say:{text}"));
+        true
+    }
+    async fn pause(&self) -> bool {
+        self.bridge.lock().log.push("pause".into());
+        true
+    }
+    async fn resume(&self) -> bool {
+        self.bridge.lock().log.push("resume".into());
+        true
+    }
+    async fn stop(&self) -> bool {
+        self.bridge.lock().log.push("stop".into());
+        true
+    }
+}
+
+impl crate::services::call_orchestration::BridgeLauncher for FixtureBridge {
+    fn expect(
+        &self,
+        spec: crate::services::voice_bridge::CallBridgeSpec,
+    ) -> (
+        String,
+        std::sync::Arc<dyn crate::services::call_orchestration::BridgeControl>,
+    ) {
+        let id = format!("fixture-bridge-{}", Uuid::new_v4().simple());
+        self.lock().specs.push((id.clone(), spec));
+        (
+            id,
+            std::sync::Arc::new(FixtureControl {
+                bridge: self.clone(),
+            }),
+        )
+    }
+    fn remove(&self, bridge_id: &str) {
+        self.lock().removed.push(bridge_id.to_owned());
+    }
+}

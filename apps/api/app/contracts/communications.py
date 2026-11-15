@@ -4,7 +4,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from .common import Contract, UtcDatetime, new_id, utcnow
 from .state import check_transition
@@ -251,6 +251,36 @@ class OwnerHandoffRequest(Contract):
         return self.model_copy(update={"status": target})
 
 
+class TimeWindow(Contract):
+    """A window of local time with the property's UTC offset, e.g. 2026-11-17T15:00:00-08:00."""
+
+    start: AwareDatetime
+    end: AwareDatetime
+
+
+class TourRequest(Contract):
+    windows: list[TimeWindow] = Field(default_factory=list)
+    duration_minutes: int = 30
+    attendee_name: str | None = None
+    notes: str | None = None
+
+
+class NegotiationLimits(Contract):
+    """The owner's rent limits for one call. Kept on the server; never returned or logged."""
+
+    target_monthly_rent_cents: int | None = None
+    max_monthly_rent_cents: int | None = None
+    max_counters: int = 3
+    may_mention: list[str] = Field(default_factory=list)
+
+
+class CallPurposes(Contract):
+    """What the owner approves a voice call to do besides its questions (Rust service only)."""
+
+    tour: TourRequest | None = None
+    negotiation: NegotiationLimits | None = None
+
+
 class OutreachRequest(Contract):
     property_id: UUID
     channel: Channel
@@ -258,3 +288,4 @@ class OutreachRequest(Contract):
     purpose: str
     questions: list[str] = Field(default_factory=list)
     intro_recording_reference: str | None = None
+    purposes: CallPurposes | None = None

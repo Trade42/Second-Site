@@ -45,6 +45,12 @@ async fn ready(State(app): State<AppState>) -> Json<ReadyResponse> {
             format!("missing: {}", parts.join("; ")),
         );
     }
+    if app.settings.public_path_guard {
+        checks.insert(
+            "public_path_guard".into(),
+            crate::http::public_guard_check(),
+        );
+    }
     let ok = checks.get("database").map(String::as_str) == Some("ok");
     Json(ReadyResponse {
         status: if ok { "ready" } else { "degraded" }.into(),

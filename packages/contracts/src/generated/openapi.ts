@@ -1121,6 +1121,14 @@ export interface components {
             state: string;
         };
         /**
+         * CallPurposes
+         * @description What the owner approves a voice call to do besides its questions (Rust service only).
+         */
+        CallPurposes: {
+            negotiation?: components["schemas"]["NegotiationLimits"] | null;
+            tour?: components["schemas"]["TourRequest"] | null;
+        };
+        /**
          * CallQuestion
          * @description One question the assistant may ask, grounded in an UNKNOWN / MAY_REQUIRE_WORK assessment.
          */
@@ -2208,6 +2216,23 @@ export interface components {
              */
             currency: string;
         };
+        /**
+         * NegotiationLimits
+         * @description The owner's rent limits for one call. Kept on the server; never returned or logged.
+         */
+        NegotiationLimits: {
+            /**
+             * Max Counters
+             * @default 3
+             */
+            max_counters?: number;
+            /** Max Monthly Rent Cents */
+            max_monthly_rent_cents?: number | null;
+            /** May Mention */
+            may_mention?: string[];
+            /** Target Monthly Rent Cents */
+            target_monthly_rent_cents?: number | null;
+        };
         /** OfferPayload */
         OfferPayload: {
             /**
@@ -2288,6 +2313,7 @@ export interface components {
             property_id: string;
             /** Purpose */
             purpose: string;
+            purposes?: components["schemas"]["CallPurposes"] | null;
             /** Questions */
             questions?: string[];
             /** Recipient */
@@ -3469,6 +3495,22 @@ export interface components {
          * @enum {string}
          */
         TaskType: "confirm_requirements" | "search_properties" | "resolve_identity" | "ingest_permits" | "analyze_property" | "evaluate_infrastructure" | "calculate_costs" | "rank_properties" | "generate_layout" | "revise_layout" | "generate_bom" | "outreach" | "place_call" | "supervisor_chat";
+        /**
+         * TimeWindow
+         * @description A window of local time with the property's UTC offset, e.g. 2026-11-17T15:00:00-08:00.
+         */
+        TimeWindow: {
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+        };
         /** TimelinePayload */
         TimelinePayload: {
             /**
@@ -3478,6 +3520,20 @@ export interface components {
             detail: string | null;
             /** Milestone */
             milestone: string;
+        };
+        /** TourRequest */
+        TourRequest: {
+            /** Attendee Name */
+            attendee_name?: string | null;
+            /**
+             * Duration Minutes
+             * @default 30
+             */
+            duration_minutes?: number;
+            /** Notes */
+            notes?: string | null;
+            /** Windows */
+            windows?: components["schemas"]["TimeWindow"][];
         };
         /** TranscriptTurn */
         TranscriptTurn: {
