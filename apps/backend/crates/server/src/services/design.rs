@@ -49,7 +49,7 @@ use ss_domain::design::geometry::framing::{
 use ss_domain::design::geometry::solver::{generate_candidates, Candidate};
 use ss_domain::design::interior::finishes::finish_specifications;
 use ss_domain::integrations::base::ProviderError;
-use ss_domain::procurement::bom::generate_bom;
+use ss_domain::procurement::bom::generate_bom_for;
 use ss_domain::py;
 use ss_domain::requirements::templates::sqm_per_room;
 use uuid::Uuid;
@@ -61,7 +61,7 @@ use crate::http::extract::py_truthy;
 use crate::integrations::blocking;
 use crate::integrations::matterport::{FixtureMatterportProvider, MatterportProvider};
 use crate::services::events::Emit;
-use crate::store::repo::{designs, rooms, BOMS, DESIGNS, GEOMETRIES, PROPERTIES, TASKS};
+use crate::store::repo::{designs, rooms, BOMS, DESIGNS, GEOMETRIES, PROFILES, PROPERTIES, TASKS};
 use crate::store::{Query, Tx};
 
 /// `ROOM_MIN_WIDTH` (meters); other room types get 2.4.
@@ -1087,7 +1087,15 @@ impl<'a> DesignService<'a> {
         if let Some(last) = existing.pop() {
             return Ok(last);
         }
-        let mut b = generate_bom(dv)?;
+        // The furniture follows the kind of business of the project's current profile; with no
+        // profile stored it is the list every project had before kinds (`treatment`).
+        let business_type = PROFILES
+            .list(tx, Query::new().eq("project_id", project_id))
+            .await?
+            .pop()
+            .map(|p| p.business_type)
+            .unwrap_or_default();
+        let mut b = generate_bom_for(dv, &business_type)?;
         if dv.floor_estimate.is_some() {
             // Quantities of a sketch on an assumed floor are not take-offs of a measured one.
             for item in &mut b.items {

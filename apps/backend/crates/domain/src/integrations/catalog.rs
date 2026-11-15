@@ -22,10 +22,41 @@ pub const ILLUSTRATIVE_UNIT_PRICES: &[(&str, i64)] = &[
     ("hand_sink", 60000),
 ];
 
-/// `ILLUSTRATIVE_UNIT_PRICES.get(item_type)`.
+/// Illustrative unit prices (cents; planning values only, never a supplier quote) of the items
+/// that furnish the kinds of business other than `treatment`
+/// (`procurement::bom::FurnishKind`). Not in Python, whose catalog has only the eight above;
+/// they are a second table, looked up after it, so that [`ILLUSTRATIVE_UNIT_PRICES`] stays
+/// Python's.
+pub const KIND_ILLUSTRATIVE_UNIT_PRICES: &[(&str, i64)] = &[
+    ("dental_chair", 650000),
+    ("dentist_stool", 35000),
+    ("instrument_cabinet", 180000),
+    ("exam_table", 140000),
+    ("physician_stool", 25000),
+    ("cafe_table", 22000),
+    ("cafe_chair", 9000),
+    ("service_counter", 420000),
+    ("espresso_machine", 850000),
+    ("display_case", 260000),
+    ("refrigerator", 240000),
+    ("pilates_reformer", 380000),
+    ("exercise_mat", 6000),
+    ("wall_mirror", 45000),
+    ("prop_shelf", 30000),
+    ("styling_chair", 55000),
+    ("mirror_station", 70000),
+    ("shampoo_station", 110000),
+    ("display_table", 60000),
+    ("clothing_rack", 25000),
+    ("wall_shelving", 40000),
+    ("checkout_counter", 190000),
+];
+
+/// `ILLUSTRATIVE_UNIT_PRICES.get(item_type)`, then [`KIND_ILLUSTRATIVE_UNIT_PRICES`].
 pub fn illustrative_unit_price(item_type: &str) -> Option<i64> {
     ILLUSTRATIVE_UNIT_PRICES
         .iter()
+        .chain(KIND_ILLUSTRATIVE_UNIT_PRICES)
         .find(|(k, _)| *k == item_type)
         .map(|(_, v)| *v)
 }
