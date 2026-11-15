@@ -154,7 +154,7 @@ export function poolEntry(rec, api = '') {
       property_id: id, fixture, source: source.kind, source_label: source.label, provider: cl.provider, data_origin: cl.data_origin,
       disclaimer: cl.disclaimer || null, listing_id: cl.provider_listing_id, unit: unit || null, source_record_date: cl.source_record_date || null,
       photo_url: img.photo, photo_caption: img.photoCaption, aerial: img.aerial, images: img.files,
-      scan: scans.suite, scans: scans.all, scan_text: scans.text, interior: interiorOf(rec),
+      scan: scans.suite, scans: scans.all, scan_text: scans.text, interior: interiorOf(rec), floor_is_suite: floorIsSuite(rec),
     },
   };
 }
@@ -178,6 +178,13 @@ export function interiorOf(rec) {
     mesh_text: `3D scan of ${space} · Matterport scan (live, fetched by the backend)`,
     photo_text: `Interior still of ${space} · Matterport scan (live, fetched by the backend)`,
   };
+}
+// Whether a layout of this listing is drawn on the suite's own live scan: the backend uses the first
+// interior asset with measured geometry (DesignService::site_source), so only when that one is the
+// suite's own LIVE Matterport scan chosen above. Anything else is never called the suite's floor.
+export function floorIsSuite(rec) {
+  const it = interiorOf(rec), first = (rec.interior_assets || []).find(a => a && a.has_measured_geometry === true);
+  return !!(it && it.scope === 'suite' && first && first.asset_id === it.asset_id);
 }
 export const tourUrl = id => (typeof id === 'string' && MP_ID.test(id) ? `https://my.matterport.com/show/?m=${id}&play=1&qs=1&brand=0&help=0&dh=1` : null);
 const mediaUrl = (id, file) => `${backend?.api ?? config().api}/api/v1/media/matterport/${id}/${file}`;
@@ -577,8 +584,10 @@ export class Backend {
   async layout(propertyId) {
     const rooms = roomRequirements(this.lastRooms);
     const task = (await this.req('POST', this.p('/layouts/generate'), { property_id: propertyId, room_requirements: rooms })).task;
-    if (task?.status !== 'COMPLETED') throw new Error(`Layout generation is ${task?.status || 'missing'}${task?.error_message ? ': ' + task.error_message : ''}.`);
+    // The task's own code and message travel with the error, so the caller can tell the cases apart.
+    if (task?.status !== 'COMPLETED') throw Object.assign(new Error(`Layout generation is ${task?.status || 'missing'}${task?.error_message ? ': ' + task.error_message : ''}.`), { task_status: task?.status ?? null, error_code: task?.error_code ?? null, error_message: task?.error_message ?? null });
     const id = task.output_reference?.design_version_ids?.[0];
+    if (id == null) throw Object.assign(new Error('Layout generation completed with no layout and no reason.'), { task_status: 'COMPLETED', no_layout: true });
     const layout = (await this.req('GET', this.p('/layouts'))).find(l => l.design_version_id === id);
     if (!layout) throw new Error('The generated layout is not in the layout list.');
     const [geometry, bom] = await Promise.all([this.req('GET', this.p(`/layouts/geometry/${layout.geometry_id}`)), this.req('GET', this.p(`/layouts/${id}/bom`))]);
@@ -712,10 +721,16 @@ const WAIT_STYLE = `.live-wait { margin: -2px 0; font-size: 13px; color: var(--i
 .live-wait-line { color: var(--ink2); font-weight: 500; }
 .live-wait-secs { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .live-wait .typing i { animation: none; opacity: .6; } }`;
+const RESULT_STYLE = `
+.live-result { align-self: stretch; max-width: 92%; padding: 10px 12px; border: 1px solid var(--tint2); border-radius: 10px; background: var(--surface); font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
+.live-result p { margin: 2px 0; }
+.live-result-head { color: var(--ink); font-weight: 600; font-size: 14px; }
+.live-result-label { color: var(--ink3); }
+.live-result-reasons { margin: 2px 0 4px; padding-left: 18px; }`;
 function waitStyle() {
   const doc = globalThis.document, at = doc?.head || doc?.documentElement;
   if (!at || doc.getElementById('live-wait-style')) return;
-  const s = doc.createElement('style'); s.id = 'live-wait-style'; s.textContent = WAIT_STYLE; at.append(s);
+  const s = doc.createElement('style'); s.id = 'live-wait-style'; s.textContent = WAIT_STYLE + RESULT_STYLE; at.append(s);
 }
 
 let page = null, backend = null;
@@ -783,7 +798,12 @@ export async function furnish(S) {
   if (!d.rooms.length) {
     let out;
     const end = waiting('layout');
-    try { out = await backend.layout(p.live?.property_id ?? p.id); end(true); } catch (e) { end(); page.note(page.esc(`No layout for ${p.address}: ${e.message}`)); return false; } finally { end(); }
+    try { out = await backend.layout(p.live?.property_id ?? p.id); end(true); } catch (e) {
+      end();
+      const r = layoutResult(e, p);
+      if (r) resultCard(r); else page.note(page.esc(`No layout for ${p.address}: ${e.message}`));
+      return false; // the page stays in Compare; a later try (new rooms) asks again
+    } finally { end(); }
     const { plan, rooms } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms);
     Object.assign(d, { plan, rooms, bom: cat, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
     for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
@@ -794,6 +814,46 @@ export async function furnish(S) {
   ownerTexts();
   return true;
 }
+/* ------------------------------- a layout that does not fit (web-link-7) */
+// The backend's own words (DesignService infeasible_message, services/design.rs). Parsed only to lay
+// the figures out; every figure is the message's own text, never computed, rounded or converted.
+const INFEASIBLE = /^No layout fits the measured floor: the floor is (\S+) m2 and (its largest rectangular area is (\S+ x \S+ m = \S+ m2)|the size of its largest rectangular area is unknown|it has no rectangular area of at least \S+ m2); the room program needs (\S+) room\(s\), at least (\S+ m2) in all plus circulation, with minimum room widths up to (\S+ m)\. Solver: (.*)\. No layout was stored\.$/s;
+export const NO_FIT_OPTIONS = 'Options: fewer or smaller rooms, or another listing.';
+// A failed layout task -> the result the owner reads, or null (any other failure keeps its note).
+export function layoutResult(e, p) {
+  const own = !!p?.live?.floor_is_suite;
+  const floor = own ? 'the measured floor of this suite (Matterport scan)' : 'the floor geometry the backend has for this listing (the answer does not say which scan it comes from; it may not be this suite’s own)';
+  if (e?.no_layout) return { kind: 'none', heading: `No layout for this ${own ? 'suite' : 'listing'}`, lines: [], reasons: [], tail: [`The backend returned no layout for this ${own ? 'suite' : 'listing'} and gave no reason.`] };
+  if (e?.error_code !== 'LayoutInfeasibleError') return null;
+  const msg = String(e.error_message ?? ''), m = INFEASIBLE.exec(msg);
+  const heading = own ? 'The rooms do not fit this suite’s measured floor' : 'The rooms do not fit the floor geometry the backend has for this listing';
+  if (!m) return { kind: 'unparsed', heading, lines: [['Floor', floor], ['The backend said', msg.trim() ? msg : '(no message: the backend gave no details)']], reasons: [], tail: [NO_FIT_OPTIONS] };
+  const rect = m[3] ? m[3] : m[2].startsWith('the size') ? 'size unknown (the backend could not compute it)' : m[2].replace(/^it has /, '');
+  return { kind: 'infeasible', heading, lines: [
+    ['Floor', floor],
+    ['Measured floor area', `${m[1]} m2`],
+    ['Largest rectangular area', rect],
+    ['Rooms needed', `${m[4]} room(s), at least ${m[5]} in all plus circulation`],
+    ['Minimum room width', `up to ${m[6]}`],
+  ], reasons: m[7].split('; ').filter(Boolean), tail: ['No layout was stored.', NO_FIT_OPTIONS] };
+}
+// The result as its own element in the chat log (text only), before a pending wait if there is one.
+export function resultCard(r) {
+  const log = logEl(); if (!log) return null;
+  const box = mk('div', 'live-result'); box.setAttribute('role', 'status');
+  box.append(mk('p', 'live-result-head', r.heading));
+  for (const [k, v] of r.lines) { const line = mk('p', 'live-result-line'); line.append(mk('span', 'live-result-label', k + ': '), mk('span', null, v)); box.append(line); }
+  if (r.reasons.length) {
+    box.append(mk('p', 'live-result-label', 'Solver:'));
+    const ul = mk('ul', 'live-result-reasons'); for (const x of r.reasons) ul.append(mk('li', null, x)); box.append(ul);
+  }
+  for (const x of r.tail) box.append(mk('p', 'live-result-line', x));
+  const wait = log.children ? [...log.children].find(c => c.className === 'live-wait') : null;
+  if (wait && log.insertBefore) log.insertBefore(box, wait); else log.append(box);
+  keepInView(log);
+  return box;
+}
+
 const shown = new Set();
 async function ownerTexts() {
   let list;

@@ -685,6 +685,60 @@ await t('waiting: gone after a rejected call and after a thrown error inside the
   await assert.rejects(B.turn('compare', 'parking?', thrower.S, 5), /page broke/);
   assert.equal(boxes(thrower.doc).length, 0, 'chat: removed although the page threw'); assert.equal(thrower.doc.form.getAttribute('aria-busy'), null);
 }));
+/* ------------------------------- (a) a layout that does not fit (web-link-7) */
+const NOFIT = 'No layout fits the measured floor: the floor is 99 m2 and its largest rectangular area is 9.0 x 6.0 m = 54 m2; the room program needs 5 room(s), at least 46.8 m2 in all plus circulation, with minimum room widths up to 3.0 m. Solver: No spine layout satisfies the room program; No front layout satisfies the room program. No layout was stored.';
+const SUITE = { address: '1 Test St', live: { floor_is_suite: true } }, OTHER = { address: '1 Test St', live: { floor_is_suite: false } };
+const cardText = b => textOf(b).replace(/\s+/g, ' ');
+function failingFetch(task) { return (u, o) => (new URL(u).pathname.endsWith('/layouts/generate') ? Promise.resolve({ ok: true, status: 202, text: async () => JSON.stringify({ task }) }) : strictFetch(u, o)); }
+const results = doc => doc.log.children.filter(c => c.className === 'live-result');
+await t('no fit: the infeasible answer gives the card with exactly the message\'s numbers, the reasons, "No layout was stored." and the options', () => withDoc(async () => {
+  const { doc, ctx, S, notes } = await waitPage();
+  await B.search(S); notes.length = 0; S.finalist = k1.property_id;
+  current = failingFetch({ status: 'FAILED', error_code: 'LayoutInfeasibleError', error_message: NOFIT, output_reference: {} });
+  assert.equal(await B.furnish(S), false, 'the page stays in Compare');
+  assert.equal(boxes(doc).length, 0, 'the wait ended'); assert.deepEqual(notes, [], 'no note in place of the card');
+  const [c] = results(doc); assert.ok(c); assert.equal(c.attrs.role, 'status'); assert.equal(doc.log.children.at(-1), c);
+  const txt = cardText(c);
+  for (const want of ['Measured floor area: 99 m2', 'Largest rectangular area: 9.0 x 6.0 m = 54 m2', 'Rooms needed: 5 room(s), at least 46.8 m2 in all plus circulation', 'Minimum room width: up to 3.0 m', 'Solver:', 'No spine layout satisfies the room program', 'No front layout satisfies the room program', 'No layout was stored.', B.NO_FIT_OPTIONS]) assert.ok(txt.includes(want), want + ' | ' + txt);
+  for (const d of txt.match(/\d+(?:\.\d+)?/g)) assert.ok(NOFIT.includes(d), `${d} is not in the message`);
+  assert.doesNotMatch(txt, /sq ?ft|SF\b|error|went wrong|unsuitable/i);
+  assert.equal(ctx.D[ctx.P[k1.property_id].src].rooms.length, 0, 'no layout put on the page'); assert.equal(S.placed.length, 0);
+  // trying again (new rooms) asks the backend again and works as before
+  current = strictFetch; assert.equal(await B.furnish(S), true);
+}));
+await t('no fit: whose floor; the unknown-rectangle wording; an unparsed message shown whole', () => {
+  const r = B.layoutResult({ error_code: 'LayoutInfeasibleError', error_message: NOFIT }, SUITE);
+  assert.equal(r.heading, 'The rooms do not fit this suite’s measured floor'); assert.deepEqual(r.lines[0], ['Floor', 'the measured floor of this suite (Matterport scan)']);
+  const o = B.layoutResult({ error_code: 'LayoutInfeasibleError', error_message: NOFIT }, OTHER);
+  assert.doesNotMatch(o.heading + o.lines[0][1], /this suite’s measured|of this suite \(Matterport/); assert.match(o.lines[0][1], /may not be this suite’s own/);
+  const u = B.layoutResult({ error_code: 'LayoutInfeasibleError', error_message: NOFIT.replace('its largest rectangular area is 9.0 x 6.0 m = 54 m2', 'the size of its largest rectangular area is unknown') }, SUITE);
+  assert.equal(u.kind, 'infeasible'); assert.deepEqual(u.lines[2], ['Largest rectangular area', 'size unknown (the backend could not compute it)']);
+  const bad = 'No layout fits: something new <b>x</b>';
+  const w = B.layoutResult({ error_code: 'LayoutInfeasibleError', error_message: bad }, SUITE);
+  assert.equal(w.kind, 'unparsed'); assert.deepEqual(w.lines[1], ['The backend said', bad]);
+  const e0 = B.layoutResult({ error_code: 'LayoutInfeasibleError', error_message: '' }, SUITE);
+  assert.equal(e0.kind, 'unparsed'); assert.deepEqual(e0.lines[1], ['The backend said', '(no message: the backend gave no details)']); assert.doesNotMatch(e0.lines.flat().join(' '), /\d/);
+  // floorIsSuite on the recorded fixtures agrees with interiorOf: never true without a suite-own scan
+  for (const rec of [k1, k2, hw.record]) { const it = B.interiorOf(rec); if (B.floorIsSuite(rec)) assert.equal(it.scope, 'suite'); }
+  assert.equal(B.floorIsSuite({ commercial_listing: { data_origin: 'FIXTURE_REAL' }, interior_assets: [{ asset_id: 'BLDG0000001', provider: 'matterport', data_origin: 'LIVE', has_measured_geometry: true, matches_listing_unit: false }, { asset_id: 'SUITE000001', provider: 'matterport', data_origin: 'LIVE', has_measured_geometry: true }] }), false, 'a building scan first: not the suite');
+});
+await t('no fit: markup in the message is text; another error_code keeps the old note; a completed task with no layout gives the no-reason result', () => withDoc(async () => {
+  const { doc, S, notes } = await waitPage();
+  await B.search(S); S.finalist = k1.property_id;
+  current = failingFetch({ status: 'FAILED', error_code: 'LayoutInfeasibleError', error_message: '<img src=x onerror=alert(1)>' });
+  await B.furnish(S);
+  const c = results(doc).at(-1); assert.ok(c.all().some(n => n.textContent === '<img src=x onerror=alert(1)>')); assert.ok(!c.all().some(n => n.tagName === 'IMG' || 'innerHTML' in n));
+  notes.length = 0; const before = results(doc).length;
+  current = failingFetch({ status: 'FAILED', error_code: 'GEOMETRY_UNAVAILABLE', error_message: 'no measured geometry' });
+  assert.equal(await B.furnish(S), false); assert.equal(results(doc).length, before);
+  assert.match(notes.at(-1), /^No layout for .*Layout generation is FAILED: no measured geometry\.$/);
+  current = failingFetch({ status: 'COMPLETED', output_reference: { design_version_ids: [] } });
+  assert.equal(await B.furnish(S), false);
+  const n = cardText(results(doc).at(-1)); assert.match(n, /The backend returned no layout for this (suite|listing) and gave no reason\./); assert.doesNotMatch(n, /\d/);
+}));
+await t('no fit: nothing of it exists without ?live=1 (no page file names it)', () => {
+  for (const f of ['workspace.js', 'workspace.html', 'workspace.css']) assert.doesNotMatch(readFileSync(new URL('./' + f, import.meta.url), 'utf8'), /live-result|layoutResult|resultCard/, f);
+});
 await t('waiting: two overlapping waits show one element, and none is left behind in either end order', () => withDoc(async () => {
   const { doc, S } = await waitPage();
   for (const order of [[0, 1], [1, 0]]) {
@@ -1054,6 +1108,16 @@ else {
     console.log(`      ${rooms.length} rooms (${rooms.map(r => r.name + ' ' + r.dim).join(', ')}); ${cat.placed.length} parts, total $${cat.estimated_total} (${out.bom.status})`);
     const noGeo = results.find(r => r !== hw && !(r.rec.interior_assets || []).some(a => a.has_measured_geometry));
     try { await be.layout(noGeo.rec.property_id); console.log('      layout for a listing without geometry: generated'); } catch (e) { console.log('      layout for a listing without geometry refused:', e.message); }
+  });
+  await t('no fit (web-link-7): what the owner reads for each listing with a suite-own live scan (at most 2)', async () => {
+    const own = results.map(r => B.poolEntry(r.rec, be.api)).filter(p => p.live.floor_is_suite).slice(0, 2);
+    if (!own.length) { console.log('      no listing with a suite-own live scan in this search'); return; }
+    for (const p of own) {
+      try { await be.layout(p.live.property_id); console.log('      <unit>: a layout was generated'); } catch (e) {
+        const r = B.layoutResult(e, p);
+        console.log(`      <unit>: ${r ? `${r.kind} | ${r.heading} | ${r.lines.map(l => l.join(': ')).join(' | ')} | ${r.reasons.join('; ')} | ${r.tail.join(' ')}` : 'old note: ' + e.message}`);
+      }
+    }
   });
   await t('chat through the Rust origin (forwarded to Python)', async () => {
     try { const out = await be.chat('rank the properties'); console.log(`      mode ${out.mode}: ${out.reply.split('\n')[0]}`); assert.ok(out.reply); } catch (e) { console.log('      ' + B.chatFailure(e)); throw e; }
