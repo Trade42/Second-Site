@@ -231,6 +231,12 @@ mod tests {
             (VOICE, "/api/v1/projects/x/voice"),
             (VOICE, "/api/v1/projects/x/voice/sessions"),
             (VOICE, "/api/v1/projects/x/voice%2Fsession"),
+            (
+                VOICE,
+                "/api/v1/projects/..%2F..%2Finternal%2Fv1%2Fowner%2Fnotify/voice/session",
+            ),
+            (VOICE, "/api/v1/projects/a.b/voice/session"),
+            (VOICE, "/api/v1/projects//voice/session"),
             ("/webhooks/photon", "/webhooks/photon/"),
             ("/webhooks/photon", "webhooks/photon"),
             ("/webhooks/photon", ""),

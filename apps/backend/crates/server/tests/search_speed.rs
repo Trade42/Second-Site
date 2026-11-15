@@ -166,6 +166,8 @@ fn answer(target: &str, body: &[u8]) -> Value {
 /// model, coordinates and suite 100.
 struct ManyListings {
     base: RawListing,
+    /// The first listing's model id is malformed (the Matterport adapter refuses it).
+    bad_first: bool,
 }
 
 impl CoStarProvider for ManyListings {
@@ -191,7 +193,12 @@ impl CoStarProvider for ManyListings {
                     .insert("longitude".into(), json!(-118.16 - i as f64 * 0.001));
                 let mut asset = serde_json::Map::new();
                 asset.insert("provider".into(), json!("matterport"));
-                asset.insert("asset_id".into(), json!(format!("MODEL{i:04}")));
+                let id = if self.bad_first && i == 0 {
+                    "bad id!".to_owned()
+                } else {
+                    format!("MODEL{i:04}")
+                };
+                asset.insert("asset_id".into(), json!(id));
                 asset.insert("asset_type".into(), json!("matterport_model"));
                 r.interior_assets = vec![asset];
                 r
@@ -204,6 +211,10 @@ impl CoStarProvider for ManyListings {
 }
 
 fn install(t: &TestApp, server: &SlowServer) {
+    install_listings(t, server, false);
+}
+
+fn install_listings(t: &TestApp, server: &SlowServer, bad_first: bool) {
     let policy = RetryPolicy {
         attempts: 1,
         backoff_s: 0.0,
@@ -225,7 +236,10 @@ fn install(t: &TestApp, server: &SlowServer) {
         .unwrap()
         .remove(0);
     t.app.extensions.insert(Arc::new(Integrations {
-        costar: Arc::new(ManyListings { base: first }),
+        costar: Arc::new(ManyListings {
+            base: first,
+            bad_first,
+        }),
         permits: Arc::new(LiveLaPermitProvider::with_policy(
             &server.base,
             "elec-test",
@@ -395,10 +409,11 @@ both_backends!(concurrent_search_is_faster_and_identical, |db| {
     assert_eq!(requests, seq_requests, "same provider requests");
     assert!(max <= PROVIDER_CONCURRENCY, "{max} in flight");
     assert!(max > 1, "requests overlapped");
-    let sequential_cost = DELAY * u32::try_from(requests).unwrap();
+    // Compared with the sequential run of the same test, not with an absolute time, so that a
+    // loaded machine (which slows both runs) does not make it fail: measured about 6x, asserted 2x.
     assert!(
-        con_time < sequential_cost / 3,
-        "{con_time:?} is not well under {sequential_cost:?}"
+        con_time * 2 < seq_time,
+        "{con_time:?} is not well under the sequential {seq_time:?}"
     );
     assert_eq!(concurrent, sequential);
     // The search really used the live adapters' answers.
@@ -412,4 +427,65 @@ both_backends!(concurrent_search_is_faster_and_identical, |db| {
         first["manifest"].to_string().contains("la_open_data"),
         "{first}"
     );
+});
+
+/// Results come back in input order even when later items finish first, at most `bound` run at
+/// once, and `claim` sees the items in input order.
+#[test]
+fn bounded_map_keeps_input_order() {
+    use ss_server::workflows::property_analysis::bounded_map;
+    let running = AtomicUsize::new(0);
+    let max = AtomicUsize::new(0);
+    let claimed = std::sync::Mutex::new(Vec::new());
+    let out = bounded_map(
+        (0..24u64).collect(),
+        PROVIDER_CONCURRENCY,
+        |i| {
+            claimed.lock().unwrap().push(i);
+            i
+        },
+        |i| {
+            let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+            max.fetch_max(now, Ordering::SeqCst);
+            // Later items answer sooner.
+            std::thread::sleep(Duration::from_millis(5 * (24 - i)));
+            running.fetch_sub(1, Ordering::SeqCst);
+            i * 10
+        },
+    );
+    assert_eq!(out, (0..24u64).map(|i| i * 10).collect::<Vec<_>>());
+    assert_eq!(*claimed.lock().unwrap(), (0..24u64).collect::<Vec<_>>());
+    assert!(max.load(Ordering::SeqCst) <= PROVIDER_CONCURRENCY);
+}
+
+both_backends!(one_bad_matterport_id_costs_only_its_listing, |db| {
+    let t = TestApp::new(db, &[]);
+    let (tok, _) = t.dev_token().await;
+    let server = SlowServer::start();
+    install_listings(&t, &server, true);
+    let pid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = t
+        .post(
+            &format!("/api/v1/projects/{pid}/properties/search"),
+            Some(&tok),
+            &json!({"city": "Los Angeles", "state": "CA", "limit": LISTINGS}),
+        )
+        .await;
+    assert_eq!(r.status.as_u16(), 202, "{}", r.text);
+    let props = t
+        .get(&format!("/api/v1/projects/{pid}/properties"), Some(&tok))
+        .await
+        .body;
+    let props = props.as_array().expect("properties").clone();
+    assert_eq!(props.len(), LISTINGS);
+    let lost: Vec<&str> = props
+        .iter()
+        .filter(|p| p["missing_information"].to_string().contains("Matterport scans not retrieved"))
+        .map(|p| p["property_identity"]["normalized_address"].as_str().unwrap())
+        .collect();
+    assert_eq!(lost.len(), 1, "{lost:?}");
+    assert!(lost[0].starts_with("5000 "), "{lost:?}");
 });

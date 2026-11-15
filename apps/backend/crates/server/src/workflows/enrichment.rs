@@ -32,7 +32,7 @@ use ss_domain::py;
 use uuid::Uuid;
 
 use indexmap::IndexMap;
-use ss_domain::integrations::base::ProviderError;
+use ss_domain::integrations::base::{ProviderError, ProviderErrorKind};
 
 use crate::integrations::matterport::{suite_matches, MatterportProvider, ModelSummary};
 use crate::integrations::vexcel::VexcelProvider;
@@ -95,9 +95,10 @@ pub fn enrich_interior(
 /// 20 ids per request) instead of one per listing. Each listing gets exactly what its own call
 /// would have given: only the summaries of the ids it would have asked for (its first
 /// [`MAX_MODELS`] Matterport assets), and, when the one call fails, the failure its own call
-/// would have recorded. Difference: an error that one listing's ids alone would have caused
-/// (a malformed id, a bad answer in its batch) now marks every listing of the pool as "not
-/// retrieved", the same way a provider outage does today.
+/// would have recorded. A `BAD_RESPONSE` or `NOT_FOUND` failure (which one listing's ids alone
+/// can cause: a malformed id, a bad entry) falls back to one call per listing, so only that
+/// listing records it. Any other failure (auth, timeout, outage, rate limit) marks every listing
+/// "not retrieved" at once, as each per-listing call would have.
 pub fn enrich_interior_pool(
     pool: Vec<PropertyDigitalProfile>,
     matterport: &dyn MatterportProvider,
@@ -116,6 +117,15 @@ pub fn enrich_interior_pool(
         return pool;
     }
     let summaries = matterport.model_summaries(&all);
+    // A bad answer or id that one listing's ids alone can cause must not cost the other listings
+    // their scans: ask per listing then, as before (an outage-shaped failure is not re-asked).
+    if matches!(&summaries, Err(e) if matches!(e.kind, ProviderErrorKind::BadResponse | ProviderErrorKind::NotFound))
+    {
+        return pool
+            .into_iter()
+            .map(|p| enrich_interior(p, matterport))
+            .collect();
+    }
     pool.into_iter()
         .zip(per_listing)
         .map(|(p, ids)| match ids {

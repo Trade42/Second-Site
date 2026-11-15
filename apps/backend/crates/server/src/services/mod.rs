@@ -18,3 +18,4 @@ pub mod nessie;
 pub mod notifier;
 pub mod permits;
 pub mod tasks;
+pub mod voice_bridge;
