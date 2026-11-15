@@ -879,3 +879,60 @@ def test_chat_route_sends_its_request_id_to_rust(client, container, local_http, 
     assert r.status_code == 200, r.text
     assigned = r.headers["x-request-id"]
     assert UUID(assigned) and [hdrs.get("x-request-id") for _m, _p, hdrs in hits] == [assigned, assigned]
+
+
+def test_a_request_id_byte_outside_ascii_reaches_rust_unchanged(client, container, local_http, monkeypatch):
+    """Through a real server (uvicorn on an ephemeral port) and raw HTTP: the test client can neither send nor read
+    back a header byte outside ASCII. Before the client sent the id as bytes, the same value as a str made httpx raise
+    UnicodeEncodeError inside the tool call."""
+    import http.client
+    import threading
+
+    import uvicorn
+
+    from app.core.security import issue_token
+    from app.main import app
+
+    rust_url, hits = local_http(lambda _m, _p: (200, []))
+    owner = uuid4()
+    token = issue_token(container.settings.auth_secret.get_secret_value(), owner)
+    r = client.post(
+        "/api/v1/projects",
+        json={"project_name": "Chat request id bytes", "market": {"city": "Los Angeles", "state": "CA"}},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code == 201, r.text
+    chat = f"/api/v1/projects/{r.json()['project']['project_id']}/chat"
+    monkeypatch.setattr(container.settings, "backend_api_url", rust_url)
+
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning", lifespan="off")
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 10
+        while not server.started and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert server.started
+        port = server.servers[0].sockets[0].getsockname()[1]
+        body = json.dumps({"message": "rank the properties"}).encode()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
+        conn.putrequest("POST", chat)
+        for name, value in (
+            ("Authorization", f"Bearer {token}"),
+            ("Content-Type", "application/json"),
+            ("Content-Length", str(len(body))),
+            ("x-request-id", b"caf\xe9-9"),
+        ):
+            conn.putheader(name, value)
+        conn.endheaders(body)
+        resp = conn.getresponse()
+        answer = resp.read()
+        conn.close()
+    finally:
+        server.should_exit = True
+        thread.join(10)
+    assert resp.status == 200, answer
+    assert resp.getheader("x-request-id") == "caf\xe9-9"  # http.client reads header bytes as latin-1
+    assert [hdrs.get("x-request-id") for _m, _p, hdrs in hits] == ["caf\xe9-9"] * 2  # so does the stand-in
