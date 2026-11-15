@@ -49,6 +49,25 @@ apps/backend/scripts/run-local.sh --memory   # in-memory demo store, no database
 - On PostgreSQL the schema is migrated to alembic head at start-up: alembic's own SQL, alembic's `alembic_version` bookkeeping, a no-op when already at head. Then the service creates its own table, `nessie_simulation_records`, if it is missing. `second-site-backend migrate` only migrates.
 - Run the Python app on another port (for example 8001) when both run together. They must share `DATABASE_URL` and `AUTH_SECRET`: a token minted by either service verifies in the other. See "Switching over".
 
+## Run the whole stack locally without Docker
+
+```
+apps/backend/scripts/dev-stack.sh start     # builds, migrates, starts everything in the background
+apps/backend/scripts/dev-stack.sh status    # each service, its pid, and the Rust /ready per provider
+apps/backend/scripts/dev-stack.sh logs [python|rust|mockups|web [-f]]   # tails; -f follows one log
+apps/backend/scripts/dev-stack.sh stop      # stops exactly what start started
+```
+
+A developer convenience, not a deployment: loopback only, dev tokens on, one generated `AUTH_SECRET`.
+- **What runs.** The Python app on `127.0.0.1:8001` and the Rust service on `127.0.0.1:8000`, each pointed at the other, on one database. `alembic upgrade head` runs first; `start` succeeds only when the Rust `/ready` shows `python_service` LIVE. A static server for `mockups/` on 8090 when that folder exists, and the web app on 3000 when `apps/web/node_modules` exists. The script never runs `npm install`; it prints the command.
+- **Settings.** Both services read the environment, then `.env` and `../../.env` as always. The script only checks which names are set and never reads a value. Where a name is set nowhere it fills in `DATABASE_URL`, `AUTH_SECRET`, `TASK_EXECUTION_MODE=inline`, `APP_ENV` and the object directory. The defaults:
+  - The database is `DEV_STACK_DATABASE_URL`, else `DATABASE_URL`, else the sandbox socket `/tmp/ss-pg`: database `secondsite_rust_test`, schema `DEV_STACK_SCHEMA` (default `dev_stack`, created if missing).
+  - `AUTH_SECRET` is generated once into `.data/dev-stack/auth_secret` (mode 600, git-ignored).
+- **Always set by the script** (a `.env` line for these has no effect). Host, ports, `ALLOW_DEV_TOKENS=true`, `STORE_BACKEND=postgres`, `FIXTURES_DIR` (unless set in the environment), `CORS_ORIGINS` (ports 3000 and 8090, `localhost` and `127.0.0.1`, after any `CORS_ORIGINS` of the environment), `PUBLIC_BASE_URL`, `PUBLIC_WEB_URL`, `PYTHON_SERVICE_URL` and `BACKEND_API_URL`.
+- **Provider modes.** `PERMIT_PROVIDER_MODE=live`, `NESSIE_PROVIDER_MODE` and the others pass through unchanged.
+- **Refusals and clean-up.** It refuses to start when a port is taken (naming it) or when its state directory is not git-ignored. A failed start stops what it launched.
+- **State.** The secret, logs, pid files, stored objects and a private copy of the binary live in `.data/dev-stack/` (git-ignored). After `stop`, `rm -rf .data/dev-stack` removes all of it; the next `start` generates a new `AUTH_SECRET`, so earlier tokens stop verifying.
+
 ## Run with Docker Compose
 
 ```
