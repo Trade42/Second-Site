@@ -33,6 +33,7 @@
     "FindingPayload",
     "FinishSpecification",
     "Fixture",
+    "FloorEstimate",
     "FurniturePlacement",
     "GeometryValidationReport",
     "HandoffRequestedPayload",

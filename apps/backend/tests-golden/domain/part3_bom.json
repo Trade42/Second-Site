@@ -168,7 +168,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -559,7 +560,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -950,7 +952,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -1341,7 +1344,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -1732,7 +1736,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -2123,7 +2128,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -2514,7 +2520,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -2905,7 +2912,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -3296,7 +3304,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -3687,7 +3696,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -4078,7 +4088,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -4469,7 +4480,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -4947,7 +4959,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -5445,7 +5458,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -5701,7 +5715,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -5957,7 +5972,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -6213,7 +6229,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -6502,7 +6519,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -6791,7 +6809,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -7283,7 +7302,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -8028,7 +8048,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -8802,7 +8823,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -9374,7 +9396,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -9582,7 +9605,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -9955,7 +9979,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -10386,7 +10411,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -10832,7 +10858,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -11223,7 +11250,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -11614,7 +11642,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -12034,7 +12063,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -12410,7 +12440,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -12670,7 +12701,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -12875,7 +12907,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -13138,7 +13171,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -13420,7 +13454,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -13625,7 +13660,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -13859,7 +13895,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -14115,7 +14152,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -14371,7 +14409,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -14627,7 +14666,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -14883,7 +14923,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -15139,7 +15180,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -15395,7 +15437,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -15651,7 +15694,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -15907,7 +15951,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -16163,7 +16208,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -16419,7 +16465,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -16675,7 +16722,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -16931,7 +16979,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -17187,7 +17236,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -17443,7 +17493,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -17699,7 +17750,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -17955,7 +18007,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -18211,7 +18264,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -18438,7 +18492,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -18555,7 +18610,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -18672,7 +18728,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -18789,7 +18846,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -18906,7 +18964,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -19052,7 +19111,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -19209,7 +19269,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -19453,7 +19514,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -19730,7 +19792,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -20065,7 +20128,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -20277,7 +20341,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -20434,7 +20499,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -20620,7 +20686,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -20817,7 +20884,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -21043,7 +21111,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",
@@ -21280,7 +21349,8 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED"
+    "approval_status": "PROPOSED",
+    "floor_estimate": null
    },
    "bom": {
     "project_id": "dff02230-0000-4000-8000-0000000000a1",

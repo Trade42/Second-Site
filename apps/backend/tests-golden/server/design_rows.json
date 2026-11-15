@@ -238,6 +238,7 @@
       "room_type": "storage"
      }
     ],
+    "floor_estimate": null,
     "proposed_walls": [],
     "version_number": 1,
     "approval_status": "PROPOSED",
@@ -417,6 +418,7 @@
       "room_type": "storage"
      }
     ],
+    "floor_estimate": null,
     "proposed_walls": [],
     "version_number": 2,
     "approval_status": "PROPOSED",
@@ -596,6 +598,7 @@
       "room_type": "storage"
      }
     ],
+    "floor_estimate": null,
     "proposed_walls": [],
     "version_number": 3,
     "approval_status": "PROPOSED",
@@ -798,6 +801,7 @@
       "room_type": "storage"
      }
     ],
+    "floor_estimate": null,
     "proposed_walls": [],
     "version_number": 4,
     "approval_status": "PROPOSED",

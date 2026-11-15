@@ -56,7 +56,8 @@
         "CAD_OR_IFC",
         "OWNER_MEASURED",
         "PHOTO_ESTIMATE",
-        "FIXTURE"
+        "FIXTURE",
+        "LISTED_AREA_ESTIMATE"
       ],
       "title": "GeometrySource",
       "type": "string"
