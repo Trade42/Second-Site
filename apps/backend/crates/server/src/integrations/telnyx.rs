@@ -120,7 +120,7 @@ impl LiveTelnyxProvider {
         format!(
             "live call not dialed, nothing was sent to the carrier: these settings are missing \
              or unusable: {} (the server could not receive or verify the call's events; \
-             PUBLIC_BASE_URL must be https on a public host)",
+             PUBLIC_BASE_URL must be https://<public host>, no path, no trailing slash)",
             missing.join(", ")
         )
     }

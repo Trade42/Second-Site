@@ -130,6 +130,15 @@ fn the_helper_names_what_a_live_call_lacks() {
         "calls.example.com",
         "wss://calls.example.com",
         "",
+        // Review fix: the value is used as written, so `{base}/webhooks/telnyx` must be a path
+        // this server has; and addresses the carrier cannot reach in other spellings.
+        "https://calls.example.com/",
+        "https://calls.example.com:8443/base",
+        "https://calls.example.com?x=1",
+        " https://calls.example.com",
+        "https://calls.example.com ",
+        "https://127.1",
+        "https://100.64.0.1",
     ] {
         assert_eq!(
             test_settings(&vars(&[], &[("PUBLIC_BASE_URL", bad)])).voice_live_missing(),
@@ -138,8 +147,8 @@ fn the_helper_names_what_a_live_call_lacks() {
         );
     }
     for good in [
-        "https://calls.example.com/",
-        "https://calls.example.com:8443/base",
+        "https://calls.example.com",
+        "https://calls.example.com:8443",
         "https://8.8.8.8",
         "https://[2606:4700::1111]",
     ] {
@@ -218,7 +227,8 @@ fn a_live_dial_is_refused_before_any_request_and_names_every_missing_setting() {
             "live call not dialed, nothing was sent to the carrier: these settings are missing \
              or unusable: TELNYX_CONNECTION_ID, TELNYX_FROM_NUMBER, TELNYX_PUBLIC_KEY, \
              PUBLIC_BASE_URL, XAI_API_KEY (the server could not receive or verify the call's \
-             events; PUBLIC_BASE_URL must be https on a public host)"
+             events; PUBLIC_BASE_URL must be https://<public host>, no path, no trailing \
+             slash)"
         );
         no_value_in(&m);
     }

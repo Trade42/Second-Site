@@ -831,10 +831,15 @@ impl Settings {
     /// the xAI key too (the `wss` stream address is built from the same `https` base).
     pub fn voice_live_missing(&self) -> Vec<&'static str> {
         fn public_https(url: &str) -> bool {
-            let Some(rest) = url.trim().strip_prefix("https://") else {
+            // The value is used as written (`{base}/webhooks/telnyx`): no blank, and nothing
+            // after the host, or the carrier's events go to a path this server does not have.
+            let Some(rest) = url.strip_prefix("https://") else {
                 return false;
             };
             let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+            if authority.len() != rest.len() || url.contains(char::is_whitespace) {
+                return false;
+            }
             let hostport = authority.rsplit('@').next().unwrap_or("");
             let host = match hostport.strip_prefix('[') {
                 Some(v6) => v6.split(']').next().unwrap_or(""),
@@ -847,7 +852,8 @@ impl Settings {
                         || a.is_private()
                         || a.is_link_local()
                         || a.is_unspecified()
-                        || a.is_broadcast())
+                        || a.is_broadcast()
+                        || (a.octets()[0] == 100 && a.octets()[1] & 0xc0 == 64))
                 }
                 Ok(std::net::IpAddr::V6(a)) => {
                     let first = a.segments()[0];
@@ -857,10 +863,15 @@ impl Settings {
                         || first & 0xffc0 == 0xfe80
                         || a.to_ipv4_mapped().is_some())
                 }
-                // A name: at least two labels, and not one that only resolves locally.
+                // A name: at least two labels, the last one alphabetic (`127.1` is an address),
+                // and not one that only resolves locally.
                 Err(_) => {
                     host.contains('.')
                         && !host.starts_with('.')
+                        && host
+                            .rsplit('.')
+                            .next()
+                            .is_some_and(|l| l.starts_with(|c: char| c.is_ascii_alphabetic()))
                         && ![".localhost", ".local", ".internal", ".lan"]
                             .iter()
                             .any(|s| host.ends_with(s))
