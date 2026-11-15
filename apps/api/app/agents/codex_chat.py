@@ -400,7 +400,8 @@ def scrub_ids(text: str) -> str:
     t = _ID_LIST_RE.sub(_MARK, t)
     t = _ID_LABEL_RE.sub(_label, t)
     t = _ID_LIST_RE.sub(_MARK, t)
-    t = re.sub(rf"(?<![ \t])[ \t]*[(\[{{]\s{{0,8}}{_MARK}\s{{0,8}}[)\]}}]", "", t)  # brackets that held only ids
+    # brackets that held only ids
+    t = re.sub(rf"(?<![ \t])[ \t]*[(\[{{]\s{{0,8}}{_MARK}\s{{0,8}}[)\]}}]", "", t)
     # a line of only ids
     t = re.sub(rf"(?m)^[ \t]*(?:[-*•][ \t]*)?{_MARK}[ \t]*(?:[.,;][ \t]*)?(?:\n|\Z)", "", t)
     t = re.sub(rf"(?<=[.!?])[ \t]*{_MARK}[ \t]*[.!?;,]+", "", t)  # a sentence of only ids

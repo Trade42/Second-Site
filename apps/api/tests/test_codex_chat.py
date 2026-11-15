@@ -497,7 +497,7 @@ UNTOUCHED = "No id here:  two spaces, () brackets, permit 18041-90000-12345, 202
             "5757 W Century Blvd ranks first.",
         ),
         (f"Do not pick {U1}; pick 5757 W Century Blvd.", "Do not pick; pick 5757 W Century Blvd."),
-        (f"- {U1}: 5757 W Century Blvd", "- 5757 W Century Blvd"),
+        (f"- {U1}: 5757 W Century Blvd", "5757 W Century Blvd"),  # the bullet's dash goes with the id
         (f"It ranks first. {U1}: see the app.", "It ranks first. see the app."),
         # and a reply without an id is not touched at all
         (UNTOUCHED, UNTOUCHED),

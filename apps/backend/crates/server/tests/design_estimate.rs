@@ -278,7 +278,8 @@ both_backends!(a_listing_with_its_own_scan_uses_the_scan, |db| {
     assert_eq!(task["status"], "COMPLETED", "{task}");
     assert!(task["output_reference"].get("floor_estimate").is_none());
     for l in layouts(&t, &d).await {
-        assert!(l.get("floor_estimate").is_none(), "{l}");
+        // The key is always sent, `null` on a measured floor, as the Python model dumps it.
+        assert_eq!(l.get("floor_estimate"), Some(&Value::Null), "{l}");
         let g = geometry(&t, &d, l["geometry_id"].as_str().unwrap()).await;
         assert_ne!(g["geometry_source"], "LISTED_AREA_ESTIMATE", "{g}");
         assert_eq!(g["source_id"], "fixture-matterport-hollywood-302", "{g}");

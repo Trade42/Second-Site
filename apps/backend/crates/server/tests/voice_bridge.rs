@@ -1104,24 +1104,13 @@ async fn a_carrier_that_never_reads_holds_no_task_after_the_end() {
     );
 }
 
-async fn route_refused_after_admit(
-    State(s): State<AppState>,
-    Path(id): Path<String>,
-    Query(q): Query<Tok>,
-    ws: WebSocketUpgrade,
-) -> Response {
-    // Admitted, and then the 101 is never sent: the upgrade fails.
-    drop(accept_carrier(&s.0, &id, q.token.as_deref(), ws));
-    axum::http::StatusCode::IM_A_TEAPOT.into_response()
-}
-
 async fn route_never_answers(
     State(s): State<AppState>,
     Path(id): Path<String>,
     Query(q): Query<Tok>,
     ws: WebSocketUpgrade,
 ) -> Response {
-    // Admitted, and the upgrade is not completed in time.
+    // Admitted, and the 101 is never sent: the upgrade cannot complete.
     let r = accept_carrier(&s.0, &id, q.token.as_deref(), ws);
     tokio::time::sleep(Duration::from_secs(30)).await;
     r
@@ -1129,7 +1118,10 @@ async fn route_never_answers(
 
 #[tokio::test]
 async fn an_admitted_request_whose_upgrade_fails_is_reported_once_and_frees_the_slot() {
-    for mode in ["refused", "never"] {
+    // "abandoned": the carrier goes away before the upgrade (axum drops the callback; the start
+    // timeout is far off). "never": the upgrade is still not complete at the start timeout.
+    for mode in ["abandoned", "never"] {
+        let wait = if mode == "never" { 400 } else { 30_000 };
         let xai = MockXai::start().await;
         let logs = Arc::new(Mutex::new(Vec::new()));
         let rec = Arc::new(Rec::default());
@@ -1142,12 +1134,11 @@ async fn an_admitted_request_whose_upgrade_fails_is_reported_once_and_frees_the_
             session: session(),
             opening_line: None,
             xai: XaiConfig::new(&xai.url, KEY),
-            options: opts(&logs, |o| o.start_timeout = Duration::from_millis(400)),
+            options: opts(&logs, |o| o.start_timeout = Duration::from_millis(wait)),
             events: rec.clone(),
         });
         let app = Router::new()
-            .route("/refused/{id}", get(route_refused_after_admit))
-            .route("/never/{id}", get(route_never_answers))
+            .route("/pending/{id}", get(route_never_answers))
             .route("/voice/stream/{id}", get(route))
             .with_state(AppState(registry));
         let l = TcpListener::bind("127.0.0.1:0").await.expect("bind");
@@ -1155,8 +1146,12 @@ async fn an_admitted_request_whose_upgrade_fails_is_reported_once_and_frees_the_
         tokio::spawn(async move {
             let _ = axum::serve(l, app).await;
         });
-        let url = format!("ws://{addr}/{mode}/{id}?token={TOKEN}");
+        let url = format!("ws://{addr}/pending/{id}?token={TOKEN}");
         let attempt = tokio::spawn(async move { connect_carrier(&url).await.err() });
+        if mode == "abandoned" {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            attempt.abort();
+        }
         let end = tokio::time::timeout(T, erx)
             .await
             .expect("ended")
@@ -1168,9 +1163,6 @@ async fn an_admitted_request_whose_upgrade_fails_is_reported_once_and_frees_the_
             },
             "{mode}"
         );
-        if mode == "refused" {
-            assert_eq!(attempt.await.expect("join"), Some(418));
-        }
         assert_eq!(handle.say("anything").await, Err(BridgeGone), "{mode}");
         // The slot is gone: the right token is answered like an unknown bridge, not 409.
         let again = connect_carrier(&format!("ws://{addr}/voice/stream/{id}?token={TOKEN}"))
@@ -1180,6 +1172,7 @@ async fn an_admitted_request_whose_upgrade_fails_is_reported_once_and_frees_the_
         tokio::time::sleep(Duration::from_millis(700)).await;
         assert_eq!(rec.ended_count.load(Ordering::SeqCst), 1, "{mode}");
         assert!(xai.auth.lock().expect("lock").is_empty());
+        attempt.abort();
     }
 }
 

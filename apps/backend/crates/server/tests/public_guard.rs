@@ -635,6 +635,8 @@ fn every_route_path() -> Vec<String> {
     ] {
         paths.push(p.to_owned());
     }
+    paths.sort_unstable();
+    paths.dedup();
     paths
         .iter()
         .map(|p| {
@@ -676,8 +678,8 @@ both_backends!(review_every_route_by_every_method_is_404_publicly, |db| {
     let (mut refused, mut reached) = (0, 0);
     for path in every_route_path() {
         for method in [
-            "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT", "PURGE",
-            "get", "post",
+            "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT",
+            "PURGE", "get", "post",
         ] {
             let h = [("host", TUNNEL_HOST), ("authorization", bearer.as_str())];
             let r = send(&t, method, &path, &h).await;
@@ -725,18 +727,32 @@ both_backends!(review_host_header_path_and_method_tricks, |db| {
         let mut req = build("GET", "/api/v1/media/public/not-a-token", &[], b"");
         req.headers_mut()
             .insert("host", HeaderValue::from_bytes(host.as_bytes()).unwrap());
-        assert_eq!(t.send(req).await.status, StatusCode::UNAUTHORIZED, "{host:?}");
+        assert_eq!(
+            t.send(req).await.status,
+            StatusCode::UNAUTHORIZED,
+            "{host:?}"
+        );
     }
     // A forwarding header with an empty value, and each one twice, with a loopback Host.
     for (name, _) in FORWARDING {
-        let r = send(&t, "POST", "/api/v1/dev/token", &[("host", LOCAL_HOST), (name, "")]).await;
+        let r = send(
+            &t,
+            "POST",
+            "/api/v1/dev/token",
+            &[("host", LOCAL_HOST), (name, "")],
+        )
+        .await;
         assert_refused(&r, &format!("{name} empty"));
         let h = [("host", LOCAL_HOST), (name, "127.0.0.1"), (name, "::1")];
         let r = send(&t, "POST", "/api/v1/dev/token", &h).await;
         assert_refused(&r, &format!("{name} twice"));
     }
     // A method override header changes nothing in either direction.
-    for name in ["x-http-method-override", "x-method-override", "x-http-method"] {
+    for name in [
+        "x-http-method-override",
+        "x-method-override",
+        "x-http-method",
+    ] {
         let h = [("host", TUNNEL_HOST), (name, "POST")];
         assert_refused(&send(&t, "GET", "/webhooks/telnyx", &h).await, name);
         let h = [("host", TUNNEL_HOST), (name, "GET")];
@@ -781,7 +797,10 @@ both_backends!(review_host_header_path_and_method_tricks, |db| {
     let r = send(&t, "GET", &format!("/record?{q}"), &[("host", TUNNEL_HOST)]).await;
     assert_eq!(r.status, StatusCode::OK);
     let path = format!("/api/v1/dev/token?{q}");
-    assert_refused(&send(&t, "POST", &path, &[("host", TUNNEL_HOST)]).await, "long query");
+    assert_refused(
+        &send(&t, "POST", &path, &[("host", TUNNEL_HOST)]).await,
+        "long query",
+    );
 });
 
 both_backends!(review_over_a_socket_protocol_tricks, |db| {
@@ -827,17 +846,26 @@ both_backends!(review_over_a_socket_protocol_tricks, |db| {
         let text = raw_all(addr, request.into_bytes()).await;
         let answers = text.matches("HTTP/1.1 ").count();
         assert!(!text.contains("access_token"), "{what}:\n{text}");
-        assert!(!text.contains(" 200 ") && !text.contains(" 101 ") && !text.contains(" 100 "), "{what}:\n{text}");
+        assert!(
+            !text.contains(" 200 ") && !text.contains(" 101 ") && !text.contains(" 100 "),
+            "{what}:\n{text}"
+        );
         if what == "the same with both length headers" {
             // hyper answers the smuggled second request too when it frames by chunked encoding;
             // what matters is that it is judged on its own (see the assertion in the next block).
             continue;
         }
-        assert!(text.starts_with("HTTP/1.1 404 Not Found") || text.starts_with("HTTP/1.1 400 "), "{what}:\n{text}");
+        assert!(
+            text.starts_with("HTTP/1.1 404 Not Found") || text.starts_with("HTTP/1.1 400 "),
+            "{what}:\n{text}"
+        );
         assert!(answers <= 1, "{what}: {answers} answers\n{text}");
         if text.starts_with("HTTP/1.1 404") {
             assert!(text.ends_with(NOT_FOUND), "{what}:\n{text}");
-            assert!(!text.to_ascii_lowercase().contains("allow"), "{what}:\n{text}");
+            assert!(
+                !text.to_ascii_lowercase().contains("allow"),
+                "{what}:\n{text}"
+            );
         }
     }
     // A raw null byte and a raw space in the target never get past the HTTP parser.
@@ -847,7 +875,10 @@ both_backends!(review_over_a_socket_protocol_tricks, |db| {
         format!("POST /api/v1/dev/token HTTP/1.1\r\n Host: localhost:{port}\r\n{pub_host}\r\n"),
     ] {
         let text = raw_all(addr, request.clone().into_bytes()).await;
-        assert!(!text.contains("access_token") && !text.contains(" 200 "), "{request}\n{text}");
+        assert!(
+            !text.contains("access_token") && !text.contains(" 200 "),
+            "{request}\n{text}"
+        );
     }
     server.abort();
 });
