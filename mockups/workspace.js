@@ -408,7 +408,7 @@ function renderPane() {
     pane.className = 'pane ' + (big ? 'grid' : 'mini');
     pane.innerHTML = chip + `<div class="tiles">${CAT.filter(c => !big || !room || room.type === c.room).map(c => {
       const n = S.placed.filter(i => i.c === c.id && (!room || i.r === room.id)).length;
-      return `<button type="button" class="tile" data-place="${c.id}" data-tip="${c.name} · ${c.w} × ${c.d} ft · ${c.by}, ${c.lead}" aria-label="Place ${c.name}, ${money(c.price)}">${model(c, big ? 46 : 24)}<span class="price">${money(c.price)}</span>${n ? `<i class="n">${n}</i>` : ''}</button>`;
+      return `<button type="button" class="tile" data-place="${c.id}" data-tip="${esc(c.name)}" aria-label="Place ${c.name}, ${money(c.price)}">${model(c, big ? 46 : 24)}<span class="price">${money(c.price)}</span>${n ? `<i class="n">${n}</i>` : ''}</button>`;
     }).join('')}</div>`;
     return;
   }
@@ -478,6 +478,23 @@ function paintPlan(p, d) {
 }
 
 let T = null, want3D = '';
+// Above the scan's middle, keep coherent walls and discard ceiling faces and rough fragments.
+function cleanScanTop(geometry, upperStart) {
+  const p = geometry.attributes.position, normals = geometry.attributes.normal, index = geometry.index, kept = [];
+  const a = new T.THREE.Vector3(), b = new T.THREE.Vector3(), c = new T.THREE.Vector3(), face = new T.THREE.Vector3(), edge = new T.THREE.Vector3(), normal = new T.THREE.Vector3();
+  for (let i = 0; i < index.count; i += 3) {
+    const ids = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+    a.fromBufferAttribute(p, ids[0]); b.fromBufferAttribute(p, ids[1]); c.fromBufferAttribute(p, ids[2]);
+    if ((a.z + b.z + c.z) / 3 > upperStart) { // source scans are Z-up
+      face.subVectors(b, a).cross(edge.subVectors(c, a)).normalize();
+      const rough = ids.filter(id => face.dot(normal.fromBufferAttribute(normals, id)) < .65).length >= 2;
+      if (Math.abs(face.z) > .35 || rough) continue;
+    }
+    kept.push(...ids);
+  }
+  geometry.setIndex(kept);
+  geometry.computeVertexNormals();
+}
 async function init3D() {
   const THREE = await import('three');
   const [{ OrbitControls }, { OBJLoader }, { mergeVertices }] = await Promise.all([import('three/addons/controls/OrbitControls.js'), import('three/addons/loaders/OBJLoader.js'), import('three/addons/utils/BufferGeometryUtils.js')]);
@@ -486,12 +503,17 @@ async function init3D() {
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight(0xffffff, 0xcfc8b8, 1.5));
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.4); sun.position.set(6, 12, 4); scene.add(sun);
-  const camera = new THREE.PerspectiveCamera(30, 1, .1, 400), controls = new OrbitControls(camera, canvas);
-  Object.assign(controls, { enableDamping: true, maxPolarAngle: Math.PI * .47, minDistance: 4, maxDistance: 80 });
+  const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, .1, 400), controls = new OrbitControls(camera, canvas);
+  Object.assign(controls, { enableDamping: true, maxPolarAngle: Math.PI * .47, minZoom: .5, maxZoom: 4 });
   const blocks = new THREE.Group(); scene.add(blocks);
   const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: .95 });
-  T = { THREE, renderer, scene, camera, controls, blocks, mergeVertices, loader: new OBJLoader(), cache: {}, cur: null, shell: mat(0xEFEAE0) /* scan normals face inward: front faces alone give the open dollhouse */, mats: { placed: mat(0x6E7E72), on: mat(0xA5823A), proposed: new THREE.MeshStandardMaterial({ color: 0x6E7E72, transparent: true, opacity: .35 }) } };
-  const size = () => { const w = box.clientWidth, h = box.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  T = { THREE, renderer, scene, camera, controls, blocks, mergeVertices, loader: new OBJLoader(), cache: {}, cur: null, shell: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95 }) /* inward scan normals leave an open dollhouse */, mats: { placed: mat(0x6E7E72), on: mat(0xA5823A), proposed: new THREE.MeshStandardMaterial({ color: 0x6E7E72, transparent: true, opacity: .35 }) } };
+  const size = () => {
+    const w = box.clientWidth, h = box.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    const half = Math.max(T.frameHeight || 20, (T.frameWidth || 20) / (w / h)) * .56;
+    Object.assign(camera, { left: -half * w / h, right: half * w / h, top: half, bottom: -half }); camera.updateProjectionMatrix();
+  };
   new ResizeObserver(size).observe(box); T.size = size;
   // Click a block to select it (ignore drags).
   let down = null; const ray = new THREE.Raycaster();
@@ -503,11 +525,14 @@ async function init3D() {
   });
   (function loop() { requestAnimationFrame(loop); if (box.hidden || !T.cur) return; controls.update(); renderer.render(scene, camera); })();
 }
-function frame3D(d) {
-  const { camera, controls, THREE } = T, [x0, x1, y0, y1] = d.plan.box, cx = (x0 + x1) / 2, cz = -(y0 + y1) / 2, r = Math.hypot(x1 - x0, y1 - y0) / 2;
-  const v = THREE.MathUtils.degToRad(camera.fov), hfov = 2 * Math.atan(Math.tan(v / 2) * camera.aspect), dist = r / Math.sin(Math.min(v, hfov) / 2) * .86;
-  controls.target.set(cx, .8, cz);
-  camera.position.copy(new THREE.Vector3(-.35, .9, .75).normalize().multiplyScalar(dist)).add(controls.target);
+function frame3D() {
+  const { camera, controls, THREE } = T, bounds = new THREE.Box3().setFromObject(T.cur);
+  controls.enableDamping = false; controls.update(); // consume orbit momentum before resetting the pose
+  bounds.getCenter(controls.target);
+  camera.position.copy(controls.target).add(new THREE.Vector3(-1, 1, 1).multiplyScalar(30));
+  camera.zoom = 1; camera.lookAt(controls.target); controls.update(); controls.enableDamping = true; camera.updateMatrixWorld();
+  const view = bounds.clone().applyMatrix4(camera.matrixWorldInverse).getSize(new THREE.Vector3());
+  T.frameWidth = view.x; T.frameHeight = view.y; T.size();
 }
 async function paint3D(p, d) {
   const box = $('#v-dollhouse'), poster = $('.poster', box), state = $('.vstate', box), src = p.src;
@@ -519,12 +544,20 @@ async function paint3D(p, d) {
     let obj = T.cache[src];
     if (!obj) {
       obj = await T.loader.loadAsync(`assets/meshes/${src}.obj`);
+      const bounds = new T.THREE.Box3().setFromObject(obj), upperStart = bounds.min.z + (bounds.max.z - bounds.min.z) * .55;
+      // These OBJ scans have no textures: retain the study's floor/glass colors, softened toward gray.
+      const gray = new T.THREE.Color('#C8C7C2'), floor = new T.THREE.Color('#D6B089').lerp(gray, .4), glass = new T.THREE.Color('#9CC2E6').lerp(gray, .4), mirror = new T.THREE.Color('#CDD3DA').lerp(gray, .4);
+      obj.traverse(m => { if (m.isMesh) {
+        m.geometry.deleteAttribute('normal'); m.geometry = T.mergeVertices(m.geometry); m.geometry.computeVertexNormals(); cleanScanTop(m.geometry, upperStart);
+        const normals = m.geometry.attributes.normal, colors = new Float32Array(normals.count * 3), special = /^window/.test(m.name) ? glass : /^mirror/.test(m.name) ? mirror : null;
+        for (let i = 0; i < normals.count; i++) (special || (normals.getZ(i) > .7 ? floor : gray)).toArray(colors, i * 3);
+        m.geometry.setAttribute('color', new T.THREE.BufferAttribute(colors, 3)); m.material = T.shell;
+      } });
       obj.rotation.x = -Math.PI / 2; // scans are Z-up
-      obj.traverse(m => { if (m.isMesh) { m.geometry.deleteAttribute('normal'); m.geometry = T.mergeVertices(m.geometry); m.geometry.computeVertexNormals(); m.material = T.shell; } });
       T.cache[src] = obj;
     }
     if (want3D !== src) return; // a newer selection won
-    if (T.cur !== obj) { if (T.cur) T.scene.remove(T.cur); T.scene.add(obj); T.cur = obj; T.size(); frame3D(d); }
+    if (T.cur !== obj) { if (T.cur) T.scene.remove(T.cur); T.scene.add(obj); T.cur = obj; frame3D(); }
     T.blocks.clear();
     if (S.stage === 'furnish') pieces(d).forEach(q => {
       const hgt = C[q.it.c].h * .3048, mesh = new T.THREE.Mesh(new T.THREE.BoxGeometry(q.w / 100, hgt, q.h / 100), S.sel === q.key ? T.mats.on : T.mats[q.it.st]);
@@ -616,6 +649,11 @@ document.addEventListener('click', e => {
   if (t.classList.contains('frame')) return t.dataset.id && inspect(t.dataset.id);
   if (t.dataset.finalist) return selectFinalist(t.dataset.finalist);
   if (t.dataset.view) { S.view = t.dataset.view; renderViewer(); return save(); }
+  if (act?.startsWith('dollhouse-') && T?.cur) {
+    if (act === 'dollhouse-reset') frame3D();
+    else { T.camera.zoom = clamp(T.camera.zoom * (act === 'dollhouse-in' ? 1.25 : .8), T.controls.minZoom, T.controls.maxZoom); T.camera.updateProjectionMatrix(); }
+    return;
+  }
   if (t.dataset.dir) { S.dir = t.dataset.dir; return renderViewer(); }
   if (t.dataset.photo) { S.photo = +t.dataset.photo; return renderViewer(); }
   if (act === 'ask') return draft(D[P[S.finalist].src].issues.find(i => i.id === t.dataset.issue));
@@ -638,15 +676,77 @@ $('#strip').addEventListener('mouseleave', () => $$('.pin.hot').forEach(x => x.c
 $('#composer').addEventListener('submit', e => { e.preventDefault(); const v = $('#say').value; $('#say').value = ''; send(v); });
 // One floating label for anything with data-tip: pieces, catalog tiles, cost parts.
 const tip = $('#tip');
-function showTip(e) {
-  const t = e.target.closest?.('[data-tip]'); if (!t) { tip.hidden = true; return; }
-  tip.textContent = t.dataset.tip; tip.hidden = false;
-  const r = t.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
-  tip.style.left = clamp(r.left + r.width / 2 - w / 2, 8, innerWidth - w - 8) + 'px';
-  tip.style.top = (r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8) + 'px';
+const tipReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+let tipTarget, tipFollowsPointer = false, tipFrame = 0, tipTime = 0;
+let tipX = 0, tipY = 0, tipToX = 0, tipToY = 0, tipWidth = 0, tipHeight = 0;
+function hideTip() {
+  tip.hidden = true; tipTarget?.removeAttribute('aria-describedby'); tipTarget = null;
+  cancelAnimationFrame(tipFrame); tipFrame = 0;
 }
-['mouseover', 'focusin'].forEach(ev => document.addEventListener(ev, showTip));
-['click', 'focusout', 'scroll'].forEach(ev => document.addEventListener(ev, () => { tip.hidden = true; }, true));
+function drawTip(time) {
+  tipFrame = 0;
+  if (!tipTarget?.isConnected) return hideTip();
+  // Time-based lerp keeps the same short trailing feel at any refresh rate.
+  const mix = tipReducedMotion.matches ? 1 : 1 - Math.exp(-(time - tipTime) / 65);
+  tipTime = time;
+  tipX += (tipToX - tipX) * mix; tipY += (tipToY - tipY) * mix;
+  const moving = Math.abs(tipToX - tipX) + Math.abs(tipToY - tipY) > .2;
+  if (!moving) { tipX = tipToX; tipY = tipToY; }
+  tip.style.transform = `translate3d(${tipX}px, ${tipY}px, 0)`;
+  if (moving) tipFrame = requestAnimationFrame(drawTip);
+}
+function positionTip(pointer, snap = false) {
+  const right = Math.max(12, innerWidth - tipWidth - 12), bottom = Math.max(12, innerHeight - tipHeight - 12);
+  if (pointer) {
+    tipToX = pointer.clientX + 18;
+    tipToY = pointer.clientY + 18;
+    if (tipToX > right) tipToX = pointer.clientX - tipWidth - 18;
+    if (tipToY > bottom) tipToY = pointer.clientY - tipHeight - 18;
+  } else {
+    const r = tipTarget.getBoundingClientRect();
+    tipToX = r.left + r.width / 2 - tipWidth / 2;
+    tipToY = r.top - tipHeight - 10;
+    if (tipToY < 12) tipToY = r.bottom + 10;
+  }
+  tipToX = clamp(tipToX, 12, right); tipToY = clamp(tipToY, 12, bottom);
+  // A new card appears beside its item; only subsequent cursor travel trails.
+  if (snap) { tipX = tipToX; tipY = tipToY; }
+  tipX = clamp(tipX, 12, right); tipY = clamp(tipY, 12, bottom);
+  if (!tipFrame) { tipTime = performance.now(); drawTip(tipTime); }
+}
+function showTip(e) {
+  const t = e.target.closest?.('[data-tip]'); if (!t || e.pointerType === 'touch') return;
+  if (e.type === 'pointerover' && e.relatedTarget?.closest?.('[data-tip]') === t) return;
+  const wasHidden = tip.hidden;
+  tipTarget?.removeAttribute('aria-describedby'); tipTarget = t; t.setAttribute('aria-describedby', 'tip');
+  const item = C[t.dataset.place || t.dataset.key?.split('|')[0]];
+  tip.classList.toggle('item-tip', !!item);
+  tip.innerHTML = item ? `<strong>${esc(item.name)}</strong><span class="tip-meta">${esc(item.by)} · ${esc(item.lead)} lead time</span><dl class="tip-facts"><div><dt>Footprint</dt><dd>${item.w} × ${item.d} ft</dd></div><div><dt>Each</dt><dd class="tip-price">${money(item.price)}</dd></div></dl>` : esc(t.dataset.tip);
+  tip.hidden = false;
+  tipWidth = tip.offsetWidth; tipHeight = tip.offsetHeight;
+  tipFollowsPointer = !!item && e.type === 'pointerover' && !tipReducedMotion.matches;
+  positionTip(tipFollowsPointer ? e : null, wasHidden || !tipFollowsPointer);
+}
+['pointerover', 'focusin'].forEach(ev => document.addEventListener(ev, showTip));
+document.addEventListener('pointermove', e => {
+  if (tipTarget && tipFollowsPointer && e.target.closest?.('[data-tip]') === tipTarget) positionTip(e);
+});
+document.addEventListener('pointerout', e => {
+  if (!tipTarget || tipTarget.contains(e.relatedTarget)) return;
+  if (e.relatedTarget?.closest?.('[data-tip]')) return;
+  if (tipTarget === document.activeElement) {
+    tipFollowsPointer = false; positionTip(null, true);
+  } else hideTip();
+});
+['click', 'focusout'].forEach(ev => document.addEventListener(ev, hideTip, true));
+document.addEventListener('scroll', e => {
+  if (!tipTarget || (e.target !== document && !e.target.contains?.(tipTarget))) return;
+  if (tipTarget === document.activeElement) showTip({ target: tipTarget }); else hideTip();
+}, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideTip(); });
+window.addEventListener('resize', hideTip);
+window.addEventListener('blur', hideTip);
+tipReducedMotion.addEventListener('change', () => { if (tipTarget) showTip({ target: tipTarget }); });
 
 // Demo shortcuts: workspace.html#searched, #compare or #furnish replay the script to that point.
 async function seed(to) {

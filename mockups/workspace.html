@@ -60,6 +60,11 @@
       <img class="poster" alt="">
       <canvas></canvas>
       <p class="vstate"></p>
+      <div class="dollhouse-tools" role="group" aria-label="Dollhouse view controls">
+        <button type="button" data-act="dollhouse-out" aria-label="Zoom out"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        <button type="button" data-act="dollhouse-in" aria-label="Zoom in"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 8h10M8 3v10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        <button type="button" data-act="dollhouse-reset">Reset view</button>
+      </div>
     </div>
     <div class="layer" id="v-floorplan" hidden><div class="plan"><img alt="Floor plan"><div class="overlay"></div></div></div>
     <div class="layer" id="v-aerial" hidden>
