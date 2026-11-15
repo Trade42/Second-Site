@@ -926,6 +926,17 @@ impl<'a> CallOrchestrator<'a> {
         if et == Some("call.answered") && call.state == CallState::Dialing {
             return self.on_answered(tx, call).await.map(Some);
         }
+        // A test call rings the owner's own phone: whatever the carrier's detection reports, the
+        // person on the line is the owner. The call is not hung up; the record says what arrived.
+        if et == Some("call.machine.detection.ended") && is_test_call(&call) {
+            let note = amd_ignored_note(p.get("result").and_then(Value::as_str));
+            if call.transcript.iter().any(|t| t.text == note) {
+                return Ok(Some(call)); // the carrier repeated the event
+            }
+            let mut call = call;
+            call.transcript.push(turn("system", note));
+            return self.save(tx, call).await.map(Some);
+        }
         if et == Some("call.machine.detection.ended")
             && p.get("result").and_then(Value::as_str) == Some("machine")
         {
@@ -1520,6 +1531,7 @@ impl<'a> CallOrchestrator<'a> {
                     .collect();
             }
         }
+        input.transcript = without_server_fixed_lines(&input.transcript);
         let mut text = csum::owner_text(&csum::summarize(&input));
         if let Some(extras) = &left.extras {
             for line in cp::owner_lines(&extras.state) {
@@ -2947,8 +2959,7 @@ impl CallOrchestrator<'_> {
         let vcs = self.app.voice_calls();
         vcs.detach(call.call_id);
         let mut call = call;
-        call.transcript
-            .push(turn("system", format!("[{why}; ending the call]")));
+        call.transcript.push(turn("system", fail_note(why)));
         let call = self.save(tx, call).await?;
         let call = self.say(tx, call, APOLOGY_LINE).await?;
         if let Some(leg) = call.provider_call_id.clone() {
@@ -3315,6 +3326,47 @@ impl CallOrchestrator<'_> {
         self.notify_outcomes(&call, &before, &after);
         Ok(out.to_string())
     }
+}
+
+/// The system line of a test call when the carrier's answering-machine detection reports
+/// anything. The result is the carrier's word: only its letters, digits and underscores are kept.
+pub fn amd_ignored_note(result: Option<&str>) -> String {
+    let r: String = result
+        .unwrap_or("")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .take(40)
+        .collect();
+    let r = if r.is_empty() { "nothing" } else { r.as_str() };
+    format!(
+        "[test call: answering-machine detection reported {r}; ignored, the person on the line \
+         is the owner]"
+    )
+}
+
+/// The transcript as the summary's commitment check may read it: the server's own fixed apology
+/// is not the model's speech. It is known by where it was written, not by its words:
+/// `fail_politely` writes its system line ([`fail_note`]) and then speaks [`APOLOGY_LINE`], so
+/// only the assistant turn directly after that system line is taken out of the check (relabelled
+/// a system line). The same words anywhere else, said by the model, are still judged.
+fn without_server_fixed_lines(transcript: &[TranscriptTurn]) -> Vec<TranscriptTurn> {
+    let mut out = transcript.to_vec();
+    for i in 1..out.len() {
+        let after_fail_note = out[i - 1].speaker == "system"
+            && out[i - 1].text.starts_with('[')
+            && out[i - 1].text.ends_with(FAIL_NOTE_END);
+        if after_fail_note && out[i].speaker == "assistant" && out[i].text.starts_with(APOLOGY_LINE)
+        {
+            out[i].speaker = "system".to_owned();
+        }
+    }
+    out
+}
+
+/// How the system line of `fail_politely` ends; no other line of the server ends so.
+const FAIL_NOTE_END: &str = "; ending the call]";
+fn fail_note(why: &str) -> String {
+    format!("[{why}{FAIL_NOTE_END}")
 }
 
 /// Whether an answering machine was detected on this call (the stored reason).
