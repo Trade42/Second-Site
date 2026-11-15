@@ -18,11 +18,6 @@
 //! When a bill of materials is given, its total (the approved total once the BOM is APPROVED,
 //! otherwise the estimate) replaces the FF&E allowance lines, which are then listed as
 //! `not_simulated` with that reason.
-//!
-//! A bill priced from an approximate sketch on the listing's stated area ([`BomFloor`]) keeps its
-//! amount, but the furnishing line's basis and one note say that it comes from a sketch, approved
-//! or not. When the bill's layout could not be read the basis says that this is unknown; unknown
-//! never reads as measured.
 
 use serde::Serialize;
 use ss_domain::contracts::{CostKind, CostLineItem, CostScenario};
@@ -101,37 +96,6 @@ pub enum PlannedOperation {
     PayBill,
 }
 
-/// What is known about the floor the bill's layout was solved on (`DesignVersion.floor_estimate`
-/// of the bill's design version).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
-pub enum BomFloor {
-    /// The design version was read and carries no `floor_estimate`: a measured, CAD, owner,
-    /// photo or fixture floor. The plan reads as it did before this field existed.
-    #[serde(rename = "NOT_AN_ESTIMATE")]
-    NotAnEstimate,
-    /// The design version carries a `floor_estimate`: an approximate sketch on the listing's
-    /// stated area, not a measured floor and not a plan.
-    #[serde(rename = "LISTED_AREA_ESTIMATE")]
-    ListedAreaEstimate,
-    /// The design version could not be read (not found in this project). Never treated as
-    /// measured.
-    #[serde(rename = "UNKNOWN")]
-    Unknown,
-}
-
-/// Basis of the furnishing line for a bill on a sketch that is not approved.
-pub const BASIS_BOM_SKETCH: &str = "bill of materials from an approximate sketch on the listed area (not measured, not approved; illustrative prices)";
-/// Basis of the furnishing line for an APPROVED bill on a sketch.
-pub const BASIS_BOM_SKETCH_APPROVED: &str = "bill of materials from an approximate sketch on the listed area, approved total (not measured)";
-/// Basis when the bill's layout could not be read and the bill is not approved.
-pub const BASIS_BOM_FLOOR_UNKNOWN: &str = "bill of materials, estimated total (not approved; illustrative prices; whether its layout is a measured floor or an approximate sketch is unknown)";
-/// Basis when the bill's layout could not be read and the bill is APPROVED.
-pub const BASIS_BOM_FLOOR_UNKNOWN_APPROVED: &str = "bill of materials, approved total (whether its layout is a measured floor or an approximate sketch is unknown)";
-/// The one note on the furnishing line of a bill on a sketch.
-pub const NOTE_BOM_SKETCH: &str = "This amount comes from an approximate sketch on the listing's stated area, not from a measured floor; it will change once the space is measured.";
-/// The one note on the furnishing line when the bill's layout could not be read.
-pub const NOTE_BOM_FLOOR_UNKNOWN: &str = "The layout this bill was priced from could not be read, so it is unknown whether its floor was measured or is an approximate sketch on the listed area; if it is a sketch, the amount will change once the space is measured.";
-
 /// Totals of a bill of materials (`BillOfMaterials` in `apps/api/app/contracts/procurement.py`):
 /// pass `bom_id`, `project_id`, `property_id`, `design_version_id`, `currency`,
 /// `estimated_total`, `approved_total` and `status` as they are.
@@ -146,8 +110,6 @@ pub struct BomTotals {
     pub approved_total_minor: Option<i64>,
     /// `BomStatus` wire value: DRAFT, RECALCULATION_REQUIRED, PENDING_APPROVAL or APPROVED.
     pub status: String,
-    /// Whether the bill's design version is an approximate sketch on the listed area.
-    pub floor: BomFloor,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -515,29 +477,12 @@ pub fn plan_move_in_payments(
 
     let furnishing = match bom {
         Some(b) => {
-            let (amount, approved) = match (b.status.as_str(), b.approved_total_minor) {
-                ("APPROVED", Some(t)) => (t, true),
-                _ => (b.estimated_total_minor, false),
-            };
-            // The amount is the bill's either way; only the words about where it comes from
-            // differ. An approved bill on a sketch still says that it comes from a sketch.
-            let (basis, floor_note) = match (b.floor, approved) {
-                (BomFloor::NotAnEstimate, true) => ("bill of materials, approved total", None),
-                (BomFloor::NotAnEstimate, false) => (
+            let (amount, basis) = match (b.status.as_str(), b.approved_total_minor) {
+                ("APPROVED", Some(t)) => (t, "bill of materials, approved total"),
+                _ => (
+                    b.estimated_total_minor,
                     "bill of materials, estimated total (not approved; illustrative prices)",
-                    None,
                 ),
-                (BomFloor::ListedAreaEstimate, true) => {
-                    (BASIS_BOM_SKETCH_APPROVED, Some(NOTE_BOM_SKETCH))
-                }
-                (BomFloor::ListedAreaEstimate, false) => (BASIS_BOM_SKETCH, Some(NOTE_BOM_SKETCH)),
-                (BomFloor::Unknown, true) => (
-                    BASIS_BOM_FLOOR_UNKNOWN_APPROVED,
-                    Some(NOTE_BOM_FLOOR_UNKNOWN),
-                ),
-                (BomFloor::Unknown, false) => {
-                    (BASIS_BOM_FLOOR_UNKNOWN, Some(NOTE_BOM_FLOOR_UNKNOWN))
-                }
             };
             let g = Group {
                 low: amount,
@@ -546,12 +491,12 @@ pub fn plan_move_in_payments(
                 ids: Vec::new(),
                 lines: Vec::new(),
             };
-            Some((g, basis.to_owned(), true, floor_note))
+            Some((g, basis.to_owned(), true))
         }
-        None if !ffe.is_empty() => Some((ffe, BASIS_SCENARIO.to_owned(), false, None)),
+        None if !ffe.is_empty() => Some((ffe, BASIS_SCENARIO.to_owned(), false)),
         None => None,
     };
-    if let Some((g, basis, from_bom, floor_note)) = furnishing {
+    if let Some((g, basis, from_bom)) = furnishing {
         if g.expected > 0 {
             let mut p = payment(
                 ITEM_FURNISHING,
@@ -566,9 +511,6 @@ pub fn plan_move_in_payments(
                 p.notes.push(
                     "The bill of materials may price items (for example flooring or hand sinks) that renovation work items also cover; check for overlap.".into(),
                 );
-            }
-            if let Some(n) = floor_note {
-                p.notes.push(n.to_owned());
             }
             push(p);
         } else {

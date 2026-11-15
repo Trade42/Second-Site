@@ -1902,87 +1902,11 @@ pub const UNKNOWN_TOOL_OUTPUT: &str = r#"{"status":"unknown_tool"}"#;
 /// How long after the Response Agent's closing line the call is hung up.
 pub const CLOSING_HANGUP_DELAY_S: u64 = 8;
 
-/// The transcript note when the bridge refused a direction (it had ended).
-pub const DIRECTION_REFUSED_NOTE: &str =
-    "[a direction to the voice assistant was not sent: bridge gone]";
-/// The transcript note when a direction was withheld because it held a rent figure of the
-/// owner's profile.
-pub const DIRECTION_WITHHELD_NOTE: &str =
-    "[a direction to the voice assistant was withheld: it held the profile's rent figure]";
-
-/// What becomes of one `Say::Instruct` text.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Direction {
-    Send(String),
-    /// Nothing is left after cleaning.
-    Nothing,
-    /// It holds the profile's rent statement: never sent.
-    Withheld,
-}
-
-/// A `Say::Instruct` text as it is sent to the bridge. The Response Agent builds it from its
-/// own fixed words plus three kinds of stored text, each of which is cleaned here with
-/// [`vsc::field`] (one bounded line): the question to ask next (the owner's request or the
-/// question bank), a requirement statement of the owner's profile, and a recorded fact about
-/// the property (evidence). Nothing the counterparty said is in it. The whole is then made one
-/// line and cut to the bridge's bound. A direction that holds the profile's rent statement is
-/// withheld: the owner's rent figure is never sent as a direction.
-pub fn direction_text(text: &str, d: &agent::Decision, ctx: Option<&CallContext>) -> Direction {
-    let mut pieces: Vec<&str> = Vec::new();
-    if let Some(q) = &d.next_question {
-        pieces.push(&q.text);
-    }
-    if let Some(c) = ctx {
-        if c.owner_requirements
-            .iter()
-            .any(|r| r.topic == "rent" && !r.statement.is_empty() && text.contains(&r.statement))
-        {
-            return Direction::Withheld;
-        }
-        pieces.extend(c.owner_requirements.iter().map(|r| r.statement.as_str()));
-        pieces.extend(c.known_facts.iter().map(|f| f.statement.as_str()));
-    }
-    // Longest first, so a piece that holds another is cleaned as one.
-    pieces.sort_by_key(|p| std::cmp::Reverse(p.len()));
-    pieces.dedup();
-    let mut out = text.to_owned();
-    for p in pieces {
-        let clean = vsc::field(p);
-        if !p.is_empty() && clean != p && out.contains(p) {
-            out = out.replace(p, &clean);
-        }
-    }
-    let line: String = out
-        .chars()
-        .map(|c| {
-            if c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{85}') {
-                ' '
-            } else {
-                c
-            }
-        })
-        .collect();
-    let line: String = line
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .chars()
-        .take(crate::services::voice_bridge::MAX_INSTRUCTION_CHARS)
-        .collect();
-    if line.is_empty() {
-        Direction::Nothing
-    } else {
-        Direction::Send(line)
-    }
-}
-
 /// The orchestrator's control of one bridge (the live [`BridgeHandle`], or a test's fixture).
 /// Each call answers whether the bridge took it.
 #[async_trait::async_trait]
 pub trait BridgeControl: Send + Sync {
     async fn say(&self, text: String) -> bool;
-    /// A direction for the model's next turns, never spoken as such and starting no response.
-    async fn instruct(&self, text: String) -> bool;
     async fn pause(&self) -> bool;
     async fn resume(&self) -> bool;
     async fn stop(&self) -> bool;
@@ -1992,9 +1916,6 @@ pub trait BridgeControl: Send + Sync {
 impl BridgeControl for BridgeHandle {
     async fn say(&self, text: String) -> bool {
         BridgeHandle::say(self, text).await.is_ok()
-    }
-    async fn instruct(&self, text: String) -> bool {
-        BridgeHandle::instruct(self, text).await.is_ok()
     }
     async fn pause(&self) -> bool {
         BridgeHandle::pause(self).await.is_ok()
@@ -2631,8 +2552,9 @@ impl CallOrchestrator<'_> {
         }
         let call = match &d.say {
             Say::Exact(t) => self.say(tx, call, t).await?,
-            Say::Instruct(t) => self.instruct(tx, call, t, d).await?,
-            Say::Silent => call,
+            // The bridge has no "steer" control: the model follows the server's instructions,
+            // which list the approved questions in this order.
+            Say::Instruct(_) | Say::Silent => call,
         };
         if d.end_call {
             if let Some(leg) = call.provider_call_id.clone() {
@@ -2645,44 +2567,6 @@ impl CallOrchestrator<'_> {
             }
         }
         Ok(call)
-    }
-
-    /// The Response Agent's silent direction for the model's next turns (`Say::Instruct`): sent
-    /// to the call's bridge, never spoken by the server and never stored as a spoken line. A
-    /// call without a bridge sends nothing and changes nothing. A paused bridge keeps the latest
-    /// direction until it resumes. A refusal (the bridge is gone) is noted on the transcript and
-    /// the call goes on as it was.
-    async fn instruct(
-        &self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-        text: &str,
-        d: &agent::Decision,
-    ) -> AppResult<CallSession> {
-        let (control, ctx) = {
-            let vcs = self.app.voice_calls();
-            let m = vcs.map();
-            match m.get(&call.call_id) {
-                Some(v) => (v.control.clone(), v.context.clone()),
-                None => (None, None),
-            }
-        };
-        let Some(control) = control else {
-            return Ok(call);
-        };
-        let note = match direction_text(text, d, ctx.as_ref()) {
-            Direction::Send(text) => {
-                if control.instruct(text).await {
-                    return Ok(call);
-                }
-                DIRECTION_REFUSED_NOTE
-            }
-            Direction::Nothing => return Ok(call),
-            Direction::Withheld => DIRECTION_WITHHELD_NOTE,
-        };
-        let mut call = call;
-        call.transcript.push(turn("system", note));
-        self.save(tx, call).await
     }
 
     /// The fixed-line end: the bridge (if any) is let go, the reason stored, the apology spoken

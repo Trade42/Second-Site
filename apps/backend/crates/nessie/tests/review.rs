@@ -499,7 +499,6 @@ fn review_r2_affordability_is_never_more_lenient_than_the_ranking_constraint() {
         estimated_total_minor: 100,
         approved_total_minor: None,
         status: "DRAFT".into(),
-        floor: ss_nessie::plan::BomFloor::NotAnEstimate,
     };
     let plan = plan_move_in_payments(&s, Some(&bom), sim, None).unwrap();
     assert!(plan.move_in_cash_expected_minor < s.upfront_cash_expected);

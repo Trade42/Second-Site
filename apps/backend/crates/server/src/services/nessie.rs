@@ -79,10 +79,7 @@ use ss_nessie::models::{
     Account, AccountCreate, AccountType, Address, CustomerCreate, Transaction, TransactionKind,
 };
 use ss_nessie::money::format_usd;
-use ss_nessie::plan::{
-    stand_in_merchant, BomFloor, ITEM_FIRST_MONTH, ITEM_FURNISHING, ITEM_OCCUPANCY_BILL,
-    NOTE_BOM_FLOOR_UNKNOWN, NOTE_BOM_SKETCH,
-};
+use ss_nessie::plan::{stand_in_merchant, ITEM_FIRST_MONTH, ITEM_OCCUPANCY_BILL};
 use ss_nessie::{
     plan_move_in_payments, select_bank, AffordabilityReport, ApprovalAction, ApprovalEvidence,
     AttemptOutcome, AuthorizationError, BankRecord, BomTotals, FixtureBank, MoveInPaymentPlan,
@@ -99,7 +96,7 @@ use crate::logging;
 use crate::services::approvals::{ApprovalSpec, ApprovedAction};
 use crate::services::design::lock_key;
 use crate::store::repo::{
-    superseded, Document, ProjectScoped, Repo, APPROVALS, BOMS, COST_SCENARIOS, DESIGNS,
+    superseded, Document, ProjectScoped, Repo, APPROVALS, BOMS, COST_SCENARIOS,
 };
 use crate::store::schema::{self, TableDef};
 use crate::store::{Filter, Query, Row, SqlValue, Tx};
@@ -1070,10 +1067,6 @@ pub fn action_type(a: ApprovalAction) -> ActionType {
 pub struct PlanInputs {
     pub scenario: CostScenario,
     pub bom: Option<BillOfMaterials>,
-    /// What is known about the floor of the bill's design version (meaningful only with a bill):
-    /// an approximate sketch on the listed area, not one, or unknown when the version could not
-    /// be read in this project.
-    pub bom_floor: BomFloor,
     pub live_scenarios: usize,
     pub superseded_scenarios: usize,
     pub boms_for_property: usize,
@@ -1157,32 +1150,16 @@ pub async fn plan_inputs(
         .filter(|b| b.property_id == property_id)
         .collect();
     let boms_for_property = boms.len();
-    let bom = boms.pop();
-    // The bill's layout, by the project-checked lookup: a version of another project is not
-    // found. Not found is UNKNOWN, which the plan never words as measured; a store error fails
-    // the request like every other read here.
-    let bom_floor = match &bom {
-        Some(b) => match DESIGNS
-            .get_in_project(tx, b.design_version_id, project_id)
-            .await?
-        {
-            Some(dv) if dv.floor_estimate.is_some() => BomFloor::ListedAreaEstimate,
-            Some(_) => BomFloor::NotAnEstimate,
-            None => BomFloor::Unknown,
-        },
-        None => BomFloor::Unknown,
-    };
     Ok(PlanInputs {
         superseded_scenarios: all.len().saturating_sub(live_scenarios),
         scenario,
-        bom,
-        bom_floor,
+        bom: boms.pop(),
         live_scenarios,
         boms_for_property,
     })
 }
 
-pub fn bom_totals(b: &BillOfMaterials, floor: BomFloor) -> BomTotals {
+pub fn bom_totals(b: &BillOfMaterials) -> BomTotals {
     BomTotals {
         bom_id: b.bom_id,
         project_id: b.project_id,
@@ -1192,7 +1169,6 @@ pub fn bom_totals(b: &BillOfMaterials, floor: BomFloor) -> BomTotals {
         estimated_total_minor: b.estimated_total,
         approved_total_minor: b.approved_total,
         status: b.status.as_str().to_owned(),
-        floor,
     }
 }
 
@@ -1211,7 +1187,7 @@ pub fn plan_error(e: PlanError) -> AppError {
 
 /// T1: the plan always targets the bank this server uses (`bank.simulation()`).
 pub fn build_plan(state: &NessieState, inputs: &PlanInputs) -> AppResult<MoveInPaymentPlan> {
-    let bom = inputs.bom.as_ref().map(|b| bom_totals(b, inputs.bom_floor));
+    let bom = inputs.bom.as_ref().map(bom_totals);
     plan_move_in_payments(&inputs.scenario, bom.as_ref(), state.simulation(), None)
         .map_err(plan_error)
 }
@@ -1639,23 +1615,8 @@ pub async fn affordability_view(
     });
     let plan = build_plan(&state, &inputs)?;
     let (_, _, account) = sandbox_with_account(&state, rec).await?;
-    let mut report = ss_nessie::check_affordability(&account, &plan, &inputs.scenario, reserve)
+    let report = ss_nessie::check_affordability(&account, &plan, &inputs.scenario, reserve)
         .map_err(plan_error)?;
-    // The verdict counts the plan's furnishing amount. When that amount comes from a sketch on
-    // the listed area, or from a layout that could not be read, the report says so as the plan
-    // does; a bill on a measured floor adds nothing.
-    if let Some(f) = plan.payment(ITEM_FURNISHING) {
-        let said = f
-            .notes
-            .iter()
-            .filter(|n| [NOTE_BOM_SKETCH, NOTE_BOM_FLOOR_UNKNOWN].contains(&n.as_str()));
-        report.caveats.extend(said.map(|n| {
-            format!(
-                "Furnishing and equipment ({}): {n}",
-                format_usd(f.amount_expected_minor)
-            )
-        }));
-    }
     Ok(AffordabilityView {
         simulation: report.simulation,
         disclaimer: report.disclaimer,

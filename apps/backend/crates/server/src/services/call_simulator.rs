@@ -258,7 +258,7 @@ impl<'a> CallSimulator<'a> {
 // ---- Fixture voice bridge ---------------------------------------------------------------------
 
 /// A bridge launcher for tests and simulations: it records every control the orchestrator
-/// sends (`say:<text>`, `instruct:<text>`, `pause`, `resume`, `stop`) and keeps each call's spec, so a script can
+/// sends (`say:<text>`, `pause`, `resume`, `stop`) and keeps each call's spec, so a script can
 /// drive the spec's [`crate::services::voice_bridge::BridgeEvents`] exactly as a live bridge
 /// would (counterparty lines, tool calls, the end). Nothing reaches a carrier or xAI.
 #[derive(Clone, Default)]
@@ -271,7 +271,6 @@ struct FixtureBridgeState {
     specs: Vec<(String, crate::services::voice_bridge::CallBridgeSpec)>,
     log: Vec<String>,
     removed: Vec<String>,
-    refuse_instruct: bool,
 }
 
 impl FixtureBridge {
@@ -293,20 +292,6 @@ impl FixtureBridge {
         self.lock().specs.clone()
     }
 
-    /// The directions received (`instruct:` entries of the log, without the prefix), in order.
-    pub fn instructions(&self) -> Vec<String> {
-        self.lock()
-            .log
-            .iter()
-            .filter_map(|l| l.strip_prefix("instruct:").map(str::to_owned))
-            .collect()
-    }
-
-    /// From now on a direction is refused, as a bridge that has ended refuses it.
-    pub fn refuse_instructions(&self, refuse: bool) {
-        self.lock().refuse_instruct = refuse;
-    }
-
     /// The bridge ids removed (the call ended or the bridge was let go).
     pub fn removed(&self) -> Vec<String> {
         self.lock().removed.clone()
@@ -321,14 +306,6 @@ struct FixtureControl {
 impl crate::services::call_orchestration::BridgeControl for FixtureControl {
     async fn say(&self, text: String) -> bool {
         self.bridge.lock().log.push(format!("say:{text}"));
-        true
-    }
-    async fn instruct(&self, text: String) -> bool {
-        let mut b = self.bridge.lock();
-        if b.refuse_instruct {
-            return false;
-        }
-        b.log.push(format!("instruct:{text}"));
         true
     }
     async fn pause(&self) -> bool {
