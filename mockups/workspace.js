@@ -158,13 +158,14 @@ function enterSearch() {
   fade('.bar', 100, 500); fade('#discover .mapbox', 350, 650); fade('#discover .chat-slot', 500, 550);
   const strip = $('#strip').getBoundingClientRect(), cards = $$('#strip > .frame'), rects = cards.map(card => card.getBoundingClientRect()), deckX = Math.max(strip.right, ...rects.map(r => r.right)) + 80;
   cards.forEach((card, i) => {
-    const r = rects[i], dx = deckX - r.left, dy = strip.top - r.top, opacity = card.classList.contains('saved') || card.classList.contains('none') ? 1 : .7;
+    const r = rects[i], dx = deckX - r.left, dy = strip.top - r.top;
     // Deal horizontally from one stack; only the final slide introduces the zigzag offset.
     const frames = Array.from({ length: 61 }, (_, n) => {
       const t = n / 60, travel = Math.min(t / .72, 1), remaining = (1 - travel) ** 3;
       const slide = clamp((t - .66) / .34, 0, 1), zigzag = slide * slide * (3 - 2 * slide);
       const squash = slide > 0 && slide < 1 ? Math.sin(Math.PI * slide) ** 2 * .035 : 0;
-      return { offset: t, opacity: opacity * Math.min(t / .16, 1), transform: `translate3d(${dx * remaining}px, ${dy * (1 - zigzag)}px, 0) scaleX(${1 - squash})` };
+      // Keep the entrance fade separate from the live saved/unsaved opacity.
+      return { offset: t, filter: `opacity(${Math.min(t / .16, 1)})`, transform: `translate3d(${dx * remaining}px, ${dy * (1 - zigzag)}px, 0) scaleX(${1 - squash})` };
     });
     animateSearch(card, frames, { duration: 820, delay: 250 + i * 140, easing: 'linear', fill: 'backwards' });
   });
