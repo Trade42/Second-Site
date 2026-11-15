@@ -108,6 +108,9 @@ pub enum EndReason {
     CarrierClosed,
     ProviderClosed,
     Stopped,
+    /// The server's closing line was played to its end (or its bounded wait ran out): the
+    /// normal end of a call the server closed with [`BridgeHandle::close`].
+    Closed,
     IdleTimeout,
     /// `kind` is a fixed identifier (e.g. `provider_connect_timeout`, `call_id_mismatch`,
     /// `outbound_queue_full`, `provider_error:max_duration`); never a secret or provider text.
@@ -122,6 +125,7 @@ impl EndReason {
             Self::CarrierClosed => "carrier_closed".into(),
             Self::ProviderClosed => "provider_closed".into(),
             Self::Stopped => "stopped".into(),
+            Self::Closed => "closed".into(),
             Self::IdleTimeout => "idle_timeout".into(),
             Self::Error { kind } => format!("error:{kind}"),
         }
@@ -138,6 +142,11 @@ pub struct BridgeStats {
     pub dropped_late_chunks: u64,
     pub dropped_gated: u64,
     pub interruptions: u64,
+    /// Responses cancelled because a newer one was created while they were in flight (their
+    /// remaining audio is dropped: a cut-off the caller hears that is not a barge-in).
+    pub superseded: u64,
+    /// "Still here" lines spoken after a long silence ([`BridgeOptions::check_in`]).
+    pub check_ins: u64,
     pub tool_calls: u64,
     pub tool_timeouts: u64,
     pub provider_errors: u64,
@@ -183,7 +192,21 @@ pub struct BridgeOptions {
     /// How long a transcript line may wait for a slow orchestrator once its queue is full; then
     /// the bridge ends with `transcript_backlog` (no line is dropped unseen while the call runs).
     pub transcript_wait: Duration,
+    /// After this much silence on the line (nobody speaking, nothing playing) the bridge speaks
+    /// the line once, at most `max` times until the other side speaks again. `None`: never.
+    pub check_in: Option<CheckIn>,
+    /// The longest the bridge waits for the carrier to report the closing line played, after
+    /// the line's audio was handed over (added to the line's own length).
+    pub close_grace: Duration,
     pub log: LogSink,
+}
+
+/// The patience line of a call: see [`BridgeOptions::check_in`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckIn {
+    pub after: Duration,
+    pub line: String,
+    pub max: u32,
 }
 
 impl Default for BridgeOptions {
@@ -195,6 +218,8 @@ impl Default for BridgeOptions {
             max_carrier_frame: 64 * 1024,
             outbound_queue: 512,
             transcript_wait: Duration::from_secs(5),
+            check_in: None,
+            close_grace: Duration::from_secs(3),
             log: Arc::new(|msg, fields| crate::logging::info("app.voice_bridge", msg, fields)),
         }
     }
@@ -220,6 +245,7 @@ enum Control {
     Instruct(String),
     Pause,
     Resume,
+    Close(String),
     Stop,
 }
 
@@ -276,6 +302,14 @@ impl BridgeHandle {
     }
     pub async fn stop(&self) -> Result<(), BridgeGone> {
         self.send(Control::Stop).await
+    }
+    /// Close the call: from now on the other side's audio is not passed to the model and no
+    /// new response of the model is let through; a response already being spoken finishes;
+    /// then `text` is spoken verbatim (not interruptible), and when the carrier reports it
+    /// played (or after the line's length plus [`BridgeOptions::close_grace`]) the bridge ends
+    /// with [`EndReason::Closed`]. Nothing is said after the closing line.
+    pub async fn close(&self, text: impl Into<String>) -> Result<(), BridgeGone> {
+        self.send(Control::Close(text.into())).await
     }
     async fn send(&self, c: Control) -> Result<(), BridgeGone> {
         self.tx.send(c).await.map_err(|_| BridgeGone)
@@ -459,6 +493,16 @@ struct Active {
     id: String,
 }
 
+/// The end the server asked for with [`BridgeHandle::close`].
+enum Closing {
+    /// The line waits for the response being spoken to finish.
+    Pending(String),
+    /// The line was sent; `None` until its `response.created`.
+    Speaking(Option<String>),
+    /// The line's audio was handed to the carrier; the bridge ends at the mark or at `until`.
+    Played { until: Instant },
+}
+
 enum CarrierOut {
     Text(String),
     Close,
@@ -493,6 +537,14 @@ struct State {
     item_turn: HashMap<String, u64>,
     resp_turn: HashMap<String, u64>,
     last_chunk: Option<u64>,
+    closing: Option<Closing>,
+    /// Bytes of the closing line handed to the carrier (its length: 8000 bytes a second).
+    closing_bytes: usize,
+    /// Since when the line has been silent (nobody speaking, no response); `None` while
+    /// someone speaks or a response is in flight or playing.
+    quiet_since: Option<Instant>,
+    /// Check-in lines spoken since the other side last spoke.
+    check_ins: u32,
     stats: BridgeStats,
 }
 
@@ -520,6 +572,8 @@ async fn run(p: Pending, socket: WebSocket) {
             ("malformed_carrier", json!(end.stats.malformed_carrier)),
             ("malformed_provider", json!(end.stats.malformed_provider)),
             ("interruptions", json!(end.stats.interruptions)),
+            ("superseded", json!(end.stats.superseded)),
+            ("check_ins", json!(end.stats.check_ins)),
             ("tool_timeouts", json!(end.stats.tool_timeouts)),
             (
                 "transcripts_undelivered",
@@ -686,6 +740,10 @@ async fn run_inner(
         item_turn: HashMap::new(),
         resp_turn: HashMap::new(),
         last_chunk: None,
+        closing: None,
+        closing_bytes: 0,
+        quiet_since: None,
+        check_ins: 0,
         stats,
     };
 
@@ -757,6 +815,22 @@ async fn run_inner(
         }
         loop {
             let awaiting_session = matches!(st.phase, Phase::AwaitSession);
+            // When the next check-in is due: only in the live phase, with nothing in flight.
+            let quiet_until = match (&opts.check_in, st.quiet_since) {
+                (Some(c), Some(since))
+                    if matches!(st.phase, Phase::Live)
+                        && !st.paused
+                        && st.closing.is_none()
+                        && st.active.is_none()
+                        && !st.requested
+                        && !st.playing
+                        && st.say_queue.is_empty()
+                        && st.check_ins < c.max =>
+                {
+                    Some(since + c.after)
+                }
+                _ => None,
+            };
             tokio::select! {
                 biased;
                 c = control.recv() => {
@@ -785,7 +859,19 @@ async fn run_inner(
                         }
                         Some(Control::Say(text)) => {
                             idle_deadline = Instant::now() + opts.idle_timeout;
-                            st.say_queue.push_back(text);
+                            // After the closing line nothing more is said.
+                            if st.closing.is_none() {
+                                st.say_queue.push_back(text);
+                            }
+                        }
+                        Some(Control::Close(text)) => {
+                            idle_deadline = Instant::now() + opts.idle_timeout;
+                            if st.closing.is_none() {
+                                st.say_queue.clear();
+                                st.instruction = None;
+                                st.continue_after_done = false;
+                                st.closing = Some(Closing::Pending(text));
+                            }
                         }
                     }
                 }
@@ -842,8 +928,19 @@ async fn run_inner(
                             st.requested = false;
                             st.turn += 1;
                             st.resp_turn.insert(id.clone(), st.turn);
+                            st.quiet_since = None;
                             if let Phase::Opening(op @ None) = &mut st.phase {
                                 *op = Some(id.clone());
+                            } else if let Some(Closing::Speaking(line @ None)) = &mut st.closing {
+                                // The closing line's own response.
+                                *line = Some(id.clone());
+                            } else if st.closing.is_some() {
+                                // The call is closing: nothing but the closing line is let
+                                // through (nothing of this response was heard yet).
+                                xsend!(xai::response_cancel(Some(&id)));
+                                st.gated.insert(id.clone());
+                                st.cancelled.insert(id);
+                                continue;
                             } else if !matches!(st.phase, Phase::Live) || st.paused {
                                 // The model may not speak before the opening line or while paused.
                                 xsend!(xai::response_cancel(Some(&id)));
@@ -853,6 +950,7 @@ async fn run_inner(
                             }
                             if let Some(old) = st.active.replace(Active { id: id.clone() }) {
                                 // Never two responses in flight: the older one goes.
+                                st.stats.superseded += 1;
                                 xsend!(xai::response_cancel(Some(&old.id)));
                                 st.cancelled.insert(old.id);
                             }
@@ -867,6 +965,9 @@ async fn run_inner(
                             if !allowed || st.cancelled.contains(&rid) {
                                 st.stats.dropped_gated += 1;
                                 continue;
+                            }
+                            if matches!(&st.closing, Some(Closing::Speaking(Some(c))) if *c == rid) {
+                                st.closing_bytes += audio.len();
                             }
                             st.out_buf.extend_from_slice(&audio);
                             let n = st.out_buf.len() / MIN_CARRIER_CHUNK * MIN_CARRIER_CHUNK;
@@ -899,6 +1000,19 @@ async fn run_inner(
                             }
                             if st.active.as_ref().is_some_and(|a| a.id == id) {
                                 st.active = None;
+                            }
+                            if !st.playing {
+                                st.quiet_since = Some(Instant::now());
+                            }
+                            if matches!(&st.closing, Some(Closing::Speaking(Some(c))) if *c == id) {
+                                if !st.playing {
+                                    // Nothing of the line reached the carrier: nothing to wait for.
+                                    break EndReason::Closed;
+                                }
+                                let length = Duration::from_millis(st.closing_bytes as u64 / 8);
+                                st.closing = Some(Closing::Played {
+                                    until: Instant::now() + length + opts.close_grace,
+                                });
                             }
                             if let Phase::Opening(Some(op)) = &st.phase {
                                 if *op == id {
@@ -943,7 +1057,9 @@ async fn run_inner(
                         }
                         ServerEvent::SpeechStarted { item_id } => {
                             idle_deadline = Instant::now() + opts.idle_timeout;
-                            if matches!(st.phase, Phase::Live) && !st.paused {
+                            if matches!(st.phase, Phase::Live) && !st.paused && st.closing.is_none() {
+                                st.quiet_since = None;
+                                st.check_ins = 0;
                                 st.turn += 1;
                                 if let Some(i) = item_id {
                                     st.item_turn.insert(i, st.turn);
@@ -978,7 +1094,15 @@ async fn run_inner(
                                 break EndReason::Error { kind: format!("provider_error:{kind}") };
                             }
                         }
-                        ServerEvent::SpeechStopped | ServerEvent::Other => {}
+                        ServerEvent::SpeechStopped => {
+                            // Until the model's response is created the line counts as quiet
+                            // from here (a sound that starts no response must not stop the
+                            // check-in for ever).
+                            if st.active.is_none() && !st.playing {
+                                st.quiet_since = Some(Instant::now());
+                            }
+                        }
+                        ServerEvent::Other => {}
                     }
                 }
                 m = c_stream.next() => {
@@ -1008,7 +1132,7 @@ async fn run_inner(
                                 }
                                 st.last_chunk = Some(chunk);
                             }
-                            if matches!(st.phase, Phase::Live) && !st.paused {
+                            if matches!(st.phase, Phase::Live) && !st.paused && st.closing.is_none() {
                                 xsend!(xai::append_audio(&audio));
                                 st.stats.frames_to_provider += 1;
                             } else {
@@ -1020,6 +1144,13 @@ async fn run_inner(
                             let name = v.pointer("/mark/name").and_then(Value::as_str);
                             if name.is_some() && name == st.last_mark.as_deref() {
                                 st.playing = false;
+                                if matches!(st.closing, Some(Closing::Played { .. })) {
+                                    // The closing line was played to its end.
+                                    break EndReason::Closed;
+                                }
+                                if st.active.is_none() {
+                                    st.quiet_since = Some(Instant::now());
+                                }
                             }
                         }
                         Some("error") => {
@@ -1032,6 +1163,19 @@ async fn run_inner(
                 _ = tokio::time::sleep_until(session_deadline), if awaiting_session => {
                     break EndReason::Error { kind: "provider_session_timeout".into() };
                 }
+                _ = tokio::time::sleep_until(match &st.closing { Some(Closing::Played { until }) => *until, _ => idle_deadline }), if matches!(st.closing, Some(Closing::Played { .. })) => {
+                    break EndReason::Closed;
+                }
+                _ = tokio::time::sleep_until(quiet_until.unwrap_or(idle_deadline)), if quiet_until.is_some() => {
+                    // A long silence: one gentle line, a bounded number of times.
+                    if let Some(c) = &opts.check_in {
+                        st.check_ins += 1;
+                        st.stats.check_ins += 1;
+                        st.quiet_since = None;
+                        idle_deadline = Instant::now() + opts.idle_timeout;
+                        st.say_queue.push_back(c.line.clone());
+                    }
+                }
                 _ = tokio::time::sleep_until(idle_deadline), if !st.paused => {
                     break EndReason::IdleTimeout;
                 }
@@ -1039,7 +1183,7 @@ async fn run_inner(
 
             // After every event: the latest server direction (a silent system item; it starts
             // no response), then one response at a time, then queued lines.
-            if matches!(st.phase, Phase::Live) && !st.paused {
+            if matches!(st.phase, Phase::Live) && !st.paused && st.closing.is_none() {
                 if let Some(text) = st.instruction.take() {
                     if let Some(old) = st.instruction_item.take() {
                         xsend!(xai::delete_item(&old));
@@ -1055,14 +1199,26 @@ async fn run_inner(
             }
             let free = st.active.is_none() && !st.requested && matches!(st.phase, Phase::Live);
             // While paused the continuation waits for `resume` (it would only be cancelled).
-            if free && !st.paused && st.continue_after_done && st.pending_calls.is_empty() {
+            if free
+                && !st.paused
+                && st.closing.is_none()
+                && st.continue_after_done
+                && st.pending_calls.is_empty()
+            {
                 st.continue_after_done = false;
                 st.requested = true;
                 xsend!(xai::response_create());
             } else if free && !st.paused {
-                if let Some(line) = st.say_queue.pop_front() {
-                    xsend!(xai::force_message(&line, true));
+                if let Some(Closing::Pending(line)) = &st.closing {
+                    // The closing line: verbatim, not interruptible, and the last thing said.
+                    xsend!(xai::force_message(line, false));
                     st.requested = true;
+                    st.closing = Some(Closing::Speaking(None));
+                } else if st.closing.is_none() {
+                    if let Some(line) = st.say_queue.pop_front() {
+                        xsend!(xai::force_message(&line, true));
+                        st.requested = true;
+                    }
                 }
             }
         }

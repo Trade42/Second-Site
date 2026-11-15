@@ -110,6 +110,36 @@ Before: the two curls; no `log`-crate backend at trace level (bridge V8, R5: it 
 11. Hold: carrier speech while paused is audible; "{client} has joined the call." only after the conference join.
 12. End: the hangup 8 s after the closing line may cut a goodbye; the client's summary text.
 
+## 5a. Who speaks when (voice-turns-1, after the second real call)
+
+One speaker per counterparty turn. xAI's server VAD answers every sentence of the other side by
+itself; its documentation has no setting that switches that off (`turn_detection` has `type` and
+`idle_timeout_ms` only, and `type: null` means committing every turn by hand). So the model
+leads from its instructions and the server watches.
+
+- **The model** (its automatic response): every reply to the other side, and the approved
+  questions, one at a time, from the numbered list in its instructions.
+- **The server, as a silent direction** (`instruct`, a system item, nothing spoken): the state of
+  the questions by their numbers (asked, open, still to ask). It is made from the ASSISTANT's
+  transcript line (`on_assistant_line`), so it is in place before the other side answers. The
+  server never pushes a next question and never says a cannot-answer line on a bridged call.
+- **The server, spoken** (`say` / `close`), only in these cases: the disclosure (opening line),
+  a hold line and the owner-joined line (on the carrier, the bridge paused), the "I'm still
+  here, take your time." line after 25 s of silence (at most twice until they speak), the
+  closing line, and the apology when the provider fails.
+- **The end**: when the line shows every askable question was put and none is open, the server
+  calls `BridgeHandle::close`: the other side's audio stops going to the model, a response
+  already being spoken finishes, any later one is cancelled unheard, the closing line is spoken
+  (not interruptible), and the bridge ends `closed` when the carrier's mark says it was played
+  (or after the line's length plus 3 s). Then the call is hung up.
+- **A hang-up by the other side** (`carrier_closed`) is a normal end: a system line, no apology,
+  no `speak`. Only a real failure (provider closed, idle timeout, an error) gets the apology.
+- **"Hold on, let me look that up"** (`asks_for_time`): nothing is decided and nothing is said
+  by the server; the open question stays open and the model acknowledges once.
+- Every assistant line the server authored is marked where it is written
+  (`VoiceCall::server_lines`, positions in the transcript; process-local) and is not judged by
+  the summary's commitment check; the model's own words are.
+
 ## 6. Known limits and owed findings
 
 - **Response Agent** (round-3 review): N1 "it ends in 2019" and N2 "… each" let a real identifier through, stored whole; N3 spoken prices in pairs and N4 (MAJOR) three bare amounts hold a harmless call as sensitive; N5 "Yeah, …" answers an open yes/no question as yes; N6 a bare "Yes." closes a value question with a null. Round-1 F11: a manager's words are stored `OWNER_REPORTED`. Its section 4: also stored whole (no keyword near): an identifier said in words, one under 9 digits, a birth date, a driver's licence. Fit for a supervised call, not unattended volume.

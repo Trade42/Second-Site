@@ -83,7 +83,7 @@ use crate::services::events::Emit;
 use crate::services::evidence::EvidenceService;
 use crate::services::notifier::NotifyRequest;
 use crate::services::voice_bridge::{
-    BridgeEnd, BridgeEvents, BridgeHandle, BridgeOptions, BridgeRegistry, CallBridgeSpec,
+    BridgeEnd, BridgeEvents, BridgeHandle, BridgeOptions, BridgeRegistry, CallBridgeSpec, CheckIn,
     Speaker as BridgeSpeaker, ToolCall, TranscriptLine,
 };
 use crate::services::voice_session_config as vsc;
@@ -454,6 +454,8 @@ struct CallExtras {
 struct ClosedVoice {
     agent: Option<(ConversationState, Option<CallContext>)>,
     extras: Option<CallExtras>,
+    /// Transcript positions of the lines the server authored (see [`VoiceCall::server_lines`]).
+    server_lines: Vec<usize>,
 }
 
 /// `CallOrchestrator`. Owner texts it asks for are collected in `notices`; the caller sends them
@@ -581,6 +583,9 @@ impl<'a> CallOrchestrator<'a> {
                 text = format!("{text} [speak failed: bridge gone]");
             }
             let mut call = call;
+            self.app
+                .voice_calls()
+                .mark_server_line(call.call_id, call.transcript.len());
             call.transcript.push(turn("assistant", text));
             return self.save(tx, call).await;
         }
@@ -595,6 +600,11 @@ impl<'a> CallOrchestrator<'a> {
             }
         }
         let mut call = call;
+        // Every line this function writes is the server's own wording, marked where it is
+        // written (bridged calls keep the marks; the summary's commitment check reads them).
+        self.app
+            .voice_calls()
+            .mark_server_line(call.call_id, call.transcript.len());
         call.transcript.push(turn("assistant", text));
         self.save(tx, call).await
     }
@@ -1531,7 +1541,7 @@ impl<'a> CallOrchestrator<'a> {
                     .collect();
             }
         }
-        input.transcript = without_server_fixed_lines(&input.transcript);
+        input.transcript = without_server_lines(&input.transcript, &left.server_lines);
         let mut text = csum::owner_text(&csum::summarize(&input));
         if let Some(extras) = &left.extras {
             for line in cp::owner_lines(&extras.state) {
@@ -2164,6 +2174,208 @@ pub const VOICEMAIL_NOTE: &str = "[answering machine detected; hung up without l
 pub const UNKNOWN_TOOL_OUTPUT: &str = r#"{"status":"unknown_tool"}"#;
 /// How long after the Response Agent's closing line the call is hung up.
 pub const CLOSING_HANGUP_DELAY_S: u64 = 8;
+/// A bridged call's closing line is spoken by the bridge after whatever is being said, and the
+/// bridge reports when it was played; this is only the bound for a bridge that never reports.
+pub const CLOSING_FALLBACK_HANGUP_S: u64 = 30;
+/// The system line of a call whose audio stream the carrier closed (the other side hung up).
+pub const HUNG_UP_NOTE: &str =
+    "[the other side hung up (the carrier closed the call's audio); the call is over]";
+/// The system line of a call the server closed after its closing line was played.
+pub const CLOSED_NOTE: &str = "[the closing line was played; the call is over]";
+/// Spoken once after a long silence on the line, at most [`MAX_CHECK_INS`] times in a row.
+pub const STILL_HERE_LINE: &str = "I'm still here, take your time.";
+/// The silence, in seconds, before [`STILL_HERE_LINE`].
+pub const CHECK_IN_AFTER_S: u64 = 25;
+pub const MAX_CHECK_INS: u32 = 2;
+/// A question put on the line this many times and still not answered is not put again.
+pub const MAX_PUTS_ON_LINE: u32 = 2;
+
+/// The closing line (the server's own; nothing is said after it).
+pub fn closing_line(owner_follows_up: bool) -> String {
+    format!(
+        "That's everything I needed. Thank you so much. {}Have a great day.",
+        if owner_follows_up {
+            "The owner will follow up directly on the other items. "
+        } else {
+            ""
+        }
+    )
+}
+
+/// What a counterparty says when they need time ("hold on", "let me look that up").
+const WAIT_PHRASES: [&str; 30] = [
+    "hold on",
+    "hang on",
+    "one second",
+    "one sec",
+    "one moment",
+    "one minute",
+    "just a second",
+    "just a sec",
+    "just a moment",
+    "just a minute",
+    "give me a second",
+    "give me a sec",
+    "give me a moment",
+    "give me a minute",
+    "let me check",
+    "let me look",
+    "let me see",
+    "let me find",
+    "let me pull",
+    "let me grab",
+    "look this up",
+    "look that up",
+    "look it up",
+    "bear with me",
+    "have a moment",
+    "have a second",
+    "have a minute",
+    "need to check",
+    "have to check",
+    "i'll check",
+];
+
+/// Whether the line asks us to wait (it is not a question to us and not an answer).
+pub fn asks_for_time(text: &str) -> bool {
+    let t = text.to_lowercase().replace('\u{2019}', "'");
+    WAIT_PHRASES.iter().any(|p| t.contains(p))
+}
+
+fn line_words(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+const QUESTION_STOP_WORDS: [&str; 30] = [
+    "the", "and", "for", "are", "that", "this", "its", "own", "how", "what", "when", "would",
+    "could", "there", "any", "each", "get", "like", "much", "roughly", "does", "with", "has",
+    "have", "can", "will", "you", "your", "from", "about",
+];
+
+/// How much of `question` an assistant line puts, in tenths (0 when the line asks nothing):
+/// the share of the question's own words found in the line.
+fn puts_question(line: &str, question: &str) -> usize {
+    if !line.contains('?') {
+        return 0;
+    }
+    let said = line_words(line);
+    let wanted: Vec<String> = line_words(question)
+        .into_iter()
+        .filter(|w| w.chars().count() > 2 && !QUESTION_STOP_WORDS.contains(&w.as_str()))
+        .collect();
+    if wanted.is_empty() {
+        return 0;
+    }
+    let hit = wanted.iter().filter(|w| said.contains(w)).count();
+    hit * 10 / wanted.len()
+}
+
+/// Whether the call's authority lets `q` be asked (the Response Agent's rule).
+fn askable(ctx: &CallContext, q: &agent::PlannedQuestion) -> bool {
+    let a = &ctx.authority;
+    a.may_ask_about.contains(&q.topic)
+        && !a.may_not.contains(&q.topic)
+        && agent::may_not_key(&q.topic).is_none_or(|k| !a.may_not.iter().any(|m| m == k))
+}
+
+/// What was actually said on the line about the call's questions: the assistant's own
+/// transcript says which were put, the counterparty's says which were answered. Nothing here
+/// is a pointer the model does not know about.
+#[derive(Clone, Default)]
+struct LineState {
+    /// Question ids put on the line, in the order they were first put.
+    asked: Vec<String>,
+    /// How many times each was put.
+    puts: HashMap<String, u32>,
+    /// Answered, declined ("I don't know"), or passed over by the assistant.
+    settled: Vec<String>,
+    /// The question put last and not settled.
+    open: Option<String>,
+    /// The counterparty has spoken since the open question was put.
+    replied: bool,
+    /// They asked for time; the assistant waits.
+    waiting: bool,
+    /// The closing line was sent; nothing more is decided.
+    closing: bool,
+    /// The direction the model has now.
+    direction: String,
+}
+
+impl LineState {
+    fn settle(&mut self, id: &str) {
+        if !self.settled.iter().any(|s| s == id) {
+            self.settled.push(id.to_owned());
+        }
+        if self.open.as_deref() == Some(id) {
+            self.open = None;
+        }
+    }
+
+    /// Every question the call may ask was put and none is open.
+    fn done(&self, ctx: &CallContext) -> bool {
+        self.open.is_none()
+            && ctx
+                .questions
+                .iter()
+                .filter(|q| askable(ctx, q))
+                .all(|q| self.asked.contains(&q.id))
+    }
+
+    /// The model's direction: the state of the questions by their numbers in the instructions.
+    /// It is sent when the assistant's line is known, so it is in place before the other side
+    /// answers (a direction made from their answer would reach the model one turn late).
+    fn direction_for(&self, ctx: &CallContext) -> String {
+        let number = |id: &str| {
+            ctx.questions
+                .iter()
+                .position(|q| q.id == id)
+                .map_or_else(String::new, |i| (i + 1).to_string())
+        };
+        let list = |ids: Vec<String>| ids.join(", ");
+        let asked: Vec<String> = self.asked.iter().map(|id| number(id)).collect();
+        let left: Vec<String> = ctx
+            .questions
+            .iter()
+            .filter(|q| askable(ctx, q) && !self.asked.contains(&q.id))
+            .map(|q| number(&q.id))
+            .collect();
+        let mut s = String::new();
+        if asked.is_empty() {
+            s.push_str("No approved question has been asked yet. ");
+        } else {
+            s.push_str(&format!(
+                "Approved questions already asked on this call (never ask them again): {}. ",
+                list(asked)
+            ));
+        }
+        if let Some(open) = &self.open {
+            s.push_str(&format!(
+                "Question {n} is open: wait for their answer. If they ask for a moment, say one \
+                 short acknowledgement and then stay silent until they speak; what they say \
+                 when they come back answers question {n}. Do not repeat it unless they ask \
+                 you to. ",
+                n = number(open)
+            ));
+        }
+        if left.is_empty() {
+            s.push_str(
+                "No approved question is left to ask: once the open one is answered, say only \
+                 a few words of acknowledgement, ask nothing more and do not say goodbye; the \
+                 system speaks the closing line and ends the call.",
+            );
+        } else {
+            s.push_str(&format!(
+                "Still to ask, one at a time, in this order: {}.",
+                list(left)
+            ));
+        }
+        s
+    }
+}
 
 /// The transcript note when the bridge refused a direction (it had ended).
 pub const DIRECTION_REFUSED_NOTE: &str =
@@ -2249,10 +2461,18 @@ pub trait BridgeControl: Send + Sync {
     async fn pause(&self) -> bool;
     async fn resume(&self) -> bool;
     async fn stop(&self) -> bool;
+    /// Speak the closing line as the last thing said and end the bridge when it was played
+    /// ([`BridgeHandle::close`]). A control without that (a test's fixture) just says it.
+    async fn close(&self, text: String) -> bool {
+        self.say(text).await
+    }
 }
 
 #[async_trait::async_trait]
 impl BridgeControl for BridgeHandle {
+    async fn close(&self, text: String) -> bool {
+        BridgeHandle::close(self, text).await.is_ok()
+    }
     async fn say(&self, text: String) -> bool {
         BridgeHandle::say(self, text).await.is_ok()
     }
@@ -2303,6 +2523,13 @@ struct VoiceCall {
     context: Option<CallContext>,
     agent: ConversationState,
     next_turn: u64,
+    /// The questions as the line has them (asked, answered, open).
+    line: LineState,
+    /// Positions in the call's transcript of the assistant lines the SERVER authored (the
+    /// disclosure, a hold line, the closing line, the apology), marked where each is written.
+    /// The stored turn keeps the contract's shape (speaker, text); the mark lives here and is
+    /// lost with the process, in which case those lines are judged like the model's own.
+    server_lines: Vec<usize>,
 }
 
 impl VoiceCall {
@@ -2315,6 +2542,8 @@ impl VoiceCall {
             context: None,
             agent: ConversationState::default(),
             next_turn: 1,
+            line: LineState::default(),
+            server_lines: Vec::new(),
         }
     }
 }
@@ -2402,6 +2631,15 @@ impl VoiceCalls {
     }
 
     /// Undo the Response Agent's "ended" after a withheld closing, so later lines are decided.
+    /// Mark the transcript line at `index` (about to be written) as the server's own wording.
+    fn mark_server_line(&self, call_id: Uuid, index: usize) {
+        if let Some(v) = self.map().get_mut(&call_id) {
+            if !v.server_lines.contains(&index) {
+                v.server_lines.push(index);
+            }
+        }
+    }
+
     fn reopen_agent(&self, call_id: Uuid) {
         if let Some(v) = self.map().get_mut(&call_id) {
             v.agent.ended = false;
@@ -2529,6 +2767,7 @@ impl VoiceCalls {
         let mut left = ClosedVoice {
             agent: None,
             extras,
+            server_lines: Vec::new(),
         };
         if let Some(v) = entry {
             if let (Some(id), Some(l)) = (v.bridge_id.as_deref(), self.launcher()) {
@@ -2537,6 +2776,7 @@ impl VoiceCalls {
             if let Some(c) = v.control {
                 c.stop().await;
             }
+            left.server_lines = v.server_lines;
             left.agent = Some((v.agent, v.context));
         }
         left
@@ -2844,7 +3084,14 @@ impl CallOrchestrator<'_> {
                 self.app.settings.xai_realtime_url.clone(),
                 key,
             ),
-            options: BridgeOptions::default(),
+            options: BridgeOptions {
+                check_in: Some(CheckIn {
+                    after: std::time::Duration::from_secs(CHECK_IN_AFTER_S),
+                    line: STILL_HERE_LINE.to_owned(),
+                    max: MAX_CHECK_INS,
+                }),
+                ..BridgeOptions::default()
+            },
             events: Arc::new(CallBridgeEvents {
                 app: vcs.app_weak(),
                 call_id: call.call_id,
@@ -2873,9 +3120,165 @@ impl CallOrchestrator<'_> {
             Err(TelephonyError::Forbidden(m)) => return Err(AppError::forbidden(m)),
         }
         // The bridge speaks this verbatim before the model may say anything.
+        vcs.mark_server_line(call.call_id, call.transcript.len());
         call.transcript.push(turn("assistant", built.opening_line));
         let call = self.save(tx, call).await?;
-        self.apply_say(tx, call, &first).await
+        if first.end_call {
+            // Nothing may be asked on this call: the closing line and the end.
+            return self.apply_say(tx, call, &first).await;
+        }
+        // The model leads the conversation from its instructions; the server tells it the
+        // state of the questions (none asked yet) and from here on only watches the line.
+        self.send_line_direction(tx, call).await
+    }
+
+    /// Bring the Response Agent's state in line with what was said on the line and send the
+    /// model the questions' state when it changed. The agent classifies each counterparty
+    /// line against the question the assistant really put last; its own pointer (the next
+    /// question it would have asked) is discarded. The direction is the questions' state, not
+    /// a line to say, so one that arrives late is still true. A refusal (the bridge is gone)
+    /// is noted on the transcript and the direction is tried again on the next line.
+    async fn send_line_direction(
+        &self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+    ) -> AppResult<CallSession> {
+        let call_id = call.call_id;
+        let send = {
+            let vcs = self.app.voice_calls();
+            let mut m = vcs.map();
+            m.get_mut(&call_id).and_then(|v| {
+                sync_agent(v);
+                let ctx = v.context.as_ref()?;
+                if v.line.closing {
+                    return None;
+                }
+                let text = v.line.direction_for(ctx);
+                if text == v.line.direction {
+                    return None;
+                }
+                v.line.direction = text.clone();
+                Some((v.control.clone()?, text))
+            })
+        };
+        let Some((control, text)) = send else {
+            return Ok(call);
+        };
+        if control.instruct(text).await {
+            return Ok(call);
+        }
+        if let Some(v) = self.app.voice_calls().map().get_mut(&call_id) {
+            v.line.direction.clear();
+        }
+        let mut call = call;
+        call.transcript.push(turn("system", DIRECTION_REFUSED_NOTE));
+        self.save(tx, call).await
+    }
+
+    /// A line of the model's own (the bridge's transcript of what the assistant said): which
+    /// approved question it put, if any. That question is now the open one.
+    async fn on_assistant_line(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+        text: &str,
+    ) -> AppResult<CallSession> {
+        let done = {
+            let vcs = self.app.voice_calls();
+            let mut m = vcs.map();
+            m.get_mut(&call.call_id).and_then(|v| {
+                let ctx = v.context.clone()?;
+                let l = &mut v.line;
+                if l.closing {
+                    return None;
+                }
+                let put = ctx
+                    .questions
+                    .iter()
+                    .filter(|q| askable(&ctx, q))
+                    .map(|q| (puts_question(text, &q.text), q))
+                    .filter(|(score, _)| *score >= 7)
+                    .max_by_key(|(score, _)| *score)
+                    .map(|(_, q)| q.id.clone());
+                match put {
+                    Some(id) => {
+                        if let Some(prev) = l.open.clone().filter(|p| *p != id) {
+                            l.settle(&prev); // the assistant moved on: passed over
+                        }
+                        if !l.asked.contains(&id) {
+                            l.asked.push(id.clone());
+                        }
+                        *l.puts.entry(id.clone()).or_insert(0) += 1;
+                        l.settled.retain(|s| *s != id);
+                        l.open = Some(id);
+                        l.replied = false;
+                        l.waiting = false;
+                    }
+                    None => {
+                        // The last question got a reply that did not answer it and the
+                        // assistant did not put it again: it is passed over.
+                        let all_put = ctx
+                            .questions
+                            .iter()
+                            .filter(|q| askable(&ctx, q))
+                            .all(|q| l.asked.contains(&q.id));
+                        if let Some(open) = l.open.clone() {
+                            if all_put && l.replied && !l.waiting {
+                                l.settle(&open);
+                            }
+                        }
+                    }
+                }
+                Some(l.done(&ctx))
+            })
+        };
+        let call = self.send_line_direction(tx, call).await?;
+        if done == Some(true) {
+            return self.close_call(tx, call).await;
+        }
+        Ok(call)
+    }
+
+    /// The end the server decides: the closing line, written and marked as the server's, is
+    /// handed to the bridge, which speaks it after whatever is being said, lets nothing else
+    /// through and reports when it was played (`closed`); then the call is hung up. While an
+    /// approved tour or rent negotiation is still open the closing is withheld.
+    async fn close_call(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
+        let vcs = self.app.voice_calls();
+        if vcs.purposes_open(call.call_id) {
+            vcs.reopen_agent(call.call_id);
+            return Ok(call);
+        }
+        let control = {
+            let mut m = vcs.map();
+            match m.get_mut(&call.call_id) {
+                Some(v) if !v.line.closing && !v.paused => {
+                    v.line.closing = true;
+                    v.agent.ended = true;
+                    v.control.clone()
+                }
+                _ => None,
+            }
+        };
+        let Some(control) = control else {
+            return Ok(call);
+        };
+        let mut text = closing_line(!call.deferred_questions.is_empty());
+        if !control.close(text.clone()).await {
+            text = format!("{text} [speak failed: bridge gone]");
+        }
+        let mut call = call;
+        vcs.mark_server_line(call.call_id, call.transcript.len());
+        call.transcript.push(turn("assistant", text));
+        let call = self.save(tx, call).await?;
+        if let Some(leg) = call.provider_call_id.clone() {
+            let t = self.telephony.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(CLOSING_FALLBACK_HANGUP_S)).await;
+                let _ = blocking(move || t.hangup(&leg)).await;
+            });
+        }
+        Ok(call)
     }
 
     /// The Response Agent's `say` and `end_call`.
@@ -2892,22 +3295,14 @@ impl CallOrchestrator<'_> {
             self.app.voice_calls().reopen_agent(call.call_id);
             return Ok(call);
         }
-        let call = match &d.say {
-            Say::Exact(t) => self.say(tx, call, t).await?,
-            Say::Instruct(t) => self.instruct(tx, call, t, d).await?,
-            Say::Silent => call,
-        };
         if d.end_call {
-            if let Some(leg) = call.provider_call_id.clone() {
-                let t = self.telephony.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_secs(CLOSING_HANGUP_DELAY_S))
-                        .await;
-                    let _ = blocking(move || t.hangup(&leg)).await;
-                });
-            }
+            return self.close_call(tx, call).await;
         }
-        Ok(call)
+        match &d.say {
+            Say::Exact(t) => self.say(tx, call, t).await,
+            Say::Instruct(t) => self.instruct(tx, call, t, d).await,
+            Say::Silent => Ok(call),
+        }
     }
 
     /// The Response Agent's silent direction for the model's next turns (`Say::Instruct`): sent
@@ -3023,8 +3418,18 @@ impl CallOrchestrator<'_> {
                     .take(6)
                     .any(|t| t.speaker == "assistant" && t.text == red);
                 if !already && !red.trim().is_empty() {
-                    call.transcript.push(turn("assistant", red));
-                    self.save(tx, call).await?;
+                    if red == STILL_HERE_LINE {
+                        // The bridge's own check-in after a long silence: the server's line.
+                        vcs.mark_server_line(call_id, call.transcript.len());
+                        call.transcript.push(turn("assistant", red));
+                        self.save(tx, call).await?;
+                        return Ok(String::new());
+                    }
+                    call.transcript.push(turn("assistant", red.clone()));
+                    let call = self.save(tx, call).await?;
+                    if matches!(call.state, CallState::Active | CallState::AiResumed) {
+                        self.on_assistant_line(tx, call, &red).await?;
+                    }
                 }
                 Ok(String::new())
             }
@@ -3042,8 +3447,25 @@ impl CallOrchestrator<'_> {
             }
             BridgeInput::Ended(reason) => {
                 vcs.detach(call_id);
-                let why = format!("the voice assistant ended ({reason})");
-                self.fail_politely(tx, call, &why).await?;
+                // The other side hanging up and the server's own closing are normal ends: a
+                // plain system line, nothing spoken into a call that is gone, no apology.
+                let note = match reason.as_str() {
+                    "carrier_closed" => Some(HUNG_UP_NOTE),
+                    "closed" => Some(CLOSED_NOTE),
+                    _ => None,
+                };
+                let Some(note) = note else {
+                    let why = format!("the voice assistant ended ({reason})");
+                    self.fail_politely(tx, call, &why).await?;
+                    return Ok(String::new());
+                };
+                call.transcript.push(turn("system", note));
+                let call = self.save(tx, call).await?;
+                if let Some(leg) = call.provider_call_id.clone() {
+                    // The carrier's hangup event completes the call; a leg that is already
+                    // gone refuses this, which changes nothing.
+                    let _ = self.tel(move |t| t.hangup(&leg)).await?;
+                }
                 Ok(String::new())
             }
             BridgeInput::IntroTimeout => {
@@ -3083,11 +3505,40 @@ impl CallOrchestrator<'_> {
                     speaker: agent::Speaker::Counterparty,
                     text: text.to_owned(),
                 };
+                // The open question is the one the assistant put last on the line.
+                v.agent.current = v.line.open.clone();
+                v.agent.ended = false;
                 let (d, st) = agent::step(&ctx, &v.agent, &utt);
+                if asks_for_time(text) && d.answered_question.is_none() && d.escalation.is_none() {
+                    // "Hold on, let me look that up": not a question to us and not an answer.
+                    // Nothing is decided, nothing is said by the server, and the open question
+                    // stays open; the model acknowledges once and waits.
+                    v.line.waiting = true;
+                    let mut d = d;
+                    d.say = Say::Silent;
+                    d.findings.clear();
+                    d.owner_followup = None;
+                    d.end_call = false;
+                    return Some((d, ctx, false));
+                }
                 v.agent = st;
-                Some((d, ctx))
+                v.line.waiting = false;
+                v.line.replied = true;
+                if let Some(id) = &d.answered_question {
+                    v.line.settle(id);
+                } else if let Some(open) = v.line.open.clone() {
+                    if v.line.puts.get(&open).copied().unwrap_or(0) >= MAX_PUTS_ON_LINE {
+                        v.line.settle(&open); // put twice, still no answer: not put again
+                    }
+                }
+                sync_agent(v);
+                let done = v.line.done(&ctx);
+                Some((d, ctx, done))
             })
         };
+        let step = step.map(|(d, ctx, done)| ((d, ctx), done));
+        let done = step.as_ref().is_some_and(|(_, done)| *done);
+        let step = step.map(|(s, _)| s);
         let mut call = call;
         let Some((d, ctx)) = step else {
             // No decision state (the bridge never started): keep only the redacted line.
@@ -3155,9 +3606,6 @@ impl CallOrchestrator<'_> {
         };
         if negotiating {
             d.say = Say::Silent;
-            if std::mem::take(&mut d.end_call) {
-                self.app.voice_calls().reopen_agent(call.call_id);
-            }
         } else if let Some(esc) = d.escalation.as_ref().filter(|e| !e.hold) {
             call.deferred_questions.push(esc.question_for_owner.clone());
         }
@@ -3167,9 +3615,18 @@ impl CallOrchestrator<'_> {
             self.request_handoff(tx, call.call_id, esc.reason, &esc.question_for_owner)
                 .await?;
             let call = CALLS.require(tx, call.call_id).await?;
+            // The hold line is the server's (a case its rules name); it goes out on the
+            // carrier, the bridge being paused.
+            d.end_call = false;
             return self.apply_say(tx, call, &d).await;
         }
-        self.apply_say(tx, call, &d).await
+        // One speaker per turn: the model answers this line by itself (its automatic response
+        // under server VAD cannot be switched off). The server pushes no line and no next
+        // question; it closes the call when the line shows every question was put and settled.
+        if done {
+            return self.close_call(tx, call).await;
+        }
+        self.send_line_direction(tx, call).await
     }
 
     /// A tool call. The tour and rent tools are answered by the server's rules from what the
@@ -3344,29 +3801,37 @@ pub fn amd_ignored_note(result: Option<&str>) -> String {
     )
 }
 
-/// The transcript as the summary's commitment check may read it: the server's own fixed apology
-/// is not the model's speech. It is known by where it was written, not by its words:
-/// `fail_politely` writes its system line ([`fail_note`]) and then speaks [`APOLOGY_LINE`], so
-/// only the assistant turn directly after that system line is taken out of the check (relabelled
-/// a system line). The same words anywhere else, said by the model, are still judged.
-fn without_server_fixed_lines(transcript: &[TranscriptTurn]) -> Vec<TranscriptTurn> {
+/// The transcript as the summary's commitment check may read it: every assistant line the
+/// SERVER authored (the disclosure, a hold line, the closing line, the apology) was marked where
+/// it was written ([`VoiceCall::server_lines`]) and is relabelled a system line here, so it is
+/// not raised as a possible commitment. The same words said by the model carry no mark and are
+/// still judged.
+fn without_server_lines(transcript: &[TranscriptTurn], marks: &[usize]) -> Vec<TranscriptTurn> {
     let mut out = transcript.to_vec();
-    for i in 1..out.len() {
-        let after_fail_note = out[i - 1].speaker == "system"
-            && out[i - 1].text.starts_with('[')
-            && out[i - 1].text.ends_with(FAIL_NOTE_END);
-        if after_fail_note && out[i].speaker == "assistant" && out[i].text.starts_with(APOLOGY_LINE)
-        {
-            out[i].speaker = "system".to_owned();
+    for &i in marks {
+        if let Some(t) = out.get_mut(i).filter(|t| t.speaker == "assistant") {
+            t.speaker = "system".to_owned();
         }
     }
     out
 }
 
-/// How the system line of `fail_politely` ends; no other line of the server ends so.
-const FAIL_NOTE_END: &str = "; ending the call]";
+/// The Response Agent's state as the line has it: what was put, what is open. Its own pointer
+/// (the next question it took, its count of puts, its end) is discarded.
+fn sync_agent(v: &mut VoiceCall) {
+    v.agent.asked = v.line.asked.clone();
+    v.agent.current = v.line.open.clone();
+    v.agent
+        .skipped
+        .retain(|(_, why)| why != "not answered after being asked twice");
+    v.agent.ended = v.line.closing;
+    if let Some(d) = v.agent.decisions.last_mut() {
+        d.next_question = None;
+    }
+}
+
 fn fail_note(why: &str) -> String {
-    format!("[{why}{FAIL_NOTE_END}")
+    format!("[{why}; ending the call]")
 }
 
 /// Whether an answering machine was detected on this call (the stored reason).
