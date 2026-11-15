@@ -232,19 +232,7 @@ pub fn instructions_with(
          for its answer. Before anything outside your authority, call escalate_to_owner and wait.\n\
          - Never say the owner has joined, is joining or is listening. The system says that.\n\
          - When you do not know, say so and offer to ask the owner.\n\
-         - Keep answers short. Do not invent facts about the property or the client.\n\
-         - You lead the conversation. Ask the approved questions one at a time, in their \
-         order, each one once, and wait for the answer. Never ask again a question that was \
-         already asked on this call; a server direction tells you which were asked.\n\
-         - People pause to think. If they ask for a moment or need to check something (\"hold \
-         on\", \"let me look that up\"), say one short acknowledgement such as \"Of course, \
-         take your time.\" and then say nothing until they speak again. When they come back, \
-         what they say answers the question that was open: do not skip it and do not ask it \
-         again.\n\
-         - If they do not know an answer, accept that and go on to the next question.\n\
-         - When no approved question is left, say a few words of acknowledgement and stop. Do \
-         not ask anything else and do not say goodbye: the system speaks the closing line and \
-         ends the call.\n"
+         - Keep answers short. Do not invent facts about the property or the client.\n"
     ));
     s
 }

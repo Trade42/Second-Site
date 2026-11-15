@@ -582,19 +582,7 @@ both_backends!(nothing_approved_is_the_session_of_before, |db| {
              for its answer. Before anything outside your authority, call escalate_to_owner and wait.\n\
              - Never say the owner has joined, is joining or is listening. The system says that.\n\
              - When you do not know, say so and offer to ask the owner.\n\
-             - Keep answers short. Do not invent facts about the property or the client.\n\
-             - You lead the conversation. Ask the approved questions one at a time, in their \
-             order, each one once, and wait for the answer. Never ask again a question that was \
-             already asked on this call; a server direction tells you which were asked.\n\
-             - People pause to think. If they ask for a moment or need to check something (\"hold \
-             on\", \"let me look that up\"), say one short acknowledgement such as \"Of course, \
-             take your time.\" and then say nothing until they speak again. When they come back, \
-             what they say answers the question that was open: do not skip it and do not ask it \
-             again.\n\
-             - If they do not know an answer, accept that and go on to the next question.\n\
-             - When no approved question is left, say a few words of acknowledgement and stop. Do \
-             not ask anything else and do not say goodbye: the system speaks the closing line and \
-             ends the call.\n"
+             - Keep answers short. Do not invent facts about the property or the client.\n"
         ),
         "{ins}"
     );
@@ -806,22 +794,19 @@ use ss_server::services::call_orchestration::{
 };
 use ss_server::services::voice_bridge::MAX_INSTRUCTION_CHARS;
 
-// voice-turns-1: the direction is the questions' state by their numbers in the instructions
-// (none asked yet at the opening); it is no longer "Then ask exactly: ..." made from the
-// counterparty's line, which reached the model one turn late (the repeats of the second call).
-const OPENING_DIRECTION: &str =
-    "No approved question has been asked yet. Still to ask, one at a time, in this order: 1";
+const OPENING_DIRECTION: &str = "After the introduction and disclosure, Then ask exactly: \"";
+const ACK_DIRECTION: &str =
+    "Briefly acknowledge the answer without agreeing to any amount or term. Then ask exactly: \"";
 
-/// The one opening direction.
-fn opening_direction(p: &P) -> String {
+/// The question the opening direction asks.
+fn opening_question(p: &P) -> String {
     let all = p.bridge.instructions();
     assert_eq!(all.len(), 1, "one opening direction: {all:?}");
-    assert!(
-        all[0].starts_with(OPENING_DIRECTION),
-        "the opening direction: {}",
-        all[0]
-    );
-    all[0].clone()
+    let q = all[0]
+        .strip_prefix(OPENING_DIRECTION)
+        .and_then(|r| r.strip_suffix('"'))
+        .unwrap_or_else(|| panic!("the opening direction: {}", all[0]));
+    q.to_owned()
 }
 
 fn notes(call: &CallSession, note: &str) -> usize {
@@ -831,20 +816,22 @@ fn notes(call: &CallSession, note: &str) -> usize {
         .count()
 }
 
-// voice-turns-1: a counterparty line (here a request for time) sends the bridge nothing: no
-// direction made from it and no speech; the model answers it by itself. The owner's maximum and
-// target are in no direction.
+// A counterparty line that makes the Response Agent decide `Instruct`: the bridge gets exactly
+// one direction with the agent's text, nothing is spoken for it and nothing is stored as said.
+// The owner's maximum and target are in no direction.
 both_backends!(an_instruct_decision_reaches_the_bridge_once, |db| {
     let p = setup(db, true).await;
     let (_pid, call_id, _out, ev) = started(&p, R_TARGET, R_MAX).await;
-    println!("DIRECTION {}", opening_direction(&p));
+    let q = opening_question(&p);
     let before = p.bridge.log();
     ev.transcript(line("Okay, give me a moment.", 1)).await;
     let log = p.bridge.log();
+    let expected = format!("{ACK_DIRECTION}{q}\"");
+    println!("DIRECTION {expected}");
     assert_eq!(
         log[before.len()..],
-        [] as [String; 0],
-        "no direction from their line, no speech"
+        [format!("instruct:{expected}")],
+        "one direction, no speech"
     );
     let call = p.call(call_id).await;
     assert_eq!(call.state, CallState::Active);
@@ -866,7 +853,7 @@ both_backends!(an_instruct_decision_reaches_the_bridge_once, |db| {
         .await;
     ev.transcript(line("Sure, go ahead.", 5)).await;
     let all = p.bridge.instructions();
-    assert!(!all.is_empty(), "{all:?}");
+    assert!(all.len() >= 2, "{all:?}");
     for d in &all {
         assert!(
             !holds(d, R_MAX) && !holds(d, R_TARGET) && !d.contains("7,500"),
@@ -876,13 +863,13 @@ both_backends!(an_instruct_decision_reaches_the_bridge_once, |db| {
     }
 });
 
-// A hold decided in the same turn (the model's approval tool call after the line): the line
-// itself sends no direction (voice-turns-1); the pause follows. Once the call is held, a
-// further line decides nothing and sends no direction.
+// A hold decided in the same turn (the model's approval tool call after the line): the
+// direction goes first, because the line is decided when it arrives; the pause follows. Once
+// the call is held, a further line decides nothing and sends no direction.
 both_backends!(a_direction_goes_before_a_hold_of_the_same_turn, |db| {
     let p = setup(db, true).await;
     let (_pid, call_id, _out, ev) = started(&p, R_TARGET, R_MAX).await;
-    opening_direction(&p);
+    let q = opening_question(&p);
     let before = p.bridge.log();
     ev.transcript(line("Okay, give me a moment.", 1)).await;
     ev.tool_call(ToolCall {
@@ -893,8 +880,11 @@ both_backends!(a_direction_goes_before_a_hold_of_the_same_turn, |db| {
     .await;
     let log = p.bridge.log()[before.len()..].to_vec();
     println!("HOLD LOG {log:?}");
-    assert_eq!(log.iter().filter(|l| l.starts_with("instruct:")).count(), 0);
-    assert!(log.iter().any(|l| l == "pause"), "{log:?}");
+    let direction = format!("instruct:{ACK_DIRECTION}{q}\"");
+    assert_eq!(log.iter().filter(|l| l.starts_with("instruct:")).count(), 1);
+    let at = log.iter().position(|l| *l == direction).expect("direction");
+    let pause = log.iter().position(|l| l == "pause").expect("pause");
+    assert!(at < pause, "{log:?}");
     assert!(!log
         .iter()
         .any(|l| l.starts_with("say:") && l.contains("Then ask exactly")));
