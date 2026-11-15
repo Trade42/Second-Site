@@ -50,7 +50,8 @@ const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 
 export function config(search = globalThis.location?.search || '') {
   const q = new URLSearchParams(search);
-  return { live: q.get('live') === '1', api: (q.get('api') || 'http://localhost:8000').replace(/\/+$/, '') };
+  // talk=1: the "Talk to the assistant" control, for testing only; live mode alone has no voice in the chat.
+  return { live: q.get('live') === '1', talk: q.get('talk') === '1', api: (q.get('api') || 'http://localhost:8000').replace(/\/+$/, '') };
 }
 
 /* ------------------------------------------------- pure mapping: stage 1 */
@@ -742,7 +743,8 @@ export function bind(ctx) {
   for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
   for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
   const S = ctx.S(); S.slots = [null, null, null, null];
-  viewerElements(); waitStyle(); voiceElements();
+  viewerElements(); waitStyle(); cardStyle();
+  if (config().talk) voiceElements(); // never in plain live mode (the owner, 07:32Z: voice only on a call to the property)
 }
 const markers = {};
 function addPin(p) {
@@ -881,6 +883,91 @@ export function turn(stage, text, S, steps) {
   })();
 }
 
+/* --------------------------------------------- the AI session card (web-link-8) */
+// One card for an AI session (a call to the property in #findings, or the ?talk=1 conversation in #log).
+// Laid out by the page's flow only: no fixed/absolute/sticky position, no negative margin, no z-index.
+// The transcript part has a bounded height and scrolls inside the card.
+export const CARD_STYLE = `.live-card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; margin: 0 0 var(--space-6); padding: var(--space-3) var(--space-4) var(--space-4); border-radius: 12px; background: var(--tint); font-size: 14px; line-height: 1.45; color: var(--ink2); overflow-wrap: anywhere; }
+.live-card p { margin: 0; }
+.live-card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+.live-card-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.live-card-body { display: flex; flex-direction: column; gap: var(--space-2); }
+.live-card-log { display: flex; flex-direction: column; gap: var(--space-2); max-height: min(40vh, 320px); overflow-y: auto; overscroll-behavior: contain; padding-right: var(--space-1); }
+.live-card-log:empty { display: none; }
+#log > .live-card { align-self: stretch; margin: 0; }`;
+function cardStyle() {
+  const doc = globalThis.document, at = doc?.head || doc?.documentElement;
+  if (!at || doc.getElementById?.('live-card-style')) return;
+  const s = doc.createElement('style'); s.id = 'live-card-style'; s.textContent = CARD_STYLE; at.append(s);
+}
+const hasClass = (n, c) => String(n?.className || '').split(' ').includes(c);
+// Builds a card: head (title), body (status lines), log (the bounded transcript).
+export function makeCard(id, title) {
+  const doc = globalThis.document, card = doc.createElement('section'); card.id = id; card.className = 'live-card';
+  card.setAttribute('aria-label', title);
+  const head = doc.createElement('div'); head.className = 'live-card-head';
+  const h = doc.createElement('h3'); h.textContent = title; head.append(h);
+  const body = doc.createElement('div'); body.className = 'live-card-body';
+  const log = doc.createElement('div'); log.className = 'live-card-log'; log.setAttribute('role', 'log');
+  card.append(head, body, log);
+  return { card, head, body, log };
+}
+// Keeps one card element in place inside a container the page re-renders (#findings: renderFindings
+// replaces its innerHTML) or appends to (#log). `inPlace(parent, card)` says whether it already is;
+// `place(parent, card)` puts it there. The observer only re-inserts when the card is not in place, and
+// drops its own insert's records (takeRecords), so its own mutation never triggers another insert.
+// The transcript's scroll position, the container's scroll position and the focus inside the card
+// are put back after the insert. Returns stop() (disconnects; the card is removed by its owner).
+export function keepCard(parent, card, { place, inPlace, scrollers = [] }) {
+  const doc = globalThis.document, saved = new Map(), keep = el => saved.set(el, el.scrollTop || 0);
+  for (const el of [parent, ...scrollers]) { keep(el); el.addEventListener?.('scroll', () => keep(el), { passive: true }); }
+  let focus = null;
+  card.addEventListener?.('focusin', e => { focus = e.target; });
+  // Focus that leaves the card by the person's own act is forgotten (to another element, or to nothing while the
+  // card is still in the page); focus lost because the page took the card out is kept, to be put back.
+  card.addEventListener?.('focusout', e => { if (e.relatedTarget ? !card.contains?.(e.relatedTarget) : card.isConnected === true) focus = null; });
+  const put = () => {
+    if (inPlace(parent, card)) return false;
+    const out = ![...(parent.children || [])].includes(card), pScroll = saved.get(parent) ?? 0;
+    place(parent, card);
+    for (const el of scrollers) el.scrollTop = saved.get(el) ?? 0;
+    // Taken out by a re-render: the page restored its own value while the card was out (it may have been clamped).
+    // Only moved (the page appended after it, #log): the page's own scroll to its newest message stands.
+    if (out) parent.scrollTop = pScroll;
+    const act = doc?.activeElement;
+    if (focus && (!act || act === doc.body || act === doc.documentElement) && card.contains?.(focus)) focus.focus?.({ preventScroll: true });
+    return true;
+  };
+  put();
+  const MO = globalThis.MutationObserver;
+  if (!MO) return { put, stop() {} };
+  const mo = new MO(() => { if (put()) mo.takeRecords(); });
+  mo.observe(parent, { childList: true });
+  return { put, stop() { mo.disconnect(); } };
+}
+// #live-call: inside #findings, directly under the issue list of "Before you sign" (above "What it
+// takes to open"). Absent while there is no call. The call flow (part 3, a later commission) fills it.
+export const afterIssues = {
+  inPlace: (f, card) => { const k = [...f.children], i = k.indexOf(card), at = k.findIndex(x => hasClass(x, 'issues')); return i >= 0 && (at < 0 || i === at + 1); },
+  place: (f, card) => { const iss = [...f.children].find(x => hasClass(x, 'issues')); if (iss?.after) iss.after(card); else if (iss) { card.remove?.(); f.insertBefore(card, iss.nextSibling); } else f.append(card); },
+};
+let liveCall = null;
+export function openLiveCall(title) {
+  const f = globalThis.document?.getElementById?.('findings');
+  if (!f) return null;
+  if (liveCall) return liveCall;
+  cardStyle();
+  const c = makeCard('live-call', title);
+  liveCall = { ...c, keeper: keepCard(f, c.card, { ...afterIssues, scrollers: [c.log] }) };
+  return liveCall;
+}
+export function closeLiveCall() { if (!liveCall) return; liveCall.keeper.stop(); liveCall.card.remove(); liveCall = null; }
+// The ?talk=1 card: the last thing in the conversation (#log), only waiting boxes after it.
+const atLogEnd = {
+  inPlace: (log, card) => { const k = [...log.children], i = k.indexOf(card); return i >= 0 && k.slice(i + 1).every(x => hasClass(x, 'live-wait')); },
+  place: (log, card) => { const w = [...log.children].find(x => hasClass(x, 'live-wait')); if (w && log.insertBefore) log.insertBefore(card, w); else log.append(card); },
+};
+
 /* --------------------------------------------- voice: talk to the assistant (web-link-6) */
 
 // One spoken conversation with the assistant through xAI's realtime voice, grounded in this project's
@@ -929,7 +1016,7 @@ const later = (fn, ms) => (clock.after ? clock.after(fn, ms) : setTimeout(fn, ms
 const cancel = id => (clock.cancel ? clock.cancel(id) : clearTimeout(id));
 let voice = null, voiceRan = false, vui = null;
 export const voiceActive = () => !!voice; // tests only
-const VOICE_STYLE = `.live-voice { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--ink2); }
+const VOICE_STYLE = `.live-voice { font-size: 13px; }
 .live-voice-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .live-voice-btn { font: inherit; font-weight: 500; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
 .live-voice-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
@@ -945,9 +1032,9 @@ const VOICE_STYLE = `.live-voice { display: flex; flex-direction: column; gap: 6
 const mk = (tag, cls, text) => { const e = globalThis.document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 // The control under the composer, made once by bind() (only in live mode, only where the page has #chat).
 function voiceElements() {
-  const doc = globalThis.document, chat = doc?.getElementById?.('chat');
-  if (!chat || doc.getElementById('live-voice')) return;
-  const box = mk('div', 'live-voice'); box.id = 'live-voice';
+  const doc = globalThis.document, chat = doc?.getElementById?.('chat'), log = logEl();
+  if (!chat || !log || doc.getElementById('live-voice')) return;
+  const c = makeCard('live-voice', VOICE.speaker), box = c.card; box.className = 'live-card live-voice';
   const row = mk('div', 'live-voice-row'), btn = mk('button', 'live-voice-btn', VOICE.talk);
   btn.type = 'button'; btn.setAttribute('aria-pressed', 'false'); btn.onclick = () => voiceToggle();
   const reason = mk('span', 'live-voice-reason');
@@ -958,10 +1045,11 @@ function voiceElements() {
   const label = mk('p', 'live-voice-label'), disclosure = mk('p', 'live-voice-disclosure'), data = mk('p', 'live-voice-data'), status = mk('p', 'live-voice-status');
   banner.append(head, label, disclosure, data, status);
   const note = mk('p', 'live-voice-note'); note.setAttribute('role', 'status'); note.hidden = true;
-  box.append(row, consent, banner, note); chat.append(box);
+  c.body.append(row, consent, banner, note);
+  keepCard(log, box, { ...atLogEnd, scrollers: [c.log] }); // inside the scrolling conversation: it cannot overflow its column
   const at = doc.head || doc.documentElement;
   if (at && !doc.getElementById('live-voice-style')) { const s = mk('style'); s.id = 'live-voice-style'; s.textContent = VOICE_STYLE; at.append(s); }
-  vui = { box, btn, reason, consent, banner, label, disclosure, data, status, note };
+  vui = { box, btn, reason, consent, banner, label, disclosure, data, status, note, turns: c.log };
   voiceRefresh();
 }
 // The button and its reason while no conversation runs.
@@ -1068,14 +1156,13 @@ function onVoiceEvent(s, raw) {
 // The log entries of this conversation (page elements of this file; they do not survive a reload).
 const entryText = (s, who, id) => s.entries.get(who + ':' + id)?.text.textContent;
 function entry(s, who, id, text, done) {
-  const log = logEl(); if (!log) return;
+  const log = vui?.turns; if (!log) return; // the card's own bounded transcript
   const key = who + ':' + id;
   let x = s.entries.get(key);
   if (!x) {
     const box = mk('div', 'live-voice-turn' + (who === 'u' ? ' me' : '')), name = mk('span', 'live-voice-who', who === 'u' ? VOICE.owner : VOICE.speaker), p = mk('p', 'live-voice-text');
     box.append(name, p); x = { box, text: p, done: false }; s.entries.set(key, x);
-    const wait = log.children ? [...log.children].find(c => c.className === 'live-wait') : null;
-    if (wait) log.insertBefore ? log.insertBefore(box, wait) : log.append(box); else log.append(box);
+    log.append(box);
   }
   if (x.done) return;
   x.text.textContent = text;

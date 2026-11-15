@@ -15,9 +15,9 @@ async function t(name, fn) {
 
 /* ----------------------------------------------------------------- (a) */
 await t('config: off without ?live=1, default origin, api override', () => {
-  assert.deepEqual(B.config(''), { live: false, api: 'http://localhost:8000' });
+  assert.deepEqual(B.config(''), { live: false, talk: false, api: 'http://localhost:8000' });
   assert.equal(B.config('?live=0').live, false);
-  assert.deepEqual(B.config('?live=1&api=http://127.0.0.1:9000/'), { live: true, api: 'http://127.0.0.1:9000' });
+  assert.deepEqual(B.config('?live=1&api=http://127.0.0.1:9000/'), { live: true, talk: false, api: 'http://127.0.0.1:9000' });
 });
 await t('money and geometry convert exactly, for display only', () => {
   assert.equal(B.toDollars(400000), 4000); assert.equal(B.toDollars(1377650), 13776.5); assert.equal(B.toDollars(null), null); assert.equal(B.toDollars(12.5), null);
@@ -827,6 +827,9 @@ const vresp = (over = {}) => ({ mode: 'assistant', provider: 'xai', websocket_ur
 const pcm = n => Buffer.from(new Int16Array(Array.from({ length: n }, (_, i) => (i % 2 ? 1000 : -1000))).buffer).toString('base64');
 const timers = new Map(); let tid = 0;
 const fire = ms => { now += ms; for (const [id, x] of [...timers]) if (x.at <= now && timers.has(id)) { timers.delete(id); x.fn(); } };
+// The address the page was opened with, for config() (talk=1 or not); restored after the voice tests.
+const hadLocation = 'location' in globalThis, realLocation = globalThis.location;
+function setSearch(search) { Object.defineProperty(globalThis, 'location', { value: { href: 'http://localhost:8090/workspace.html' + search, search }, configurable: true, writable: true }); }
 async function voiceRig({ mic = 'ok', micGate = null, answer = () => ({ status: 200, body: vresp() }) } = {}) {
   const order = [], sockets = [], tracks = [], ctxs = [], nodes = [], starts = [], stops = [], posts = [];
   class WS { constructor(url, protos) { order.push('socket'); Object.assign(this, { url, protos, sent: [], closed: false }); sockets.push(this); } send(m) { this.sent.push(JSON.parse(m)); } close() { this.closed = true; } emit(o) { this.onmessage?.({ data: JSON.stringify(o) }); } }
@@ -842,10 +845,11 @@ async function voiceRig({ mic = 'ok', micGate = null, answer = () => ({ status: 
   const pg = await waitPage(); const { doc } = pg;
   const chat = doc.createElement('div'); chat.id = 'chat'; doc.root.children[1].append(chat); // body
   const listeners = {}; Object.assign(doc, { visibilityState: 'visible', addEventListener: (k, f) => { listeners[k] = f; }, removeEventListener: (k, f) => { if (listeners[k] === f) delete listeners[k]; } });
+  setSearch('?live=1&talk=1'); // the Talk control exists only with ?talk=1 (web-link-8)
   B.bind({ ...pg.ctx, S: () => pg.S, map: () => null }); // again, now that the page has #chat
   current = (u, o) => { const path = new URL(u).pathname; if (path.endsWith('/voice/session')) { order.push('post'); posts.push(JSON.parse(o.body)); const a = answer(); return Promise.resolve({ ok: a.status === 200, status: a.status, text: async () => JSON.stringify(a.body) }); } return strictFetch(u, o); };
   const el = cls => doc.root.all().find(c => c.className === cls);
-  const ui = { box: () => doc.getElementById('live-voice'), btn: () => el('live-voice-btn'), note: () => el('live-voice-note'), banner: () => el('live-voice-banner'), consent: () => el('live-voice-consent'), turns: () => doc.log.children.filter(c => /live-voice-turn/.test(c.className)) };
+  const ui = { box: () => doc.getElementById('live-voice'), btn: () => el('live-voice-btn'), note: () => el('live-voice-note'), banner: () => el('live-voice-banner'), consent: () => el('live-voice-consent'), turns: () => el('live-card-log').children.filter(c => /live-voice-turn/.test(c.className)) };
   const click = async () => { const p = ui.btn().onclick(); await tick(); await tick(); await tick(); return p; };
   return { ...pg, mediaDevices, order, sockets, tracks, ctxs, nodes, starts, stops, posts, listeners, ui, click, ws: () => sockets.at(-1) };
 }
@@ -999,6 +1003,116 @@ await t('voice: without ?live=1 none of it exists (no page file names it; only b
   const mine = readFileSync(new URL('./backend.js', import.meta.url), 'utf8');
   assert.equal([...mine.matchAll(/\bvoiceElements\(/g)].length, 2, 'defined once, called once by bind()');
 });
+
+/* ------------------------------------------- web-link-8: no voice in the chat; the AI session card */
+await t('talk: live mode alone makes no Talk control; ?talk=1 makes it, as a card inside the conversation log', () => withDoc(async () => {
+  assert.deepEqual([B.config('?live=1').talk, B.config('?live=1&talk=1').talk, B.config('').talk], [false, true, false]);
+  const pg = await waitPage(), { doc } = pg; const chat = doc.createElement('div'); chat.id = 'chat'; doc.root.children[1].append(chat);
+  setSearch('?live=1'); B.bind({ ...pg.ctx, S: () => pg.S, map: () => null });
+  assert.equal(doc.getElementById('live-voice'), null, 'no Talk control in live mode');
+  assert.ok(!doc.root.all().some(n => n.textContent === B.VOICE.talk), 'no "Talk to the assistant" anywhere');
+  assert.equal(doc.head.children.filter(c => c.id === 'live-card-style').length, 1, 'the card style is there for a call card');
+  setSearch('?live=1&talk=1'); B.bind({ ...pg.ctx, S: () => pg.S, map: () => null });
+  const box = doc.getElementById('live-voice'); assert.ok(box, 'present with ?talk=1');
+  assert.equal(box.parent, doc.log, 'inside the scrolling conversation, not a fourth row of the chat grid'); assert.equal(doc.log.children.at(-1), box);
+  assert.equal(box.className, 'live-card live-voice'); assert.ok(box.all().some(n => n.className === 'live-card-log'), 'turns go to the bounded transcript');
+  assert.equal(chat.children.length, 0, 'nothing appended to #chat');
+}));
+// A fake #findings that renderFindings re-renders the way the page does (innerHTML replaced), and a
+// MutationObserver that calls back in a microtask, as browsers do.
+function findingsDoc() {
+  const doc = waitDoc(), mos = []; doc.body = doc.root.children[1];
+  const el0 = doc.createElement;
+  doc.createElement = tag => { const e = el0(tag); e.after = function (n) { n.remove?.(); const k = this.parent.children; k.splice(k.indexOf(this) + 1, 0, n); n.parent = this.parent; notify(this.parent, n); };
+    const ap = e.append; e.append = function (...c) { ap.apply(this, c); for (const n of c) notify(this, n); }; e.contains = function (n) { return n === this || this.all().includes(n); }; e.focus = function () { doc.activeElement = this; }; return e; };
+  const f = doc.createElement('div'); f.id = 'findings'; doc.root.children[1].append(f);
+  const notify = (parent, n) => { for (const m of mos) if (m.target === parent && !m.off) { m.q.push({ addedNodes: [n] }); if (!m.sched) { m.sched = true; queueMicrotask(() => { m.sched = false; const r = m.q.splice(0); if (r.length) m.cb(r); }); } } };
+  let renders = 0;
+  const render = () => { // renderFindings: scrollTop saved, innerHTML replaced, scrollTop set back
+    const scroll = f.scrollTop; for (const c of [...f.children]) { c.parent = null; } f.children.length = 0; renders++;
+    const h = doc.createElement('h2'); h.textContent = 'Before you sign'; const iss = doc.createElement('div'); iss.className = 'issues';
+    const h2 = doc.createElement('h2'); h2.textContent = 'What it takes to open'; const tbl = doc.createElement('div'); tbl.className = 'table-scroll';
+    for (const n of [h, iss, h2, tbl]) { n.parent = f; f.children.push(n); } for (const m of mos) if (m.target === f && !m.off) { m.q.push({ addedNodes: f.children }); if (!m.sched) { m.sched = true; queueMicrotask(() => { m.sched = false; const r = m.q.splice(0); if (r.length) m.cb(r); }); } }
+    f.scrollTop = scroll;
+  };
+  class MO { constructor(cb) { this.cb = cb; this.q = []; } observe(t) { this.target = t; mos.push(this); } disconnect() { this.off = true; this.q.length = 0; } takeRecords() { return this.q.splice(0); } }
+  return { doc, f, render, MO, mos, renders: () => renders };
+}
+await t('live call card: absent with no call; under the issue list; the same element after five re-renders, no duplicate, no loop; never positioned; gone when closed', () => withDoc(async () => {
+  const { doc, f, render, MO, mos } = findingsDoc(); globalThis.document = doc; const realMO = globalThis.MutationObserver; globalThis.MutationObserver = MO;
+  try {
+    render(); await tick();
+    assert.equal(doc.getElementById('live-call'), null, 'no call: no card, no reserved space');
+    assert.deepEqual(f.children.map(c => c.className || c.textContent), ['Before you sign', 'issues', 'What it takes to open', 'table-scroll']);
+    const lc = B.openLiveCall('Call to the property'); const card = lc.card;
+    assert.equal(B.openLiveCall('again'), lc, 'one call at a time: one card');
+    const where = () => f.children.map(c => c.id || c.className || c.textContent);
+    assert.deepEqual(where(), ['Before you sign', 'issues', 'live-call', 'What it takes to open', 'table-scroll'], 'directly under the issue list');
+    for (let i = 0; i < 12; i++) { const l = doc.createElement('p'); l.textContent = 'line ' + i; lc.log.append(l); }
+    const btn = doc.createElement('button'); lc.body.append(btn);
+    for (let i = 0; i < 5; i++) {
+      f.scrollTop = 40; render(); lc.log.scrollTop = 0; doc.activeElement = doc.root.children[1]; // out of the DOM: scroll reset, focus lost
+      await tick();
+      assert.equal(doc.getElementById('live-call'), card, `render ${i + 1}: the same element`);
+      assert.deepEqual(where(), ['Before you sign', 'issues', 'live-call', 'What it takes to open', 'table-scroll'], `render ${i + 1}: in place`);
+      assert.equal(f.children.filter(c => c.id === 'live-call').length, 1, 'one card, no duplicate');
+    }
+    // no loop: the observer's own insert does not start another (one put per render)
+    const before = mos[0].q.length; await tick(); await tick(); assert.equal(mos[0].q.length, before);
+    assert.equal(card.style?.position, undefined); assert.equal(card.style?.zIndex, undefined);
+    assert.doesNotMatch(B.CARD_STYLE, /position\s*:|z-index|margin[^;]*:[^;]*(^|[\s(])-\d|calc\(-|sticky|fixed|absolute/, 'flow layout only');
+    assert.match(B.CARD_STYLE, /\.live-card-log \{[^}]*max-height: min\(40vh, 320px\); overflow-y: auto;/, 'bounded transcript');
+    assert.match(B.CARD_STYLE, /var\(--space-/); assert.match(B.CARD_STYLE, /background: var\(--tint\)/);
+    B.closeLiveCall(); assert.equal(doc.getElementById('live-call'), null, 'closed: gone');
+    render(); await tick(); assert.equal(doc.getElementById('live-call'), null, 'and not put back by a later render');
+    assert.equal(mos[0].off, true, 'observer disconnected');
+  } finally { B.closeLiveCall(); if (realMO === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = realMO; }
+}));
+await t('live call card keeper: restores the transcript scroll, the findings scroll and the focus after a re-render', () => withDoc(async () => {
+  const { doc, f, render, MO } = findingsDoc(); globalThis.document = doc; const realMO = globalThis.MutationObserver; globalThis.MutationObserver = MO;
+  const listeners = new Map(); const on = n => { n.addEventListener = (k, fn) => listeners.set(n.id + k + (n.className || ''), fn); };
+  try {
+    render(); await tick();
+    const card = doc.createElement('section'); card.id = 'k'; const log = doc.createElement('div'); log.className = 'lg'; const b = doc.createElement('button'); card.append(log, b);
+    on(f); on(log); on(card);
+    const k = B.keepCard(f, card, { ...B.afterIssues, scrollers: [log] });
+    f.scrollTop = 90; listeners.get('findingsscroll')(); log.scrollTop = 150; listeners.get('scrolllg')(); listeners.get('kfocusin')({ target: b });
+    render(); f.scrollTop = 30; log.scrollTop = 0; doc.activeElement = doc.root.children[1]; await tick();
+    assert.deepEqual([log.scrollTop, f.scrollTop, doc.activeElement], [150, 90, b]);
+    k.stop();
+  } finally { if (realMO === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = realMO; }
+}));
+await t('keeper (review): a card only moved inside its container leaves the page\'s scroll alone; focus the person took away is not put back', () => withDoc(async () => {
+  const { doc, f, render, MO } = findingsDoc(); globalThis.document = doc; const realMO = globalThis.MutationObserver; globalThis.MutationObserver = MO;
+  const listeners = new Map(); const on = n => { n.addEventListener = (k, fn) => listeners.set(n.id + k, fn); };
+  try {
+    render(); await tick();
+    const card = doc.createElement('section'); card.id = 'k'; const b = doc.createElement('button'); card.append(b); on(f); on(card);
+    const last = { inPlace: (p, c) => p.children.at(-1) === c, place: (p, c) => { c.remove?.(); p.append(c); } }; // as the ?talk=1 card in #log
+    const k = B.keepCard(f, card, last); assert.equal(f.children.at(-1), card);
+    f.scrollTop = 10; listeners.get('findingsscroll')();
+    const msg = doc.createElement('div'); f.append(msg); f.scrollTop = 500; await tick(); // the page appends a message and scrolls to it
+    assert.equal(f.children.at(-1), card, 'moved back to the end'); assert.equal(f.scrollTop, 500, 'the page\'s scroll to its newest message stands');
+    k.stop();
+    const k2 = B.keepCard(f, card, B.afterIssues);
+    card.isConnected = true; listeners.get('kfocusin')({ target: b }); listeners.get('kfocusout')({ relatedTarget: null }); // the person clicked away, card still in the page
+    render(); doc.activeElement = doc.root.children[1]; await tick();
+    assert.equal(doc.activeElement, doc.root.children[1], 'focus is not pulled back into the card');
+    card.isConnected = false; listeners.get('kfocusin')({ target: b }); listeners.get('kfocusout')({ relatedTarget: null }); // lost because the card was taken out
+    render(); doc.activeElement = doc.root.children[1]; await tick();
+    assert.equal(doc.activeElement, b, 'focus lost to a re-render is put back');
+    k2.stop();
+  } finally { if (realMO === undefined) delete globalThis.MutationObserver; else globalThis.MutationObserver = realMO; }
+}));
+await t('without ?live=1 the page is untouched: backend.js is imported only on live=1, and the scripted "Ask the broker" path is the page\'s own', () => {
+  const ws = readFileSync(new URL('./workspace.js', import.meta.url), 'utf8');
+  assert.match(ws, /^const LIVE = new URLSearchParams\(location\.search\)\.get\('live'\) === '1' \? await import\('\.\/backend\.js'\) : null;/m);
+  assert.match(ws, /if \(act === 'ask'\) return draft\(D\[P\[S\.finalist\]\.src\]\.issues\.find\(i => i\.id === t\.dataset\.issue\)\);/);
+  const mine = readFileSync(new URL('./backend.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(mine, /addEventListener\('click'/, 'backend.js intercepts no click (the call from the page is a later commission)');
+  for (const f of ['workspace.js', 'workspace.css', 'workspace.html']) assert.doesNotMatch(readFileSync(new URL('./' + f, import.meta.url), 'utf8'), /live-call|live-card/, f);
+});
+if (hadLocation) globalThis.location = realLocation; else delete globalThis.location;
 B.useVoiceEnv(null);
 
 /* ----------------------------------------------------------------- (b) */
