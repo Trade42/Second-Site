@@ -4,11 +4,12 @@
 // The mock's handshake callback must return tungstenite's own (large) error response type.
 #![allow(clippy::result_large_err)]
 
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use axum::extract::{Path, Query, State, WebSocketUpgrade};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use base64::Engine as _;
@@ -16,9 +17,9 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use ss_server::integrations::xai_realtime::{FunctionTool, SessionSpec, XaiConfig};
 use ss_server::services::voice_bridge::{
-    accept_carrier, BridgeEnd, BridgeEvents, BridgeHandle, BridgeOptions, BridgeRegistry,
-    CallBridgeSpec, EndReason, Speaker, ToolCall, TranscriptLine, NO_ANSWER_OUTPUT,
-    UNKNOWN_TOOL_OUTPUT,
+    accept_carrier, BridgeEnd, BridgeEvents, BridgeGone, BridgeHandle, BridgeOptions,
+    BridgeRegistry, CallBridgeSpec, EndReason, Speaker, ToolCall, TranscriptLine,
+    CANCELLED_TOOL_OUTPUT, INSTRUCTION_PREFIX, NO_ANSWER_OUTPUT, UNKNOWN_TOOL_OUTPUT,
 };
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot};
@@ -171,11 +172,19 @@ struct Rec {
     calls: Mutex<Vec<ToolCall>>,
     tool_delay: Mutex<Duration>,
     ended: Mutex<Option<oneshot::Sender<BridgeEnd>>>,
+    /// How often `ended` was called, how many tool calls ran to their end, and a switch that
+    /// makes `transcript` wait (a slow orchestrator).
+    ended_count: AtomicUsize,
+    tool_done: AtomicUsize,
+    hold_transcripts: AtomicBool,
 }
 
 #[async_trait::async_trait]
 impl BridgeEvents for Rec {
     async fn transcript(&self, line: TranscriptLine) {
+        while self.hold_transcripts.load(Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
         self.transcripts.lock().expect("lock").push(line);
     }
     async fn tool_call(&self, call: ToolCall) -> String {
@@ -183,9 +192,11 @@ impl BridgeEvents for Rec {
         let name = call.name.clone();
         self.calls.lock().expect("lock").push(call);
         tokio::time::sleep(d).await;
+        self.tool_done.fetch_add(1, Ordering::SeqCst);
         json!({"answer": format!("orchestrator answer for {name}")}).to_string()
     }
     async fn ended(&self, end: BridgeEnd) {
+        self.ended_count.fetch_add(1, Ordering::SeqCst);
         if let Some(tx) = self.ended.lock().expect("lock").take() {
             let _ = tx.send(end);
         }
@@ -933,4 +944,349 @@ async fn a_tool_answer_while_paused_continues_only_after_resume() {
     );
     h.handle.stop().await.expect("stop");
     ended(&mut h).await;
+}
+
+// ---------------------------------------------------------------- bridge 2: instruct, V5, V6, V7, V9
+
+fn direction(v: &Value) -> &str {
+    assert_eq!(v["type"], "conversation.item.create", "{v}");
+    assert_eq!(v["item"]["type"], "message");
+    assert_eq!(v["item"]["role"], "system");
+    assert_eq!(v["item"]["content"][0]["type"], "input_text");
+    let text = v["item"]["content"][0]["text"].as_str().expect("text");
+    text.strip_prefix(INSTRUCTION_PREFIX)
+        .expect("the direction's prefix")
+}
+
+#[tokio::test]
+async fn instruct_is_a_silent_bounded_system_item_and_the_latest_replaces_the_previous() {
+    let mut h = live(false, |_| {}).await;
+    let long = format!("Ask about parking.\u{7}\nThen stop. {}", "x".repeat(1200));
+    h.handle.instruct(long).await.expect("instruct");
+    let first = h.xai.next_non_audio().await;
+    let body = direction(&first);
+    assert_eq!(body.chars().count(), 1000, "bounded");
+    assert!(body.starts_with("Ask about parking. Then stop. xxx"));
+    assert!(!body.chars().any(char::is_control));
+    // It starts no response and nothing else follows it.
+    h.xai.nothing_for(Duration::from_millis(300)).await;
+
+    h.handle
+        .instruct("Do not quote a price.")
+        .await
+        .expect("instruct");
+    assert_eq!(
+        h.xai.next_non_audio().await,
+        json!({"type": "conversation.item.delete", "item_id": first["item"]["id"]}),
+        "the earlier direction is removed"
+    );
+    let second = h.xai.next_non_audio().await;
+    assert_eq!(direction(&second), "Do not quote a price.");
+    assert_ne!(second["item"]["id"], first["item"]["id"]);
+    // Only control characters: nothing is sent.
+    h.handle.instruct("\u{1}\n").await.expect("instruct");
+    h.xai.nothing_for(Duration::from_millis(300)).await;
+
+    h.handle.stop().await.expect("stop");
+    ended(&mut h).await;
+    // No audio reached the call for any of it.
+    loop {
+        match tokio::time::timeout(T, h.carrier.next())
+            .await
+            .expect("close in time")
+        {
+            None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
+            Some(Ok(m)) => panic!("the carrier got {m:?}"),
+        }
+    }
+    assert_eq!(h.handle.instruct("too late").await, Err(BridgeGone));
+    assert_clean_logs(&h, &[], &["Ask about parking", "quote a price"]);
+}
+
+#[tokio::test]
+async fn instruct_waits_for_the_opening_line_and_for_resume_and_is_dropped_after_stop() {
+    let mut xai = MockXai::start().await;
+    let logs = Arc::new(Mutex::new(Vec::new()));
+    let rec = Arc::new(Rec::default());
+    let (etx, erx) = oneshot::channel();
+    *rec.ended.lock().expect("lock") = Some(etx);
+    let registry = BridgeRegistry::new();
+    let (id, handle) = registry.expect(CallBridgeSpec {
+        call_control_id: CALL.into(),
+        token: TOKEN.into(),
+        session: session(),
+        opening_line: Some(OPENING.into()),
+        xai: XaiConfig::new(&xai.url, KEY),
+        options: opts(&logs, |_| {}),
+        events: rec.clone(),
+    });
+    // Given before the call is even connected: only the latest is kept.
+    handle.instruct("first").await.expect("instruct");
+    handle.instruct("second").await.expect("instruct");
+    let base = server(registry).await;
+    let mut c = connect_carrier(&format!("{base}/{id}?token={TOKEN}"))
+        .await
+        .expect("accepted");
+    start(&mut c, CALL).await;
+    assert_eq!(xai.next_non_audio().await["type"], "session.update");
+    xai.send(json!({"type": "session.updated", "session": {}}));
+    assert_eq!(xai.next_non_audio().await["item"]["type"], "force_message");
+    xai.send(json!({"type": "response.created", "response": {"id": "resp_open"}}));
+    // Not while the opening line is being spoken.
+    xai.nothing_for(Duration::from_millis(300)).await;
+    xai.send(
+        json!({"type": "response.done", "response": {"id": "resp_open", "status": "completed"}}),
+    );
+    let sent = xai.next_non_audio().await;
+    assert_eq!(direction(&sent), "second");
+    xai.nothing_for(Duration::from_millis(200)).await;
+
+    // Queued while paused; on resume only the latest goes out.
+    handle.pause().await.expect("pause");
+    handle.instruct("third").await.expect("instruct");
+    handle.instruct("fourth").await.expect("instruct");
+    xai.nothing_for(Duration::from_millis(300)).await;
+    handle.resume().await.expect("resume");
+    assert_eq!(
+        xai.next_non_audio().await,
+        json!({"type": "conversation.item.delete", "item_id": sent["item"]["id"]})
+    );
+    assert_eq!(direction(&xai.next_non_audio().await), "fourth");
+
+    // After stop nothing more is sent.
+    handle.pause().await.expect("pause");
+    handle.instruct("held").await.expect("instruct");
+    handle.stop().await.expect("stop");
+    let _ = handle.instruct("after stop").await;
+    tokio::time::timeout(T, erx)
+        .await
+        .expect("ended")
+        .expect("sent");
+    while let Some(v) = tokio::time::timeout(T, xai.rx.recv())
+        .await
+        .expect("xai closed in time")
+    {
+        panic!("sent after stop: {v}");
+    }
+    let all = logs.lock().expect("lock").join("\n");
+    for t in ["first", "second", "third", "fourth", "held", "after stop"] {
+        assert!(!all.contains(t), "direction text in logs: {t}");
+    }
+}
+
+#[tokio::test]
+async fn a_carrier_that_never_reads_holds_no_task_after_the_end() {
+    let mut h = live(false, |_| {}).await;
+    // About 32 MB for a peer that reads nothing: the writer task blocks on the socket.
+    h.xai
+        .send(json!({"type": "response.created", "response": {"id": "resp_big"}}));
+    let big = b64(&vec![0x55u8; 600_000]);
+    for _ in 0..40 {
+        h.xai.send(
+            json!({"type": "response.output_audio.delta", "response_id": "resp_big", "delta": big}),
+        );
+    }
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    h.handle.stop().await.expect("stop");
+    let end = ended(&mut h).await;
+    assert_eq!(end.reason, EndReason::Stopped);
+    let metrics = tokio::runtime::Handle::current().metrics();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let after_end = metrics.num_alive_tasks();
+    // If a task of the bridge still held the socket, it would end only now, when the peer goes.
+    let H { carrier, .. } = h;
+    drop(carrier);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(
+        metrics.num_alive_tasks(),
+        after_end,
+        "a task outlived the bridge's end, holding the carrier socket"
+    );
+}
+
+async fn route_refused_after_admit(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<Tok>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    // Admitted, and then the 101 is never sent: the upgrade fails.
+    drop(accept_carrier(&s.0, &id, q.token.as_deref(), ws));
+    axum::http::StatusCode::IM_A_TEAPOT.into_response()
+}
+
+async fn route_never_answers(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<Tok>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    // Admitted, and the upgrade is not completed in time.
+    let r = accept_carrier(&s.0, &id, q.token.as_deref(), ws);
+    tokio::time::sleep(Duration::from_secs(30)).await;
+    r
+}
+
+#[tokio::test]
+async fn an_admitted_request_whose_upgrade_fails_is_reported_once_and_frees_the_slot() {
+    for mode in ["refused", "never"] {
+        let xai = MockXai::start().await;
+        let logs = Arc::new(Mutex::new(Vec::new()));
+        let rec = Arc::new(Rec::default());
+        let (etx, erx) = oneshot::channel();
+        *rec.ended.lock().expect("lock") = Some(etx);
+        let registry = BridgeRegistry::new();
+        let (id, handle) = registry.expect(CallBridgeSpec {
+            call_control_id: CALL.into(),
+            token: TOKEN.into(),
+            session: session(),
+            opening_line: None,
+            xai: XaiConfig::new(&xai.url, KEY),
+            options: opts(&logs, |o| o.start_timeout = Duration::from_millis(400)),
+            events: rec.clone(),
+        });
+        let app = Router::new()
+            .route("/refused/{id}", get(route_refused_after_admit))
+            .route("/never/{id}", get(route_never_answers))
+            .route("/voice/stream/{id}", get(route))
+            .with_state(AppState(registry));
+        let l = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let addr = l.local_addr().expect("addr");
+        tokio::spawn(async move {
+            let _ = axum::serve(l, app).await;
+        });
+        let url = format!("ws://{addr}/{mode}/{id}?token={TOKEN}");
+        let attempt = tokio::spawn(async move { connect_carrier(&url).await.err() });
+        let end = tokio::time::timeout(T, erx)
+            .await
+            .expect("ended")
+            .expect("sent");
+        assert_eq!(
+            end.reason,
+            EndReason::Error {
+                kind: "upgrade_failed".into()
+            },
+            "{mode}"
+        );
+        if mode == "refused" {
+            assert_eq!(attempt.await.expect("join"), Some(418));
+        }
+        assert_eq!(handle.say("anything").await, Err(BridgeGone), "{mode}");
+        // The slot is gone: the right token is answered like an unknown bridge, not 409.
+        let again = connect_carrier(&format!("ws://{addr}/voice/stream/{id}?token={TOKEN}"))
+            .await
+            .err();
+        assert_eq!(again, Some(401), "{mode}");
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        assert_eq!(rec.ended_count.load(Ordering::SeqCst), 1, "{mode}");
+        assert!(xai.auth.lock().expect("lock").is_empty());
+    }
+}
+
+fn counterparty_line(i: usize) -> Value {
+    json!({"type": "conversation.item.input_audio_transcription.completed", "item_id": format!("msg_{i}"), "transcript": format!("line {i}")})
+}
+
+#[tokio::test]
+async fn a_slow_orchestrator_gets_every_transcript_line_late_and_in_order() {
+    let mut h = live(false, |_| {}).await;
+    h.rec.hold_transcripts.store(true, Ordering::SeqCst);
+    for i in 0..300 {
+        h.xai.send(counterparty_line(i));
+    }
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    h.rec.hold_transcripts.store(false, Ordering::SeqCst);
+    tokio::time::timeout(T, async {
+        while h.rec.transcripts.lock().expect("lock").len() < 300 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("every line reached the orchestrator");
+    let texts: Vec<String> = h
+        .rec
+        .transcripts
+        .lock()
+        .expect("lock")
+        .iter()
+        .map(|l| l.text.clone())
+        .collect();
+    let want: Vec<String> = (0..300).map(|i| format!("line {i}")).collect();
+    assert_eq!(texts, want);
+    h.handle.stop().await.expect("stop");
+    assert_eq!(ended(&mut h).await.stats.transcripts_undelivered, 0);
+}
+
+#[tokio::test]
+async fn a_stuck_orchestrator_ends_the_call_with_transcript_backlog_and_the_count() {
+    let mut h = live(false, |o| o.transcript_wait = Duration::from_millis(300)).await;
+    h.rec.hold_transcripts.store(true, Ordering::SeqCst);
+    for i in 0..300 {
+        h.xai.send(counterparty_line(i));
+    }
+    let end = ended(&mut h).await;
+    assert_eq!(
+        end.reason,
+        EndReason::Error {
+            kind: "transcript_backlog".into()
+        }
+    );
+    // None was taken: all 300 are counted, none is lost unseen.
+    assert_eq!(end.stats.transcripts_undelivered, 300);
+    assert!(h.rec.transcripts.lock().expect("lock").is_empty());
+    assert_clean_logs(&h, &[], &["line 1"]);
+}
+
+#[tokio::test]
+async fn a_tool_call_of_a_response_that_pause_cancelled_does_not_reach_the_orchestrator() {
+    let mut h = live(false, |_| {}).await;
+    h.xai
+        .send(json!({"type": "response.created", "response": {"id": "resp_h"}}));
+    h.xai.send(json!({"type": "response.output_audio.delta", "response_id": "resp_h", "delta": b64(&[5u8; 160])}));
+    assert_eq!(carrier_audio(&mut h.carrier, 160).await, vec![5u8; 160]);
+    h.handle.pause().await.expect("pause");
+    assert_eq!(
+        h.xai.next_non_audio().await,
+        json!({"type": "response.cancel", "response_id": "resp_h"})
+    );
+    h.xai.send(json!({"type": "response.function_call_arguments.done", "response_id": "resp_h", "call_id": "call_h", "name": "record_finding", "arguments": "{\"fact\":\"x\"}"}));
+    h.xai.send(
+        json!({"type": "response.done", "response": {"id": "resp_h", "status": "cancelled"}}),
+    );
+    let out = h.xai.next_non_audio().await;
+    assert_eq!(out["item"]["call_id"], "call_h");
+    assert_eq!(out["item"]["output"], CANCELLED_TOOL_OUTPUT);
+    h.handle.resume().await.expect("resume");
+    // No continuation either: the model is not asked to go on from a call that never ran.
+    h.xai.nothing_for(Duration::from_millis(300)).await;
+    assert!(
+        h.rec.calls.lock().expect("lock").is_empty(),
+        "orchestrator not asked"
+    );
+    h.handle.stop().await.expect("stop");
+    assert_eq!(ended(&mut h).await.stats.tool_calls, 0);
+}
+
+#[tokio::test]
+async fn a_tool_call_still_running_when_the_bridge_ends_is_aborted() {
+    let mut h = live(false, |_| {}).await;
+    *h.rec.tool_delay.lock().expect("lock") = Duration::from_millis(300);
+    h.xai
+        .send(json!({"type": "response.created", "response": {"id": "resp_t"}}));
+    h.xai.send(json!({"type": "response.function_call_arguments.done", "response_id": "resp_t", "call_id": "call_s", "name": "record_finding", "arguments": "{}"}));
+    tokio::time::timeout(T, async {
+        while h.rec.calls.lock().expect("lock").is_empty() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("tool call reached the orchestrator");
+    h.handle.stop().await.expect("stop");
+    ended(&mut h).await;
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    assert_eq!(
+        h.rec.tool_done.load(Ordering::SeqCst),
+        0,
+        "the tool call ran on after `ended`"
+    );
 }

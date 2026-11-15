@@ -1015,6 +1015,7 @@ fn r7_probing_cannot_place_the_maximum_inside_the_interval_it_is_left_with() {
         ((seed >> 33) % m as u64) as i64
     };
     let mut widths: Vec<i64> = Vec::new();
+    let mut binary_widths: Vec<i64> = Vec::new();
     for _ in 0..200 {
         let target = (rnd(6_000) + 500) * 100;
         let max = target + rnd(3_000) * 100 + rnd(100);
@@ -1047,9 +1048,19 @@ fn r7_probing_cannot_place_the_maximum_inside_the_interval_it_is_left_with() {
                 assert_eq!(k, k2);
             }
             widths.push(k.hi - low);
+            if name == "binary" {
+                binary_widths.push(k.hi - low);
+            }
         }
     }
     widths.sort();
+    binary_widths.sort();
+    println!(
+        "r7: binary search alone: min {}, median {}, max {}",
+        binary_widths[0],
+        binary_widths[binary_widths.len() / 2],
+        binary_widths[binary_widths.len() - 1]
+    );
     println!(
         "r7: interval left (cents) over {} runs: min {}, median {}, max {}; exactly one cent: {}",
         widths.len(),
@@ -1257,7 +1268,9 @@ fn r12_past_eight_events_the_line_says_so_and_the_first_number_shown_is_not_thei
         ..Default::default()
     })[0];
     assert!(
-        line.starts_with("Earlier numbers are not shown. They came to "),
+        line.starts_with(
+            "Earlier numbers are not shown. The assistant countered $4,500; they came to $5,970;"
+        ),
         "{line}"
     );
     assert!(!line.to_lowercase().contains("they asked"), "{line}");

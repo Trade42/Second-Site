@@ -568,3 +568,286 @@ fn refused_request_log_line() {
     assert!(!logs[1].contains("public_refused"), "{}", logs[1]);
     assert!(logs[1].contains(RID), "{}", logs[1]);
 }
+
+// ---- Reviewer's attack battery (public-guard-1 review): a stranger who has the tunnel's address ----
+
+/// Every answer a raw exchange produces until the peer closes or goes quiet for a second.
+async fn raw_all(addr: std::net::SocketAddr, request: Vec<u8>) -> String {
+    let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
+    s.write_all(&request).await.unwrap();
+    let mut buf = Vec::new();
+    let mut chunk = [0u8; 4096];
+    while let Ok(Ok(n)) =
+        tokio::time::timeout(std::time::Duration::from_secs(1), s.read(&mut chunk)).await
+    {
+        if n == 0 {
+            break;
+        }
+        buf.extend_from_slice(&chunk[..n]);
+    }
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
+/// Every route path the service has (the contract's paths and the Rust-only ones), parameters
+/// filled in.
+fn every_route_path() -> Vec<String> {
+    let file = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../packages/contracts/openapi.json"
+    );
+    let doc: Value = serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap();
+    let mut paths: Vec<String> = doc["paths"].as_object().unwrap().keys().cloned().collect();
+    assert!(paths.len() >= 30, "{}", paths.len());
+    for p in [
+        "/health",
+        "/ready",
+        "/docs",
+        "/api/v1/dev/token",
+        "/api/v1/dev/fixtures/project",
+        "/api/v1/approvals/{id}/decision",
+        "/api/v1/media/matterport/{id}/manifest.json",
+        "/api/v1/media/matterport/{id}/mesh.obj",
+        "/api/v1/media/matterport/{id}/photo/a.jpg",
+        "/api/v1/media/vexcel/ortho/{id}",
+        "/api/v1/owner/channel",
+        "/api/v1/owner/channel/poll",
+        "/api/v1/owner/channel/simulate-text",
+        "/api/v1/owner/intro-recording",
+        "/api/v1/owner/intro-recording/history",
+        "/api/v1/owner/intro-recording/link",
+        "/api/v1/projects/{id}/chat",
+        "/api/v1/projects/{id}/voice/session",
+        "/api/v1/projects/{id}/events/stream",
+        "/api/v1/projects/{id}/media",
+        "/api/v1/projects/{id}/calls",
+        "/api/v1/projects/{id}/outreach",
+        "/api/v1/projects/{id}/payments/execute",
+        "/api/v1/studio/status",
+        "/api/v1/studio/plans/{id}/bom.csv",
+        "/internal/v1/owner/notify",
+        "/webhooks/photon",
+        "/webhooks/telnyx",
+        "/record",
+        "/record/check",
+        "/record/upload",
+        "/api/v1/voice/stream/abc",
+        "/api/v1/media/public/abc",
+    ] {
+        paths.push(p.to_owned());
+    }
+    paths
+        .iter()
+        .map(|p| {
+            let mut out = String::new();
+            let mut inside = false;
+            for c in p.chars() {
+                match c {
+                    '{' => {
+                        inside = true;
+                        out.push_str("1b4e28ba-2fa1-11d2-883f-0016d3cca427");
+                    }
+                    '}' => inside = false,
+                    _ if !inside => out.push(c),
+                    _ => {}
+                }
+            }
+            out
+        })
+        .collect()
+}
+
+/// The six shapes, written out again (not the guard's own function).
+fn is_one_of_the_six(method: &str, path: &str) -> bool {
+    matches!(
+        (method, path),
+        ("POST", "/webhooks/telnyx")
+            | ("GET", "/record")
+            | ("POST", "/record/check")
+            | ("POST", "/record/upload")
+            | ("GET", "/api/v1/voice/stream/abc")
+            | ("GET" | "HEAD", "/api/v1/media/public/abc")
+    )
+}
+
+both_backends!(review_every_route_by_every_method_is_404_publicly, |db| {
+    let t = TestApp::new(db, &[ON]);
+    let token = local_token(&t).await;
+    let bearer = format!("Bearer {token}");
+    let (mut refused, mut reached) = (0, 0);
+    for path in every_route_path() {
+        for method in [
+            "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT", "PURGE",
+            "get", "post",
+        ] {
+            let h = [("host", TUNNEL_HOST), ("authorization", bearer.as_str())];
+            let r = send(&t, method, &path, &h).await;
+            if is_one_of_the_six(method, &path) {
+                assert_ne!(r.text, NOT_FOUND, "{method} {path}");
+                reached += 1;
+            } else {
+                assert_refused(&r, &format!("{method} {path}"));
+                refused += 1;
+            }
+        }
+    }
+    assert_eq!(reached, 7);
+    assert!(refused > 800, "{refused}");
+});
+
+both_backends!(review_host_header_path_and_method_tricks, |db| {
+    let t = TestApp::new(db, &[ON]);
+    // Host values that look local to a careless parser: public, so the dev route is 404 and an
+    // allowed shape is only ever the handler's own refusal.
+    for host in [
+        "127.0.0.1.nip.io",
+        "localhost.evil.com",
+        "localhost:8010@evil.example",
+        "evil.example@localhost:8010",
+        "2130706433",
+        "0x7f000001",
+        "017700000001",
+        "127.0.0.1.",
+        "[::1].",
+        "[0:0:0:0:0:0:0:1]",
+        "[::ffff:7f00:1]",
+        "localhost\t",
+        "localhost#",
+        "localhost/",
+        "localhost?",
+        "localhost:08010x",
+        "localhost%00",
+        "ⓛocalhost",
+    ] {
+        let mut req = build("POST", "/api/v1/dev/token", &[], b"");
+        req.headers_mut()
+            .insert("host", HeaderValue::from_bytes(host.as_bytes()).unwrap());
+        assert_refused(&t.send(req).await, &format!("host {host:?}"));
+        let mut req = build("GET", "/api/v1/media/public/not-a-token", &[], b"");
+        req.headers_mut()
+            .insert("host", HeaderValue::from_bytes(host.as_bytes()).unwrap());
+        assert_eq!(t.send(req).await.status, StatusCode::UNAUTHORIZED, "{host:?}");
+    }
+    // A forwarding header with an empty value, and each one twice, with a loopback Host.
+    for (name, _) in FORWARDING {
+        let r = send(&t, "POST", "/api/v1/dev/token", &[("host", LOCAL_HOST), (name, "")]).await;
+        assert_refused(&r, &format!("{name} empty"));
+        let h = [("host", LOCAL_HOST), (name, "127.0.0.1"), (name, "::1")];
+        let r = send(&t, "POST", "/api/v1/dev/token", &h).await;
+        assert_refused(&r, &format!("{name} twice"));
+    }
+    // A method override header changes nothing in either direction.
+    for name in ["x-http-method-override", "x-method-override", "x-http-method"] {
+        let h = [("host", TUNNEL_HOST), (name, "POST")];
+        assert_refused(&send(&t, "GET", "/webhooks/telnyx", &h).await, name);
+        let h = [("host", TUNNEL_HOST), (name, "GET")];
+        assert_refused(&send(&t, "POST", "/api/v1/dev/token", &h).await, name);
+        assert_refused(&send(&t, "POST", "/record", &h).await, name);
+    }
+    // More path tricks: a backslash, an encoded null, an encoded backslash, matrix parameters, a
+    // 10,000-byte path, a path hidden in the query, a fragment-like tail.
+    let long = format!("/api/v1/media/public/{}", "a".repeat(10_000));
+    let long_dev = format!("/api/v1/dev/token{}", "/".repeat(10_000));
+    for (method, path) in [
+        ("POST", "/webhooks/telnyx%5c"),
+        ("POST", "/webhooks%5ctelnyx"),
+        ("POST", "/webhooks/telnyx%00"),
+        ("POST", "/webhooks/telnyx;a=b"),
+        ("POST", "/webhooks;a=b/telnyx"),
+        ("POST", "/webhooks/telnyx/..;/..;/api/v1/dev/token"),
+        ("POST", "/record/upload/../../api/v1/dev/token"),
+        ("POST", "/record/upload%2f..%2f..%2fapi%2fv1%2fdev%2ftoken"),
+        ("GET", "/record;x"),
+        ("GET", "/record%00"),
+        ("GET", "/record%3f"),
+        ("GET", "/api/v1/media/public/abc%5c..%5cvexcel"),
+        ("GET", "/api/v1/media/public/abc;x=1"),
+        ("GET", "/api/v1/media/public/abc%00"),
+        ("GET", "/api/v1/voice/stream/abc;x"),
+        ("GET", "/api/v1/voice/stream/..%2f..%2fdev%2ftoken"),
+        ("GET", "/api/v1/voice/stream/abc%3ftoken=x"),
+        ("GET", "/API/V1/VOICE/STREAM/abc"),
+        ("GET", long.as_str()),
+        ("POST", long_dev.as_str()),
+        ("POST", "/api/v1/dev/token?/webhooks/telnyx"),
+        ("POST", "/api/v1/dev/token?x=/record/upload"),
+        ("GET", "/health?/record"),
+    ] {
+        let r = send(&t, method, path, &[("host", TUNNEL_HOST)]).await;
+        assert_refused(&r, &format!("{method} {}", &path[..path.len().min(80)]));
+    }
+    // A query string far longer than the path limit: an allowed shape still reaches its handler,
+    // a refused path is still refused.
+    let q = "a".repeat(10_000);
+    let r = send(&t, "GET", &format!("/record?{q}"), &[("host", TUNNEL_HOST)]).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let path = format!("/api/v1/dev/token?{q}");
+    assert_refused(&send(&t, "POST", &path, &[("host", TUNNEL_HOST)]).await, "long query");
+});
+
+both_backends!(review_over_a_socket_protocol_tricks, |db| {
+    let t = TestApp::new(db, &[ON]);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let router = t.router.clone();
+    let server = tokio::spawn(async move { axum::serve(listener, router).await });
+    let port = addr.port();
+    let pub_host = format!("Host: {TUNNEL_HOST}\r\n");
+    let ws = "Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n";
+    // Each of these is exactly one answer, the guard's 404: nothing is upgraded, continued or run.
+    let refused: Vec<(&str, String)> = vec![
+        ("websocket upgrade to the dev route", format!("GET /api/v1/dev/token HTTP/1.1\r\n{pub_host}{ws}\r\n")),
+        ("websocket upgrade to the event stream", format!("GET /api/v1/projects/1b4e28ba-2fa1-11d2-883f-0016d3cca427/events/stream HTTP/1.1\r\n{pub_host}{ws}\r\n")),
+        ("h2c upgrade", format!("GET /health HTTP/1.1\r\n{pub_host}Connection: Upgrade, HTTP2-Settings\r\nUpgrade: h2c\r\nHTTP2-Settings: AAMAAABkAAQCAAAAAAIAAAAA\r\n\r\n")),
+        ("expect 100-continue, body withheld", format!("POST /api/v1/dev/token HTTP/1.1\r\n{pub_host}Expect: 100-continue\r\nContent-Length: 1000000\r\n\r\n")),
+        ("mixed-case forwarding header, loopback host", format!("POST /api/v1/dev/token HTTP/1.1\r\nHost: localhost:{port}\r\nX-FoRwArDeD-PrOtO: https\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")),
+        ("mixed-case cf-ray, loopback host", format!("GET /ready HTTP/1.1\r\nhOsT: 127.0.0.1:{port}\r\nCF-RAY: x\r\nConnection: close\r\n\r\n")),
+        ("empty forwarding header, loopback host", format!("GET /ready HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nVia:\r\nConnection: close\r\n\r\n")),
+        ("empty Host", "GET /ready HTTP/1.1\r\nHost:\r\nConnection: close\r\n\r\n".to_owned()),
+        ("absolute target naming loopback, public Host", format!("GET http://localhost:{port}/ready HTTP/1.1\r\n{pub_host}Connection: close\r\n\r\n")),
+        ("absolute target with user info", format!("GET http://localhost:{port}@evil.example/ready HTTP/1.1\r\nHost: localhost:{port}\r\nConnection: close\r\n\r\n")),
+        ("CONNECT", format!("CONNECT localhost:{port} HTTP/1.1\r\n{pub_host}\r\n")),
+        ("CONNECT to another host, loopback Host", format!("CONNECT evil.example:443 HTTP/1.1\r\nHost: localhost:{port}\r\n\r\n")),
+        ("TRACE", format!("TRACE /api/v1/dev/token HTTP/1.1\r\n{pub_host}Connection: close\r\n\r\n")),
+        ("OPTIONS *", format!("OPTIONS * HTTP/1.1\r\n{pub_host}Connection: close\r\n\r\n")),
+        ("a made-up method", format!("BREW /api/v1/dev/token HTTP/1.1\r\n{pub_host}Connection: close\r\n\r\n")),
+        ("a lower-case method", format!("post /api/v1/dev/token HTTP/1.1\r\n{pub_host}Content-Length: 0\r\nConnection: close\r\n\r\n")),
+        ("a backslash path", format!("POST /webhooks\\telnyx HTTP/1.1\r\n{pub_host}Content-Length: 0\r\nConnection: close\r\n\r\n")),
+        // A refused request whose body is a second, local-looking request: the body is never read
+        // as a request (one answer only, and it is not the token).
+        ("a request smuggled in a refused body", {
+            let inner = format!("POST /api/v1/dev/token HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 0\r\n\r\n");
+            format!("POST /nope HTTP/1.1\r\n{pub_host}Content-Length: {}\r\n\r\n{inner}", inner.len())
+        }),
+        ("the same with both length headers", {
+            let inner = format!("POST /api/v1/dev/token HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 0\r\n\r\n");
+            format!("POST /nope HTTP/1.1\r\n{pub_host}Content-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n{inner}")
+        }),
+    ];
+    for (what, request) in refused {
+        let text = raw_all(addr, request.into_bytes()).await;
+        let answers = text.matches("HTTP/1.1 ").count();
+        assert!(!text.contains("access_token"), "{what}:\n{text}");
+        assert!(!text.contains(" 200 ") && !text.contains(" 101 ") && !text.contains(" 100 "), "{what}:\n{text}");
+        if what == "the same with both length headers" {
+            // hyper answers the smuggled second request too when it frames by chunked encoding;
+            // what matters is that it is judged on its own (see the assertion in the next block).
+            continue;
+        }
+        assert!(text.starts_with("HTTP/1.1 404 Not Found") || text.starts_with("HTTP/1.1 400 "), "{what}:\n{text}");
+        assert!(answers <= 1, "{what}: {answers} answers\n{text}");
+        if text.starts_with("HTTP/1.1 404") {
+            assert!(text.ends_with(NOT_FOUND), "{what}:\n{text}");
+            assert!(!text.to_ascii_lowercase().contains("allow"), "{what}:\n{text}");
+        }
+    }
+    // A raw null byte and a raw space in the target never get past the HTTP parser.
+    for request in [
+        format!("POST /api/v1/dev/token\0 HTTP/1.1\r\n{pub_host}\r\n"),
+        format!("POST /api/v1/dev/token HTTP/1.1\r\nHost : localhost:{port}\r\n\r\n"),
+        format!("POST /api/v1/dev/token HTTP/1.1\r\n Host: localhost:{port}\r\n{pub_host}\r\n"),
+    ] {
+        let text = raw_all(addr, request.clone().into_bytes()).await;
+        assert!(!text.contains("access_token") && !text.contains(" 200 "), "{request}\n{text}");
+    }
+    server.abort();
+});

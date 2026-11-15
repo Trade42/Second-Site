@@ -468,9 +468,9 @@ pub struct DesignVersion {
     #[serde(default)]
     pub approval_status: DesignApprovalStatus,
     /// Set only when the layout was solved on a floor assumed from the listing's stated area
-    /// (`LISTED_AREA_ESTIMATE`): what is assumed and unknown. Omitted otherwise, so a layout on a
-    /// measured floor serializes exactly as before.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// (`LISTED_AREA_ESTIMATE`): what is assumed and unknown. `null` otherwise, as the Python
+    /// model dumps it: the key is always sent, last, like every other optional field here.
+    #[serde(default)]
     pub floor_estimate: Option<FloorEstimate>,
 }
 
