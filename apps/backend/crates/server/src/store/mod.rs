@@ -13,6 +13,7 @@
 //!   columns. Adding a table means adding a [`schema::TableDef`] (and its migration); the store core
 //!   does not change.
 
+pub mod comms;
 pub mod memory;
 pub mod postgres;
 pub mod repo;

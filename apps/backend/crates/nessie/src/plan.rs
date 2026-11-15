@@ -12,6 +12,7 @@
 //! | `ONE_TIME` FF&E lines (`ffe:*`), or the BOM total instead | `buildout:furnishing` | purchase at the stand-in furnishing supplier | `PURCHASE` |
 //! | `ONE_TIME` contingency (`contingency:*`) | a reserve, **not** a payment | none | none |
 //! | anything else | `not_simulated`, with the reason | none | none |
+//! | every line of a group above whose expected total is $0 | `not_simulated`, with the reason; its high estimate still counts in `move_in_cash_high_minor` | none | none |
 //!
 //! Amounts are the scenario's `expected` values (low and high are carried for context).
 //! When a bill of materials is given, its total (the approved total once the BOM is APPROVED,
@@ -23,7 +24,7 @@ use ss_domain::contracts::{CostKind, CostLineItem, CostScenario};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::approval::{ApprovalAction, PaymentIntent, PaymentOperation};
+use crate::approval::{description_prefix, ApprovalAction, PaymentIntent, PaymentOperation};
 use crate::error::truncate;
 use crate::models::{validate_id, MerchantCreate};
 use crate::Simulation;
@@ -179,7 +180,12 @@ pub struct MoveInPaymentPlan {
     pub reserves_high_minor: i64,
     /// Payments plus reserves: the cash to have at move-in.
     pub move_in_cash_expected_minor: i64,
+    /// Payments plus reserves at the high estimate, plus the high estimate of cost groups whose
+    /// expected total is $0 (`zero_expected_high_minor`).
     pub move_in_cash_high_minor: i64,
+    /// High estimates of cost groups whose expected total is $0: they are not simulated (their
+    /// lines are in `not_simulated`) but they count in `move_in_cash_high_minor`.
+    pub zero_expected_high_minor: i64,
     /// The scenario's `upfront_cash_expected` (opening cost + deposits; no first month).
     pub scenario_upfront_cash_expected_minor: i64,
     /// Sum of the scenario's MONTHLY lines (rent + NNN), expected.
@@ -210,6 +216,7 @@ struct Group {
     expected: i64,
     high: i64,
     ids: Vec<String>,
+    lines: Vec<CostLineItem>,
 }
 
 impl Group {
@@ -219,12 +226,36 @@ impl Group {
         self.expected = self.expected.checked_add(li.expected).ok_or_else(ovf)?;
         self.high = self.high.checked_add(li.high).ok_or_else(ovf)?;
         self.ids.push(li.line_item_id.clone());
+        self.lines.push(li.clone());
         Ok(())
     }
 
     fn is_empty(&self) -> bool {
         self.ids.is_empty()
     }
+}
+
+/// M1: a cost group whose expected total is $0 is not simulated. Its lines are listed in
+/// `not_simulated` with the reason, and its high estimate still counts in the high move-in cash.
+fn list_zero_group(
+    g: &Group,
+    what: &str,
+    out: &mut Vec<NotSimulatedLine>,
+    high: &mut i64,
+) -> Result<(), PlanError> {
+    *high = high
+        .checked_add(g.high)
+        .ok_or_else(|| PlanError::Overflow(format!("{what} high estimate")))?;
+    out.extend(g.lines.iter().map(|li| NotSimulatedLine {
+        line_item_id: li.line_item_id.clone(),
+        category: li.category.clone(),
+        kind: li.kind,
+        expected_minor: li.expected,
+        reason: format!(
+            "the expected {what} total is $0, so nothing is simulated; its high estimate is still counted in the high move-in cash"
+        ),
+    }));
+    Ok(())
 }
 
 fn checked_sum(values: impl IntoIterator<Item = i64>) -> Result<i64, PlanError> {
@@ -324,6 +355,7 @@ pub fn plan_move_in_payments(
 
     let mut payments: Vec<PlannedPayment> = Vec::new();
     let mut notes_zero: Vec<String> = Vec::new();
+    let mut zero_expected_high_minor: i64 = 0;
     let mut push = |p: PlannedPayment| {
         let mut p = p;
         p.sequence = u32::try_from(payments.len() + 1).unwrap_or(u32::MAX);
@@ -370,6 +402,12 @@ pub fn plan_move_in_payments(
     } else if !deposit.is_empty() {
         notes_zero
             .push("The security deposit is $0 in the cost scenario; nothing to simulate.".into());
+        list_zero_group(
+            &deposit,
+            "security deposit",
+            &mut not_simulated,
+            &mut zero_expected_high_minor,
+        )?;
     }
 
     if !monthly.is_empty() && monthly.expected > 0 {
@@ -405,6 +443,12 @@ pub fn plan_move_in_payments(
         notes_zero.push(
             "Monthly occupancy cost is $0 in the cost scenario (rent may be unknown); no rent is simulated.".into(),
         );
+        list_zero_group(
+            &monthly,
+            "monthly rent and NNN",
+            &mut not_simulated,
+            &mut zero_expected_high_minor,
+        )?;
     }
 
     if !renovation.is_empty() && renovation.expected > 0 {
@@ -421,6 +465,14 @@ pub fn plan_move_in_payments(
             "Unit costs are illustrative planning ranges, not contractor quotes; a real build-out is paid in stages.".into(),
         );
         push(p);
+    } else if !renovation.is_empty() {
+        notes_zero.push("Renovation work is $0 in the cost scenario; nothing to simulate.".into());
+        list_zero_group(
+            &renovation,
+            "renovation",
+            &mut not_simulated,
+            &mut zero_expected_high_minor,
+        )?;
     }
 
     let furnishing = match bom {
@@ -437,6 +489,7 @@ pub fn plan_move_in_payments(
                 expected: amount,
                 high: amount,
                 ids: Vec::new(),
+                lines: Vec::new(),
             };
             Some((g, basis.to_owned(), true))
         }
@@ -462,6 +515,14 @@ pub fn plan_move_in_payments(
             push(p);
         } else {
             notes_zero.push("Furnishing total is $0; nothing to simulate.".into());
+            if !from_bom {
+                list_zero_group(
+                    &g,
+                    "furnishing",
+                    &mut not_simulated,
+                    &mut zero_expected_high_minor,
+                )?;
+            }
         }
     }
 
@@ -537,7 +598,9 @@ pub fn plan_move_in_payments(
             .ok_or_else(|| PlanError::Overflow("move-in cash".into()))?,
         move_in_cash_high_minor: move_in_payments_high_minor
             .checked_add(reserves_high_minor)
+            .and_then(|v| v.checked_add(zero_expected_high_minor))
             .ok_or_else(|| PlanError::Overflow("move-in cash".into()))?,
+        zero_expected_high_minor,
         scenario_upfront_cash_expected_minor: scenario.upfront_cash_expected,
         monthly_recurring_minor: monthly.expected,
         not_simulated_expected_minor,
@@ -564,11 +627,14 @@ impl MoveInPaymentPlan {
             .find(|p| p.plan_item_id == plan_item_id)
     }
 
-    /// The exact intent (and so the approval payload) for one planned payment.
+    /// The exact intent (and so the approval payload) for one planned payment. `attempt_id`
+    /// ([`crate::approval::validate_attempt_id`]) and the plan item id start the Nessie
+    /// description and are part of the approved payload.
     pub fn intent_for(
         &self,
         plan_item_id: &str,
         targets: &SandboxTargets,
+        attempt_id: &str,
     ) -> Result<PaymentIntent, PlanError> {
         let p = self
             .payment(plan_item_id)
@@ -601,6 +667,7 @@ impl MoveInPaymentPlan {
                 recurring_day: p.recurring_day.unwrap_or(DEFAULT_RECURRING_DAY),
             },
             PlannedOperation::PayBill => PaymentOperation::PayBill {
+                account_id: targets.account_id.clone(),
                 bill_id: targets.occupancy_bill_id.clone().ok_or_else(|| {
                     PlanError::MissingTarget(format!(
                         "occupancy bill id (execute {ITEM_OCCUPANCY_BILL} first)"
@@ -608,17 +675,25 @@ impl MoveInPaymentPlan {
                 })?,
             },
         };
+        crate::approval::validate_attempt_id(attempt_id).map_err(PlanError::Invalid)?;
+        // The prefix (plan item and attempt) is never cut; only the label is, to keep the
+        // description within Nessie's 200 characters.
+        let prefix = description_prefix(&p.plan_item_id, attempt_id);
+        let room = 199usize
+            .checked_sub(prefix.chars().count())
+            .ok_or_else(|| PlanError::Invalid("plan item id too long".into()))?;
         let intent = PaymentIntent {
             simulation: self.simulation,
             project_id: self.project_id,
             property_id: self.property_id,
             scenario_id: self.scenario_id,
             plan_item_id: p.plan_item_id.clone(),
+            attempt_id: attempt_id.to_owned(),
             action: p.approval_action,
             operation,
             amount_minor: p.amount_expected_minor,
             currency: self.currency.clone(),
-            description: truncate(&format!("SIMULATION (Second Site plan): {}", p.label), 199),
+            description: format!("{prefix}{}", truncate(&p.label, room)),
         };
         intent.validate().map_err(PlanError::Invalid)?;
         Ok(intent)

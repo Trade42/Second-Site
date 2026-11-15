@@ -419,13 +419,18 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
     assert_eq!(of_type(&ev, "task.failed").len(), 1);
     assert!(of_type(&ev, "layout.version_created").is_empty());
 
-    // The service itself: 404 GEOMETRY_UNAVAILABLE.
+    // The service itself: 404 GEOMETRY_UNAVAILABLE (nothing stored, no asset has a document).
+    let svc = DesignService::new(&t.app);
     let mut tx = t.app.store.begin().await.unwrap();
-    let err = DesignService::new(&t.app)
-        .site_geometry(&mut *tx, uuid(&json!(pid)), uuid(&json!(d.alhambra)))
+    let source = svc
+        .site_source(&mut *tx, uuid(&json!(pid)), uuid(&json!(d.alhambra)))
+        .await
+        .unwrap();
+    tx.rollback().await.unwrap();
+    let err = svc
+        .prepare_site(uuid(&json!(d.alhambra)), source)
         .await
         .unwrap_err();
-    tx.rollback().await.unwrap();
     assert_eq!(err.status(), StatusCode::NOT_FOUND);
     assert_eq!(err.error_code(), "GEOMETRY_UNAVAILABLE");
     assert_eq!(
@@ -571,7 +576,7 @@ both_backends!(a_stale_base_is_refused, |db| {
     let rev = revision_request(&t, &d, v1_id, true).await;
     let mut tx = t.app.store.begin().await.unwrap();
     let err = DesignService::new(&t.app)
-        .revise(&mut *tx, &rev, Uuid::new_v4())
+        .revision_plan(&mut *tx, &rev)
         .await
         .unwrap_err();
     tx.rollback().await.unwrap();
@@ -633,7 +638,7 @@ both_backends!(an_unstructured_revision_is_refused, |db| {
     let rev = revision_request(&t, &d, uuid(&json!(v1)), false).await;
     let mut tx = t.app.store.begin().await.unwrap();
     let err = DesignService::new(&t.app)
-        .revise(&mut *tx, &rev, Uuid::new_v4())
+        .revision_plan(&mut *tx, &rev)
         .await
         .unwrap_err();
     tx.rollback().await.unwrap();
@@ -834,7 +839,7 @@ both_backends!(the_service_scopes_the_property_to_the_project, |db| {
     let other = Uuid::new_v4();
     let mut tx = t.app.store.begin().await.unwrap();
     let err = DesignService::new(&t.app)
-        .site_geometry(&mut *tx, other, uuid(&json!(d.hollywood)))
+        .site_source(&mut *tx, other, uuid(&json!(d.hollywood)))
         .await
         .unwrap_err();
     tx.rollback().await.unwrap();
@@ -1352,4 +1357,327 @@ both_backends!(a_live_scan_is_normalized_and_stored_as_live, |db| {
     for l in layouts(&t, &d.tok, &d.pid).await {
         assert_eq!(l["approval_status"], "PROPOSED");
     }
+});
+
+// ---- F1 of the part 3 review: nothing is held while the floor is fetched and solved ------------
+//
+// The provider fetch and the solve used to run inside the request's transaction, after the
+// task's first event had taken the project's event lock: every other writer of the project
+// waited for the whole solve, and queued requests held pool connections until other owners'
+// requests failed. Now a short read transaction does the checks, the fetch and the solve run
+// with no transaction, connection or lock held, and one write transaction records the task.
+
+/// A gate that provider calls wait at: the test sees how many calls arrived and opens it.
+#[derive(Default)]
+struct Gate {
+    state: std::sync::Mutex<(usize, bool)>,
+    cv: std::sync::Condvar,
+}
+
+impl Gate {
+    /// Called by the provider (on the blocking pool): count the call, wait until opened (at most
+    /// 30 s, so a broken test cannot hang the suite).
+    fn enter_and_wait(&self) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        let mut s = self.state.lock().unwrap();
+        s.0 += 1;
+        self.cv.notify_all();
+        while !s.1 {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                break;
+            }
+            s = self.cv.wait_timeout(s, left).unwrap().0;
+        }
+    }
+
+    /// Wait (without blocking the runtime) until `n` calls are waiting at the gate.
+    async fn entered(&self, n: usize) {
+        for _ in 0..2000 {
+            if self.state.lock().unwrap().0 >= n {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let started = self.calls();
+        panic!("only {started} of {n} geometry fetches started");
+    }
+
+    fn open(&self) {
+        self.state.lock().unwrap().1 = true;
+        self.cv.notify_all();
+    }
+
+    fn calls(&self) -> usize {
+        self.state.lock().unwrap().0
+    }
+}
+
+/// The configured (fixture) Matterport provider, except that every floor-geometry call first
+/// waits at the gate: a slow live scan.
+struct GatedScan {
+    inner: std::sync::Arc<dyn ss_server::integrations::matterport::MatterportProvider>,
+    gate: std::sync::Arc<Gate>,
+}
+
+impl ss_server::integrations::matterport::MatterportProvider for GatedScan {
+    fn mode(&self) -> &str {
+        self.inner.mode()
+    }
+    fn get_floor_geometry(
+        &self,
+        asset_id: &str,
+    ) -> Result<Option<Value>, ss_domain::integrations::base::ProviderError> {
+        self.gate.enter_and_wait();
+        self.inner.get_floor_geometry(asset_id)
+    }
+    fn model_summaries(
+        &self,
+        ids: &[String],
+    ) -> Result<
+        indexmap::IndexMap<String, ss_server::integrations::matterport::ModelSummary>,
+        ss_domain::integrations::base::ProviderError,
+    > {
+        self.inner.model_summaries(ids)
+    }
+    fn status(&self) -> ss_server::contracts::ProviderStatusEntry {
+        self.inner.status()
+    }
+}
+
+fn gate_geometry_fetches(t: &TestApp) -> std::sync::Arc<Gate> {
+    let gate = std::sync::Arc::new(Gate::default());
+    let mut integrations = ss_server::integrations::Integrations::from_settings(&t.app.settings);
+    integrations.matterport = std::sync::Arc::new(GatedScan {
+        inner: integrations.matterport.clone(),
+        gate: gate.clone(),
+    });
+    t.app.extensions.insert(std::sync::Arc::new(integrations));
+    gate
+}
+
+/// This test's sessions (`application_name` = its schema): advisory locks granted to them, and
+/// how many are inside a transaction.
+async fn locks_and_open_transactions(schema: &str) -> (i64, i64) {
+    use sqlx::ConnectOptions;
+    let url = pg_url().unwrap();
+    let opts = <sqlx::postgres::PgConnectOptions as std::str::FromStr>::from_str(
+        &ss_server::config::normalize_database_url(&url),
+    )
+    .unwrap();
+    let mut c = opts.connect().await.unwrap();
+    let locks: (i64,) = sqlx::query_as(
+        "SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid \
+         WHERE l.locktype = 'advisory' AND l.granted AND a.application_name = $1",
+    )
+    .bind(schema)
+    .fetch_one(&mut c)
+    .await
+    .unwrap();
+    let open: (i64,) = sqlx::query_as(
+        "SELECT count(*) FROM pg_stat_activity \
+         WHERE application_name = $1 AND xact_start IS NOT NULL AND pid <> pg_backend_pid()",
+    )
+    .bind(schema)
+    .fetch_one(&mut c)
+    .await
+    .unwrap();
+    (locks.0, open.0)
+}
+
+both_backends!(a_slow_geometry_fetch_holds_nothing, |db| {
+    let t = TestApp::new(db, &[]);
+    let d = demo(&t).await;
+    let gate = gate_geometry_fetches(&t);
+    let first = spawn_generate(
+        &t,
+        &d.tok,
+        &d.pid,
+        json!({"property_id": d.hollywood, "room_requirements": reqs()}),
+    );
+    // The first generation of the property is fetching its floor (the solve comes after it, in
+    // the same phase).
+    gate.entered(1).await;
+    if let Some(schema) = db.schema_name() {
+        assert_eq!(
+            locks_and_open_transactions(schema).await,
+            (0, 0),
+            "the generation holds a lock or a transaction while it fetches"
+        );
+    }
+    // Other writers of the same project do not wait for it: a profile update, an analysis and
+    // a generation that fails at once (no measured geometry). Before the fix each of them waited
+    // for the whole fetch and solve (the project's event lock on PostgreSQL, the store's lock in
+    // memory).
+    let quick = Duration::from_secs(10);
+    let mut profile = demo_project_body()["business_profile"].clone();
+    profile["confirmation_status"] = json!("CONFIRMED");
+    let put = tokio::time::timeout(
+        quick,
+        t.put(
+            &format!("/api/v1/projects/{}/business-profile", d.pid),
+            Some(&d.tok),
+            &profile,
+        ),
+    )
+    .await
+    .expect("the profile update waited for the layout's geometry fetch");
+    assert_eq!(put.status, StatusCode::OK, "{}", put.text);
+    let analyze = tokio::time::timeout(
+        quick,
+        t.post(
+            &format!(
+                "/api/v1/projects/{}/properties/{}/analyze",
+                d.pid, d.alhambra
+            ),
+            Some(&d.tok),
+            &json!({}),
+        ),
+    )
+    .await
+    .expect("the analysis waited for the layout's geometry fetch");
+    assert_eq!(
+        analyze.body["task"]["status"], "COMPLETED",
+        "{}",
+        analyze.text
+    );
+    let other = tokio::time::timeout(
+        quick,
+        generate(
+            &t,
+            &d.tok,
+            &d.pid,
+            &json!({"property_id": d.alhambra, "room_requirements": reqs()}),
+        ),
+    )
+    .await
+    .expect("another generation waited for the layout's geometry fetch");
+    assert_eq!(other.body["task"]["status"], "FAILED", "{}", other.text);
+    assert!(!first.is_finished());
+
+    gate.open();
+    let r = first.await.unwrap();
+    assert_eq!(r["task"]["status"], "COMPLETED", "{r}");
+    assert_eq!(r["task"]["task_type"], "generate_layout");
+    assert_eq!(
+        r["task"]["output_reference"]["design_version_ids"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(count(&t, &schema::SITE_GEOMETRIES).await, 1);
+    assert_eq!(layouts(&t, &d.tok, &d.pid).await.len(), 2);
+    // The task's events are in Python's order, in one transaction.
+    let task_id = r["task"]["task_id"].as_str().unwrap();
+    let ev = events(&t, &d.tok, &d.pid).await;
+    let mine: Vec<&str> = ev
+        .iter()
+        .filter(|e| {
+            e["correlation_id"] == r["task"]["correlation_id"] || e["payload"]["task_id"] == task_id
+        })
+        .map(|e| e["event_type"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        mine,
+        [
+            "task.started",
+            "layout.version_created",
+            "layout.version_created",
+            "task.completed"
+        ]
+    );
+});
+
+both_backends!(concurrent_first_generations_share_one_geometry, |db| {
+    let t = TestApp::new(db, &[]);
+    let d = demo(&t).await;
+    let gate = gate_geometry_fetches(&t);
+    let body = json!({"property_id": d.hollywood, "room_requirements": reqs()});
+    let a = spawn_generate(&t, &d.tok, &d.pid, body.clone());
+    let b = spawn_generate(&t, &d.tok, &d.pid, body);
+    // Both found no stored geometry and are fetching one at the same time.
+    gate.entered(2).await;
+    gate.open();
+    let (ra, rb) = (a.await.unwrap(), b.await.unwrap());
+    for r in [&ra, &rb] {
+        assert_eq!(r["task"]["status"], "COMPLETED", "{r}");
+        assert_eq!(
+            r["task"]["output_reference"]["design_version_ids"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+    }
+    // One geometry is stored; the request that lost the race solved again on it (it did not
+    // fetch a third time), so every version refers to the stored geometry.
+    let mut tx = t.app.store.begin().await.unwrap();
+    let geos = GEOMETRIES
+        .list(
+            &mut *tx,
+            Query::new().eq("property_id", uuid(&json!(d.hollywood))),
+        )
+        .await
+        .unwrap();
+    let prop = PROPERTIES
+        .require(&mut *tx, uuid(&json!(d.hollywood)))
+        .await
+        .unwrap();
+    tx.rollback().await.unwrap();
+    assert_eq!(geos.len(), 1);
+    assert_eq!(gate.calls(), 2);
+    assert_eq!(prop.geometry_reference, Some(geos[0].site_geometry_id));
+    let lv = layouts(&t, &d.tok, &d.pid).await;
+    assert_eq!(version_numbers(&lv), [1, 2, 3, 4]);
+    for l in &lv {
+        assert_eq!(uuid(&l["geometry_id"]), geos[0].site_geometry_id);
+    }
+    let ev = events(&t, &d.tok, &d.pid).await;
+    assert_eq!(of_type(&ev, "layout.version_created").len(), 4);
+    assert_eq!(
+        of_type(&ev, "task.completed").len(),
+        3,
+        "search + two generations"
+    );
+    assert!(of_type(&ev, "task.failed").is_empty());
+});
+
+// The review's cross-user failure: queued generations of one project held pool connections
+// (the test pool has 4) until another owner's request failed. Twelve first generations now wait
+// in their fetch holding nothing; another owner is served at once; afterwards eleven of them
+// find the geometry the first one stored and solve again on it.
+both_backends!(queued_generations_do_not_starve_other_owners, |db| {
+    let t = TestApp::new(db, &[]);
+    let d = demo(&t).await;
+    let gate = gate_geometry_fetches(&t);
+    let body = json!({"property_id": d.hollywood, "room_requirements": reqs()});
+    let n = 12;
+    let tasks: Vec<_> = (0..n)
+        .map(|_| spawn_generate(&t, &d.tok, &d.pid, body.clone()))
+        .collect();
+    gate.entered(n).await;
+    let stranger = t.token_for(Uuid::new_v4());
+    let r = tokio::time::timeout(
+        Duration::from_secs(5),
+        t.get("/api/v1/projects", Some(&stranger)),
+    )
+    .await
+    .expect("another owner waited for the queued generations");
+    assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+    gate.open();
+    for task in tasks {
+        let r = task.await.unwrap();
+        assert_eq!(r["task"]["status"], "COMPLETED", "{r}");
+    }
+    assert_eq!(
+        gate.calls(),
+        n,
+        "a retry fetched again instead of using the stored geometry"
+    );
+    assert_eq!(count(&t, &schema::SITE_GEOMETRIES).await, 1);
+    let lv = layouts(&t, &d.tok, &d.pid).await;
+    assert_eq!(version_numbers(&lv), (1..=2 * n as i64).collect::<Vec<_>>());
+    let geometry = lv[0]["geometry_id"].clone();
+    assert!(lv.iter().all(|l| l["geometry_id"] == geometry));
 });

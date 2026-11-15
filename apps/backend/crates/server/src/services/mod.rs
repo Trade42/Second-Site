@@ -8,8 +8,13 @@
 
 pub mod approvals;
 pub mod authorization;
+pub mod call_orchestration;
+pub mod call_simulator;
 pub mod design;
 pub mod events;
 pub mod evidence;
+pub mod forward;
+pub mod nessie;
+pub mod notifier;
 pub mod permits;
 pub mod tasks;

@@ -56,6 +56,12 @@ pub fn register_subscribers(app: &App) {
 pub fn register_providers(app: &App) {
     let selected = integrations::Integrations::from_settings(&app.settings);
     integrations::register(app, Arc::new(selected));
+    integrations::telnyx::register(
+        app,
+        integrations::telnyx::Voice::from_settings(&app.settings),
+    );
+    services::forward::register(app);
+    services::nessie::register(app);
 }
 
 /// The composition root (`build_container`).
