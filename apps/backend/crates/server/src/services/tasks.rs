@@ -145,24 +145,6 @@ impl<'a> TaskService<'a> {
         }
     }
 
-    /// FAILED with `err`, keeping what the work wrote (unlike [`TaskService::finish`], which
-    /// rolls it back): for work whose records are themselves the account of why it failed.
-    pub async fn fail_keeping(
-        &self,
-        tx: &mut dyn Tx,
-        running: RunningTask,
-        err: AppError,
-    ) -> AppResult<TaskRecord> {
-        let RunningTask { task, savepoint } = running;
-        tx.release_savepoint(savepoint).await?;
-        let mut task = task.transition(TaskStatus::Failed)?;
-        task.error_code = Some(err.python_class_name().to_owned());
-        task.error_message = Some(truncate_500(&err.to_string()));
-        self.save(tx, &task).await?;
-        self.event(tx, &task, EventType::TaskFailed).await?;
-        Ok(task)
-    }
-
     /// `run(task, fn)`: execute `work` inline inside a savepoint.
     pub async fn run<F>(&self, tx: &mut dyn Tx, task: TaskRecord, work: F) -> AppResult<TaskRecord>
     where

@@ -41,9 +41,7 @@ use ss_domain::contracts::{
     BillOfMaterials, DesignApprovalStatus, DesignRevisionRequest, DesignVersion, GeometrySource,
     LayoutGenerationRequest, LayoutPreferences, RevisionStatus, RoomRequirement, SiteGeometry,
 };
-use ss_domain::design::geometry::framing::{
-    frame_for_solver_checked, normalize_plan, MIN_FRAME_AREA,
-};
+use ss_domain::design::geometry::framing::normalize_plan;
 use ss_domain::design::geometry::solver::{generate_candidates, Candidate};
 use ss_domain::design::interior::finishes::finish_specifications;
 use ss_domain::integrations::base::ProviderError;
@@ -124,57 +122,6 @@ struct Solved {
     req: LayoutGenerationRequest,
     site: PreparedSite,
     candidates: Vec<Candidate>,
-    /// Why no candidate is valid (`None` when one is): the task's failure message.
-    infeasible: Option<String>,
-}
-
-/// The class name a layout task records as `error_code` when it stores no layout.
-pub const LAYOUT_INFEASIBLE: &str = "LayoutInfeasibleError";
-
-/// The message of a layout request no candidate satisfies: the measured floor, the part the
-/// solver can use, what the room program needs and what the solver said. `frame` is the solver's
-/// rectangle (longer side, shorter side) on that floor, `Ok(None)` when it found none, `Err` when
-/// a work bound stopped the search (its size is then unknown, not absent).
-pub fn infeasible_message(
-    site: &SiteGeometry,
-    req: &LayoutGenerationRequest,
-    frame: Result<Option<(f64, f64)>, ()>,
-    candidates: &[Candidate],
-) -> String {
-    let floor = ss_domain::geometry::polygon_area(&site.floor_boundary);
-    let usable = match frame {
-        Ok(Some((w, d))) => format!(
-            "its largest rectangular area is {w:.1} x {d:.1} m = {:.0} m2",
-            w * d
-        ),
-        Ok(None) => format!("it has no rectangular area of at least {MIN_FRAME_AREA:.0} m2"),
-        Err(()) => "the size of its largest rectangular area is unknown".to_owned(),
-    };
-    let rooms: i64 = req.room_requirements.iter().map(|r| r.count).sum();
-    let need: f64 = req
-        .room_requirements
-        .iter()
-        .map(|r| r.count as f64 * r.min_area_sqm)
-        .sum();
-    let width = req
-        .room_requirements
-        .iter()
-        .map(|r| r.min_width_m)
-        .fold(0.0, f64::max);
-    let said: Vec<String> = candidates
-        .iter()
-        .flat_map(|c| c.report.issues.iter().map(|i| i.message.clone()))
-        .collect();
-    format!(
-        "No layout fits the measured floor: the floor is {floor:.0} m2 and {usable}; the room \
-         program needs {rooms} room(s), at least {need:.1} m2 in all plus circulation, with \
-         minimum room widths up to {width:.1} m. Solver: {}. No layout was stored.",
-        if said.is_empty() {
-            "no candidate".to_owned()
-        } else {
-            said.join("; ")
-        }
-    )
 }
 
 fn ids(created: &[DesignVersion]) -> Value {
@@ -721,20 +668,9 @@ impl<'a> DesignService<'a> {
             TASKS.add(&mut *tx, &task).await?;
             let running = self.app.tasks().start(&mut *tx, task.clone()).await?;
             let correlation_id = running.task.correlation_id;
-            // Deliberately different from Python, which completes a generation that stores no
-            // design version and says nothing: such a task fails with the reason, keeping what
-            // Python writes (the stored floor, one `layout.validation_failed` per candidate).
-            let mut infeasible: Option<AppError> = None;
             let outcome = match solved {
                 Err(e) => Err(e),
                 Ok(s) => {
-                    if let (LayoutJob::Generate(_), Some(msg)) = (job, &s.infeasible) {
-                        infeasible = Some(
-                            AppError::conflict(msg.clone())
-                                .code("LAYOUT_INFEASIBLE")
-                                .with_class_name(LAYOUT_INFEASIBLE),
-                        );
-                    }
                     match self
                         .write_layouts(&mut *tx, project_id, job, s, correlation_id)
                         .await
@@ -752,15 +688,7 @@ impl<'a> DesignService<'a> {
                     }
                 }
             };
-            let done = match (outcome, infeasible) {
-                (Ok(_), Some(err)) => {
-                    self.app
-                        .tasks()
-                        .fail_keeping(&mut *tx, running, err)
-                        .await?
-                }
-                (outcome, _) => self.app.tasks().finish(&mut *tx, running, outcome).await?,
-            };
+            let done = self.app.tasks().finish(&mut *tx, running, outcome).await?;
             tx.commit().await?;
             return Ok(done);
         }
@@ -785,35 +713,10 @@ impl<'a> DesignService<'a> {
         let (req, source) = planned?;
         let site = self.prepare_site(req.property_id, source).await?;
         let candidates = Self::solve(site.geometry(), &req).await?;
-        let infeasible = if candidates.iter().any(|c| c.report.valid) {
-            None
-        } else {
-            // The solver's rectangle again, only to say its size (CPU work, nothing held).
-            let g = site.geometry().clone();
-            let frame = blocking(move || {
-                frame_for_solver_checked(&g, MIN_FRAME_AREA)
-                    .map(|f| {
-                        f.and_then(|f| ss_domain::geometry::Bounds::of(&f.site.floor_boundary))
-                            .map(|b| {
-                                let (w, d) = (b.maxx - b.minx, b.maxy - b.miny);
-                                (w.max(d), w.min(d))
-                            })
-                    })
-                    .map_err(|_| ())
-            })
-            .await?;
-            Some(infeasible_message(
-                site.geometry(),
-                &req,
-                frame,
-                &candidates,
-            ))
-        };
         Ok(Solved {
             req,
             site,
             candidates,
-            infeasible,
         })
     }
 

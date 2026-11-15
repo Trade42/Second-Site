@@ -31,10 +31,7 @@ use ss_domain::contracts::{
 use ss_domain::py;
 use uuid::Uuid;
 
-use indexmap::IndexMap;
-use ss_domain::integrations::base::{ProviderError, ProviderErrorKind};
-
-use crate::integrations::matterport::{suite_matches, MatterportProvider, ModelSummary};
+use crate::integrations::matterport::{suite_matches, MatterportProvider};
 use crate::integrations::vexcel::VexcelProvider;
 use crate::logging;
 
@@ -60,93 +57,19 @@ fn warn(msg: &str, err: &dyn std::fmt::Display) {
     );
 }
 
-/// The Matterport model ids `enrich_interior` asks the provider for (at most [`MAX_MODELS`]), or
-/// `None` when the listing is left as it is (no Matterport asset, or the provider is not live).
-fn interior_ids(
-    prop: &PropertyDigitalProfile,
-    matterport: &dyn MatterportProvider,
-) -> Option<Vec<String>> {
-    let ids: Vec<String> = prop
-        .interior_assets
-        .iter()
-        .filter(|a| a.provider == "matterport")
-        .take(MAX_MODELS)
-        .map(|a| a.asset_id.clone())
-        .collect();
-    if ids.is_empty() || matterport.mode() != "live" {
-        return None;
-    }
-    Some(ids)
-}
-
 /// `enrich_interior`.
 pub fn enrich_interior(
     prop: PropertyDigitalProfile,
     matterport: &dyn MatterportProvider,
-) -> PropertyDigitalProfile {
-    let Some(ids) = interior_ids(&prop, matterport) else {
-        return prop;
-    };
-    let summaries = matterport.model_summaries(&ids);
-    apply_interior(prop, &ids, summaries.as_ref())
-}
-
-/// `enrich_interior` for a whole pool with **one** `model_summaries` call (the adapter batches
-/// 20 ids per request) instead of one per listing. Each listing gets exactly what its own call
-/// would have given: only the summaries of the ids it would have asked for (its first
-/// [`MAX_MODELS`] Matterport assets), and, when the one call fails, the failure its own call
-/// would have recorded. A `BAD_RESPONSE` or `NOT_FOUND` failure (which one listing's ids alone
-/// can cause: a malformed id, a bad entry) falls back to one call per listing, so only that
-/// listing records it. Any other failure (auth, timeout, outage, rate limit) marks every listing
-/// "not retrieved" at once, as each per-listing call would have.
-pub fn enrich_interior_pool(
-    pool: Vec<PropertyDigitalProfile>,
-    matterport: &dyn MatterportProvider,
-) -> Vec<PropertyDigitalProfile> {
-    let per_listing: Vec<Option<Vec<String>>> =
-        pool.iter().map(|p| interior_ids(p, matterport)).collect();
-    let mut seen = std::collections::HashSet::new();
-    let all: Vec<String> = per_listing
-        .iter()
-        .flatten()
-        .flatten()
-        .filter(|id| seen.insert(id.as_str()))
-        .cloned()
-        .collect();
-    if all.is_empty() {
-        return pool;
-    }
-    let summaries = matterport.model_summaries(&all);
-    // A bad answer or id that one listing's ids alone can cause must not cost the other listings
-    // their scans: ask per listing then, as before (an outage-shaped failure is not re-asked).
-    if matches!(&summaries, Err(e) if matches!(e.kind, ProviderErrorKind::BadResponse | ProviderErrorKind::NotFound))
-    {
-        return pool
-            .into_iter()
-            .map(|p| enrich_interior(p, matterport))
-            .collect();
-    }
-    pool.into_iter()
-        .zip(per_listing)
-        .map(|(p, ids)| match ids {
-            Some(ids) => apply_interior(p, &ids, summaries.as_ref()),
-            None => p,
-        })
-        .collect()
-}
-
-/// The rest of `enrich_interior` once the summaries of `ids` (the listing's own request) are
-/// known. Summaries of ids outside `ids` are ignored.
-fn apply_interior(
-    prop: PropertyDigitalProfile,
-    ids: &[String],
-    summaries: Result<&IndexMap<String, ModelSummary>, &ProviderError>,
 ) -> PropertyDigitalProfile {
     let mp: Vec<&InteriorAsset> = prop
         .interior_assets
         .iter()
         .filter(|a| a.provider == "matterport")
         .collect();
+    if mp.is_empty() || matterport.mode() != "live" {
+        return prop;
+    }
     let others: Vec<InteriorAsset> = prop
         .interior_assets
         .iter()
@@ -154,10 +77,15 @@ fn apply_interior(
         .cloned()
         .collect();
     let mut missing = prop.missing_information.clone();
-    let summaries = match summaries {
+    let ids: Vec<String> = mp
+        .iter()
+        .take(MAX_MODELS)
+        .map(|a| a.asset_id.clone())
+        .collect();
+    let summaries = match matterport.model_summaries(&ids) {
         Ok(s) => s,
         Err(e) => {
-            warn("matterport enrichment failed", e);
+            warn("matterport enrichment failed", &e);
             missing.push(format!("Matterport scans not retrieved ({})", e.kind));
             return PropertyDigitalProfile {
                 missing_information: missing,
@@ -172,11 +100,8 @@ fn apply_interior(
         .and_then(|l| l.available_area_sqm);
     let mut enriched: Vec<InteriorAsset> = Vec::new();
     for a in &mp {
-        // Not accessible with this token (or not among the ids this listing asked for).
-        let Some(s) = summaries
-            .get(&a.asset_id)
-            .filter(|_| ids.contains(&a.asset_id))
-        else {
+        // Not accessible with this token.
+        let Some(s) = summaries.get(&a.asset_id) else {
             continue;
         };
         let matched = suite_matches(s.name.as_deref(), suite.as_deref());

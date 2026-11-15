@@ -43,12 +43,6 @@
 //! `EvidenceService.for_property` and the supervisor tool `validate_evidence` over the rows the
 //! same Python run wrote, and the replay compares this service's routes with them.
 //!
-//! One deliberate difference (report `layout-real-1`): a generation that stores no layout ends
-//! FAILED (`LayoutInfeasibleError`, with the measured sizes in `error_message`, an empty output)
-//! where Python ends COMPLETED with `design_version_ids: []`. The Python answer of the step
-//! "generate an infeasible program" and its `task.completed` event are rewritten to that before
-//! the comparison ([`python_with_deliberate_differences`]), and nothing else of them.
-//!
 //! One store-dependent order: rows written in one transaction share `created_at`, and
 //! `ORDER BY created_at` returns such ties in the database's physical order. Python on
 //! PostgreSQL and this backend on PostgreSQL write the same rows and get the same order (compared
@@ -63,7 +57,7 @@ use std::sync::LazyLock;
 
 use axum::http::Method;
 use regex::Regex;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use common::*;
@@ -174,42 +168,6 @@ fn mask(v: &mut Value, key: &str) {
     if let Some(x) = v.get_mut(key) {
         *x = Value::String(SOLVER.into());
     }
-}
-
-/// The `error_message` of the golden's infeasible generation (fixture geometry, 12 rooms).
-const INFEASIBLE_MESSAGE: &str = "No layout fits the measured floor: the floor is 139 m2 and its \
-    largest rectangular area is 12.0 x 11.6 m = 139 m2; the room program needs 12 room(s), at \
-    least 144.0 m2 in all plus circulation, with minimum room widths up to 2.8 m. \
-    Solver: No spine layout satisfies the room program; No front layout satisfies the room \
-    program. No layout was stored.";
-
-/// See the module documentation: the one deliberate difference, applied to Python's answers.
-fn python_with_deliberate_differences(names: &[String], py: &mut [Value]) {
-    let step = |n: &str| names.iter().position(|x| x == n).expect(n);
-    let task = &mut py[step("generate an infeasible program")]["task"];
-    let task_id = task["task_id"].clone();
-    task["status"] = json!("FAILED");
-    task["error_code"] = json!("LayoutInfeasibleError");
-    task["error_message"] = json!(INFEASIBLE_MESSAGE);
-    task["output_reference"] = json!({});
-    let mut rewritten = 0;
-    for e in py[step("events")]["events"].as_array_mut().unwrap() {
-        if e["event_type"] == "task.completed" && e["payload"]["task_id"] == task_id {
-            e["event_type"] = json!("task.failed");
-            let key = e["idempotency_key"]
-                .as_str()
-                .unwrap()
-                .replace(":COMPLETED:", ":FAILED:");
-            e["idempotency_key"] = json!(key);
-            e["payload"]["status"] = json!("FAILED");
-            e["payload"]["error_code"] = json!("LayoutInfeasibleError");
-            rewritten += 1;
-        }
-    }
-    assert_eq!(
-        rewritten, 1,
-        "the infeasible generation's task.completed event"
-    );
 }
 
 /// Replace the solver-dependent fields (see the module comment) wherever they occur.
@@ -443,7 +401,6 @@ both_backends!(property_slice_matches_python, |db| {
         names.push(name.to_owned());
     }
     assert!(status_mismatches.is_empty(), "{status_mismatches:#?}");
-    python_with_deliberate_differences(&names, &mut py_all);
     let mut n_py = Normalizer::default();
     let mut n_rs = Normalizer::default();
     let mut problems = Vec::new();

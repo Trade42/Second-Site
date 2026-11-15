@@ -41,9 +41,6 @@ async fn stored_permit_numbers(tx: &mut dyn Tx, property_id: Uuid) -> AppResult<
         .collect())
 }
 
-/// What [`fetch`] answers when the provider answered.
-pub type Fetched = PermitIngestResult;
-
 /// The provider half of the ingest: fetch and match, nothing stored. A provider failure
 /// (unavailable, timeout, rate limited, bad answer, ...) comes back as `Ok(Err(..))` so the
 /// caller can decide to continue without permit records; any other failure (a malformed record,
@@ -53,19 +50,9 @@ pub async fn fetch(
     identity: &PropertyIdentity,
     project_id: Uuid,
 ) -> AppResult<Result<PermitIngestResult, ProviderError>> {
-    let ident = identity.clone();
-    blocking(move || fetch_blocking(provider, &ident, project_id)).await?
-}
-
-/// [`fetch`] on the calling thread (blocking provider I/O): for callers already on the blocking
-/// pool, such as the search's concurrent permit fetches.
-pub fn fetch_blocking(
-    provider: Arc<dyn LaPermitProvider>,
-    identity: &PropertyIdentity,
-    project_id: Uuid,
-) -> AppResult<Result<PermitIngestResult, ProviderError>> {
     let svc = PermitIntelligenceService::new(provider);
-    match svc.fetch_and_match(identity, Some(project_id)) {
+    let ident = identity.clone();
+    match blocking(move || svc.fetch_and_match(&ident, Some(project_id))).await? {
         Ok(res) => Ok(Ok(res)),
         Err(DomainError::Provider(p)) => Ok(Err(p)),
         Err(other) => Err(other.into()),

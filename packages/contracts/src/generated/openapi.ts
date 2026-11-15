@@ -634,26 +634,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/voice/session": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Voice Session Route
-         * @description A short-lived xAI voice session grounded like the chat (app/agents/voice_session.py). Never cached.
-         */
-        post: operations["voice_session_route_api_v1_projects__project_id__voice_session_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health": {
         parameters: {
             query?: never;
@@ -3481,62 +3461,6 @@ export interface components {
          * @enum {string}
          */
         VerificationStatus: "UNVERIFIED" | "SOURCE_CONFIRMED" | "CORROBORATED" | "PROFESSIONALLY_VERIFIED" | "DISPUTED";
-        /** VoiceSessionRequest */
-        VoiceSessionRequest: {
-            /**
-             * Mode
-             * @constant
-             */
-            mode: "assistant";
-        };
-        /**
-         * VoiceSessionResponse
-         * @description One short-lived voice session with the assistant (xAI realtime). The secret is returned once, never stored.
-         */
-        VoiceSessionResponse: {
-            /**
-             * Claim Pattern
-             * @description Regular expression (JavaScript-compatible, use the i flag)
-             */
-            claim_pattern: string;
-            /** Client Secret */
-            client_secret: string;
-            /** Data Notice */
-            data_notice: string;
-            /**
-             * Disclosure
-             * @description Spoken first (disclosure_event) and kept on screen
-             */
-            disclosure: string;
-            /** Disclosure Event */
-            disclosure_event: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /** Grounded Record Ids */
-            grounded_record_ids: string[];
-            /** Label */
-            label: string;
-            /**
-             * Mode
-             * @constant
-             */
-            mode: "assistant";
-            /** No Action Notice */
-            no_action_notice: string;
-            /** Provider */
-            provider: string;
-            /** Session Update */
-            session_update: {
-                [key: string]: unknown;
-            };
-            /** Websocket Url */
-            websocket_url: string;
-        };
         /**
          * WorkCategory
          * @enum {string}
@@ -4825,43 +4749,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskRecord"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    voice_session_route_api_v1_projects__project_id__voice_session_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VoiceSessionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VoiceSessionResponse"];
                 };
             };
             /** @description Validation Error */

@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.supervisor import run_chat
 from app.agents.tools import ToolContext
-from app.agents.voice_session import voice_session
 from app.api.deps import container, current_user, db_session, owned_project
 from app.contracts import (
     ActorType,
@@ -20,8 +19,6 @@ from app.contracts import (
     EventType,
     ProjectContext,
     ProjectEnvelope,
-    VoiceSessionRequest,
-    VoiceSessionResponse,
 )
 from app.core.container import Container
 from app.db import models as m
@@ -122,17 +119,3 @@ def chat(
 ) -> ChatResponse:
     ctx = ToolContext(db=db, c=c, project_id=project.project_id, owner_id=project.owner_id)
     return run_chat(ctx, body.message, c.settings)
-
-
-@router.post("/{project_id}/voice/session", response_model=VoiceSessionResponse)
-def voice_session_route(
-    body: VoiceSessionRequest,
-    response: Response,
-    project: ProjectContext = Depends(owned_project),
-    db: Session = Depends(db_session),
-    c: Container = Depends(container),
-) -> VoiceSessionResponse:
-    """A short-lived xAI voice session grounded like the chat (app/agents/voice_session.py). Never cached."""
-    response.headers["Cache-Control"] = "no-store"
-    ctx = ToolContext(db=db, c=c, project_id=project.project_id, owner_id=project.owner_id)
-    return voice_session(ctx)

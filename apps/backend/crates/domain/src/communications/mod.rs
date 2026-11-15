@@ -5,7 +5,6 @@
 pub mod call_orchestration;
 pub mod call_script;
 pub mod escalation;
-pub mod response_agent;
 
 pub use call_orchestration::call_payload;
 pub use call_script::{availability, build_script, describe, extract};
