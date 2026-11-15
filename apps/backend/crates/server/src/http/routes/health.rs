@@ -45,6 +45,14 @@ async fn ready(State(app): State<AppState>) -> Json<ReadyResponse> {
             format!("missing: {}", parts.join("; ")),
         );
     }
+    // Live voice only: the settings without which a live dial is refused (names, never values).
+    let voice_missing = app.settings.voice_live_missing();
+    if !voice_missing.is_empty() {
+        checks.insert(
+            "telnyx_live_dial".into(),
+            format!("refused until set: {}", voice_missing.join(", ")),
+        );
+    }
     if app.settings.public_path_guard {
         checks.insert(
             "public_path_guard".into(),
