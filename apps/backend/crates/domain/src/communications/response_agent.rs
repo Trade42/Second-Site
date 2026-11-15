@@ -346,85 +346,113 @@ impl Decision {
 
 // ---- Context builders -------------------------------------------------------------------------
 
+/// Topics in order of precedence, each with the phrases that name it (lower case, substring).
+pub const TOPICS: &[(&str, &[&str])] = &[
+    ("guarantor", &["guarant"]),
+    ("deposit", &["deposit"]),
+    ("utilities", &["utilit"]),
+    (
+        "rent",
+        &[
+            "rent",
+            "price",
+            "asking",
+            "budget",
+            "how much",
+            "per square foot",
+            "nnn",
+            "cam ",
+        ],
+    ),
+    (
+        "lease_terms",
+        &[
+            "lease term",
+            "how long",
+            "renew",
+            "term",
+            "lease length",
+            "years",
+        ],
+    ),
+    ("parking", &["parking", "park "]),
+    (
+        "showing_times",
+        &[
+            "tour",
+            "showing",
+            "visit",
+            "see the space",
+            "walk through",
+            "walkthrough",
+        ],
+    ),
+    (
+        "permitted_use",
+        &[
+            "zoned",
+            "zoning",
+            "permitted",
+            "allowed",
+            "use clause",
+            "operate",
+        ],
+    ),
+    (
+        "business",
+        &[
+            "what kind of business",
+            "what business",
+            "what type of business",
+            "what do they do",
+        ],
+    ),
+    (
+        "timing",
+        &[
+            "move in",
+            "move-in",
+            "open",
+            "start date",
+            "when do",
+            "when would they",
+            "timeline",
+        ],
+    ),
+    ("availability", &["available", "availability", "vacant"]),
+    (
+        "infrastructure",
+        &[
+            "amp", "electric", "panel", "plumbing", "sink", "drain", "water", "hvac", "ventilat",
+            "air ", "square f", "sq ft", "ceiling", "power", "gas",
+        ],
+    ),
+];
+
 /// The topic of a question (the request's, the counterparty's): one of `deposit`, `rent`,
 /// `lease_terms`, `utilities`, `availability`, `parking`, `infrastructure`, `permitted_use`,
 /// `showing_times`, `business`, `timing`, `guarantor`, `general`.
 pub fn topic_of_question(text: &str) -> &'static str {
+    topics_in(text).first().copied().unwrap_or("general")
+}
+
+/// Every [`TOPICS`] topic the text names, in precedence order.
+pub fn topics_in(text: &str) -> Vec<&'static str> {
     let t = text.to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| t.contains(w));
-    if has(&["guarant"]) {
-        "guarantor"
-    } else if has(&["deposit"]) {
-        "deposit"
-    } else if has(&["utilit"]) {
-        "utilities"
-    } else if has(&[
-        "rent",
-        "price",
-        "asking",
-        "budget",
-        "how much",
-        "per square foot",
-        "nnn",
-        "cam ",
-    ]) {
-        "rent"
-    } else if has(&[
-        "lease term",
-        "how long",
-        "renew",
-        "term",
-        "lease length",
-        "years",
-    ]) {
-        "lease_terms"
-    } else if has(&["parking", "park "]) {
-        "parking"
-    } else if has(&[
-        "tour",
-        "showing",
-        "visit",
-        "see the space",
-        "walk through",
-        "walkthrough",
-    ]) {
-        "showing_times"
-    } else if has(&[
-        "zoned",
-        "zoning",
-        "permitted",
-        "allowed",
-        "use clause",
-        "operate",
-    ]) {
-        "permitted_use"
-    } else if has(&[
-        "what kind of business",
-        "what business",
-        "what type of business",
-        "what do they do",
-    ]) {
-        "business"
-    } else if has(&[
-        "move in",
-        "move-in",
-        "open",
-        "start date",
-        "when do",
-        "when would they",
-        "timeline",
-    ]) {
-        "timing"
-    } else if has(&["available", "availability", "vacant"]) {
-        "availability"
-    } else if has(&[
-        "amp", "electric", "panel", "plumbing", "sink", "drain", "water", "hvac", "ventilat",
-        "air ", "square f", "sq ft", "ceiling", "power", "gas",
-    ]) {
-        "infrastructure"
-    } else {
-        "general"
-    }
+    // A phrase counts where it starts a word ("rental" names rent, "currently" does not).
+    let at_word_start = |w: &str| {
+        t.match_indices(w).any(|(i, _)| {
+            t[..i]
+                .chars()
+                .next_back()
+                .is_none_or(|c| !c.is_alphanumeric())
+        })
+    };
+    TOPICS
+        .iter()
+        .filter(|(_, words)| words.iter().any(|w| at_word_start(w)))
+        .map(|(topic, _)| *topic)
+        .collect()
 }
 
 /// The topic of a bank claim type. All four bank questions come from infrastructure
@@ -1806,13 +1834,13 @@ pub fn escalation_for(
             "NORMAL",
         ));
     }
-    let topic = topic_of_question(text);
-    let in_may_not = ctx
-        .authority
-        .may_not
-        .iter()
-        .any(|m| m == topic || may_not_key(topic) == Some(m.as_str()));
-    if topic != "general" && in_may_not {
+    let in_may_not = topics_in(text).iter().any(|topic| {
+        ctx.authority
+            .may_not
+            .iter()
+            .any(|m| m == topic || may_not_key(topic) == Some(m.as_str()))
+    });
+    if in_may_not {
         return Some(esc(
             HandoffReason::ExceedsAuthority,
             EscalationRule::MayNotTopic,
@@ -2046,7 +2074,16 @@ pub fn step(
     let answered = current.is_some()
         && !holds
         && !identity
-        && !(asks && current_finding.is_none_or(|f| f.value.is_null()));
+        && !(asks
+            && current_finding.is_none_or(|f| {
+                // A free-text request question keeps any answer as its value, so only a yes or a
+                // no counts as answering it when the counterparty asks something back.
+                f.value.is_null()
+                    || (current
+                        .as_ref()
+                        .is_some_and(|q| q.source == QuestionSource::Request)
+                        && f.answer_kind == Some(AnswerKind::Stated))
+            }));
     let mut findings = findings;
     if !answered {
         // The open question stays open; its tentative answer is not a finding.

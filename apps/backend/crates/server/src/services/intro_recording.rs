@@ -394,8 +394,9 @@ pub async fn store(app: &App, new: NewRecording, info: WavInfo) -> AppResult<Int
             lock_owner(tx, owner_id).await?;
             if let Some(t) = link_token.as_deref() {
                 if link_used(tx, t).await? {
-                    return Err(AppError::unauthorized("recording link already used")
-                        .code("LINK_USED"));
+                    return Err(
+                        AppError::unauthorized("recording link already used").code("LINK_USED")
+                    );
                 }
             }
             for mut old in of_owner(tx, owner_id).await? {

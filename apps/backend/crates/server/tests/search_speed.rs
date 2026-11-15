@@ -483,8 +483,16 @@ both_backends!(one_bad_matterport_id_costs_only_its_listing, |db| {
     assert_eq!(props.len(), LISTINGS);
     let lost: Vec<&str> = props
         .iter()
-        .filter(|p| p["missing_information"].to_string().contains("Matterport scans not retrieved"))
-        .map(|p| p["property_identity"]["normalized_address"].as_str().unwrap())
+        .filter(|p| {
+            p["missing_information"]
+                .to_string()
+                .contains("Matterport scans not retrieved")
+        })
+        .map(|p| {
+            p["property_identity"]["normalized_address"]
+                .as_str()
+                .unwrap()
+        })
         .collect();
     assert_eq!(lost.len(), 1, "{lost:?}");
     assert!(lost[0].starts_with("5000 "), "{lost:?}");

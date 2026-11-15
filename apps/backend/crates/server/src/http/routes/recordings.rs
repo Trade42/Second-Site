@@ -49,10 +49,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route(
             "/api/v1/owner/intro-recording",
-            post(upload)
-                .get(current)
-                .delete(revoke)
-                .layer(limit),
+            post(upload).get(current).delete(revoke).layer(limit),
         )
         .route("/api/v1/owner/intro-recording/history", get(history))
         .route("/api/v1/owner/intro-recording/link", post(new_link))
@@ -138,9 +135,7 @@ async fn read_form(app: &AppState, request: Request) -> AppResult<Form> {
                     }
                 }
                 Ok(None) => break,
-                Err(e) if e.status() == StatusCode::PAYLOAD_TOO_LARGE => {
-                    return Err(too_large())
-                }
+                Err(e) if e.status() == StatusCode::PAYLOAD_TOO_LARGE => return Err(too_large()),
                 Err(_) => return Err(AppError::bad_request("Invalid multipart data.")),
             }
         }
@@ -244,8 +239,12 @@ async fn history(State(app): State<AppState>, AuthUser(user): AuthUser) -> AppRe
 }
 
 async fn new_link(State(app): State<AppState>, AuthUser(user): AuthUser) -> AppResult<Json<Value>> {
-    let token =
-        security::issue_token_with(app.settings.auth_secret.expose(), user, LINK_TTL_S, LINK_PURPOSE);
+    let token = security::issue_token_with(
+        app.settings.auth_secret.expose(),
+        user,
+        LINK_TTL_S,
+        LINK_PURPOSE,
+    );
     Ok(Json(json!({
         "url": format!("{}/record#{token}", app.settings.public_base_url),
         "expires_in_s": LINK_TTL_S,

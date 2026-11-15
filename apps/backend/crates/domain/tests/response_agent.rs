@@ -6,11 +6,11 @@ use std::time::{Duration, Instant};
 use ss_core::EvidenceClassification;
 use ss_domain::communications::call_script::QUESTION_BANK;
 use ss_domain::communications::response_agent::{
-    cut, extract_findings, format_money, plan_questions, redact, resume, start, step, AnswerKind,
-    CallContext, ConversationState, Decision, EscalationRule, MoneyPeriod, OwnerRequirement,
-    QuestionSource, Say, Speaker, Specialist, Utterance, CONCESSION_LINE, DONT_KNOW_LINE,
-    HOLD_LINE, IDENTITY_LINE, MAX_ANALYSIS_CHARS, MAX_FINDINGS_PER_TURN, OWNER_REQUESTED_LINE,
-    SENSITIVE_LINE,
+    cut, extract_findings, format_money, plan_questions, redact, resume, start, step,
+    topic_of_question, AnswerKind, CallContext, ConversationState, Decision, EscalationRule,
+    MoneyPeriod, OwnerRequirement, QuestionSource, Say, Speaker, Specialist, Utterance,
+    CONCESSION_LINE, DONT_KNOW_LINE, HOLD_LINE, IDENTITY_LINE, MAX_ANALYSIS_CHARS,
+    MAX_FINDINGS_PER_TURN, OWNER_REQUESTED_LINE, SENSITIVE_LINE,
 };
 use ss_domain::communications::{availability, detect_escalation};
 use ss_domain::contracts::communications::{AuthorityScope, CallQuestion, HandoffReason};
@@ -434,6 +434,11 @@ fn identity_question_gets_the_identity_line() {
             s.current.as_deref()
         );
     }
+    // A question back, in reply to a free-text request question, does not answer it.
+    let c3 = ctx_with(&["Could we tour the space next week?"]);
+    let (d, s) = one(&c3, "Which day did you have in mind?");
+    assert!(d.answered_question.is_none() && s.current.as_deref() == Some("request:0"));
+    assert!(d.findings.iter().all(|f| f.question_id.is_none()));
     let (d, _) = one(&c, "Is this a good time to talk about the suite?");
     assert!(!say_text(&d).starts_with(IDENTITY_LINE));
 }
@@ -484,6 +489,18 @@ fn questions_outside_scope_are_never_asked_and_may_not_topics_escalate() {
     assert_eq!(d.escalation.unwrap().rule, EscalationRule::MayNotTopic);
     let (d, _) = one(&c2, "The suite has 200 amps.");
     assert!(d.escalation.is_none());
+    // Every topic of a mixed utterance is checked, not only the first.
+    let (d, _) = one(&c2, "The rent is $4,000 and there are 3 parking spots.");
+    assert_eq!(d.escalation.unwrap().rule, EscalationRule::MayNotTopic);
+    // Topics match at word starts: "currently" is not rent, "example" is not amps.
+    assert_eq!(
+        topic_of_question("Is the space currently vacant?"),
+        "availability"
+    );
+    assert_eq!(
+        topic_of_question("For example, could we tour it?"),
+        "showing_times"
+    );
 }
 
 #[test]
