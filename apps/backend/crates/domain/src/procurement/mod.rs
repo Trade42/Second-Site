@@ -2,4 +2,4 @@
 
 pub mod bom;
 
-pub use bom::generate_bom;
+pub use bom::{furnish_kind, generate_bom, generate_bom_for, FurnishKind};
