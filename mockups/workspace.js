@@ -1,6 +1,7 @@
 // Second Site workspace prototype. One page, three stages, one conversation.
 // Design mock: the conversation is scripted and every figure is demo data.
 const LIVE = new URLSearchParams(location.search).get('live') === '1' ? await import('./backend.js') : null; // opt-in backend link, see backend.js
+const FV = LIVE || new URLSearchParams(location.search).get('models') === '1' ? await import('./furniture-view.js').catch(e => { console.warn(`furniture view did not load (${e?.message}); the page draws plain boxes`); return null; }) : null; // our furniture models in the 3D view, see furniture-view.js
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -476,7 +477,7 @@ function renderPane() {
       <tr><td colspan="3">Install</td><td>${money(s.install)}</td><td></td></tr>
       <tr class="total"><td colspan="3">Total</td><td>${money(s.total)}</td><td></td></tr>
     </tfoot>`}</table>` + (proposed ? `<button type="button" class="btn sm" data-act="accept">Add the ${proposed} proposed</button>` : '');
-  $('#pane tr.on')?.scrollIntoView({ block: 'nearest' });
+  $('#pane tr.on')?.scrollIntoView({ block: 'nearest' }); FV?.annotate(pane);
 }
 function renderFurnish() { furnishHead(); renderPane(); renderViewer(); renderNav(); }
 const furnishReplies = () => !S.placed.length ? ['Warm and minimal, three treatment rooms, under $25k'] : [
@@ -510,7 +511,7 @@ function pieceRect(d, it, idx) {
 }
 function pieces(d) {
   const seen = {};
-  return S.placed.map(it => { const k = keyOf(it), idx = seen[k] = (seen[k] ?? -1) + 1; return { it, key: k, ...pieceRect(d, it, idx) }; });
+  return S.placed.map(it => { const k = keyOf(it), idx = seen[k] = (seen[k] ?? -1) + 1; return { it, key: k, ...pieceRect(d, it, idx), ...FV?.planRect(d, it) }; });
 }
 function paintPlan(p, d) {
   const el = $('#v-floorplan .plan'), img = $('img', el), src = asset(p.src, 'matterport-floorplan-08.png');
@@ -568,7 +569,7 @@ async function init3D() {
   canvas.addEventListener('pointerup', e => {
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4 || S.stage !== 'furnish') return;
     const r = canvas.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), camera);
-    const hit = ray.intersectObjects(blocks.children)[0]; if (hit) selectPiece(hit.object.userData.key);
+    const hit = ray.intersectObjects(blocks.children, !!FV)[0]; if (hit) selectPiece(FV?.keyOf(hit.object) ?? hit.object.userData.key);
   });
   (function loop() { requestAnimationFrame(loop); if (box.hidden || !T.cur) return; controls.update(); renderer.render(scene, camera); })();
 }
@@ -608,8 +609,8 @@ async function paint3D(p, d) {
     }
     if (want3D !== src) return; // a newer selection won
     if (T.cur !== obj) { if (T.cur) T.scene.remove(T.cur); T.scene.add(obj); T.cur = obj; frame3D(); }
-    T.blocks.clear();
-    if (S.stage === 'furnish' && L?.blocks !== false) pieces(d).forEach(q => {
+    const fv = FV?.paint(T, d, S.stage === 'furnish' && L?.blocks !== false ? pieces(d) : []); if (!fv) T.blocks.clear(); // our models; false or no module: the boxes
+    if (!fv && S.stage === 'furnish' && L?.blocks !== false) pieces(d).forEach(q => {
       const hgt = C[q.it.c].h * .3048, mesh = new T.THREE.Mesh(new T.THREE.BoxGeometry(q.w / 100, hgt, q.h / 100), S.sel === q.key ? T.mats.on : T.mats[q.it.st]);
       mesh.position.set(d.plan.mesh[0] + (q.cx - d.plan.ink[0]) / 100, hgt / 2 + .02, -(d.plan.mesh[1] - (q.cy - d.plan.ink[1]) / 100));
       mesh.userData.key = q.key; T.blocks.add(mesh);
@@ -843,6 +844,7 @@ async function seed(to) {
 }
 
 LIVE?.bind({ POOL, P, D, CAT, C, FIRST, FILL, SPACE_NOTES, pins, S: () => S, map: () => map, a, note, esc, selectSpace, renderViewer });
+FV?.bind({ S: () => S, C, save, selectPiece, renderViewer, load: s => import(s) });
 const start = location.hash.slice(1); // #reset clears saved state
 if (['searched', 'compare', 'furnish', 'reset'].includes(start)) S = fresh();
 if (start === 'reset') history.replaceState(null, '', location.pathname);
