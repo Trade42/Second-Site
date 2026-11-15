@@ -1,7 +1,7 @@
-# End-to-end harness, part 1: the Rust service and the Python app together
+# End-to-end harness (parts 1 and 2): the Rust service and the Python app together
 
 `run.sh` builds the Rust release binary, starts it **and** the Python app on loopback, both on one private
-PostgreSQL schema with one `AUTH_SECRET`, points each at the other, and runs `driver.py`. The driver runs 69
+PostgreSQL schema with one `AUTH_SECRET`, points each at the other, and runs `driver.py`. The driver runs 83
 numbered checks against both live services, then the harness stops both processes and drops the schema.
 Finding integration defects is the point: a check that fails is reported, never worked around.
 
@@ -128,7 +128,10 @@ appear. D01 also records whether the chat's `x-request-id` reaches Rust. D03–D
 tools in HTTP mode (`app.agents.tools.build_tools` with `BACKEND_API_URL` set, in the driver process) against
 the real Rust service. The evidence and outreach tools are `SKIP` when Rust answers 404; D10 requires a new `PENDING` approval. D11 a chat on a fresh
 project with no ranking makes the supervisor run the search through Rust. D12 the read-only tools give the
-same text in-process (Python reading the shared schema, read only) and over HTTP (Rust). D13 after the second
+same JSON value in-process (Python reading the shared schema, read only) and over HTTP (Rust): a text whose only
+difference is the order of object keys passes, and its PASS line names it under "bytes differ (object key order)"
+(known: `get_project_state`, `required_rooms` and similar maps); any other difference (a value, a type, list order,
+spacing) fails. D13 after the second
 analysis, the feasibility routes of both services agree; the detail records their order against the property
 record.
 
@@ -156,7 +159,33 @@ equal Python's `call_payload` / `payload_hash`; a call while it is `PENDING` is 
 on the call. G06 Python and Rust then refuse a second execution of that approval (409); without a Rust calls
 route, the check records what Python's route does instead.
 
-**H. Hygiene.** H01 no file the run keeps contains `AUTH_SECRET`, the Photon secret, any bearer token the
+**J. The approval decision** (part 2; runs after G, before I). Each uses a fresh outreach through Rust and takes a
+digest of every table of the private schema (row count and an md5 of all rows, once nothing has changed for 0.5 s)
+before and after. J01 a decision with a wrong `action_payload_hash`: Rust 409 `APPROVAL_PAYLOAD_MISMATCH`, the
+approval unchanged and read identically by both services, no row changed. J02 REJECTED: both read REJECTED; a call
+through Rust is refused (409 `APPROVAL_REQUIRED`), a later APPROVED is refused (409 `INVALID_STATE_TRANSITION`), no
+call and no row. J03/J04 expiry: the driver moves the stored `expires_at` an hour into the past (the services' own
+tests rewrite the stored document the same way; it is the driver's only write to the schema). An expired PENDING
+approval cannot be decided (409, `current: EXPIRED`); an approval that expired after APPROVED cannot start a call
+(409 "approval is EXPIRED"); Python refuses both too and reads the same document.
+
+**I. Cross-project isolation** (part 2; review R23). I01 creates a second owner (a token signed with the run's secret)
+with a project of its own: search, a PENDING outreach, and a simulated call with a handoff, all through Rust. Each
+request below carries its own `x-request-id`; Rust must answer 404, log that id (Python must not, except for the
+forwarded chat), and leave every table unchanged. The same request is then sent to the Python app and its answer,
+and what it wrote, are reported; a Python 2xx fails only where the shared plan lists no known defect. I02 layout
+generation and I03 outreach in the first project with a property of the other owner's project and of the same
+owner's second project; I04 a call start with the other owner's communication; I05 the other project's property
+under the first project's URL (permits, feasibility, evidence, evidence validation); I06 a handoff response for the
+other owner's handoff; I08 the decision on the other owner's approval: 403 `FORBIDDEN` (Rust and Python both) or
+404, with no field of the approval in the answer, nothing written, and the request in Rust's log; the 403 reveals that
+the approval id exists, a known and accepted difference from the project routes' 404; I09 every project route of the other owner's project (36 routes with its
+real record ids, plus the event stream): 404 `project not found`, no details, never 403; I10 the HTTP supervisor
+tools bound to the first project given the other project's property: a 404 tool error each, no approval; I07
+(last, because Python's known defect moves the other project's profile) `PUT /business-profile` carrying the other
+project's `profile_id`.
+
+**H. Hygiene.** H01 (runs last) no file the run keeps contains `AUTH_SECRET`, the Photon secret, any bearer token the
 driver sent (or its signature), or any token signed with `AUTH_SECRET`, whoever minted it.
 
 ## Lint
@@ -168,7 +197,8 @@ the repository settings must be passed explicitly. `bash -n apps/backend/e2e/run
 ## Not covered
 
 No browser and no web app. No live provider, no real model (the model-free supervisor only), no real Photon,
-Telnyx or Nessie. Not exercised at all: cross-project isolation (a record of one project used under another
-project's URL), the Telnyx webhook and the call after `DIALING`, handoffs, the Nessie and media routes, the
+Telnyx or Nessie. Not exercised at all: the in-process (Python) mode of the supervisor tools with another
+project's property, the Telnyx webhook and the call after `DIALING`, handoffs and the Nessie routes beyond their cross-project refusals
+(I06, I09), the media routes, the
 Studio routes the forwarder carries, concurrent writers of both services on one project, a restart of either
 service while the other runs.
