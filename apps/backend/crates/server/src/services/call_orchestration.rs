@@ -57,14 +57,17 @@ use ss_core::{DataOrigin, EvidenceClassification, UtcDateTime};
 use ss_domain::communications::call_purposes::{
     self as cp, Approved, CallPurposes, PurposeOutcome, PurposeState,
 };
+use ss_domain::communications::call_script::{AVAILABILITY_QUESTION, QUESTION_BANK};
 use ss_domain::communications::call_summary::{self as csum, CallEnd, InputFinding};
 use ss_domain::communications::response_agent::{
     self as agent, CallContext, ConversationState, EscalationRule, Say, Utterance,
 };
-use ss_domain::communications::{build_script, call_payload, describe, detect_escalation, extract};
+use ss_domain::communications::{
+    availability, build_script, call_payload, describe, detect_escalation, extract,
+};
 use ss_domain::contracts::{
-    CallSession, CallState, CommunicationState, HandoffReason, HandoffStatus, OwnerHandoffRequest,
-    ParticipantState, SourceEvidence, StructuredFinding, TranscriptTurn,
+    CallQuestion, CallSession, CallState, CommunicationState, HandoffReason, HandoffStatus,
+    OwnerHandoffRequest, ParticipantState, SourceEvidence, StructuredFinding, TranscriptTurn,
 };
 use ss_domain::integrations::telnyx::{
     client_state, decode_client_state_json, StreamOptions, TelephonyError, TelephonyProvider,
@@ -104,6 +107,136 @@ pub const DEFAULT_FROM: &str = "+10000000000";
 pub const ACTOR: &str = "voice-handoff";
 /// The label every owner text about a simulated call starts with (Python's summary prefix).
 pub const SIMULATED_LABEL: &str = "[Simulated call] ";
+
+/// The claim type of a request's own question that is not a bank question starts with this
+/// (`plan_questions` gives a bridged call's the same form). No scripted answer exists for one.
+pub const REQUEST_CLAIM_PREFIX: &str = "outreach_question_";
+
+/// Whether a script question is the request's own and not a bank question.
+pub fn is_request_question(q: &CallQuestion) -> bool {
+    q.claim_type.starts_with(REQUEST_CLAIM_PREFIX)
+}
+
+fn same_question(a: &str, b: &str) -> bool {
+    a.trim().eq_ignore_ascii_case(b.trim())
+}
+
+/// The script of a simulated call the server leads itself (no voice bridge): the approved
+/// request's own questions first, in their order (blank ones and repeats dropped), then the
+/// bank's (`build_script`) as before, without the ones the request already asks. A request
+/// question that is a bank question (the same text, case and outer spaces aside) keeps the
+/// bank's claim type, so its scripted answer and its extraction apply; any other one gets
+/// `outreach_question_<i>`, for which the simulated contact has no answer.
+pub fn simulated_script(
+    request_questions: &[String],
+    bank: Vec<CallQuestion>,
+) -> Vec<CallQuestion> {
+    let mut out: Vec<CallQuestion> = Vec::new();
+    for (i, q) in request_questions.iter().enumerate() {
+        let text = q.trim();
+        if text.is_empty() || out.iter().any(|o| same_question(&o.question, text)) {
+            continue;
+        }
+        let known = bank
+            .iter()
+            .find(|b| same_question(&b.question, text))
+            .cloned()
+            .or_else(|| {
+                QUESTION_BANK
+                    .iter()
+                    .find(|(_, question, _)| same_question(question, text))
+                    .map(|(_, question, claim)| CallQuestion {
+                        question: (*question).to_owned(),
+                        claim_type: (*claim).to_owned(),
+                        requirement_id: None,
+                    })
+            })
+            .or_else(|| same_question(AVAILABILITY_QUESTION, text).then(availability));
+        out.push(known.unwrap_or_else(|| CallQuestion {
+            question: text.to_owned(),
+            claim_type: format!("{REQUEST_CLAIM_PREFIX}{i}"),
+            requirement_id: None,
+        }));
+    }
+    for b in bank {
+        if !out.iter().any(|o| same_question(&o.question, &b.question)) {
+            out.push(b);
+        }
+    }
+    out
+}
+
+/// At most this many questions are named in one sentence of the summary; the rest are counted.
+const NOTE_MAX_QUESTIONS: usize = 5;
+const NOTE_MAX_CHARS: usize = 160;
+
+fn quoted_list(questions: &[&CallQuestion]) -> String {
+    let mut parts: Vec<String> = questions
+        .iter()
+        .take(NOTE_MAX_QUESTIONS)
+        .map(|q| {
+            let mut text: String = q.question.chars().take(NOTE_MAX_CHARS).collect();
+            if q.question.chars().count() > NOTE_MAX_CHARS {
+                text.push_str("...");
+            }
+            format!("\"{text}\"")
+        })
+        .collect();
+    if questions.len() > NOTE_MAX_QUESTIONS {
+        parts.push(format!("and {} more", questions.len() - NOTE_MAX_QUESTIONS));
+    }
+    parts.join("; ")
+}
+
+/// What became of the approved request's own questions on a simulated call the server led:
+/// which got the simulated contact's "cannot answer" line, which were asked without an answer
+/// before the end, and which were never asked. `None` when there is nothing to say (always, for
+/// a request without questions). `approved` is the request's stored list when the process
+/// still has it; without it only the questions that are not bank questions are known.
+fn request_questions_note(call: &CallSession, approved: &[String]) -> Option<String> {
+    let done = usize::try_from(call.question_index).unwrap_or(0);
+    let spoken = |q: &CallQuestion| {
+        call.transcript
+            .iter()
+            .any(|t| t.speaker == "assistant" && t.text.starts_with(&q.question))
+    };
+    let (mut unanswered, mut cut, mut unasked) = (Vec::new(), Vec::new(), Vec::new());
+    for (i, q) in call.script.iter().enumerate() {
+        let own = is_request_question(q);
+        if !own && !approved.iter().any(|a| same_question(a, &q.question)) {
+            continue;
+        }
+        if i < done {
+            if own {
+                unanswered.push(q);
+            }
+        } else if spoken(q) {
+            cut.push(q);
+        } else {
+            unasked.push(q);
+        }
+    }
+    let mut out: Vec<String> = Vec::new();
+    if !unanswered.is_empty() {
+        out.push(format!(
+            "Of your own questions, the simulated contact has no scripted answer for: {}.",
+            quoted_list(&unanswered)
+        ));
+    }
+    if !cut.is_empty() {
+        out.push(format!(
+            "Asked, with no answer before the call ended: {}.",
+            quoted_list(&cut)
+        ));
+    }
+    if !unasked.is_empty() {
+        out.push(format!(
+            "Not asked before the call ended: {}.",
+            quoted_list(&unasked)
+        ));
+    }
+    (!out.is_empty()).then(|| out.join(" "))
+}
 
 /// `_JOIN_TOKENS`: reference -> join token, process-local and never stored or put in an event
 /// (Python keeps the same dict; nothing reads the token back yet). Bounded here.
@@ -513,6 +646,12 @@ impl<'a> CallOrchestrator<'a> {
         call.communication_id = s.communication_id;
         call.script = build_script(&assessments);
         call.simulated = s.simulated;
+        // A simulated call the server leads itself asks the approved request's own questions
+        // first: `extras` is the request stored at outreach (read above, before the approval
+        // check), never anything supplied at start. A bridged call plans them at the bridge.
+        if s.simulated && !use_active && !extras.questions.is_empty() {
+            call.script = simulated_script(&extras.questions, std::mem::take(&mut call.script));
+        }
         let Some(phone) = get(&s.recipient, "phone").map(str::to_owned) else {
             return Err(AppError::conflict("recipient has no phone number"));
         };
@@ -910,7 +1049,13 @@ impl<'a> CallOrchestrator<'a> {
         }
         let mut call = call;
         if let Some(q) = current_question(&call) {
-            let finding = extract(&q, text);
+            let mut finding = extract(&q, text);
+            if call.simulated && is_request_question(&q) {
+                // The simulation has no scripted answer to a request's own question: whatever
+                // was said, the question stays unanswered and nothing becomes evidence.
+                finding.value = Value::Null;
+                finding.unit = None;
+            }
             call.findings.push(finding.clone());
             call.question_index += 1;
             call = self.save(tx, call).await?;
@@ -1370,6 +1515,15 @@ impl<'a> CallOrchestrator<'a> {
                 "Deferred to you: {}.",
                 call.deferred_questions.join("; ")
             ));
+        }
+        if call.simulated && !voice {
+            let approved = left.extras.as_ref().map_or(&[][..], |e| &e.questions[..]);
+            if let Some(note) = request_questions_note(&call, approved) {
+                if !summary.ends_with(' ') {
+                    summary.push(' ');
+                }
+                summary.push_str(&note);
+            }
         }
         // A bridged call, or one with purposes, gets the structured summary's owner text (it
         // carries the simulated label itself); every other call keeps Python's text.
