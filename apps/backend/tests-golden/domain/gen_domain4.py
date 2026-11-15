@@ -281,6 +281,9 @@ TRUTH_ANSWERS = {
         "I don\u2019t know, 100 amps?", "I\u2019ll find out, maybe 200 amps", "I don\u02bct know, 200 amps",
         "200 amps or 400 amps", "400 amps or 400 amps", "200A service, 100A in use", "About 400. Amps",
         "400 amp service", "1, 200 amps",
+        # known limitations (reported, not fixed): bounds and a unitless second value read as the value
+        "from 200 up to 400 amps", "up to 400 amps", "at least 200 amps", "200 amps or more", "2000 a month",
+        "The panel is 200 amps, and we use about 80 of them",
     ],
     "sqft": [
         "It's about 1,250 usable square feet.", "about 1,128 square feet", "1,128 sf", "1,128SF",
@@ -305,6 +308,8 @@ TRUTH_ANSWERS = {
         "\u0665 1,128 sf",
         "1,128 sf or 1,128 sf", "1,128 sf to 1,128", "1,128 sq ft and 1,128 sq ft", "1, 128 sq ft",
         "1,128 square feet, roughly",
+        # known limitations (reported, not fixed)
+        "It's about 1,128 square feet, maybe 1,200", "1,128 sq ft (about 105 m2)",
     ],
     "plumbing": [
         # simulator, Python tests
@@ -361,6 +366,8 @@ TRUTH_ANSWERS = {
         "It can be zoned, absolutely.", "It does not, no.", "It does not have one, no.",
         "Not really, it doesn\u2019t", "Yes it does", "Yes, it does.", "No, it doesn't.", "Yes, it has.",
         "Yes we have", "Nah", "Nah, yes",
+        # known limitations (reported, not fixed): hedges other than UNSURE's are not unclear
+        "Probably yes", "I think so, yes", "There is no sink but there is a drain", "No sink, but there is a floor drain",
     ],
     "available": [
         "It's available December first.", "I\u2019ll find out", "I don\u2019t know yet", "January 1st",

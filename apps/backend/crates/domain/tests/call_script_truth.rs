@@ -409,3 +409,32 @@ fn is_decimal_is_cpythons_isdecimal() {
     }
     assert!(checked > 280_000, "{checked}");
 }
+
+#[test]
+fn long_answers_follow_the_same_rules() {
+    // The helpers are linear (binary searches, not nested scans): 140,000 characters take well
+    // under a second.
+    let cases = [
+        ("in_unit_plumbing", "yes ".repeat(5000), json!(true)),
+        ("in_unit_plumbing", "not, no, ".repeat(2500), json!(false)),
+        (
+            "in_unit_plumbing",
+            "there is not ".repeat(3000),
+            Value::Null,
+        ),
+        (
+            "in_unit_plumbing",
+            "never ".repeat(4000) + &"no ".repeat(4000),
+            Value::Null,
+        ),
+        ("in_unit_plumbing", "not no ".repeat(20000), Value::Null),
+        (
+            "tenant_subpanel_amps",
+            "400 amps or ".repeat(3000),
+            json!(400),
+        ),
+    ];
+    for (claim, answer, want) in cases {
+        assert_eq!(value(claim, &answer), want, "{claim} {}", &answer[..20]);
+    }
+}

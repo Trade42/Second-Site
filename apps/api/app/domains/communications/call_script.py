@@ -7,6 +7,7 @@ state a value yields a finding with value=None ("unclear"), never a guessed numb
 
 from __future__ import annotations
 
+import bisect
 import re
 from typing import Any
 
@@ -131,15 +132,16 @@ def _skip_space_fwd(text: str, i: int) -> int:
     return i
 
 
-def _affirmed(text: str, m: re.Match[str], words: list[tuple[int, int, str]]) -> bool:
+def _affirmed(text: str, m: re.Match[str], ending: dict[int, str], starting: dict[int, str]) -> bool:
     """A YES match is an affirmation unless a negation is next to it, separated by spaces only: before it
     "not", "never", "cannot", "hardly", "barely", "scarcely" or a contraction ("isn't correct"); after a
     predicate (there is, there's, it has, it does, we have) any negation word ("it does not", "there's no");
-    after an adverb (definitely, absolutely, correct, sure) "not" or "never" ("absolutely not")."""
+    after an adverb (definitely, absolutely, correct, sure) "not" or "never" ("absolutely not").
+    `ending` / `starting` map each word's end / start offset to the word."""
     i = _skip_space_back(text, m.start())
-    before = next((w for _, e, w in words if e == i), None) if i < m.start() else None
+    before = ending.get(i) if i < m.start() else None
     j = _skip_space_fwd(text, m.end())
-    after = next((w for s, _, w in words if s == j), None) if j > m.end() else None
+    after = starting.get(j) if j > m.end() else None
     if before is not None and (_folded(before) in NEGATE_BEFORE or _is_contraction(before)):
         return False
     if m.group(2) and after is not None and _is_negation(after):
@@ -151,20 +153,29 @@ def _affirmed(text: str, m: re.Match[str], words: list[tuple[int, int, str]]) ->
 
 def _negation_before_no(text: str, negations: list[tuple[int, int]], noes: list[tuple[int, int]]) -> bool:
     """A negation word outside every NO match that comes before a NO match in the same clause (no punctuation
-    between them): a double negative such as "it's not that there isn't a sink"."""
+    between them): a double negative such as "it's not that there isn't a sink". Punctuation is any character
+    that is not a word character, a space or "'". NO matches are sorted and do not overlap, so only the last NO
+    match starting at or before the word can contain it, and only the first one after it can be in its clause."""
+    no_starts = [ns for ns, _ in noes]
+    breaks = [i for i, c in enumerate(text) if not (_is_word(c) or c.isspace() or c == "'")]
     for s, e in negations:
-        if any(ns <= s and e <= ne for ns, ne in noes):
+        k = bisect.bisect_right(no_starts, s) - 1
+        if k >= 0 and e <= noes[k][1]:
             continue
-        for ns, _ in noes:
-            if ns >= e and all(_is_word(c) or c.isspace() or c == "'" for c in text[e:ns]):
+        k = bisect.bisect_left(no_starts, e)
+        if k < len(noes):
+            b = bisect.bisect_left(breaks, e)
+            if b == len(breaks) or breaks[b] >= no_starts[k]:
                 return True
     return False
 
 
 def _yes_no(text: str) -> bool | None:
     words = [(m.start(), m.end(), m.group()) for m in WORD.finditer(text)]
+    ending = {e: w for _, e, w in words}
+    starting = {s: w for s, _, w in words}
     noes = [m.span() for m in NO.finditer(text)]
-    affirmed = any(_affirmed(text, m, words) for m in YES.finditer(text))
+    affirmed = any(_affirmed(text, m, ending, starting) for m in YES.finditer(text))
     negations = [(s, e) for s, e, w in words if _is_negation(w)]
     if affirmed and not noes and not negations:
         return True
@@ -222,6 +233,8 @@ def _quantity(pattern: re.Pattern[str], text: str) -> int | None:
         if not (_plain_number(digits) and _stands_alone(text, m.start(), m.end(), starts)):
             return None
         values.add(int(digits.replace(",", "")))
+        if len(values) > 1:
+            return None
     return values.pop() if len(values) == 1 and 0 not in values else None
 
 

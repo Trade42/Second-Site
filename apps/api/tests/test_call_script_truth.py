@@ -276,3 +276,20 @@ def test_typographic_apostrophes_read_like_ascii_ones():
     # the stored answer and a text value keep the original characters
     f = extract(AVAILABLE, "It’s free in May")
     assert f.answer == f.value == "It’s free in May"
+
+
+@pytest.mark.parametrize(
+    ("q", "answer", "value"),
+    [
+        (PLUMBING, "yes " * 5000, True),
+        (PLUMBING, "not, no, " * 2500, False),
+        (PLUMBING, "there is not " * 3000, None),
+        (PLUMBING, "never " * 4000 + "no " * 4000, None),
+        (PLUMBING, "not no " * 20000, None),
+        (AMPS, "400 amps or " * 3000, 400),
+    ],
+    ids=["yes", "not-comma-no", "there-is-not", "never-then-no", "not-no", "amps-or"],
+)
+def test_long_answers_follow_the_same_rules(q, answer, value):
+    # The helpers are linear (dicts and bisect, not nested scans): 140,000 characters take well under a second.
+    assert extract(q, answer).value == value

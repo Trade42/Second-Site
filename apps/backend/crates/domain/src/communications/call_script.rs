@@ -222,18 +222,25 @@ fn skip_space_fwd(t: &str, mut i: usize) -> usize {
 /// by spaces only: before it one of [`NEGATE_BEFORE`] or a contraction ("isn't correct"); after a
 /// predicate (group 2: there is, there's, it has, it does, we have) any negation word ("it does
 /// not", "there's no"); after an adverb (group 3: definitely, absolutely, correct, sure) one of
-/// [`NEGATE_AFTER_ADVERB`] ("absolutely not").
+/// [`NEGATE_AFTER_ADVERB`] ("absolutely not"). `words` are the word spans, sorted and not
+/// overlapping, so both their starts and their ends are sorted (Python looks them up in dicts).
 fn affirmed(t: &str, m: &PyMatch<'_>, words: &[(usize, usize)]) -> bool {
     let (start, end) = m.span();
     let i = skip_space_back(t, start);
     let before = if i < start {
-        words.iter().find(|w| w.1 == i).map(|w| &t[w.0..w.1])
+        words
+            .binary_search_by_key(&i, |w| w.1)
+            .ok()
+            .map(|k| &t[words[k].0..words[k].1])
     } else {
         None
     };
     let j = skip_space_fwd(t, end);
     let after = if j > end {
-        words.iter().find(|w| w.0 == j).map(|w| &t[w.0..w.1])
+        words
+            .binary_search_by_key(&j, |w| w.0)
+            .ok()
+            .map(|k| &t[words[k].0..words[k].1])
     } else {
         None
     };
@@ -251,18 +258,24 @@ fn affirmed(t: &str, m: &PyMatch<'_>, words: &[(usize, usize)]) -> bool {
 
 /// Python's `_negation_before_no`: a negation word outside every NO match that comes before a NO
 /// match in the same clause (no punctuation between them), a double negative such as "it's not
-/// that there isn't a sink".
+/// that there isn't a sink". Punctuation is any character that is not a word character, a space
+/// or `'`. NO matches are sorted and do not overlap, so only the last NO match starting at or
+/// before the word can contain it, and only the first one after it can be in its clause.
 fn negation_before_no(t: &str, negations: &[(usize, usize)], noes: &[(usize, usize)]) -> bool {
+    let breaks: Vec<usize> = t
+        .char_indices()
+        .filter(|&(_, c)| !(is_word(c) || py::is_space(c) || c == '\''))
+        .map(|(i, _)| i)
+        .collect();
     for &(s, e) in negations {
-        if noes.iter().any(|&(ns, ne)| ns <= s && e <= ne) {
+        let k = noes.partition_point(|&(ns, _)| ns <= s);
+        if k > 0 && e <= noes[k - 1].1 {
             continue;
         }
-        for &(ns, _) in noes {
-            if ns >= e
-                && t[e..ns]
-                    .chars()
-                    .all(|c| is_word(c) || py::is_space(c) || c == '\'')
-            {
+        let k = noes.partition_point(|&(ns, _)| ns < e);
+        if let Some(&(ns, _)) = noes.get(k) {
+            let b = breaks.partition_point(|&p| p < e);
+            if breaks.get(b).is_none_or(|&p| p >= ns) {
                 return true;
             }
         }
@@ -310,7 +323,7 @@ fn plain_number(digits: &str) -> bool {
 /// or one of [`NUMBER_OPENERS`]; no digit is joined to it on the left by spaces alone ("1 128"),
 /// by one of [`NUMBER_JOINERS`] ("200-400", "200, 400") or by one of [`JOIN_WORDS_BEFORE`] ("200 to
 /// 400 amps"), nor on the right by one of [`JOIN_WORDS_AFTER`], unless that digit starts another
-/// unit match (in `starts`), which the caller compares ("200 amps or 400").
+/// unit match (in `starts`, sorted), which the caller compares ("200 amps or 400").
 fn stands_alone(t: &str, start: usize, end: usize, starts: &[usize]) -> bool {
     if let Some(c) = char_before(t, start) {
         if !(py::is_space(c) || NUMBER_OPENERS.contains(c)) {
@@ -340,7 +353,7 @@ fn stands_alone(t: &str, start: usize, end: usize, starts: &[usize]) -> bool {
     }
     if i > end && listed(&JOIN_WORDS_AFTER, &t[i..j]) {
         i = skip_space_fwd(t, j);
-        if char_at(t, i).is_some_and(py::is_decimal) && !starts.contains(&i) {
+        if char_at(t, i).is_some_and(py::is_decimal) && starts.binary_search(&i).is_err() {
             return false;
         }
     }
@@ -363,6 +376,9 @@ fn quantity(re: &PyRegex, t: &str) -> Option<i64> {
         let n: i64 = digits.replace(',', "").parse().ok()?;
         if !values.contains(&n) {
             values.push(n);
+        }
+        if values.len() > 1 {
+            return None;
         }
     }
     match values.as_slice() {
