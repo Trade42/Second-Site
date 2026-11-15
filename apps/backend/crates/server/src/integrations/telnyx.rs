@@ -81,6 +81,12 @@ pub struct LiveTelnyxProvider {
     client: HttpClient,
 }
 
+/// The Dial command's `answering_machine_detection` value that turns detection off (Telnyx API
+/// reference, Dial: enum `premium | premium_ios_call_screening_detection | detect | detect_beep
+/// | detect_words | greeting_end | disabled`, default `disabled`). Sent on a dial to the owner's
+/// test number.
+pub const AMD_OFF: &str = "disabled";
+
 /// The refusal while live calls are restricted to the owner's test number and none is set.
 pub const ONLY_TO_REFUSAL: &str =
     "live call not dialed, nothing was sent to the carrier: live calls are restricted to the \
@@ -218,6 +224,13 @@ impl LiveTelnyxProvider {
             "answering_machine_detection": "detect",
             "timeout_secs": 40,
         });
+        // A test call rings the owner's own phone: there is no voicemail to protect, and on the
+        // first real call the detection took the answer for a machine within a second and the
+        // call was hung up. `disabled` is a documented value of the Dial command's
+        // `answering_machine_detection` (and its default). A contact's dial is unchanged.
+        if test_number.is_some() {
+            body["answering_machine_detection"] = Value::String(AMD_OFF.into());
+        }
         if let Some(cs) = client_state.filter(|c| !c.is_empty()) {
             body["client_state"] = Value::String(encode_client_state(cs));
         }
