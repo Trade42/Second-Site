@@ -237,6 +237,7 @@ fn bill_of_materials_replaces_the_ffe_allowance() {
         estimated_total_minor: 987_654,
         approved_total_minor: None,
         status: "DRAFT".into(),
+        floor: ss_nessie::plan::BomFloor::NotAnEstimate,
     };
     let plan = plan_move_in_payments(&s, Some(&bom), Simulation::FixtureBank, None).unwrap();
     let f = plan.payment(ITEM_FURNISHING).unwrap();
