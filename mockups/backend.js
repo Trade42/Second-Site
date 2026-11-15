@@ -17,7 +17,34 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const words = s => String(s || '').toLowerCase().replace(/_/g, ' ');
 // The page inserts finding, room and item text as HTML, so backend text is escaped here.
 export const html = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const isFixture = origin => String(origin || '').startsWith('FIXTURE_');
+// Where a record comes from, from the backend's own labels. Only FIXTURE_SYNTHETIC (or provider
+// "fixture") is demo data. FIXTURE_REAL is a genuine record from a dated snapshot (the CoStar data kit),
+// never "demo", "synthetic" or "live". LIVE is a live provider answer. Anything else stays "not stated".
+export function sourceOf(provider, origin) {
+  if (origin === 'FIXTURE_SYNTHETIC' || provider === 'fixture') return 'synthetic';
+  if (origin === 'FIXTURE_REAL') return 'snapshot';
+  if (origin === 'LIVE') return 'live';
+  return 'unknown';
+}
+const PROVIDER = { costar: 'CoStar', matterport: 'Matterport', vexcel: 'Vexcel' };
+const providerName = p => PROVIDER[p] || (p ? cap(String(p)) : 'Provider not stated');
+export function listingSource(cl = {}) {
+  const kind = sourceOf(cl.provider, cl.data_origin);
+  const label = kind === 'synthetic' ? 'Demo data'
+    : kind === 'snapshot' ? (cl.provider === 'costar' ? 'CoStar listing (data-kit snapshot)' : `${providerName(cl.provider)} record (data snapshot)`)
+    : kind === 'live' ? `${providerName(cl.provider)} listing (live)` : 'Source not stated';
+  return { kind, label };
+}
+// workspace.js puts p.address, p.short and p.suite into chat HTML unescaped (its lines 396, 400, 675,
+// 681, 711) and escapes them elsewhere; text without < and > is safe both ways.
+const plain = s => String(s ?? '').replace(/[<>]/g, '');
+// workspace.js (compareTurn) builds `new RegExp(<last word of p.short>)`: a bracket or quantifier in a
+// unit ("(Rear)", "*") would throw there, so `short` carries none.
+const reSafe = s => s.replace(/[\\^$*+?()[\]{}|]/g, '').replace(/\s+/g, ' ').trim();
+// An image link the page puts into src="…" unescaped: http(s) only, serialized by the URL parser
+// (which percent-encodes quotes and angle brackets).
+export const safeUrl = u => { try { const x = new URL(String(u)); return /^https?:$/.test(x.protocol) ? x.href : null; } catch { return null; } };
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 
 /* ------------------------------------------------------------ configuration */
 
@@ -28,9 +55,14 @@ export function config(search = globalThis.location?.search || '') {
 
 /* ------------------------------------------------- pure mapping: stage 1 */
 
+// The rooms answer is known only as a whole number above zero. The page searches after every answer;
+// before this one the link neither creates the project nor searches (no room count is invented).
+export const roomsKnown = (req = {}) => Number.isInteger(req.rooms) && req.rooms > 0;
 // The search stage's chat answers (the page's S.req) -> the project's business profile.
 // Only what the person said is sent. Rooms beyond treatment and reception, capital and reserve were not
-// asked, so they are left out (the backend keeps them unknown).
+// asked, so they are left out (the backend keeps them unknown). The contract requires business_type
+// (non-empty), current_location_count, target_market and space_requirements; rent, opening and areas are
+// optional and are left out or null when not answered.
 export function profileFromAnswers(req = {}) {
   const facial = req.business === 'Facial studio';
   const type = facial ? 'facial_studio' : String(req.business || 'unspecified').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unspecified';
@@ -39,15 +71,15 @@ export function profileFromAnswers(req = {}) {
     business_description: req.business ? `${req.business} (from the workspace chat)` : null,
     current_location_count: 1,
     target_market: { city: 'Los Angeles', state: 'CA' },
-    monthly_rent_limit: Number.isFinite(req.rent) ? Math.round(req.rent) * 100 : null,
+    monthly_rent_limit: Number.isFinite(req.rent) && req.rent > 0 ? Math.round(req.rent) * 100 : null,
     source_references: [{ field: '*', source: 'workspace chat answers', confirmation_status: 'CONFIRMED', note: 'Typed or chosen by the person in the search stage' }],
     confirmation_status: 'CONFIRMED',
   };
-  if (Number.isInteger(req.rooms)) profile.space_requirements = { required_rooms: { treatment: req.rooms, reception: 1 } };
+  profile.space_requirements = roomsKnown(req) ? { required_rooms: { treatment: req.rooms, reception: 1 } } : {}; // required by the contract
   return profile;
 }
 export function searchBody(req = {}) {
-  return { city: 'Los Angeles', state: 'CA', limit: 20, max_monthly_rent: Number.isFinite(req.rent) ? Math.round(req.rent) * 100 : null };
+  return { city: 'Los Angeles', state: 'CA', limit: 20, max_monthly_rent: Number.isFinite(req.rent) && req.rent > 0 ? Math.round(req.rent) * 100 : null };
 }
 
 // The page's four areas, derived from the backend's coordinates (the backend has no such field).
@@ -68,35 +100,81 @@ export function shortAddress(street) {
   return keep.slice(0, 3).map(w => (/^\d/.test(w) ? w : cap(w.toLowerCase()))).join(' ');
 }
 
-// One backend property record -> one POOL entry. `src` is "live-<id>", never one of the three real
-// listings' asset folders, so the page's own "Demo property" label (id !== src) shows and no local
-// photo, scan or plan of a real listing is shown for it (asset() returns a neutral image instead).
-export function poolEntry(rec) {
-  const id = rec.property_id, ident = rec.property_identity || {}, cl = rec.commercial_listing || {};
-  const fixture = isFixture(cl.data_origin) || cl.provider === 'fixture';
-  const unit = ident.unit_or_suite;
+// The listing's Matterport scans: the suite's own scan (measured geometry) first.
+export function scansOf(rec) {
+  const all = (rec.interior_assets || []).filter(a => a.provider === 'matterport' || a.asset_type === 'matterport_model');
+  const suite = all.find(a => a.has_measured_geometry) || null;
   return {
-    id, src: 'live-' + id, photo: 'none',
-    address: ident.street_address || ident.normalized_address || 'Address not stated',
-    short: shortAddress(ident.street_address),
-    suite: [unit, fixture ? 'Demo data' : null].filter(Boolean).join(' · ') || 'Unit not stated',
+    suite: suite ? { asset_id: suite.asset_id, label: suite.label ?? null, data_origin: suite.data_origin, area_sqm: suite.area_sqm ?? null } : null,
+    all: all.map(a => ({ asset_id: a.asset_id, label: a.label ?? null, data_origin: a.data_origin, matches_listing_unit: a.matches_listing_unit ?? null, has_measured_geometry: !!a.has_measured_geometry })),
+    text: suite ? (sourceOf(suite.provider, suite.data_origin) === 'synthetic' ? '3D scan of this suite (demo data)' : '3D scan of this suite') : all.length ? 'Building scans only' : 'No 3D scan',
+  };
+}
+// The listing's images: its own photo (provider CDN link, loaded by the browser only), else the
+// Vexcel aerial image the backend serves without a token, else none.
+export function imagesOf(rec, api = '') {
+  const cl = rec.commercial_listing || {};
+  const photo = (cl.photo_urls || []).map(safeUrl).find(Boolean) || null;
+  const ax = (rec.exterior_assets || []).find(a => a.provider === 'vexcel' && sourceOf(a.provider, a.data_origin) === 'live');
+  const aerial = ax && (api || /^https?:\/\//.test(String(ax.url || ''))) ? {
+    url: safeUrl(/^https?:\/\//.test(String(ax.url || '')) ? ax.url : api + (ax.url || `/api/v1/media/vexcel/ortho/${encodeURIComponent(rec.property_id)}`)),
+    captured_at: ax.captured_at || null,
+    caption: `Aerial image, Vexcel, ${ax.captured_at ? `captured ${ax.captured_at}` : 'capture date not stated'}`,
+  } : null;
+  const photoCaption = photo ? `${cl.provider === 'costar' ? 'CoStar' : providerName(cl.provider)} photo` : null;
+  return { photo, photoCaption, aerial, files: [photo ? 'listing-photo' : null, aerial ? 'aerial-vexcel' : null].filter(Boolean) };
+}
+// One backend property record -> one POOL entry.
+// `src`: a synthetic (demo) listing gets "live-<id>", so the page's own "Demo property" label
+// (id !== src) shows for it. A real listing (CoStar kit snapshot or live) gets src = id, so that label
+// does not show. Either way src is never one of the page's three listing asset folders, and asset()
+// below answers for every backend listing, so no local photo, scan or plan of another listing is used.
+export function poolEntry(rec, api = '') {
+  const id = rec.property_id, ident = rec.property_identity || {}, cl = rec.commercial_listing || {};
+  const source = listingSource(cl), fixture = source.kind === 'synthetic';
+  const unit = plain(ident.unit_or_suite).replace(/\s+/g, ' ').trim();
+  const rentKnown = Number.isInteger(cl.asking_rent_monthly), sqft = toSqft(cl.available_area_sqm);
+  const img = imagesOf(rec, api), scans = scansOf(rec);
+  // The page prints `suite · <sqft> SF` and `money(rent)`; unknown rent and area are said here in words
+  // (the page itself prints $0 and 0 SF for them; see the report).
+  const suite = [unit ? clip(unit, 32) : 'Unit not stated', source.label, rentKnown ? null : 'rent not stated', sqft == null ? 'area not stated' : null].filter(Boolean).join(' · ');
+  return {
+    id, src: fixture ? 'live-' + id : id, photo: img.files[0] || 'none',
+    address: plain(ident.street_address || ident.normalized_address) || 'Address not stated',
+    short: reSafe(plain(shortAddress(ident.street_address))) || 'Address not stated',
+    suite,
     hood: ident.city || 'Los Angeles', zone: zoneOf(ident.latitude, ident.longitude),
-    rent: toDollars(cl.asking_rent_monthly) ?? 0, rentKnown: Number.isInteger(cl.asking_rent_monthly),
-    sqft: toSqft(cl.available_area_sqm) ?? 0,
+    rent: toDollars(cl.asking_rent_monthly) ?? 0, rentKnown,
+    sqft: sqft ?? 0, sqftKnown: sqft != null,
     use: cl.property_type || 'Use not stated', lease: cl.lease_service_type || 'Lease type not stated',
     broker: cl.broker_contact?.company || cl.brokerage_company || 'Broker not stated',
     lat: ident.latitude, lon: ident.longitude,
-    live: { fixture, provider: cl.provider, data_origin: cl.data_origin, disclaimer: cl.disclaimer || null, listing_id: cl.provider_listing_id },
+    live: {
+      fixture, source: source.kind, source_label: source.label, provider: cl.provider, data_origin: cl.data_origin,
+      disclaimer: cl.disclaimer || null, listing_id: cl.provider_listing_id, unit: unit || null, source_record_date: cl.source_record_date || null,
+      photo_url: img.photo, photo_caption: img.photoCaption, aerial: img.aerial, images: img.files,
+      scan: scans.suite, scans: scans.all, scan_text: scans.text,
+    },
   };
 }
+// Two listings with the same short address (one building, two suites): add the unit so the page's
+// chat lines ("<short> needs about …") say which one.
+export function disambiguate(pool) {
+  const n = {};
+  for (const p of pool) n[p.short] = (n[p.short] || 0) + 1;
+  for (const p of pool) if (n[p.short] > 1 && reSafe(p.live?.unit || '')) p.short = `${p.short}, ${clip(reSafe(p.live.unit), 20)}`;
+  return pool;
+}
 // The tooltip text for a live listing (page's SPACE_NOTES shape), from the record only.
-export function spaceNotes(rec) {
+export function spaceNotes(rec, api = '') {
   const cl = rec.commercial_listing || {}, a = rec.infrastructure_assessments || [];
   const count = s => a.filter(x => x.status === s).length;
+  const source = listingSource(cl), img = imagesOf(rec, api), scans = scansOf(rec);
+  const image = [img.photoCaption ? `Image: ${img.photoCaption}.` : null, img.aerial ? `${img.photoCaption ? 'Also: ' : 'Image: '}${img.aerial.caption}.` : null].filter(Boolean).join(' ');
   return {
-    description: [cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null].filter(Boolean).join(' ') || 'No description from the listing.',
-    pros: a.filter(x => x.status === 'MEETS').map(x => requirementLabel(x.requirement_id) + ': meets').slice(0, 2).concat(count('MEETS') ? [] : ['No requirement confirmed as met']).slice(0, 2),
-    cons: [count('UNKNOWN') ? `${count('UNKNOWN')} requirement(s) unknown` : null, count('MAY_REQUIRE_WORK') ? `${count('MAY_REQUIRE_WORK')} may need work` : null, ...(rec.missing_information || [])].filter(Boolean).slice(0, 3),
+    description: [`${source.label}.`, `${scans.text}.`, image || null, cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null].filter(Boolean).join(' '),
+    pros: [scans.suite ? '3D scan of this suite (a layout can be generated)' : null, ...a.filter(x => x.status === 'MEETS').map(x => requirementLabel(x.requirement_id) + ': meets')].filter(Boolean).concat(count('MEETS') ? [] : ['No requirement confirmed as met']).slice(0, 2),
+    cons: [scans.suite ? null : `${scans.text}: no layout without a scan of the suite`, count('UNKNOWN') ? `${count('UNKNOWN')} requirement(s) unknown` : null, count('MAY_REQUIRE_WORK') ? `${count('MAY_REQUIRE_WORK')} may need work` : null, ...(rec.missing_information || [])].filter(Boolean).slice(0, 3),
   };
 }
 
@@ -110,7 +188,7 @@ export const requirementLabel = rid => LABELS[String(rid).split('.').slice(1).jo
 const TOPIC = { plumbing: 'plumbing', electrical: 'power', hvac: 'hvac', space: 'layout' }; // ids the page's chat topics use
 const STATUS = {
   MEETS: { sev: 'low', impact: 'Meets, per the evidence' }, MAY_REQUIRE_WORK: { sev: 'mid', impact: 'May need work' },
-  DOES_NOT_MEET: { sev: 'high', impact: 'Does not meet' }, UNKNOWN: { sev: 'unk', impact: 'Unknown' }, CONFLICTING: { sev: 'unk', impact: 'Conflicting evidence' },
+  DOES_NOT_MEET: { sev: 'high', impact: 'Does not meet' }, FAILS: { sev: 'high', impact: 'Does not meet' }, UNKNOWN: { sev: 'unk', impact: 'Unknown' }, CONFLICTING: { sev: 'unk', impact: 'Conflicting evidence' },
 };
 // Evidence classes kept apart in words; the page's four kinds only pick the styling.
 const CLASS_KIND = { historical: 'documented', verified: 'documented', measured: 'observed', visual: 'observed', 'owner-reported': 'estimate', derived: 'estimate', unknown: 'unknown', conflicting: 'unknown' };
@@ -124,7 +202,11 @@ export function evidenceClassOf(assessment, rec) {
     const first = uniq[0];
     return { cls: 'historical', text: `Historical permit ${uniq.map(p => p.permit_number).join(', ')} (${first.permit_status || 'status not stated'}${first.data_origin === 'FIXTURE_REAL' ? ', stored snapshot of public LA records' : ''}), not current capacity` };
   }
-  if (/listing/i.test(assessment.uncertainty || '') || /listing/i.test((assessment.limitations || []).join(' '))) return { cls: 'derived', text: 'Derived from the listing (demo data), not measured' };
+  if (/listing/i.test(assessment.uncertainty || '') || /listing/i.test((assessment.limitations || []).join(' '))) {
+    const src = listingSource(rec.commercial_listing || {});
+    const from = src.kind === 'synthetic' ? 'the listing (demo data)' : src.kind === 'snapshot' && rec.commercial_listing?.provider === 'costar' ? 'the CoStar listing (data-kit snapshot)' : 'the listing';
+    return { cls: 'derived', text: `Derived from ${from}, not measured` };
+  }
   return { cls: 'unknown', text: 'No evidence record' };
 }
 // Feasibility assessments of one property -> the page's `issues`. UNKNOWN is never shown as met and gets
@@ -205,13 +287,37 @@ export function catalogFrom(bom, rooms) {
     const id = pieces ? `${it.item_type}@${room}` : `${it.item_type}@${it.bom_item_id}`;
     const cents = pieces ? it.unit_price_estimate : Math.round(it.unit_price_estimate * q);
     if (!cat.has(id)) cat.set(id, {
-      id, room, name: html(`${cap(words(it.item_type))}${pieces ? '' : `, ${it.quantity} ${it.unit}`}, ${isFixture(it.price_origin) ? 'fixture price, not a quote' : 'estimate'}`),
+      id, room, name: html(`${cap(words(it.item_type))}${pieces ? '' : `, ${it.quantity} ${it.unit}`}, ${priceWords(it.price_origin)}`),
       kw: words(it.item_type), w: 0, d: 0, h: 0, price: toDollars(cents) ?? 0,
       by: 'Not available', lead: 'Not available', at: [[0.5, 0.5]], live: { price_origin: it.price_origin, price_note: it.price_note },
     });
     for (let i = 0; i < (pieces ? q : 1); i++) placed.push({ c: id, r: it.room_id, st: 'placed' });
   }
   return { cat: [...cat.values()], placed, estimated_total: toDollars(bom.estimated_total), status: bom.status };
+}
+// A BOM price's origin in words. None of them is a supplier quote.
+export function priceWords(origin) {
+  const k = sourceOf(null, origin);
+  return k === 'synthetic' ? 'fixture price, not a quote' : k === 'snapshot' ? 'catalog snapshot price, not a quote' : k === 'live' ? 'live catalog price, not a quote' : 'estimate, not a quote';
+}
+// A layout's floor geometry origin in words (the chat note after a layout).
+export function geometryWords(g = {}) {
+  const k = sourceOf(null, g.data_origin);
+  const from = k === 'synthetic' ? ' (synthetic fixture)' : k === 'snapshot' ? ' (stored snapshot)' : k === 'live' ? ' (live provider data)' : ' (origin not stated)';
+  return `${words(g.geometry_source) || 'source not stated'}${from}${g.scale_verified ? '' : ', scale not verified'}`;
+}
+// The note after a search: each kind counted separately, nothing said for a zero count.
+export function searchNote(pool) {
+  const n = k => pool.filter(p => p.live?.source === k).length;
+  const parts = [
+    n('snapshot') ? `${n('snapshot')} ${n('snapshot') === 1 ? 'is a real CoStar listing' : 'are real CoStar listings'} from the data-kit snapshot (dated records, not a live feed)` : null,
+    n('live') ? `${n('live')} from a live listing provider` : null,
+    n('synthetic') ? `${n('synthetic')} ${n('synthetic') === 1 ? 'is' : 'are'} synthetic demo data (fixture), not CoStar records` : null,
+    n('unknown') ? `${n('unknown')} with no source stated` : null,
+  ].filter(Boolean);
+  if (!pool.length || !parts.length) return null;
+  const scans = pool.filter(p => p.live?.scan).length;
+  return `Of ${pool.length} ${pool.length === 1 ? 'listing' : 'listings'} from the backend, ${parts.join('; ')}. ${scans ? `${scans} ${scans === 1 ? 'has' : 'have'} a 3D scan of the suite itself, so a layout can be generated there.` : 'None has a 3D scan of the suite itself, so no layout can be generated yet.'}`;
 }
 // Owner texts saved by Photon as design-change notes -> read-only chat notes.
 export function ownerTextNotes(comms) {
@@ -225,7 +331,8 @@ export function ownerTextNotes(comms) {
 /* --------------------------------------------------------------- HTTP */
 
 export class Backend {
-  constructor(api, fetchImpl = globalThis.fetch) { this.api = api; this.fetch = fetchImpl; this.token = null; this.project = null; }
+  // The wrapper matters in a browser: window.fetch called as a method of this object throws "Illegal invocation".
+  constructor(api, fetchImpl = globalThis.fetch) { this.api = api; this.fetch = (...args) => fetchImpl(...args); this.token = null; this.project = null; }
   async req(method, path, body) {
     const headers = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
@@ -297,13 +404,17 @@ export function chatFailure(e) {
 
 // A neutral image in place of any local listing asset for a backend listing.
 const NEUTRAL = (text, origin) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect width="400" height="300" fill="#ECEBE7"/><text x="200" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#6B6A66">${text}</text><text x="200" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" fill="#8A8985">${origin}</text></svg>`);
-export function asset(src, f) {
-  if (!String(src).startsWith('live-')) return undefined; // the page's own path
-  // Say "fixture" only for a listing the backend marked as fixture data (review fix: it said so for every listing).
-  const fixture = page?.P?.[String(src).slice(5)]?.live?.fixture;
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect width="400" height="300" fill="#ECEBE7"/><text x="200" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#6B6A66">${html(text)}</text><text x="200" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" fill="#8A8985">${html(origin)}</text></svg>`);
+// The page asks for an image by (p.src, file). Every backend listing is answered here: synthetic ones by
+// "live-<id>", real ones by their id (see poolEntry). The page's own listings get undefined (its own path).
+export function asset(src, f, P = page?.P) {
+  src = String(src);
+  const p = P?.[src.startsWith('live-') ? src.slice(5) : src], L = p?.live;
+  if (!L && !src.startsWith('live-')) return undefined;
+  if (L && f === 'listing-photo' && L.photo_url) return L.photo_url;
+  if (L && (f === 'aerial-vexcel' || /vexcel/.test(f)) && L.aerial) return L.aerial.url; // the ortho image for every direction
   return NEUTRAL(/floorplan/.test(f) ? 'No floor plan image' : /vexcel/.test(f) ? 'No aerial image' : 'No photo',
-    fixture ? 'Demo data from the backend (fixture)' : 'From the backend; no image provided');
+    !L ? 'From the backend; no image provided' : L.fixture ? 'Demo data from the backend (fixture)' : `${L.source_label}; no image provided`);
 }
 
 let page = null, backend = null;
@@ -327,8 +438,17 @@ function addPin(p) {
 }
 function dropPin(id) { markers[id]?.remove(); delete markers[id]; delete page.pins[id]; }
 // Stage 1: after each search-stage answer. Replaces the listing pool with the backend's results.
-export async function search(S) {
+let waitNoted = false;
+// One search at a time: the page's inline answer edit (workspace.js line 332) is not guarded by its
+// `busy` flag, so a second search could start while the first is still creating the project.
+let queue = Promise.resolve();
+export function search(S) { const run = queue.then(() => searchNow(S)); queue = run.catch(() => {}); return run; }
+async function searchNow(S) {
   if (!S.req.business) return; // nothing to search for until the business is known
+  if (!roomsKnown(S.req)) { // said once, not after every answer
+    if (!waitNoted) { waitNoted = true; page.note(page.esc('Live results start once you have said how many rooms you need.')); }
+    return;
+  }
   backend.lastRooms = Number.isInteger(S.req.rooms) ? { treatment: S.req.rooms, reception: 1, storage: 1 } : null;
   let results;
   try { results = await backend.search(S.req); } catch (e) { page.note(page.esc(`Live search failed: ${e.message}`)); return; }
@@ -336,14 +456,16 @@ export async function search(S) {
   for (const id of Object.keys(P)) if (!results.some(r => r.rec.property_id === id)) { dropPin(id); delete P[id]; }
   POOL.length = 0; FILL.length = 0;
   for (const { rec, assessments, scenarios } of results) {
-    const p = poolEntry(rec); POOL.push(p); P[p.id] = p; FILL.push(p.id);
-    D[p.src] = detailEntry(rec, assessments, scenarios); SPACE_NOTES[p.id] = spaceNotes(rec); addPin(p);
+    const p = poolEntry(rec, backend.api); POOL.push(p); P[p.id] = p; FILL.push(p.id);
+    D[p.src] = { ...detailEntry(rec, assessments, scenarios), photos: p.live.images.length ? p.live.images : ['none'] };
+    SPACE_NOTES[p.id] = spaceNotes(rec, backend.api); addPin(p);
   }
+  disambiguate(POOL);
   // Remove saved or shown ids the backend no longer returns (the page would look them up and fail).
   S.slots = S.slots.map(id => (id && P[id] ? id : null));
   S.saved = S.saved.filter(id => P[id]); if (S.open && !P[S.open]) S.open = null;
-  const fx = POOL.filter(p => p.live.fixture).length;
-  if (fx) page.note(page.esc(`${fx} of ${POOL.length} listings from the backend are synthetic demo data (fixture), not CoStar records.`));
+  const msg = searchNote(POOL);
+  if (msg) page.note(page.esc(msg));
 }
 // Stage 3: before the Furnish stage opens. False keeps the page in Compare.
 export async function furnish(S) {
@@ -356,7 +478,7 @@ export async function furnish(S) {
     Object.assign(d, { plan, rooms, bom: cat, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
     for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
     const g = out.geometry;
-    page.note(page.esc(`Layout version ${out.layout.version_number} for ${p.address}: ${out.layout.approval_status.toLowerCase()}, ${out.layout.validation_report?.disclaimer || 'not an approved plan'} Floor geometry: ${words(g.geometry_source)}${isFixture(g.data_origin) ? ' (synthetic fixture)' : ''}${g.scale_verified ? '' : ', scale not verified'}. Room minimums used: demo defaults (treatment 10 m² and 2.8 m wide, reception 12 m², storage 4 m²), not your answers. Bill of materials ${words(cat.status)}: ${cat.cat.length} item types, prices are fixture planning prices, not supplier quotes.`));
+    page.note(page.esc(`Layout version ${out.layout.version_number} for ${p.address}: ${out.layout.approval_status.toLowerCase()}, ${out.layout.validation_report?.disclaimer || 'not an approved plan'} Floor geometry: ${geometryWords(g)}. Room minimums used: demo defaults (treatment 10 m² and 2.8 m wide, reception 12 m², storage 4 m²), not your answers. Bill of materials ${words(cat.status)}: ${cat.cat.length} item types, prices: ${[...new Set((out.bom.items || []).map(i => priceWords(i.price_origin)))].join('; ') || 'none'}.`));
   }
   if (!S.placed.length || S.chosen !== S.finalist) S.placed = d.bom.placed.map(x => ({ ...x }));
   ownerTexts();

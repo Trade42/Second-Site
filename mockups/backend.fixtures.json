@@ -1462,5 +1462,193 @@
   "grounded_record_ids": [
    "7a1ee3c3-7fa4-4cac-aae8-e05a7a457193"
   ]
+ },
+ "synthetic_kit_shaped": {
+  "_note": "SYNTHETIC. Hand-written in the shape of CoStar data-kit records (provider costar, FIXTURE_REAL), with invented addresses, ids, scans and URLs. Not CoStar data; no kit record was copied. a005 is an invented LIVE-origin record for the label test.",
+  "records": [
+   {
+    "property_id": "00000000-0000-4000-8000-00000000a001",
+    "property_identity": {
+     "street_address": "100 S Example Ave",
+     "city": "Los Angeles",
+     "state": "CA",
+     "unit_or_suite": "Suite 210",
+     "latitude": 34.0412,
+     "longitude": -118.2501
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "SYN-a001",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "lease",
+     "property_type": "Retail",
+     "lease_service_type": "Triple net",
+     "currency": "USD",
+     "photo_urls": [
+      "https://photos.example.invalid/syn-1.jpg"
+     ],
+     "source_record_date": "2026-05-01",
+     "disclaimer": "CoStar data kit snapshot (certified 2026-05-01); asking terms, not achieved rent.",
+     "asking_rent_monthly": 412550,
+     "available_area_sqm": 120.77
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "SYNSCAN0001",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "label": "Suite 210",
+      "area_sqm": 118.4,
+      "matches_listing_unit": true,
+      "has_measured_geometry": true,
+      "url": null
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.041200,-118.250100",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": "2026-03-14",
+      "url": "http://127.0.0.1:8010/api/v1/media/vexcel/ortho/00000000-0000-4000-8000-00000000a001"
+     }
+    ],
+    "infrastructure_assessments": [],
+    "missing_information": []
+   },
+   {
+    "property_id": "00000000-0000-4000-8000-00000000a002",
+    "property_identity": {
+     "street_address": "100 S Example Ave",
+     "city": "Los Angeles",
+     "state": "CA",
+     "unit_or_suite": "Suite 305",
+     "latitude": 34.0412,
+     "longitude": -118.2501
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "SYN-a002",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "lease",
+     "property_type": "Retail",
+     "lease_service_type": "Triple net",
+     "currency": "USD",
+     "photo_urls": [],
+     "source_record_date": "2026-05-01",
+     "disclaimer": "CoStar data kit snapshot (certified 2026-05-01); asking terms, not achieved rent.",
+     "asking_rent_monthly": 389900,
+     "available_area_sqm": 96.6
+    },
+    "interior_assets": [
+     {
+      "provider": "matterport",
+      "asset_id": "SYNSCAN0002",
+      "asset_type": "matterport_model",
+      "data_origin": "LIVE",
+      "label": "Lobby and common areas",
+      "matches_listing_unit": false,
+      "has_measured_geometry": false,
+      "url": null
+     }
+    ],
+    "exterior_assets": [
+     {
+      "provider": "vexcel",
+      "asset_id": "ortho:34.041200,-118.250100",
+      "asset_type": "orthomosaic",
+      "data_origin": "LIVE",
+      "captured_at": null,
+      "url": "/api/v1/media/vexcel/ortho/00000000-0000-4000-8000-00000000a002"
+     }
+    ],
+    "infrastructure_assessments": [],
+    "missing_information": []
+   },
+   {
+    "property_id": "00000000-0000-4000-8000-00000000a003",
+    "property_identity": {
+     "street_address": "2200 Invented Blvd",
+     "city": "Los Angeles",
+     "state": "CA"
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "SYN-a003",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "lease",
+     "property_type": "Retail",
+     "lease_service_type": "Triple net",
+     "currency": "USD",
+     "photo_urls": [],
+     "source_record_date": "2026-05-01",
+     "disclaimer": "CoStar data kit snapshot (certified 2026-05-01); asking terms, not achieved rent."
+    },
+    "interior_assets": [],
+    "exterior_assets": [],
+    "infrastructure_assessments": [],
+    "missing_information": []
+   },
+   {
+    "property_id": "00000000-0000-4000-8000-00000000a004",
+    "property_identity": {
+     "street_address": "45 W Sample St",
+     "city": "Los Angeles",
+     "state": "CA",
+     "unit_or_suite": "Ground floor retail space, front unit facing the street, rear entry",
+     "latitude": 34.0412,
+     "longitude": -118.2501
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "SYN-a004",
+     "data_origin": "FIXTURE_REAL",
+     "listing_type": "lease",
+     "property_type": "Retail",
+     "lease_service_type": "Triple net",
+     "currency": "USD",
+     "photo_urls": [],
+     "source_record_date": "2026-05-01",
+     "disclaimer": "CoStar data kit snapshot (certified 2026-05-01); asking terms, not achieved rent.",
+     "asking_rent_monthly": 500000,
+     "available_area_sqm": 140.0
+    },
+    "interior_assets": [],
+    "exterior_assets": [],
+    "infrastructure_assessments": [],
+    "missing_information": []
+   },
+   {
+    "property_id": "00000000-0000-4000-8000-00000000a005",
+    "property_identity": {
+     "street_address": "9 Placeholder Way",
+     "city": "Los Angeles",
+     "state": "CA",
+     "unit_or_suite": "Unit 1",
+     "latitude": 34.0412,
+     "longitude": -118.2501
+    },
+    "commercial_listing": {
+     "provider": "costar",
+     "provider_listing_id": "SYN-a005",
+     "data_origin": "LIVE",
+     "listing_type": "lease",
+     "property_type": "Retail",
+     "lease_service_type": "Triple net",
+     "currency": "USD",
+     "photo_urls": [],
+     "source_record_date": "2026-05-01",
+     "disclaimer": "CoStar data kit snapshot (certified 2026-05-01); asking terms, not achieved rent.",
+     "asking_rent_monthly": 300000,
+     "available_area_sqm": 80.0
+    },
+    "interior_assets": [],
+    "exterior_assets": [],
+    "infrastructure_assessments": [],
+    "missing_information": []
+   }
+  ]
  }
 }
