@@ -6,7 +6,8 @@
 //   workspace.html?live=1&api=http://host:port  another backend origin
 //
 // What it sends: the dev sign-in, the project and its business profile, the property search, layout
-// generation and reads. Never outreach, calls, approval decisions or payments.
+// generation and reads. Never outreach, calls, approval decisions or payments: those are sent only by
+// the last stage (next-steps.js, loaded at the end of bind()), each by a person's own click.
 // Money from the backend is integer minor units (cents) and geometry is metres; both are converted for
 // display only, in toDollars() and toSqft(). Pure mapping functions are exported for backend.test.mjs.
 
@@ -1137,6 +1138,10 @@ async function verifyRestored(L) {
   return false;
 }
 
+// What next-steps.js gets: the page's tables, the link's client and records (read when used, never copied),
+// and this file's own wording for the bill and the floor.
+export let nextSteps = null; // tests: the promise of the last mount
+export const nextStepsContext = ctx => ({ page: ctx, backend: () => backend, records: () => link?.results || [], lib: { billHead, geometryWords, unitName } });
 // Called once by workspace.js with its data tables (mutated in place) and a few of its functions.
 export function bind(ctx) {
   page = ctx; backend = new Backend(config().api);
@@ -1157,6 +1162,9 @@ export function bind(ctx) {
   if (notice) { kv.del(NOTICE_KEY, 'session'); setTimeout(() => page?.note(page.esc(notice)), 0); }
   viewerElements(); waitStyle(); cardStyle(); watchPage();
   import('./furniture.js').then(m => { nominalSize = typeof m.nominalSize === 'function' ? m.nominalSize : null; }, () => {}); // optional: the tooltip's nominal sizes
+  // The last stage, after Furnish (next-steps.js): what was chosen, an approved simulated call, the simulated
+  // payments. Optional: without the file, or if it fails, the page ends at Furnish as before.
+  nextSteps = import('./next-steps.js').then(m => m.mount?.(nextStepsContext(ctx)) ?? null).catch(e => { console.warn(`next steps did not load (${e?.message}); the page ends at Furnish`); return null; });
   if (config().talk) voiceElements(); // never in plain live mode (the owner, 07:32Z: voice only on a call to the property)
 }
 const markers = {};

@@ -1426,6 +1426,19 @@ await t('assistant reply in the page: turn() shows the cleaned reply', () => wit
   said.length = 0; await B.turn('compare', 'what is the biggest risk here?', S, 5);
   assert.equal(said.length, 1); assert.ok(said[0].startsWith('Best: 100 Alpha St.<br>Next line &lt;b&gt;<br><small>Assistant'), said[0]); assert.doesNotMatch(said[0], new RegExp(U));
 }));
+await t('next steps: bind() loads the last stage, hands it the link’s own client and wording, and survives without a page', async () => {
+  const ctx = { POOL: [], P: {}, D: {}, CAT: [], C: {}, FIRST: [], FILL: [], SPACE_NOTES: {}, pins: {}, a() {}, note() {}, esc: B.html, selectSpace() {} };
+  const S = { stage: 'discover', step: 0, req: {}, slots: [], saved: [], open: null, finalist: null, chosen: null, placed: [] };
+  B.bind({ ...ctx, S: () => S, map: () => null });
+  assert.equal(await B.nextSteps, null, 'no document in Node: nothing is mounted, nothing throws');
+  const c = B.nextStepsContext(ctx);
+  assert.equal(c.page, ctx); assert.ok(c.backend() instanceof B.Backend); assert.deepEqual(c.records(), []);
+  assert.deepEqual(Object.keys(c.lib), ['billHead', 'geometryWords', 'unitName']);
+  assert.equal(c.lib.billHead, B.billHead); assert.equal(c.lib.geometryWords, B.geometryWords); assert.equal(c.lib.unitName, B.unitName);
+  // the link itself still sends none of it: the only mention of these routes in backend.js is the communications read
+  const src = (await import('node:fs')).readFileSync(new URL('./backend.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /\/outreach|\/calls|\/decision|\/handoffs|\/simulate/);
+});
 /* ----------------------------------------------------------------- (b) */
 const URL_ = process.env.BACKEND_URL, ORIGIN = process.env.MOCKUP_ORIGIN || 'http://localhost:8090';
 if (!URL_) console.log('SKIPPED (b) end to end: BACKEND_URL is not set');
