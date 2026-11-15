@@ -326,7 +326,7 @@ await t('hostile and oversized text from the backend is inert and bounded', asyn
   const out = serial(c.h.card);
   assert.doesNotMatch(out, /<img|<script|onerror="/, 'no markup from the backend reaches the page');
   assert.match(out, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/, 'it is shown as text');
-  assert.deepEqual([...new Set(made)].sort(), ['b', 'button', 'div', 'h3', 'h4', 'li', 'ol', 'p', 'section', 'span', 'style', 'ul'], 'only these elements are ever created');
+  assert.deepEqual([...new Set(made)].sort(), ['b', 'button', 'div', 'h3', 'h4', 'input', 'li', 'ol', 'p', 'section', 'span', 'style', 'ul'], 'only these elements are ever created'); // web-link-13: 'input' is the set-up's one input, made with every card (its <label> only where the set-up is drawn)
   for (const n of c.h.card.all()) if (!n.children.length) assert.ok(n.textContent.length <= 700, `a text node of ${n.textContent.length} characters`);
   assert.doesNotMatch(c.text(), /never shown/, 'a plan item id the backend would refuse is not offered');
   assert.match(c.text(), /Monthly rent billamount not given/, 'an amount that is not integer cents is not an amount');
@@ -358,7 +358,90 @@ await t('review: a hostile "simulation" value cannot replace the sentence; a sec
   const after = c2.btn(N.TEXT.run); assert.ok(after && after.disabled, 'the second card turns its run button off'); assert.ok(c2.text().includes(N.TEXT.onceOnly));
   assert.doesNotMatch(N.TEXT.onceOnly, /above/, 'the backend’s line is drawn under the steps');
 });
+/* web-link-13: the set-up asks for a mock opening balance; a refusal's reason is shown beside the button */
+const bodiesOf = s => { const got = [], inner = s.req; s.req = (m, p, b) => { if (m === 'POST' && p.endsWith('/nessie/sandbox')) got.push(b); return inner(m, p, b); }; return got; };
+const inputOf = c => c.h.card.all().find(n => n.tagName === 'INPUT');
+const NO_CAPITAL = () => problem(422, 'VALIDATION_ERROR', 'request validation failed', { errors: [{ type: 'missing', loc: ['body', 'opening_balance_minor'], msg: 'the business profile reports no opening capital; give opening_balance_minor' }] });
+await t('web-link-13: the amount typed is integer cents or one plain line; the offer is the plan’s cash rounded up to $1,000', () => {
+  assert.deepEqual(N.openingCents(''), { empty: true }); assert.deepEqual(N.openingCents('   '), { empty: true });
+  assert.deepEqual(N.openingCents('158,000'), { cents: 15800000 }); assert.deepEqual(N.openingCents('$1,200.5'), { cents: 120050 });
+  assert.deepEqual(N.openingCents('0'), { cents: 0 }); assert.deepEqual(N.openingCents('0.07'), { cents: 7 });
+  assert.deepEqual(N.openingCents('1000000000'), { cents: N.MAX_OPENING_MINOR }, 'the backend’s maximum is taken');
+  for (const bad of ['-5', 'abc', '1e5', '12.345', '1000000000.01', '1000000001', '99999999999', '1.2.3', '.', '５０', 'NaN', '0x10']) assert.deepEqual(N.openingCents(bad), { error: N.TEXT.openingBad }, bad);
+  assert.equal(N.openingOffer({ move_in_cash_expected_minor: 15796475 }), '158,000'); assert.equal(N.openingOffer({ move_in_cash_expected_minor: 15800000 }), '158,000');
+  assert.equal(N.openingOffer({ move_in_cash_expected_minor: 1 }), '1,000'); assert.equal(N.openingOffer({ move_in_cash_expected_minor: 0 }), '0');
+  for (const none of [null, {}, { move_in_cash_expected_minor: '5' }, { move_in_cash_expected_minor: -1 }, { move_in_cash_expected_minor: 1.5 }, { move_in_cash_expected_minor: 2 ** 53 - 1 }]) assert.equal(N.openingOffer(none), '', JSON.stringify(none));
+  assert.deepEqual(N.openingCents(N.openingOffer({ move_in_cash_expected_minor: 15796475 })), { cents: 15800000 }, 'the offer reads back as itself');
+});
+await t('web-link-13: a refusal’s first reason is in the same line, as bounded text', () => {
+  assert.equal(N.say(NO_CAPITAL()), 'request validation failed: the business profile reports no opening capital; give opening_balance_minor');
+  assert.equal(N.say(problem(422, 'VALIDATION_ERROR', 'request validation failed', { errors: [{ loc: ['body', 'amount'], msg: 'Input should be greater than or equal to 0' }, { loc: ['body', 'x'], msg: 'second' }] })), 'request validation failed: amount: Input should be greater than or equal to 0');
+  assert.equal(N.say(problem(409, 'X', 'plain message.', { attempt_status: 'SENT' })), 'plain message.', 'details without reasons change nothing');
+  for (const odd of [{ errors: 'x' }, { errors: [null, 7, { msg: 5 }, { msg: '  ' }] }, { errors: {} }]) assert.equal(N.say(problem(422, 'V', 'request validation failed', odd)), 'request validation failed');
+  const long = N.say(problem(422, 'V', 'm'.repeat(400), { errors: [{ loc: ['body', '<img src=x onerror=1>'], msg: '<b>' + 'r'.repeat(5000) }] }));
+  assert.ok(long.length <= 300, 'bounded'); assert.equal(N.reason(problem(500, 'V', 'm')), '');
+});
+await t('web-link-13: set-up sends the mock opening balance shown, in cents; the card says what the money is', async () => {
+  N.forgetSent(); const s = stub(), bodies = bodiesOf(s), c = open(s); await c.h.ready;
+  const inp = inputOf(c); assert.ok(inp, 'one input'); assert.equal(c.h.card.all().filter(n => n.tagName === 'INPUT').length, 1);
+  assert.equal(inp.value, N.openingOffer(s.plan)); assert.ok(inp.value, 'the stub’s plan has an expected cash figure');
+  assert.ok(c.text().includes(N.TEXT.openingLabel)); assert.ok(c.text().includes(N.TEXT.openingNote)); assert.ok(c.text().includes(N.TEXT.openingOffered));
+  assert.match(N.TEXT.openingNote, /mock money chosen for the simulation, not your funds and not a bank balance/);
+  await c.press(N.TEXT.setUp);
+  assert.deepEqual(bodies, [{ opening_balance_minor: N.openingCents(N.openingOffer(s.plan)).cents }]); assert.ok(Number.isSafeInteger(bodies[0].opening_balance_minor));
+  assert.match(c.text(), /Sandbox account: set up/); assert.equal(inputOf(c), undefined, 'no input once it is set up');
+  // typed by the person: sent as typed, and a reload of the card does not overwrite it
+  const s2 = stub(), b2 = bodiesOf(s2), c2 = open(s2); await c2.h.ready;
+  const i2 = inputOf(c2); i2.value = '2,500.25'; for (const fn of i2.listeners.input || []) fn({});
+  await c2.h.reload(); assert.equal(inputOf(c2).value, '2,500.25'); assert.ok(!c2.text().includes(N.TEXT.openingOffered));
+  await c2.press(N.TEXT.setUp); assert.deepEqual(b2, [{ opening_balance_minor: 250025 }]);
+});
+await t('web-link-13: an empty input tries the bodiless set-up once; the refusal and its reason stand beside the button; then an amount is asked for', async () => {
+  N.forgetSent(); const s = stub(), bodies = bodiesOf(s), c = open(s); await c.h.ready;
+  s.fail['POST /api/v1/projects/' + PID + '/nessie/sandbox'] = { once: true, error: NO_CAPITAL() };
+  const inp = inputOf(c); inp.value = ''; for (const fn of inp.listeners.input || []) fn({});
+  await c.press(N.TEXT.setUp);
+  assert.deepEqual(bodies, [undefined], 'no body when the input is empty');
+  const all = c.h.card.all(), line = all.find(n => /nessie-setup-line/.test(n.className));
+  assert.ok(line, 'the set-up has its own line'); assert.equal(line.getAttribute('role'), 'status');
+  assert.equal(line.textContent, `request validation failed: the business profile reports no opening capital; give opening_balance_minor. ${N.TEXT.openingAsk}`);
+  const at = n => all.indexOf(n), setUp = c.btn(N.TEXT.setUp), plan = all.find(n => n.className === 'nessie-plan');
+  assert.ok(at(setUp) < at(line) && at(line) < at(plan), 'the line comes right after the button, before the plan’s lines');
+  assert.equal(all.filter(n => /nessie-error/.test(n.className)).length, 1, 'said once, not again at the card’s bottom');
+  assert.match(c.text(), /Sandbox account: not set up/); usable(c);
+  // empty again: the backend has said it needs the amount, so nothing is sent
+  const before = s.calls.length; c.btn(N.TEXT.setUp).click(); await tick();
+  assert.equal(s.calls.length, before, 'no request'); assert.equal(c.h.card.all().find(n => /nessie-setup-line/.test(n.className)).textContent, N.TEXT.openingNeeded);
+  inputOf(c).value = '158000'; await c.press(N.TEXT.setUp);
+  assert.deepEqual(bodies, [undefined, { opening_balance_minor: 15800000 }]); assert.match(c.text(), /Sandbox account: set up/);
+  assert.equal(c.h.card.all().find(n => /nessie-setup-line/.test(n.className)), undefined, 'the line goes when the set-up worked');
+});
+await t('web-link-13: an amount that is negative, not a number or above the maximum is one plain line and no request', async () => {
+  N.forgetSent(); const s = stub(), bodies = bodiesOf(s), c = open(s); await c.h.ready;
+  for (const bad of ['-100', 'ten thousand', '1000000000.01', '<img src=x>']) {
+    inputOf(c).value = bad; const before = s.calls.length; c.btn(N.TEXT.setUp).click(); await tick();
+    assert.equal(s.calls.length, before, bad); const lines = c.h.card.all().filter(n => /nessie-error/.test(n.className));
+    assert.equal(lines.length, 1); assert.equal(lines[0].textContent, N.TEXT.openingBad); usable(c);
+  }
+  assert.deepEqual(bodies, []); assert.match(N.TEXT.openingBad, /Nothing was sent/);
+  // a plan without the figure: the input starts empty and no offer is claimed
+  const s3 = stub(); delete s3.plan.move_in_cash_expected_minor; const c3 = open(s3); await c3.h.ready;
+  assert.equal(inputOf(c3).value, ''); assert.ok(!c3.text().includes(N.TEXT.openingOffered)); assert.ok(c3.text().includes(N.TEXT.openingNote));
+});
 await t('every draw of every test above carried the simulation sentence', () => { assert.ok(pass >= 15, 'the per-draw check in open() ran in the tests above'); });
+
+await t('review 8d495183: Enter in the input sets up once; 0 and 1 are sent as cents; the backend’s out-of-range refusal is shown beside the button', async () => {
+  N.forgetSent(); const s = stub(), bodies = bodiesOf(s), c = open(s); await c.h.ready;
+  const inp = inputOf(c); inp.value = '1'; for (const fn of inp.listeners.input || []) fn({});
+  for (let i = 0; i < 5; i++) for (const fn of inp.listeners.keydown || []) fn({ key: 'Enter', preventDefault() {} });
+  c.btn(N.TEXT.setUp)?.click(); for (let i = 0; i < 20; i++) await tick();
+  assert.deepEqual(bodies, [{ opening_balance_minor: 100 }], 'one request for five Enters and a click');
+  const s0 = stub(), b0 = bodiesOf(s0), c0 = open(s0); await c0.h.ready; inputOf(c0).value = '0'; await c0.press(N.TEXT.setUp); assert.deepEqual(b0, [{ opening_balance_minor: 0 }]);
+  const s2 = stub(), c2 = open(s2); await c2.h.ready;
+  s2.fail['POST /api/v1/projects/' + PID + '/nessie/sandbox'] = { once: true, error: problem(422, 'VALIDATION_ERROR', 'request validation failed', { errors: [{ type: 'less_than_equal', loc: ['body', 'opening_balance_minor'], msg: 'the opening balance must be 0 to 100000000000 cents of mock money, got 100000000001' }] }) };
+  inputOf(c2).value = '5'; await c2.press(N.TEXT.setUp);
+  assert.equal(c2.h.card.all().find(n => /nessie-setup-line/.test(n.className)).textContent, 'request validation failed: opening_balance_minor: the opening balance must be 0 to 100000000000 cents of mock money, got 100000000001');
+});
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

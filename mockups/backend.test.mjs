@@ -1489,6 +1489,12 @@ await t('web-link-12: "Ask the broker" in Compare never goes to the assistant; w
   await B.turn('compare', 'Ask the broker about parking', S, 5); assert.equal(chats(), 2, 'only the quick reply itself is taken');
   for (const s of Object.values(B.ASK_TEXT)) assert.doesNotMatch(s, /\b(called|contacted|sent|asked)\b/i);
 }));
+await t('web-link-13 item 6: the dollhouse caption keeps clear of the tool buttons, in the live style block only', () => {
+  const src = readFileSync(new URL('./backend.js', import.meta.url), 'utf8'), at = src.indexOf('#v-dollhouse .vstate { right: 16px;');
+  assert.ok(at > src.indexOf('const RESULT_STYLE') && at < src.indexOf('function waitStyle'));
+  assert.match(src.slice(at, at + 200), /#v-dollhouse\[data-state=ready\] \.vstate \{ bottom: 68px; \}/);
+  assert.doesNotMatch(src.slice(at, at + 200), /overflow: hidden|text-overflow|nowrap|display: none/, 'the caption is never cut or hidden');
+});
 await t('web-link-12: the phone rule for the "to open" badge is in the live style block, under 860px only', () => {
   const src = readFileSync(new URL('./backend.js', import.meta.url), 'utf8'), at = src.indexOf('@media (max-width: 860px) {\n  .finalists');
   assert.ok(at > src.indexOf('const RESULT_STYLE') && at < src.indexOf('function waitStyle'));

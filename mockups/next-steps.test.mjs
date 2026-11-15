@@ -242,5 +242,56 @@ await t('web-link-12 item 6: the script sentence says the ticked questions are a
   assert.doesNotMatch(src, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
   assert.match(src, /list\('ul', c\.transcript\)/); assert.match(src, /el\('p', 'ns-pre', c\.summary\)/); assert.match(src, /u\.append\(el\('li', null, t\)\)/);
 });
+await t('web-link-13: a finding with value null was not learned: it is listed as unanswered, by its question', () => {
+  const fixed = 'I can’t answer that one right now.';
+  const call = { simulated: true, state: 'COMPLETED', transcript: [], deferred_questions: ['Can you wire the deposit by Friday?'], findings: [
+    { question: 'What is the usable square footage?', answer: fixed, value: null, classification: 'OWNER_REPORTED' },
+    { question: 'What is the amperage?', answer: fixed, value: null, classification: 'OWNER_REPORTED' },
+    { question: 'What is the amperage?', answer: fixed, value: null, classification: 'OWNER_REPORTED' },
+    { question: 'What is the electrical service?', answer: '200 amp panel', value: 200, classification: 'OWNER_REPORTED' },
+    { question: 'Is there plumbing in the unit?', answer: 'A sink and a restroom', value: true, classification: 'OWNER_REPORTED' },
+    { question: 'Is it sprinklered?', answer: 'No', value: false, classification: 'OWNER_REPORTED' },
+    { question: 'How many stalls?', answer: 'None', value: 0, classification: 'OWNER_REPORTED' },
+    { question: HOSTILE + 'q'.repeat(900), answer: fixed, value: null },
+    null, 'text',
+  ] };
+  const c = N.callParts(call, []);
+  assert.deepEqual(c.findings.slice(0, 4), ['What is the electrical service?: 200 amp panel (owner reported)', 'Is there plumbing in the unit?: A sink and a restroom (owner reported)', 'Is it sprinklered?: No (owner reported)', 'How many stalls?: None (owner reported)'], 'false and 0 are answers');
+  assert.ok(!c.findings.some(l => l.includes(fixed)), 'the fixed line is never listed as something learned');
+  assert.equal(c.unanswered.length, 3, 'each question once');
+  assert.deepEqual(c.unanswered.slice(0, 2), ['Asked for you, not answered: What is the usable square footage?', 'Asked for you, not answered: What is the amperage?']);
+  assert.ok(c.unanswered[2].length <= 240 + 30 && c.unanswered[2].endsWith('…'), 'bounded');
+  assert.deepEqual(c.deferred, ['Can you wire the deposit by Friday?'], 'the contact’s own open question is still listed');
+  // without a `value` key (an older answer shape) nothing is moved: the line still says "no answer" itself
+  assert.deepEqual(N.callParts({ simulated: true, findings: [{ question: 'Water?', answer: null }] }).findings, ['Water?: no answer (class not given)']);
+  assert.deepEqual(N.callParts({ simulated: true, findings: [{ question: 'Water?', answer: null }] }).unanswered, []);
+  assert.deepEqual(N.callParts({}).unanswered, []);
+  const src = readFileSync(new URL('./next-steps.js', import.meta.url), 'utf8');
+  assert.match(src, /c\.unanswered\.length \|\| c\.deferred\.length/, 'both are drawn under "Left unanswered"');
+});
+await t('web-link-13: the sentences added say only what the page knows; the figures are read again on every read', () => {
+  assert.match(N.TEXT.staleFacts, /could not be read again/); assert.doesNotMatch(N.TEXT.staleFacts, /because|differ/);
+  assert.match(N.TEXT.sentUnknown, /not listed here/); assert.match(N.TEXT.sentQuestions, /this page sent/);
+  const src = readFileSync(new URL('./next-steps.js', import.meta.url), 'utf8');
+  assert.match(src, /be\.p\('\/cost-scenarios'\)/); assert.match(src, /\/properties\/\$\{id\}\/feasibility/);
+  assert.match(src, /const fresh = await facts\(be, id\);/, 'inside read(), which runs when the stage opens and after every action');
+  assert.match(src, /name === 'start' \|\| name === 'run'[^\n]*st\.payments\?\.reload/, 'the payments card reads again after a call');
+  assert.match(src, /st\.sent = \{ approval: got\?\.approval\?\.approval_id \?\? null, questions: out\.body\.questions \}/, 'what is shown is what was sent');
+  assert.doesNotMatch(src, /innerHTML|localStorage\?\.setItem\([^O]/, 'no markup, and nothing new in storage');
+});
+
+await t('review 8d495183: thirteen /ready answers: an approval and a start are offered only for a positive "fixture"', async () => {
+  const err = status => () => Object.assign(new Error('x'), { status });
+  const answers = [err(403), err(404), err(0), err(500), () => ({}), () => ({ providers: [] }), () => ({ providers: [{ provider: 'telnyx' }] }), () => '<html>', () => null, () => ({ providers: 'x' }), () => ({ providers: [{ provider: 'telnyx', mode: 'other' }] }), () => LIVE_];
+  for (const ready of answers) for (const status of ['PENDING', 'APPROVED']) {
+    const w = world({ ready, db: seeded(status) }); await w.open();
+    assert.equal(w.B('Start the simulated call'), undefined); assert.equal(w.B('Approve')?.disabled ?? true, true); assert.equal(w.B('Request approval')?.disabled ?? true, true); assert.equal(w.sent(/^POST/), 0);
+  }
+  const w = world({ ready: () => FIXTURE, db: seeded('APPROVED') }); await w.open(); assert.equal(w.B('Start the simulated call').disabled, false); // the thirteenth
+});
+await t('review 8d495183: a failed re-read does not say the figures are from the search (they may be from a later read)', () => {
+  assert.doesNotMatch(N.TEXT.staleFacts, /when this listing was found/); assert.match(N.TEXT.staleFacts, /as they were when last read/);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

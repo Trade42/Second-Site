@@ -15,6 +15,9 @@
 //   data-act ("ask" there drafts a message to the broker).
 // - Every button is disabled while a request runs. Execute is sent at most once per approval id for the
 //   life of the page (SENT), whatever the answer was; a page reload reads the true state again.
+// - The set-up sends a mock opening balance the person can see and change (integer cents in
+//   `opening_balance_minor`); with the input left empty it sends no body, for a backend whose business profile
+//   states an opening capital. Input that is not an amount in range is one plain line and no request.
 // - The state shown comes from the backend: the plan, the sandbox, its reading of the balance against the
 //   plan, and the project's approval list. The backend has no read for a plan item's attempt
 //   (reports/nessie-live-1.md, D2), so after a reload a line whose approval is EXECUTED is shown as
@@ -23,6 +26,7 @@
 const MAX = { line: 300, label: 90, basis: 260, word: 48, payments: 12, reserves: 6, skipped: 6, notes: 3 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ITEM = /^[\x21-\x7e]{1,64}$/; // the backend's rule for plan_item_id
+export const MAX_OPENING_MINOR = 100_000_000_000; // services/nessie.rs MAX_OPENING_BALANCE_MINOR: the backend takes 0 to this, in cents
 
 export const clip = (s, n = MAX.line) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t; };
 // A backend status token in its own words: SIMULATED_PENDING -> "simulated pending".
@@ -34,6 +38,20 @@ export function money(cents) {
   return (cents < 0 ? '-$' : '$') + String(d).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + String(a % 100).padStart(2, '0');
 }
 const amount = cents => money(cents) ?? 'amount not given';
+// What a person typed as a dollar amount ("158,000", "$1,200.50") -> { empty } | { cents } | { error }.
+export function openingCents(text) {
+  const t = String(text ?? '').replace(/[$,\s]/g, '');
+  if (!t) return { empty: true };
+  const m = /^(\d{1,10})(?:\.(\d{1,2}))?$/.exec(t), cents = m ? Number(m[1]) * 100 + Number((m[2] || '').padEnd(2, '0')) : NaN;
+  return Number.isSafeInteger(cents) && cents <= MAX_OPENING_MINOR ? { cents } : { error: TEXT.openingBad };
+}
+// The plan's expected cash at move-in, rounded up to the next $1,000, as the input's text; '' without one.
+export function openingOffer(plan) {
+  const c = plan?.move_in_cash_expected_minor;
+  if (!Number.isSafeInteger(c) || c < 0) return '';
+  const cents = Math.ceil(c / 100000) * 100000;
+  return cents <= MAX_OPENING_MINOR ? String(cents / 100).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '';
+}
 
 export const TEXT = {
   title: 'Move-in payments, simulated',
@@ -50,6 +68,12 @@ export const TEXT = {
   sandboxUnknown: 'Sandbox account: its state is not known.',
   setUp: 'Set up the sandbox account',
   setUpNote: 'Setting it up creates a mock account with mock money. It pays nobody.',
+  openingLabel: 'Mock opening balance for the sandbox account',
+  openingNote: 'This is mock money chosen for the simulation, not your funds and not a bank balance.',
+  openingOffered: 'The amount offered is the plan’s expected cash at move-in, rounded up to the next $1,000; you can change it.',
+  openingBad: 'The mock opening balance must be an amount in dollars from $0 to $1,000,000,000. Nothing was sent.',
+  openingNeeded: 'Type a mock opening balance first: the backend has no opening capital for this business to start from. Nothing was sent.',
+  openingAsk: 'Type a mock opening balance above and set it up again.',
   pick: 'Choose one line to simulate.',
   ask: 'Ask for approval', askAgain: 'Ask for a new approval',
   approve: 'Approve', reject: 'Reject', yes: 'Yes', cancel: 'Cancel',
@@ -89,17 +113,29 @@ export const STYLE = `.nessie-card { display: flex; flex-direction: column; gap:
 .nessie-step { display: flex; flex-direction: column; gap: var(--space-1, 4px); }
 .nessie-step b { font-weight: 600; color: var(--ink, #22241F); }
 .nessie-result { padding: var(--space-2, 8px) 10px; border-radius: 8px; background: var(--surface, #F8F6F0); display: flex; flex-direction: column; gap: var(--space-1, 4px); }
-.nessie-error { color: var(--ink, #22241F); font-weight: 500; }`;
+.nessie-error { color: var(--ink, #22241F); font-weight: 500; }
+.nessie-field { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); color: var(--ink, #22241F); }
+.nessie-field input { width: 14ch; min-width: 0; max-width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--surface, #F8F6F0); font: inherit; color: var(--ink, #22241F); font-variant-numeric: tabular-nums; }`;
 
 // Approval ids an execute was sent for, for the life of the page (not per card: a card is rebuilt when
 // the selected listing changes).
 const SENT = new Set();
 export function forgetSent() { SENT.clear(); } // tests only
 
-// One plain line for a failed request: the backend's own message when it gave one.
+// The first reason a refusal gives for a field (a 422's details.errors, each { loc, msg }), as bounded text.
+// The field's name goes before it unless the reason names it itself.
+export function reason(e) {
+  const errs = e?.data && typeof e.data === 'object' && e.data.details && typeof e.data.details === 'object' ? e.data.details.errors : null;
+  const first = Array.isArray(errs) ? errs.find(x => x && typeof x === 'object' && typeof x.msg === 'string' && x.msg.trim()) : null;
+  if (!first) return '';
+  const field = Array.isArray(first.loc) ? first.loc.filter(k => typeof k === 'string' && k !== 'body').map(k => clip(k, MAX.word)).at(-1) : null;
+  return clip(field && !first.msg.includes(field) ? `${field}: ${first.msg}` : first.msg, 200);
+}
+const missingOpening = e => { const errs = detailsOf(e).errors; return e?.status === 422 && Array.isArray(errs) && errs.some(x => Array.isArray(x?.loc) && x.loc.includes('opening_balance_minor')); };
+// One plain line for a failed request: the backend's own message when it gave one, with its first reason.
 export function say(e) {
   const m = e?.data && typeof e.data === 'object' && typeof e.data.message === 'string' ? e.data.message : '';
-  if (m.trim()) return clip(m);
+  if (m.trim()) { const r = reason(e); return clip(r ? `${m.trim().replace(/[.:;,\s]+$/, '')}: ${r}` : m); }
   if (Number.isInteger(e?.status) && e.status > 0) return TEXT.noAnswer(e.status);
   return clip(e?.message || TEXT.notReached);
 }
@@ -143,6 +179,7 @@ export function nessieCard(projectId, propertyId, req, container, opts = {}) {
     simulation: null, disclaimer: null, plan: null, planError: null,
     sandbox: null, sandboxState: 'checking', sandboxLine: null, headline: null,
     approvals: [], listed: false, listLine: null, selected: null, confirm: null,
+    setupLine: null, openingRequired: false, openingTyped: false, // the set-up's own line (drawn beside its button) and its input
     results: {}, // plan item id -> the backend's answer to a run made from this card: { status, record, line, approval_id }
   };
 
@@ -163,6 +200,11 @@ export function nessieCard(projectId, propertyId, req, container, opts = {}) {
   const stateOf = id => phaseOf(approvalsFor(st.approvals, propertyId, id), st.results[id] || null, now());
   // The item this one comes after (the bill before its payment), while that one has not been run.
   const waitsFor = it => { const dep = it?.depends_on && payments().find(p => p.plan_item_id === it.depends_on); if (!dep) return null; const ph = stateOf(dep.plan_item_id).phase; return ph === 'ran' || (ph === 'result' && st.results[dep.plan_item_id].status === 'SENT') ? null : dep; };
+  // The set-up's one input: made once and kept across redraws, so what the person typed stays.
+  const opening = el('input'); opening.type = 'text'; opening.inputMode = 'decimal'; opening.autocomplete = 'off'; opening.id = 'nessie-opening';
+  opening.value = ''; opening.setAttribute('aria-label', `${TEXT.openingLabel}, in dollars`);
+  opening.addEventListener('input', () => { st.openingTyped = true; });
+  opening.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault?.(); actions.setup(); } });
   const label = it => (st.disclaimer = typeof it?.disclaimer === 'string' && it.disclaimer.trim() ? it.disclaimer : st.disclaimer, it);
 
   /* ---------------------------------------------------------------- reads */
@@ -203,6 +245,7 @@ export function nessieCard(projectId, propertyId, req, container, opts = {}) {
     await readApprovals();
     const list = [...payments()].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
     if (!list.some(p => p.plan_item_id === st.selected)) st.selected = list.length ? list[0].plan_item_id : null;
+    if (!st.openingTyped) opening.value = openingOffer(st.plan); // offered from the plan as it is now, until the person types
     st.loaded = true;
   }
 
@@ -216,11 +259,24 @@ export function nessieCard(projectId, propertyId, req, container, opts = {}) {
   }
   const taken = v => ({ status: typeof v?.attempt_status === 'string' ? v.attempt_status : 'UNKNOWN', record: v?.record && typeof v.record === 'object' ? v.record : null });
   const actions = {
-    reload: () => act('reload', readAll),
+    reload: () => act('reload', async () => { st.setupLine = null; await readAll(); }),
     select: id => { if (st.busy || !payments().some(p => p.plan_item_id === id)) return; st.selected = id; st.confirm = null; st.error = null; draw(); },
-    setup: () => act('setup', async () => {
-      try { takeSandbox(await call('POST', `${P}/nessie/sandbox`)); await readAffordability(); } catch (e) { st.error = say(e); await readSandbox(); }
-    }),
+    // With an amount: { opening_balance_minor } in cents. With the input empty: no body (a backend whose business
+    // profile states an opening capital takes that), unless it has already said that it needs the amount.
+    setup: () => {
+      if (st.busy || st.closed) return;
+      const o = openingCents(opening.value);
+      if (o.error || (o.empty && st.openingRequired)) { st.setupLine = o.error || TEXT.openingNeeded; st.error = null; draw(); return; } // nothing is sent
+      return act('setup', async () => {
+        st.setupLine = null;
+        try { takeSandbox(await call('POST', `${P}/nessie/sandbox`, o.empty ? undefined : { opening_balance_minor: o.cents })); await readAffordability(); }
+        catch (e) {
+          const line = say(e), need = o.empty && missingOpening(e);
+          if (need) st.openingRequired = true;
+          await readSandbox(); st.setupLine = need ? `${line}. ${TEXT.openingAsk}` : line;
+        }
+      });
+    },
     ask: () => act('ask', async () => {
       const it = item(); if (!it || stateOf(it.plan_item_id).phase !== 'ask' || waitsFor(it)) return;
       try { label(await call('POST', `${N}/payments/${encodeURIComponent(it.plan_item_id)}/approval`)); await readApprovals(); }
@@ -285,9 +341,14 @@ export function nessieCard(projectId, propertyId, req, container, opts = {}) {
       if (st.headline) out.push(el('p', 'nessie-small', st.headline));
     } else if (st.sandboxState === 'none' || st.sandboxState === 'gone') {
       out.push(el('p', null, st.sandboxState === 'none' ? TEXT.sandboxNone : `Sandbox account: gone. ${st.sandboxLine}`));
+      const field = el('label', 'nessie-field'); opening.disabled = !!st.busy;
+      field.append(el('span', null, TEXT.openingLabel), el('span', null, '$'), opening); out.push(field);
+      out.push(el('p', 'nessie-small', !st.openingTyped && opening.value ? `${TEXT.openingNote} ${TEXT.openingOffered}` : TEXT.openingNote));
       const row = el('div', 'nessie-row'); row.append(button(TEXT.setUp, 'setup', { solid: true }), el('span', 'nessie-small', TEXT.setUpNote)); out.push(row);
     } else if (st.sandboxState === 'unknown') out.push(el('p', null, `${TEXT.sandboxUnknown} ${st.sandboxLine || ''}`.trim()));
     else out.push(el('p', null, TEXT.sandboxChecking));
+    // The set-up's refusal, where the button is (the card is taller than its pane).
+    if (st.setupLine && st.sandboxState !== 'set') { const p = el('p', 'nessie-error nessie-setup-line', st.setupLine); p.setAttribute('role', 'status'); out.push(p); }
     return out;
   }
   function planNodes() {
@@ -375,10 +436,11 @@ export function nessieCard(projectId, propertyId, req, container, opts = {}) {
       if (st.plan) nodes.push(...planNodes(), ...stepNodes());
       else nodes.push(el('p', null, st.planError || TEXT.noPlan));
       if (st.error) { const p = el('p', 'nessie-error', st.error); p.setAttribute('role', 'status'); nodes.push(p); }
-      if (!st.plan || st.error || !st.listed || st.sandboxState === 'unknown') { const row = el('div', 'nessie-row'); row.append(button(TEXT.reread, 'reload')); nodes.push(row); }
+      if (!st.plan || st.error || !st.listed || st.sandboxState === 'unknown' || (st.setupLine && st.sandboxState !== 'set')) { const row = el('div', 'nessie-row'); row.append(button(TEXT.reread, 'reload')); nodes.push(row); }
     }
     const focused = doc.activeElement, fa = focused && card.contains?.(focused) ? { act: focused.dataset?.nessie, item: focused.dataset?.line } : null;
     body.replaceChildren(...nodes);
+    if (focused && focused === opening && !opening.disabled && card.contains?.(opening)) opening.focus?.({ preventScroll: true });
     if (fa?.act) [...(body.querySelectorAll?.('[data-nessie]') || [])].find(b => b.dataset.nessie === fa.act && b.dataset.line === fa.item && !b.disabled)?.focus?.({ preventScroll: true });
   }
 

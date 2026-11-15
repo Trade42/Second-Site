@@ -20,7 +20,9 @@
 //   any carrier request (routes/communications.rs start_call). The simulate route is called only for a
 //   call whose own answer says `simulated: true`.
 // - The owner's maximum rent lives in its own input only: never in a sentence, a summary or storage.
-// - What is shown after a reload is read from the backend (communications, approvals, calls, handoffs).
+// - What is shown after a reload is read from the backend (communications, approvals, calls, handoffs), and
+//   so are card 1's cost to open and open issues, on every read. The questions a request carried are the one
+//   thing kept by the page (until a reload): the backend's lists do not give them back.
 
 const MAX = { line: 300, name: 120, question: 240, summary: 1500, turn: 400, turns: 60, findings: 30, issues: 12, questions: 20, list: 400 };
 export const OPEN_KEY = 'second-site-workspace-live-next';
@@ -50,6 +52,11 @@ export const TEXT = {
   end: 'Nothing here has been signed, nothing has been sent to the listing’s contact, and no money has moved: a call started here is a simulation and the payments are mock money in a sandbox.',
   notConfirmed: 'Not yet confirmed',
   noneOpen: 'The backend lists no open issue for this listing. That is not a statement that everything is met.',
+  askedNoAnswer: 'Asked for you, not answered:',
+  staleFacts: 'The cost to open and the list below could not be read again from the backend just now; they are as they were when last read.',
+  sentQuestions: 'The questions this page sent with this request:',
+  sentNone: 'This page sent no question with this request.',
+  sentUnknown: 'The questions sent with this request are not held by this page any more (it was reloaded, or the request was made elsewhere), so they are not listed here.',
   oldBackend: 'This backend does not take a visit or rent limits yet (it needs a newer build). Clear them to ask the questions only.',
 };
 
@@ -180,6 +187,7 @@ export function say(e, what = 'The request') {
   if (st === 422 && Array.isArray(d?.detail) && d.detail.some(x => Array.isArray(x?.loc) && x.loc.includes('purposes') && x.type !== 'value_error')) return TEXT.oldBackend;
   return `${what} was not accepted: the backend answered ${st}${code ? ' ' + clip(code, 48) : ''}${msg ? ` (${clip(msg, 220)})` : ''}. Nothing was repeated.`;
 }
+const unanswered = f => !!f && typeof f === 'object' && Object.hasOwn(f, 'value') && f.value === null;
 // A call's parts as plain lines, each labelled by what the backend says of the call.
 export function callParts(call, handoffs = []) {
   const sim = call?.simulated === true, tag = sim ? 'simulated' : 'not labelled simulated by the backend';
@@ -189,7 +197,11 @@ export function callParts(call, handoffs = []) {
     head: `Call, ${tag}: ${words(call?.state) || 'state not given'}${call?.failure_reason ? ` (${clip(call.failure_reason, 160)})` : ''}`,
     transcript: arr(call?.transcript).slice(0, MAX.turns).map(t => `${clip(t?.speaker, 24) || 'speaker not given'}: ${clip(t?.text, MAX.turn)}`),
     more: Math.max(0, arr(call?.transcript).length - MAX.turns),
-    findings: arr(call?.findings).slice(0, MAX.findings).map(f => `${clip(f?.question, MAX.question)}: ${f?.answer == null ? 'no answer' : clip(f.answer, MAX.question)} (${words(f?.classification) || 'class not given'})`),
+    // A finding whose `value` the backend gives as null was asked and not answered (the simulated contact has
+    // no scripted answer for it; its `answer` is then a fixed line, not something learned): it is listed as
+    // unanswered, by its question, never under "What was learned".
+    findings: arr(call?.findings).filter(f => !unanswered(f)).slice(0, MAX.findings).map(f => `${clip(f?.question, MAX.question)}: ${f?.answer == null ? 'no answer' : clip(f.answer, MAX.question)} (${words(f?.classification) || 'class not given'})`),
+    unanswered: [...new Set(arr(call?.findings).filter(unanswered).map(f => clip(f.question, MAX.question)).filter(Boolean))].slice(0, MAX.findings).map(q => `${TEXT.askedNoAnswer} ${q}`),
     deferred: arr(call?.deferred_questions).slice(0, MAX.findings).map(q => clip(q, MAX.question)),
     holds: arr(handoffs).slice(0, 6).map(h => `${words(h?.reason) || 'reason not given'}: ${clip(h?.question, MAX.question)} (${words(h?.status) || 'status not given'})`),
     summary: typeof call?.outcome_summary === 'string' && call.outcome_summary.trim() ? String(call.outcome_summary).trim().slice(0, MAX.summary) : null,
@@ -261,7 +273,7 @@ export function mount(ctx) {
   const stage = el('section'); stage.id = 'next-steps'; stage.hidden = true; stage.setAttribute('aria-label', TEXT.title);
   const col = el('div', 'ns-col'); stage.append(col); main.append(stage);
 
-  const st = { open: false, id: null, busy: null, reading: 0, seq: 0, liveSeen: false, line: null, lists: null, readLine: null, mode: 'unknown', result: null, ownerAction: 'accept', form: null, nessie: null };
+  const st = { open: false, id: null, busy: null, reading: 0, seq: 0, liveSeen: false, line: null, lists: null, readLine: null, mode: 'unknown', result: null, ownerAction: 'accept', form: null, nessie: null, fresh: null, freshLine: null, sent: null };
 
   function close() {
     if (!st.open) return;
@@ -270,7 +282,7 @@ export function mount(ctx) {
   function open() {
     const c = chosen(); if (!c) return;
     if (page.S().stage !== 'furnish') { doc.querySelector('.stages [data-go=furnish]')?.click(); if (page.S().stage !== 'furnish') return; } // through the page's own Furnish
-    if (st.id !== c.id) { st.id = c.id; st.lists = null; st.line = null; st.result = null; st.form = null; st.nessie = null; try { st.payments?.close?.(); } catch { /* another file's card */ } st.payments = null; }
+    if (st.id !== c.id) { st.id = c.id; st.lists = null; st.line = null; st.result = null; st.form = null; st.nessie = null; st.fresh = null; st.freshLine = null; try { st.payments?.close?.(); } catch { /* another file's card */ } st.payments = null; }
     st.open = true; stage.hidden = false; doc.body.classList.add('ns-open'); kv.set(c.id);
     draw(); read();
   }
@@ -289,9 +301,25 @@ export function mount(ctx) {
       const [comms, approvals, calls, handoffs] = await Promise.all(['/communications', '/approvals', '/calls', '/handoffs'].map(r => be.req('GET', be.p(r))));
       if (st.id === id && n === st.seq) { st.lists = { comms, approvals, calls, handoffs }; st.readLine = null; }
     } catch (e) { if (st.id === id && n === st.seq) st.readLine = say(e, 'Reading where this request stands'); }
+    // Card 1's cost to open and open issues, read again on every read (the stage opening, and after every
+    // action, so after a call ends): the page's own copy is from the search and a call's findings can change both.
+    const fresh = await facts(be, id);
+    if (st.id === id && n === st.seq) { if (fresh) { st.fresh = { id, ...fresh }; st.freshLine = null; } else st.freshLine = TEXT.staleFacts; }
     // /ready is the backend's own account of its providers, asked on every read; unreadable is "unknown".
     const m = await mode(); st.reading--;
     if (st.id === id) { st.mode = m; draw(); }
+  }
+  // The same mapping the search uses (backend.js detailEntry), on the scenarios and assessments as they are now.
+  async function facts(be, id) {
+    try {
+      const rec = (ctx.records?.() || []).find(r => r?.rec?.property_id === id)?.rec;
+      const entry = lib.detailEntry || (await import('./backend.js')).detailEntry;
+      if (!rec || typeof entry !== 'function') return null;
+      const [scenarios, assessments] = await Promise.all([be.req('GET', be.p('/cost-scenarios')), be.req('GET', be.p(`/properties/${id}/feasibility`))]);
+      if (!Array.isArray(scenarios) || !Array.isArray(assessments)) return null;
+      const d = entry(rec, assessments, scenarios);
+      return { scenario: d.scenario, extras_unknown: d.extras_unknown, issues: d.issues };
+    } catch { return null; }
   }
   const mode = async () => { if (st.liveSeen) return 'live'; try { return callsMode(await ctx.backend().req('GET', '/ready')); } catch { return 'unknown'; } };
   const simulatedNow = async () => (st.mode = await mode()) === 'simulated'; // asked again at the click
@@ -301,6 +329,8 @@ export function mount(ctx) {
     try { await fn(); } catch (e) { st.line = say(e, { request: 'The approval request', approve: 'Your decision', refuse: 'Your decision', start: 'The simulated call', run: 'The simulated conversation' }[name] || 'The request'); if (e?.data?.error_code === 'SIMULATOR_DISABLED' || e?.data?.code === 'SIMULATOR_DISABLED') st.liveSeen = true; }
     st.busy = null;
     await read();
+    // The payments card reads its plan again after a call, so that it and card 1 show the same moment.
+    if (name === 'start' || name === 'run') { try { st.payments?.reload?.(); } catch { /* another file's card */ } }
   }
   const P = () => ctx.backend().p('');
   const request = () => {
@@ -310,6 +340,7 @@ export function mount(ctx) {
     if (out.error) { st.line = out.error; return draw(); } // nothing is sent
     return act('request', async () => {
       const got = await ctx.backend().req('POST', `${P()}/outreach`, out.body);
+      st.sent = { approval: got?.approval?.approval_id ?? null, questions: out.body.questions }; // shown with the approval (the list gives no questions back)
       if (got?.approval?.approval_status !== 'PENDING') st.line = sameApproval(got?.approval?.approval_status);
     });
   };
@@ -355,6 +386,8 @@ export function mount(ctx) {
     f.counters = el('input'); f.counters.type = 'number'; f.counters.min = '0'; f.counters.max = '5'; f.counters.value = '1'; f.counters.style.width = '64px'; f.counters.setAttribute('aria-label', 'Counter-offers');
     r.append(el('span', null, 'Target $'), f.target, el('span', null, 'Maximum $'), f.max, el('span', null, 'Counter-offers'), f.counters); f.root.append(r, el('p', 'ns-note', TEXT.counters));
     void contact;
+    f.qs = facts.issues.filter(x => x.question).map(x => x.question).join('\n');
+    for (const ev of ['input', 'change']) f.root.addEventListener(ev, () => { f.dirty = true; });
     return f;
   }
   function readForm() {
@@ -371,10 +404,17 @@ export function mount(ctx) {
     const dl = el('dl'), row = (k, v) => dl.append(el('dt', null, k), el('dd', null, v));
     row('Listing', f.name); row('Data origin', f.origin); row('Rent', f.rent); row('Area', f.area); row('Layout', f.layout);
     row(f.sketch ? 'Floor: approximate sketch' : 'Floor', f.floor); row('Furnishing bill', f.bill); row('Cost to open', f.open);
-    card.append(dl, el('h4', null, TEXT.notConfirmed));
+    if (st.freshLine) card.append(dl, el('p', 'ns-note', st.freshLine), el('h4', null, TEXT.notConfirmed)); else card.append(dl, el('h4', null, TEXT.notConfirmed));
     if (!f.issues.length) card.append(el('p', null, TEXT.noneOpen));
     else card.append(list('ul', f.issues.map(i => `${i.text}. ${i.question ? `To verify: ${i.question}` : 'The backend gives no verification question.'}`)));
     return card;
+  }
+  // Which questions the request carried, as text, for the person who is about to approve it.
+  function sentNodes(sent, approvalId) {
+    if (!sent || !approvalId || sent.approval !== approvalId) return [el('p', 'ns-note', TEXT.sentUnknown)];
+    if (!sent.questions.length) return [el('p', 'ns-note', TEXT.sentNone)];
+    const ul = list('ol', sent.questions.map(q => clip(q, MAX.question))); ul.id = 'ns-sent';
+    return [el('p', null, TEXT.sentQuestions), ul];
   }
   function cardAsk(f) {
     const card = el('section', 'ns-card'); card.id = 'ns-ask'; card.append(el('h3', null, TEXT.ask));
@@ -401,7 +441,7 @@ export function mount(ctx) {
     const sum = s.approval && ['pending', 'approved', 'call'].includes(s.phase) ? el('p', null, `The approval covers: ${clip(s.approval.summary, MAX.line)} (${words(s.approval.approval_status)})`) : null;
     r2.append(btn(st.busy === 'approve' ? 'Approving…' : pending || asking ? 'Approve' : 'Approved', () => decide('APPROVED'), { solid: pending && sim, off: !pending || !sim }));
     if (pending) r2.append(btn('Refuse', () => decide('REJECTED'), {}));
-    step(...(sum ? [sum, r2] : [r2]));
+    step(...(sum ? [sum, ...(s.phase === 'call' ? [] : sentNodes(st.sent, s.approval.approval_id)), r2] : [r2]));
     // 3
     const r3 = el('div', 'ns-row');
     const unfinished = s.phase === 'call' && !callDone(s.call) && s.call.simulated === true;
@@ -421,7 +461,7 @@ export function mount(ctx) {
       card.append(el('h4', null, c.head));
       if (c.transcript.length) { card.append(el('h4', null, `Transcript (${c.tag})`), list('ul', c.transcript)); if (c.more) card.append(el('p', 'ns-note', `${c.more} more lines are not shown.`)); }
       if (c.findings.length) card.append(el('h4', null, `What was learned (${c.tag}; as the other side stated it, not verified)`), list('ul', c.findings));
-      if (c.deferred.length) card.append(el('h4', null, `Left unanswered (${c.tag})`), list('ul', c.deferred));
+      if (c.unanswered.length || c.deferred.length) card.append(el('h4', null, `Left unanswered (${c.tag})`), list('ul', [...c.unanswered, ...c.deferred]));
       if (c.holds.length) card.append(el('h4', null, `Held for you (${c.tag})`), list('ul', c.holds));
       if (c.summary) { card.append(el('h4', null, `Summary (${c.tag}), in the backend’s words`)); card.append(el('p', 'ns-pre', c.summary)); }
     }
@@ -431,7 +471,10 @@ export function mount(ctx) {
     if (!st.open) return;
     const c = chosen();
     if (!c || c.id !== st.id) return close();
-    const f = chosenFacts(c.p, c.d, c.S, page.C, lib);
+    const f = chosenFacts(c.p, st.fresh?.id === c.id ? { ...c.d, scenario: st.fresh.scenario, extras_unknown: st.fresh.extras_unknown, issues: st.fresh.issues } : c.d, c.S, page.C, lib);
+    // The questions offered follow the issues as read again, until the person has touched the form.
+    const qs = f.issues.filter(x => x.question).map(x => x.question).join('\n');
+    if (st.form && !st.form.dirty && st.form.qs !== qs) st.form = null;
     const keep = doc.activeElement && st.form?.root.contains(doc.activeElement) ? doc.activeElement : null, y = stage.scrollTop;
     const top = el('div', 'ns-top'), back = el('button', 'btn', TEXT.back); back.type = 'button'; back.addEventListener('click', close);
     top.append(el('h2', null, TEXT.title), back);

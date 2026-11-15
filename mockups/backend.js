@@ -1056,7 +1056,12 @@ const RESULT_STYLE = `
   .fin { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 6px; padding: 9px 10px 10px; min-height: 104px; }
   .fin .toopen { position: relative; top: auto; left: auto; flex: none; }
   .fin .cap { position: relative; left: auto; right: auto; bottom: auto; align-self: stretch; }
-}`;
+}
+/* Live mode only (browser-3d-1, defect 1): the caption under the dollhouse view ran beneath the tool buttons and
+   was cut there ("Not a scan: no walls, windows or co"). It now wraps inside the view, and while the tools are
+   shown it sits above them (the tools are 48px high, 12px from the bottom), however many buttons they hold. */
+#v-dollhouse .vstate { right: 16px; overflow-wrap: anywhere; }
+#v-dollhouse[data-state=ready] .vstate { bottom: 68px; }`;
 function waitStyle() {
   const doc = globalThis.document, at = doc?.head || doc?.documentElement;
   if (!at || doc.getElementById('live-wait-style')) return;
