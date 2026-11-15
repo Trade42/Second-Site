@@ -19,7 +19,6 @@ fn purchase(sim: Simulation) -> PaymentIntent {
         property_id: Uuid::from_u128(2),
         scenario_id: Uuid::from_u128(3),
         plan_item_id: "movein:security_deposit".into(),
-        attempt_id: "0123abcd4567".into(),
         action: ApprovalAction::FinancialCommitment,
         operation: PaymentOperation::Purchase {
             account_id: "acct_1".into(),
@@ -27,7 +26,7 @@ fn purchase(sim: Simulation) -> PaymentIntent {
         },
         amount_minor: 1_200_000,
         currency: "USD".into(),
-        description: "SIMULATION (Second Site plan item movein:security_deposit, attempt 0123abcd4567): Refundable security deposit (simulated)"
+        description: "SIMULATION (Second Site plan): Refundable security deposit (simulated)"
             .into(),
     }
 }
@@ -143,7 +142,6 @@ fn every_check_refuses() {
         PaymentIntent {
             action: ApprovalAction::Purchase,
             operation: PaymentOperation::PayBill {
-                account_id: "acct_1".into(),
                 bill_id: "bill_1".into(),
             },
             ..intent.clone()
@@ -181,7 +179,6 @@ fn payload_names_the_simulation_and_every_sent_field() {
         [
             "account_id",
             "amount_minor",
-            "attempt_id",
             "currency",
             "description",
             "disclaimer",

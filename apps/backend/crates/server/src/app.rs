@@ -142,8 +142,7 @@ pub fn default_providers() -> Vec<Arc<dyn ProviderStatus>> {
                 }
             },
             credentials: |s| s.has("ANTHROPIC_API_KEY"),
-            note: "The supervisor stays in the Python service; the project chat is forwarded to \
-                   it (see python_service).",
+            note: "The supervisor stays in the Python service; the Rust backend has no chat route.",
         }),
     ]
 }

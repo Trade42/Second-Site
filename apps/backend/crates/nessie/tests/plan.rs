@@ -322,13 +322,7 @@ fn unknown_rent_unknown_lines_and_currency() {
         .assumptions
         .iter()
         .any(|a| a == "Cost scenario: Asking rent unknown — monthly cost understated"));
-    // M1: the $0 MONTHLY lines are listed too (they used to land nowhere).
-    assert_eq!(plan.not_simulated.len(), 3);
-    assert!(plan.not_simulated[1..]
-        .iter()
-        .all(|l| l.kind == CostKind::Monthly
-            && l.reason
-                .contains("expected monthly rent and NNN total is $0")));
+    assert_eq!(plan.not_simulated.len(), 1);
     assert_eq!(plan.not_simulated[0].line_item_id, "broker:fee");
     assert!(plan.not_simulated[0].reason.contains("no payee is known"));
     assert_eq!(plan.not_simulated_expected_minor, 200);
@@ -354,24 +348,22 @@ fn intents_follow_the_plan_exactly() {
         occupancy_bill_id: None,
     };
     assert!(matches!(
-        plan.intent_for(ITEM_RENOVATION, &targets, "0123abcd4567"),
+        plan.intent_for(ITEM_RENOVATION, &targets),
         Err(PlanError::MissingTarget(_))
     ));
     assert!(matches!(
-        plan.intent_for(ITEM_FIRST_MONTH, &targets, "0123abcd4567"),
+        plan.intent_for(ITEM_FIRST_MONTH, &targets),
         Err(PlanError::MissingTarget(_))
     ));
     assert!(matches!(
-        plan.intent_for("movein:nothing", &targets, "0123abcd4567"),
+        plan.intent_for("movein:nothing", &targets),
         Err(PlanError::UnknownItem(_))
     ));
     targets.contractor_merchant_id = Some("merch_contractor".into());
     targets.occupancy_bill_id = Some("bill_1".into());
 
     for p in &plan.payments {
-        let i = plan
-            .intent_for(&p.plan_item_id, &targets, "0123abcd4567")
-            .unwrap();
+        let i = plan.intent_for(&p.plan_item_id, &targets).unwrap();
         assert_eq!(i.amount_minor, p.amount_expected_minor);
         assert_eq!(i.action, p.approval_action);
         assert_eq!(i.simulation, Simulation::NessieSandbox);
@@ -401,22 +393,15 @@ fn intents_follow_the_plan_exactly() {
                 assert_eq!(payee, LANDLORD_BILL_PAYEE);
                 assert_eq!(*recurring_day, 5);
             }
-            (
-                PaymentOperation::PayBill {
-                    account_id,
-                    bill_id,
-                },
-                ITEM_FIRST_MONTH,
-            ) => {
-                assert_eq!(bill_id, "bill_1");
-                assert_eq!(account_id, "acct_1");
+            (PaymentOperation::PayBill { bill_id }, ITEM_FIRST_MONTH) => {
+                assert_eq!(bill_id, "bill_1")
             }
             other => panic!("unexpected {other:?}"),
         }
     }
     targets.account_id = "acct 1".into();
     assert!(matches!(
-        plan.intent_for(ITEM_DEPOSIT, &targets, "0123abcd4567"),
+        plan.intent_for(ITEM_DEPOSIT, &targets),
         Err(PlanError::Invalid(_))
     ));
 }

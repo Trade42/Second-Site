@@ -24,7 +24,6 @@ pub mod la_permits;
 pub mod matterport;
 pub mod matterport_geometry;
 pub mod storage;
-pub mod telnyx;
 pub mod vexcel;
 
 use std::sync::Arc;

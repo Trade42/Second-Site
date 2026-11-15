@@ -22,15 +22,6 @@ Since part 3 the demo path continues into the design studio (layout generation, 
 bill of materials, revisions, the error cases), and design_rows.json records the rows the
 design routes stored (site_geometries, design_versions, rooms, bills_of_materials), read back
 from the private schema before it is dropped.
-
-Since part 5 the sequence also has `GET /api/v1/projects/{project}` before and after the first
-search (the supervisor's `get_project_state` tool validates that answer strictly), and two steps
-per property for the evidence routes the Rust service adds for the supervisor. Python has no
-HTTP route for those, so their expected answers are computed in-process by Python itself over
-the rows this run wrote (the steps carry an "oracle" field that says how):
-  evidence {street}             [e.model_dump(mode="json") for e in EvidenceService.for_property]
-  evidence validation {street}  the supervisor tool validate_evidence (build_tools, in-process
-                                mode), whose text is {"problems": [...]}
 """
 
 from __future__ import annotations
@@ -112,31 +103,6 @@ def main() -> None:
 
         with TestClient(app, raise_server_exceptions=False) as c:
             headers: dict[str, str] = {}
-            owner: dict[str, str] = {}
-
-            def oracle(name: str, path: str, how: str, response) -> None:
-                # A step whose expected answer is computed by Python's own code, not over HTTP.
-                steps.append({"name": name, "method": "GET", "path": path, "body": None, "auth": True,
-                              "status": 200, "response": response, "oracle": how})
-
-            def python_evidence(project_ref: str, street: str) -> None:
-                from uuid import UUID
-
-                from app.agents.tools import ToolContext, build_tools
-                from app.core.container import get_container
-                from app.db.session import session_factory
-
-                pid, prop = UUID(refs[project_ref]), UUID(refs[f"property:{street}"])
-                base = "/api/v1/projects/{" + project_ref + "}/properties/{property:" + street + "}/evidence"
-                container = get_container()
-                with session_factory()() as db:
-                    rows = [e.model_dump(mode="json") for e in container.evidence.for_property(db, prop)]
-                    ctx = ToolContext(db=db, c=container, project_id=pid, owner_id=UUID(owner["id"]))
-                    tool = next(t for t in build_tools(ctx) if t.name == "validate_evidence")
-                    text = tool.invoke({"property_id": str(prop)})
-                oracle(f"evidence {street}", base, "EvidenceService.for_property, model_dump(mode='json')", rows)
-                oracle(f"evidence validation {street}", base + "/validation",
-                       "supervisor tool validate_evidence (in-process)", json.loads(text))
 
             def step(name: str, method: str, path: str, body=None, auth=True):
                 r = c.request(method, resolve(path), json=resolve_body(body), headers=headers if auth else {})
@@ -150,18 +116,15 @@ def main() -> None:
 
             tok = step("dev_token", "POST", "/api/v1/dev/token", auth=False)
             headers["Authorization"] = f"Bearer {tok['access_token']}"
-            owner["id"] = tok["user_id"]
             created = step("create_project", "POST", "/api/v1/projects",
                            {"project_name": fx["project_name"], "market": fx["market"]})
             refs["project"] = created["project"]["project_id"]
             step("put_business_profile", "PUT", "/api/v1/projects/{project}/business-profile",
                  fx["business_profile"])
-            step("project before search", "GET", "/api/v1/projects/{project}")
             accepted = step("search", "POST", "/api/v1/projects/{project}/properties/search",
                             {"city": "Los Angeles", "state": "CA"})
             refs["status_url"] = accepted["status_url"]
             step("task_status", "GET", "{status_url}")
-            step("project after search", "GET", "/api/v1/projects/{project}")
             props = step("properties", "GET", "/api/v1/projects/{project}/properties")
             streets = []
             for p in props:
@@ -173,7 +136,6 @@ def main() -> None:
                 step(f"property {street}", "GET", base)
                 step(f"permits {street}", "GET", base + "/permits")
                 step(f"feasibility {street}", "GET", base + "/feasibility")
-                python_evidence("project", street)
             step("rankings", "GET", "/api/v1/projects/{project}/rankings")
             step("cost_scenarios", "GET", "/api/v1/projects/{project}/cost-scenarios")
 
