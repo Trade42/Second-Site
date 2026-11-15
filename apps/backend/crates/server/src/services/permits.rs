@@ -15,8 +15,10 @@ use std::sync::Arc;
 
 use serde_json::json;
 use ss_domain::contracts::{PropertyIdentity, SourceEvidence};
+use ss_domain::integrations::base::ProviderError;
 use ss_domain::integrations::la_permits::{LaPermitProvider, PROVIDER};
 use ss_domain::permits::service::{PermitIngestResult, PermitIntelligenceService};
+use ss_domain::DomainError;
 use uuid::Uuid;
 
 use crate::error::AppResult;
@@ -39,17 +41,44 @@ async fn stored_permit_numbers(tx: &mut dyn Tx, property_id: Uuid) -> AppResult<
         .collect())
 }
 
+/// The provider half of the ingest: fetch and match, nothing stored. A provider failure
+/// (unavailable, timeout, rate limited, bad answer, ...) comes back as `Ok(Err(..))` so the
+/// caller can decide to continue without permit records; any other failure (a malformed record,
+/// a join error) is an `Err` as before.
+pub async fn fetch(
+    provider: Arc<dyn LaPermitProvider>,
+    identity: &PropertyIdentity,
+    project_id: Uuid,
+) -> AppResult<Result<PermitIngestResult, ProviderError>> {
+    let svc = PermitIntelligenceService::new(provider);
+    let ident = identity.clone();
+    match blocking(move || svc.fetch_and_match(&ident, Some(project_id))).await? {
+        Ok(res) => Ok(Ok(res)),
+        Err(DomainError::Provider(p)) => Ok(Err(p)),
+        Err(other) => Err(other.into()),
+    }
+}
+
 /// `PermitIntelligenceService(provider).ingest(db, identity, project_id)`: the kept (new)
-/// permits and evidence, every rejection, and the datasets queried.
+/// permits and evidence, every rejection, and the datasets queried. A provider failure is an
+/// error here (Python's behaviour); the property-analysis workflow uses [`fetch`] and
+/// [`store`] instead so that it can continue without permit records.
 pub async fn ingest(
     tx: &mut dyn Tx,
     provider: Arc<dyn LaPermitProvider>,
     identity: &PropertyIdentity,
     project_id: Uuid,
 ) -> AppResult<PermitIngestResult> {
-    let svc = PermitIntelligenceService::new(provider);
-    let ident = identity.clone();
-    let res = blocking(move || svc.fetch_and_match(&ident, Some(project_id))).await??;
+    let res = fetch(provider, identity, project_id).await??;
+    store(tx, identity, res).await
+}
+
+/// The database half of the ingest: persist the fetched permits that are new for the property.
+pub async fn store(
+    tx: &mut dyn Tx,
+    identity: &PropertyIdentity,
+    res: PermitIngestResult,
+) -> AppResult<PermitIngestResult> {
     let mut existing = stored_permit_numbers(tx, identity.property_id).await?;
     let ev_by_id: HashMap<Uuid, &SourceEvidence> =
         res.evidence.iter().map(|e| (e.evidence_id, e)).collect();
