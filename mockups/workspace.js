@@ -32,7 +32,7 @@ const P = Object.fromEntries(POOL.map(p => [p.id, p]));
 const FIRST = ['broadway', 'lankershim', 'sunset', 'sanvicente'];
 const FILL = ['olive', 'sixth-110b', 'third', 'mateo-109', 'beverly-720', 'sanvicente', 'sunset', 'lankershim', 'broadway'];
 const ZONE = { downtown: 'Downtown', westside: 'Westside', eastside: 'Eastside', valley: 'The Valley' };
-const FRAMES = [{ g: 1.12, h: .92, y: 0, t: 17, d: 0 }, { g: .94, h: .8, y: .13, t: 21, d: -6 }, { g: 1.04, h: .88, y: .05, t: 19, d: -11 }, { g: .9, h: .76, y: .19, t: 23, d: -3 }];
+const FRAMES = [{ g: 1.12, h: .94, y: 0, t: 17, d: 0 }, { g: .94, h: .94, y: .04, t: 21, d: -6 }, { g: 1.04, h: .94, y: 0, t: 19, d: -11 }, { g: .9, h: .94, y: .04, t: 23, d: -3 }];
 
 // What the listing does not show. Plans are 100 px per metre; `mesh` is the model
 // coordinate of the plan's top-left ink corner, so plan positions map into the 3D model.
@@ -113,6 +113,7 @@ const CAT = [
   { id: 'washer', room: 'storage', name: 'Stacked washer and dryer', kw: 'washer|dryer|laundry', w: 2.3, d: 2.6, h: 6.3, price: 1890, by: 'LG', lead: '1 wk', at: [[.82, .5]] },
 ];
 const C = Object.fromEntries(CAT.map(c => [c.id, c]));
+const FURNISH_COMMAND = /^(remove|add|replace|swap|move|rotate|resize|delete|undo)\b/i;
 const ROOMTYPE = { reception: 'Reception', treatment: 'Treatment rooms', storage: 'Storage' };
 const BATCH = { reception: ['desk', 'bench', 'retail'], treatment: ['bed', 'stool', 'cart', 'steamer'], storage: ['shelf', 'shelf', 'washer'] };
 
@@ -122,6 +123,7 @@ const fresh = () => ({ stage: 'discover', step: 0, req: {}, slots: [...FIRST], s
 const KEY = 'second-site-workspace';
 let S = fresh();
 try { S = { ...S, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { /* storage unavailable: run in memory */ }
+if (FURNISH_COMMAND.test(S.req.business || '')) S.req.business = null;
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* fine */ } };
 let fast = false, busy = false;
 
@@ -150,8 +152,8 @@ const WORDNUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
 const STEPS = [
   { key: 'business', label: 'Business', replies: ['A facial and skincare studio', 'A pilates studio', 'A café'],
     ask: 'What kind of business is this location for?',
-    set: t => { S.req.business = /facial|skin/i.test(t) ? 'Facial studio' : cap(t.replace(/^(an?|the)\s+/i, '').replace(/[.!]+$/, '')).slice(0, 28); },
-    show: r => r.business, note: n => `Industrial space set aside · ${n} fit` },
+    set: t => { if (FURNISH_COMMAND.test(t.trim())) return false; S.req.business = /facial|skin/i.test(t) ? 'Facial studio' : cap(t.replace(/^(an?|the)\s+/i, '').replace(/[.!]+$/, '')).slice(0, 28); },
+    show: r => r.business || 'Not set', note: n => `Industrial space set aside · ${n} fit` },
   { key: 'zones', label: 'Area', replies: ['Downtown or the Westside', 'Westside only', 'Anywhere in LA'],
     ask: 'Where in Los Angeles do you want to be?',
     set: t => { const z = []; if (/downtown|dtla|arts/i.test(t)) z.push('downtown'); if (/west|beverly|brentwood|santa monica/i.test(t)) z.push('westside'); if (/east|silver|echo/i.test(t)) z.push('eastside'); if (/valley|noho|north holly/i.test(t)) z.push('valley'); S.req.zones = z.length ? z : null; },
@@ -159,11 +161,11 @@ const STEPS = [
   { key: 'rent', label: 'Rent', replies: ['Up to $5,500', 'Up to $7,500', 'Under $3,500'],
     ask: 'What monthly rent can the studio carry?',
     set: t => { const m = t.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(k)?/i); S.req.rent = m ? Math.round(m[1] * (m[2] || m[1] < 100 ? 1000 : 1)) : null; },
-    show: r => r.rent ? `Up to ${money(r.rent)} a month` : 'No limit', note: n => `${S.req.rent ? 'Up to ' + money(S.req.rent) : 'Any rent'} · ${n} fit` },
+    show: r => r.rent ? `Up to ${money(r.rent)} / month` : 'No limit', note: n => `${S.req.rent ? 'Up to ' + money(S.req.rent) : 'Any rent'} · ${n} fit` },
   { key: 'rooms', label: 'Space', replies: ['Three, plus reception', 'Two', 'Four'],
     ask: 'How many treatment rooms do you need?',
     set: t => { const m = t.match(/\d+/) || t.toLowerCase().match(/one|two|three|four|five|six/); S.req.rooms = m ? (WORDNUM[m[0]] || +m[0]) : 3; },
-    show: r => `${r.rooms} treatment ${r.rooms === 1 ? 'room' : 'rooms'}, reception`, note: n => `${minSqft().toLocaleString()} SF or more · ${n} fit` },
+    show: r => `${r.rooms} treatment ${r.rooms === 1 ? 'room' : 'rooms'} + reception`, note: n => `${minSqft().toLocaleString()} SF or more · ${n} fit` },
   { key: 'opening', label: 'Opening', replies: ['By March', 'This summer', 'No fixed date'],
     ask: 'When would you like to open?',
     set: t => { S.req.opening = cap(t.replace(/[.!]+$/, '')).slice(0, 28); },
@@ -178,7 +180,6 @@ function refill() {
   S.slots = S.slots.map(id => (id && matches(P[id]) ? id : null));
   S.slots.forEach((id, i) => { if (!id) S.slots[i] = FILL.find(f => matches(P[f]) && !S.slots.includes(f)) || null; });
   if (S.open && !matches(P[S.open])) S.open = null;
-  if (preview && !matches(P[preview])) preview = null;
 }
 async function research(noteFor) {
   $$('.frame').forEach(f => f.classList.add('loading'));
@@ -194,7 +195,11 @@ function ask() {
 }
 const offer = () => replies(S.step >= STEPS.length && S.saved.length >= 2 ? ['Look into them'] : []);
 async function discoverTurn(text) {
-  if (S.step < STEPS.length) { const st = STEPS[S.step++]; st.set(text); await research(st.note); return ask(); }
+  if (S.step < STEPS.length) {
+    const st = STEPS[S.step];
+    if (st.set(text) === false) return ask();
+    S.step++; await research(st.note); return ask();
+  }
   if (/look into|compare|closer|ready|go ahead/i.test(text)) return toCompare();
   const i = /\$|rent|budget|month/i.test(text) ? 2 : /room/i.test(text) ? 3 : /downtown|west|east|valley|anywhere/i.test(text) ? 1 : /open/i.test(text) ? 4 : -1;
   if (i > 0) { STEPS[i].set(text); await research(STEPS[i].note); } else { await think(); a('Noted.'); }
@@ -207,19 +212,10 @@ function toggleSave(id) {
   save();
 }
 function dismiss(id) {
-  preview = null; clearTimeout(previewTimer);
   S.dismissed.push(id); S.saved = S.saved.filter(x => x !== id);
   refill(); if (S.step >= STEPS.length) offer(); renderDiscover(); save();
 }
-let preview = null, previewTimer;
-function inspect(id) { clearTimeout(previewTimer); preview = null; S.open = S.open === id ? null : id; renderDiscover(); save(); }
-function previewSpace(id, delay = 100) {
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(() => {
-    if (S.stage !== 'discover' || (id && S.dismissed.includes(id))) return;
-    preview = id; renderStrip(); renderInspect(); renderMap();
-  }, delay);
-}
+function selectSpace(id) { S.open = S.open === id ? null : id; renderDiscover(); save(); }
 function toCompare() {
   if (S.saved.length < 2) return a('Save at least two first.');
   if (!S.saved.includes(S.finalist)) S.finalist = S.saved[0];
@@ -236,55 +232,29 @@ function renderStrip() {
   if (!strip.children.length) strip.innerHTML = FRAMES.map(f => `<div class="frame" style="--g:${f.g};--h:calc(var(--strip-h) * ${f.h});--y:calc(var(--strip-h) * ${f.y});--t:${f.t}s;--d:${f.d}s"></div>`).join('');
   $$('.frame', strip).forEach((el, i) => {
     const id = S.slots[i] || '';
+    if (id) el.dataset.property = id; else delete el.dataset.property;
     if (el.dataset.id !== id) {
       el.dataset.id = id;
       if (id) { el.innerHTML = frameHTML(P[id]); el.tabIndex = 0; } else { el.innerHTML = 'No more spaces fit'; el.removeAttribute('tabindex'); }
     }
-    el.className = 'frame' + (id ? '' : ' none') + (S.saved.includes(id) ? ' saved' : '') + ((preview || S.open) === id && id ? ' open' : '');
+    el.className = 'frame' + (id ? '' : ' none') + (S.saved.includes(id) ? ' saved' : '') + (S.open === id && id ? ' open' : '');
     $('[data-act=save]', el)?.setAttribute('aria-pressed', S.saved.includes(id));
   });
 }
 function renderBrief() {
   const rows = STEPS.filter(s => s.key in S.req), el = $('#brief');
-  el.hidden = !rows.length && !S.saved.length;
-  el.innerHTML = (rows.length ? `<dl>${rows.map(s => `<dt>${s.label}</dt><dd><button type="button" data-edit="${s.key}" aria-label="Change ${s.label.toLowerCase()}">${esc(s.show(S.req))}</button></dd>`).join('')}</dl>` : '') +
-    (S.saved.length ? `<div class="savedrow">${S.saved.map(id => `<button type="button" class="th" data-open="${id}" aria-label="${esc(P[id].address)}"><img src="${asset(P[id].src, P[id].photo)}" alt="" style="${P[id].hue ? `filter:hue-rotate(${P[id].hue}deg)` : ''}"></button>`).join('')}${S.saved.length >= 2 ? '<button type="button" class="btn sm" data-go="compare">Compare</button>' : ''}</div>` : '');
+  el.hidden = !rows.length;
+  el.innerHTML = rows.length ? `<dl>${rows.map(s => `<dt>${s.label}</dt><dd><button type="button" data-edit="${s.key}" aria-label="Change ${s.label.toLowerCase()}">${esc(s.show(S.req))}</button></dd>`).join('')}</dl>` : '';
 }
-function renderInspect() {
-  const el = $('#inspect'), p = P[preview || S.open], previous = el.dataset.id;
-  el.hidden = !p; $('#brief').inert = !!p;
-  if (!p) { delete el.dataset.id; return; }
-  const focus = el.contains(document.activeElement) && document.activeElement.dataset.act;
-  el.dataset.id = p.id;
-  const on = S.saved.includes(p.id);
-  el.innerHTML = `<button type="button" class="close" data-act="close" aria-label="Close">${ICON.x}</button>
-    <div class="inspect-scroll">
-    <div class="aerial"><img src="${asset(p.src, 'vexcel-oblique-n.jpg')}" alt="" style="${p.hue ? `filter:hue-rotate(${p.hue}deg)` : ''}"></div>
-    <div class="body"><h3 id="inspect-title">${esc(p.address)}</h3><p class="sub">${esc(p.suite)} · ${esc(p.hood)}</p>
-    <p class="inspect-rent"><strong>${money(p.rent)}</strong><span>/ month</span></p>
-    <dl class="inspect-facts"><div><dt>Size</dt><dd>${p.sqft.toLocaleString()} SF</dd></div><div><dt>Rent per SF</dt><dd>$${(p.rent / p.sqft).toFixed(2)} / mo</dd></div><div><dt>Lease</dt><dd>${esc(p.lease)}</dd></div><div><dt>Use</dt><dd>${esc(p.use)}</dd></div></dl>
-    <p class="broker"><span>Listed by</span>${esc(p.broker)}</p></div></div>
-    <div class="inspect-actions"><div class="row"><button type="button" class="btn ${on ? '' : 'solid'} grow" data-act="save" aria-pressed="${on}">${on ? 'Saved' : 'Save space'}</button><button type="button" class="btn grow" data-act="dismiss">Dismiss</button></div>
-    ${S.saved.length >= 2 ? `<button type="button" class="compare-saved" data-go="compare">Compare ${S.saved.length} saved spaces</button>` : ''}
-    <p class="provenance">${p.id === p.src ? 'Listing snapshot · availability unverified' : 'Demo listing · borrowed imagery'}</p></div>`;
-  if (focus) $(`[data-act="${focus}"]`, el)?.focus({ preventScroll: true });
-  if (previous && previous !== p.id && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    $('.inspect-scroll', el).animate([{ opacity: .25, filter: 'blur(3px)' }, { opacity: 1, filter: 'blur(0)' }], { duration: 240, easing: 'ease-out' });
-  }
-}
-
 let map, pins = {}, fitKey = '';
 function initMap() {
   if (!window.maplibregl) return; // offline: the static LA map behind stays visible
   try { map = new maplibregl.Map({ container: 'map', style: 'https://tiles.openfreemap.org/styles/positron', center: [-118.33, 34.07], zoom: 9.4, attributionControl: { compact: true } }); } catch { return; }
   POOL.forEach(p => {
     const wrap = document.createElement('div'), el = document.createElement('button');
-    el.type = 'button'; el.textContent = '$' + (p.rent / 1000).toFixed(1) + 'k'; el.setAttribute('aria-label', p.address);
-    el.onclick = () => inspect(p.id);
-    el.onpointerenter = e => { if (e.pointerType !== 'touch') previewSpace(p.id); };
-    el.onpointerleave = () => previewSpace(null, 240);
-    el.onfocus = () => previewSpace(p.id, 0);
-    el.onblur = () => previewSpace(null, 240);
+    el.type = 'button'; el.setAttribute('aria-label', p.address);
+    el.dataset.property = p.id;
+    el.onclick = () => selectSpace(p.id);
     wrap.append(el); pins[p.id] = el;
     new maplibregl.Marker({ element: wrap }).setLngLat([p.lon, p.lat]).addTo(map);
   });
@@ -292,7 +262,7 @@ function initMap() {
 function renderMap() {
   if (!map) return;
   const vis = fits();
-  POOL.forEach(p => { pins[p.id].className = 'pin' + (vis.includes(p) ? '' : ' off') + (S.slots.includes(p.id) ? '' : ' dot') + (S.saved.includes(p.id) ? ' saved' : '') + ((preview || S.open) === p.id ? ' on' : ''); });
+  POOL.forEach(p => { pins[p.id].className = 'pin location' + (vis.includes(p) ? '' : ' off') + (S.open === p.id ? ' on' : ''); });
   const key = vis.map(p => p.id).join();
   if (key === fitKey || !vis.length) return; // only move the map when the search itself changes
   fitKey = key;
@@ -300,7 +270,7 @@ function renderMap() {
   const wide = innerWidth > 860;
   map.fitBounds(b, { padding: { top: 60, bottom: 60, left: wide ? 300 : 40, right: wide ? 70 : 40 }, maxZoom: 13.2, duration: fast ? 0 : 1600 });
 }
-function renderDiscover() { renderStrip(); renderBrief(); renderInspect(); renderMap(); renderNav(); }
+function renderDiscover() { renderStrip(); renderBrief(); renderMap(); renderNav(); }
 
 function editBrief(key) {
   const st = STEPS.find(s => s.key === key), btn = $(`[data-edit="${key}"]`), input = document.createElement('input');
@@ -425,14 +395,16 @@ function renderPane() {
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === S.tab));
   $('#parts-count').textContent = S.placed.length || '';
   $('#furnish .side').dataset.open = S.tab || '';
+  const chat = $('.chat-slot[data-slot=furnish]'), market = $('#furnish .market');
+  chat.inert = !!S.tab; chat.setAttribute('aria-hidden', !!S.tab);
+  market.inert = !S.tab; market.setAttribute('aria-hidden', !S.tab);
+  if (!S.tab) return; // Keep the outgoing contents intact while the panel fades away.
   const chip = room && S.tab ? `<div class="filter">${room.name}<button type="button" data-act="clear-room" aria-label="Show all rooms">${ICON.x}</button></div>` : '';
   if (S.tab !== 'parts') {
-    // Collapsed: one small row. Open: the full grid. Either way a piece is its model and its price.
-    const big = S.tab === 'suggest';
-    pane.className = 'pane ' + (big ? 'grid' : 'mini');
-    pane.innerHTML = chip + `<div class="tiles">${CAT.filter(c => !big || !room || room.type === c.room).map(c => {
+    pane.className = 'pane grid';
+    pane.innerHTML = chip + `<div class="tiles">${CAT.filter(c => !room || room.type === c.room).map(c => {
       const n = S.placed.filter(i => i.c === c.id && (!room || i.r === room.id)).length;
-      return `<button type="button" class="tile" data-place="${c.id}" data-tip="${esc(c.name)}" aria-label="Place ${c.name}, ${money(c.price)}">${model(c, big ? 46 : 24)}<span class="price">${money(c.price)}</span>${n ? `<i class="n">${n}</i>` : ''}</button>`;
+      return `<button type="button" class="tile" data-place="${c.id}" data-tip="${esc(c.name)}" aria-label="Place ${c.name}, ${money(c.price)}">${model(c, 46)}<span class="price">${money(c.price)}</span>${n ? `<i class="n">${n}</i>` : ''}</button>`;
     }).join('')}</div>`;
     return;
   }
@@ -635,7 +607,6 @@ function renderNav() {
   $$('.stages button').forEach(b => { b.disabled = !can[b.dataset.go]; b.toggleAttribute('aria-current', b.dataset.go === S.stage); });
 }
 function go(stage) {
-  clearTimeout(previewTimer); preview = null;
   if (stage === 'compare' && S.saved.length < 2) return;
   if (stage === 'compare' && !S.saved.includes(S.finalist)) S.finalist = S.saved[0];
   if (stage === 'furnish' && !S.chosen) return;
@@ -655,7 +626,7 @@ function go(stage) {
     replies(['What is the biggest risk here?', 'Ask the broker']);
   }
   if (stage === 'furnish') {
-    S.view = 'floorplan'; renderFurnish();
+    S.tab = null; S.view = 'floorplan'; renderFurnish();
     if (S.seenFurnish !== S.chosen) { S.seenFurnish = S.chosen; a(`Tell me how ${P[S.chosen].suite} should feel, and I will furnish it.`); }
     replies(furnishReplies());
   }
@@ -664,18 +635,17 @@ function go(stage) {
 
 document.addEventListener('click', e => {
   const t = e.target.closest('button, .frame, tr[data-key]'); if (!t) return;
-  const act = t.dataset.act, frame = t.closest('.frame'), insp = t.closest('#inspect');
+  const act = t.dataset.act, frame = t.closest('.frame');
   if (t.parentElement?.id === 'replies') return send(t.textContent);
   if (t.dataset.go) return go(t.dataset.go);
   if (t.dataset.edit) return editBrief(t.dataset.edit);
-  if (t.dataset.open) return inspect(t.dataset.open);
+  if (t.dataset.open) return selectSpace(t.dataset.open);
   if (act === 'save' || act === 'dismiss') {
-    const id = frame?.dataset.id || insp?.dataset.id;
-    if (id) { if (act === 'save' && insp) { S.open = id; preview = null; clearTimeout(previewTimer); } (act === 'save' ? toggleSave : dismiss)(id); }
+    const id = frame?.dataset.id;
+    if (id) (act === 'save' ? toggleSave : dismiss)(id);
     return;
   }
-  if (act === 'close') return inspect(S.open);
-  if (t.classList.contains('frame')) return t.dataset.id && inspect(t.dataset.id);
+  if (t.classList.contains('frame')) return t.dataset.id && selectSpace(t.dataset.id);
   if (t.dataset.finalist) return selectFinalist(t.dataset.finalist);
   if (t.dataset.view) { S.view = t.dataset.view; renderViewer(); return save(); }
   if (act?.startsWith('dollhouse-') && T?.cur) {
@@ -689,6 +659,7 @@ document.addEventListener('click', e => {
   if (act === 'send-draft') { const msg = t.closest('.msg'), i = $$('.msg', log).indexOf(msg); t.outerHTML = '<span class="sent">Sent</span>'; if (S.msgs[i]) S.msgs[i].html = msg.innerHTML; return save(); }
   if (act === 'explore') return explore(false);
   if (act === 'commit') { S.committed = true; a(`Done. ${P[S.chosen].address} is your space.`); return renderFurnish(); }
+  if (act === 'show-chat') { S.tab = null; renderPane(); scrollLog(); $('#say').focus({ preventScroll: true }); return save(); }
   if (t.dataset.tab) { S.tab = S.tab === t.dataset.tab ? null : t.dataset.tab; renderPane(); scrollLog(); return save(); }
   if (t.dataset.place) return mutate(() => { const room = place(t.dataset.place); if (room) S.sel = `${t.dataset.place}|${room.id}`; });
   if (t.dataset.remove) { const [c, r, st] = t.dataset.remove.split('|'); return mutate(() => { S.placed = S.placed.filter(i => !(i.c === c && i.r === r && i.st === st)); }); }
@@ -698,31 +669,43 @@ document.addEventListener('click', e => {
   if (t.dataset.key) return selectPiece(t.dataset.key);
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.target.classList?.contains('frame')) inspect(e.target.dataset.id);
-  if (e.key === 'Escape' && S.stage === 'discover' && !$('#inspect').hidden) {
-    const origin = $(`.frame[data-id="${S.open || preview}"]`), inside = $('#inspect').contains(document.activeElement);
-    inspect(null); if (inside) { origin?.focus({ preventScroll: true }); clearTimeout(previewTimer); }
-  }
+  if (e.key === 'Enter' && e.target.classList?.contains('frame')) selectSpace(e.target.dataset.id);
+  if (e.key === 'Escape' && S.stage === 'discover' && S.open) selectSpace(null);
 });
 // Opening an issue points the viewer at its evidence.
 $('#findings').addEventListener('toggle', e => { const el = e.target; if (el.open) showIssue(el.dataset.issue, false); else if (S.issue === el.dataset.issue) { S.issue = null; renderViewer(); } }, true);
-$('#strip').addEventListener('pointerover', e => {
-  if (e.pointerType === 'touch') return;
-  const frame = e.target.closest('.frame');
-  if (frame?.dataset.id && e.relatedTarget?.closest?.('.frame') !== frame) previewSpace(frame.dataset.id);
-});
-$('#strip').addEventListener('pointerleave', () => previewSpace(null, 240));
-$('#strip').addEventListener('focusin', e => { const id = e.target.closest('.frame')?.dataset.id; if (id) previewSpace(id, 0); });
-$('#strip').addEventListener('focusout', () => previewSpace(null, 240));
-$('#inspect').addEventListener('pointerenter', () => clearTimeout(previewTimer));
-$('#inspect').addEventListener('pointerleave', () => { if (!$('#inspect').contains(document.activeElement)) previewSpace(null, 240); });
-$('#inspect').addEventListener('focusin', () => clearTimeout(previewTimer));
-$('#inspect').addEventListener('focusout', e => { if (!$('#inspect').contains(e.relatedTarget)) previewSpace(null, 240); });
 $('#composer').addEventListener('submit', e => { e.preventDefault(); const v = $('#say').value; $('#say').value = ''; send(v); });
-// One floating label for anything with data-tip: pieces, catalog tiles, cost parts.
+// Property summaries share the item tooltip's cursor motion and dismissal behavior.
+const SPACE_NOTES = {
+  'mateo-109': {
+    description: 'An open Arts District shell gives you flexibility to shape the studio. Treatment rooms and plumbing would need building before opening.',
+    pros: ['Flexible open layout', 'Lowest asking rent of the three scanned spaces'],
+    cons: ['New rooms and sink runs needed', 'Electrical capacity unknown'],
+  },
+  'sixth-110b': {
+    description: 'Two back rooms in this former restaurant could suit treatments. The kitchen needs removing and the dining area needs new partitions.',
+    pros: ['Two rooms could be reused', 'Existing kitchen plumbing'],
+    cons: ['Kitchen strip-out needed', 'NNN charges add to rent'],
+  },
+  'beverly-720': {
+    description: 'Three rooms and existing sink cabinets could make this a lighter studio conversion. After-hours air and less usable space are the main trade-offs.',
+    pros: ['Three potential treatment rooms', 'Sink cabinets already present'],
+    cons: ['After-hours air costs extra', 'Usable area below listed area'],
+  },
+};
+function propertyTip(p) {
+  const notes = S.req.business === 'Facial studio' && SPACE_NOTES[p.id] || {
+    description: `This ${p.use.toLowerCase()} space offers ${p.sqft.toLocaleString()} SF in ${p.hood}. The ${p.lease.toLowerCase()} lease needs a review of running costs and permitted use.`,
+    pros: [S.req.rent && p.rent <= S.req.rent ? 'Asking rent within your limit' : `${p.sqft.toLocaleString()} SF listed`, `${p.hood} location`],
+    cons: [p.lease === 'Triple net' ? 'NNN costs on top of rent' : 'Lease extras need confirming', 'Layout and utilities not assessed'],
+  };
+  const list = (label, items) => `<div><b>${label}</b><ul>${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
+  return `${p.id !== p.src ? '<span class="space-origin">Demo property</span>' : ''}<p class="space-description">${esc(notes.description)}</p><div class="space-tradeoffs">${list('Pros', notes.pros)}${list('Cons', notes.cons)}</div>`;
+}
+const tipElement = target => target?.closest?.('[data-tip], [data-property]');
 const tip = $('#tip');
 const tipReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-let tipTarget, tipFollowsPointer = false, tipFrame = 0, tipTime = 0;
+let tipTarget, tipFromPointer = false, tipFollowsPointer = false, tipFrame = 0, tipTime = 0;
 let tipX = 0, tipY = 0, tipToX = 0, tipToY = 0, tipWidth = 0, tipHeight = 0;
 function hideTip() {
   tip.hidden = true; tipTarget?.removeAttribute('aria-describedby'); tipTarget = null;
@@ -760,26 +743,29 @@ function positionTip(pointer, snap = false) {
   if (!tipFrame) { tipTime = performance.now(); drawTip(tipTime); }
 }
 function showTip(e) {
-  const t = e.target.closest?.('[data-tip]'); if (!t || e.pointerType === 'touch') return;
-  if (e.type === 'pointerover' && e.relatedTarget?.closest?.('[data-tip]') === t) return;
+  const t = tipElement(e.target); if (!t || e.pointerType === 'touch') return;
+  if (e.type === 'pointerover' && tipElement(e.relatedTarget) === t) return;
   const wasHidden = tip.hidden;
   tipTarget?.removeAttribute('aria-describedby'); tipTarget = t; t.setAttribute('aria-describedby', 'tip');
+  if (e.type === 'pointerover') tipFromPointer = true;
+  else if (e.type === 'focusin') tipFromPointer = !t.matches(':focus-visible');
   const item = C[t.dataset.place || t.dataset.key?.split('|')[0]];
+  const property = P[t.dataset.property];
   tip.classList.toggle('item-tip', !!item);
-  tip.innerHTML = item ? `<strong>${esc(item.name)}</strong><span class="tip-meta">${esc(item.by)} · ${esc(item.lead)} lead time</span><dl class="tip-facts"><div><dt>Footprint</dt><dd>${item.w} × ${item.d} ft</dd></div><div><dt>Each</dt><dd class="tip-price">${money(item.price)}</dd></div></dl>` : esc(t.dataset.tip);
+  tip.classList.toggle('space-tip', !!property);
+  tip.innerHTML = property ? propertyTip(property) : item ? `<strong>${esc(item.name)}</strong><span class="tip-meta">${esc(item.by)} · ${esc(item.lead)} lead time</span><dl class="tip-facts"><div><dt>Footprint</dt><dd>${item.w} × ${item.d} ft</dd></div><div><dt>Each</dt><dd class="tip-price">${money(item.price)}</dd></div></dl>` : esc(t.dataset.tip);
   tip.hidden = false;
   tipWidth = tip.offsetWidth; tipHeight = tip.offsetHeight;
-  tipFollowsPointer = !!item && e.type === 'pointerover' && !tipReducedMotion.matches;
+  tipFollowsPointer = !!(item || property) && e.type === 'pointerover' && !tipReducedMotion.matches;
   positionTip(tipFollowsPointer ? e : null, wasHidden || !tipFollowsPointer);
 }
 ['pointerover', 'focusin'].forEach(ev => document.addEventListener(ev, showTip));
 document.addEventListener('pointermove', e => {
-  if (tipTarget && tipFollowsPointer && e.target.closest?.('[data-tip]') === tipTarget) positionTip(e);
+  if (tipTarget && tipFollowsPointer && tipElement(e.target) === tipTarget) positionTip(e);
 });
 document.addEventListener('pointerout', e => {
-  if (!tipTarget || tipTarget.contains(e.relatedTarget)) return;
-  if (e.relatedTarget?.closest?.('[data-tip]')) return;
-  if (tipTarget === document.activeElement) {
+  if (!tipTarget?.contains(e.target) || tipTarget.contains(e.relatedTarget)) return;
+  if (!tipFromPointer && tipTarget === document.activeElement) {
     tipFollowsPointer = false; positionTip(null, true);
   } else hideTip();
 });

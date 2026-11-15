@@ -30,7 +30,6 @@
       <div class="mapbox">
         <div id="map"></div>
         <aside class="brief float" id="brief" aria-label="What you are looking for" hidden></aside>
-        <aside class="inspect" id="inspect" aria-labelledby="inspect-title" hidden></aside>
       </div>
       <div class="chat-slot" data-slot="discover">
 <!-- One conversation, moved between stages -->
@@ -97,12 +96,13 @@
       <div class="viewer-slot" data-slot="furnish"></div>
     </div>
     <div class="side">
-      <div class="market">
-        <div class="tabs">
-          <button type="button" data-tab="suggest" aria-selected="false">Suggestions</button>
-          <button type="button" data-tab="parts" aria-selected="false">Parts list <span id="parts-count"></span></button>
-        </div>
+      <div class="tabs">
+        <button type="button" data-tab="suggest" aria-selected="false">Suggestions</button>
+        <button type="button" data-tab="parts" aria-selected="false">Parts list <span id="parts-count"></span></button>
+      </div>
+      <div class="market" inert aria-hidden="true">
         <div class="pane" id="pane"></div>
+        <button type="button" class="btn solid chat-return" data-act="show-chat" aria-controls="chat">Chat</button>
       </div>
       <div class="chat-slot" data-slot="furnish"></div>
     </div>
