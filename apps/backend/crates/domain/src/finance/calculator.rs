@@ -26,6 +26,11 @@ use crate::contracts::{
     CostKind, CostLineItem, CostScenario, PropertyDigitalProfile, RenovationWorkItem,
 };
 use crate::error::DomainError;
+use crate::feasibility::engine::no_room_program;
+
+/// Excluded-cost note on a scenario for a profile with no room program (not in Python).
+pub const NO_PROGRAM_EXCLUDED: &str =
+    "Room build-out (partitions, treatment sinks, furniture/equipment): no room program stated yet";
 
 fn overflow(what: &str) -> DomainError {
     DomainError::Overflow(what.to_owned())
@@ -179,12 +184,18 @@ impl FinancialCalculationService {
         }
         let rent = listing.and_then(|l| l.asking_rent_monthly);
         let nnn = listing.and_then(|l| l.nnn_charges_monthly).unwrap_or(0);
-        let excluded = vec![
+        let mut excluded = vec![
             "Tenant improvement allowance (not provided)".to_owned(),
             "Free rent concessions".to_owned(),
             "Broker fees".to_owned(),
             "Business operating costs other than occupancy (payroll, supplies)".to_owned(),
         ];
+        // Not in Python, which never reaches a scenario for such a profile (its feasibility
+        // engine fails first; see `FeasibilityEngine::evaluate`). Without a room program the
+        // renovation subtotal leaves the rooms out, so the scenario says so.
+        if no_room_program(profile) {
+            excluded.push(NO_PROGRAM_EXCLUDED.to_owned());
+        }
         let mut assumptions = vec![
             format!("Comparison horizon {horizon} months"),
             "Rent and NNN held flat (no escalations)".to_owned(),
