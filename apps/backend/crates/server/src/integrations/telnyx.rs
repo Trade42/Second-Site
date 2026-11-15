@@ -17,6 +17,9 @@
 //! (conference) is a `BAD_RESPONSE` provider error here (Python: an uncaught `KeyError`, 500);
 //! path segments taken from the carrier (`call_control_id`, conference id) are percent-encoded
 //! outside `[A-Za-z0-9-._~:]` so that they cannot change the request path.
+//! The media-stream commands (`dial_streaming`, `streaming_start`/`_stop`, `transcription_stop`,
+//! `playback_stop`) are Rust only (Python has none); they follow the same request pattern, without
+//! `command_id` or `client_state`, as every other command here.
 //! Tested only against a local mock server: no real call has been placed by this code.
 
 use std::sync::Arc;
@@ -27,8 +30,8 @@ use ss_core::IntegrationStatus;
 use ss_domain::contracts::ProviderStatusEntry;
 use ss_domain::integrations::base::{status_entry, ProviderError, ProviderErrorKind, RetryPolicy};
 use ss_domain::integrations::telnyx::{
-    encode_client_state, DialResult, FixtureTelephonyProvider, TelephonyError, TelephonyProvider,
-    API, VOICE,
+    encode_client_state, DialResult, FixtureTelephonyProvider, StreamOptions, TelephonyError,
+    TelephonyProvider, API, VOICE,
 };
 
 use super::http::HttpClient;
@@ -132,6 +135,57 @@ impl LiveTelnyxProvider {
         })
     }
 
+    /// `dial` and `dial_streaming`: the same body, plus the stream fields when asked for.
+    fn dial_request(
+        &self,
+        to: &str,
+        from: &str,
+        webhook_url: &str,
+        idempotency_key: &str,
+        client_state: Option<&IndexMap<String, Value>>,
+        stream: Option<&StreamOptions>,
+    ) -> Result<DialResult, TelephonyError> {
+        if !self.allow_outbound {
+            return Err(TelephonyError::Forbidden(
+                "live outbound calls disabled (ALLOW_LIVE_OUTBOUND_CALLS=false)".into(),
+            ));
+        }
+        let mut body = json!({
+            "connection_id": self.connection_id,
+            "to": to,
+            "from": from,
+            "webhook_url": webhook_url,
+            "answering_machine_detection": "detect",
+            "timeout_secs": 40,
+        });
+        if let Some(cs) = client_state.filter(|c| !c.is_empty()) {
+            body["client_state"] = Value::String(encode_client_state(cs));
+        }
+        if let (Some(stream), Some(m)) = (stream, body.as_object_mut()) {
+            m.extend(stream.to_fields());
+        }
+        let data = self.post("/calls", &body, Some(idempotency_key))?;
+        Ok(DialResult {
+            call_control_id: Self::field(&data, "call_control_id")?,
+            state: "initiated".into(),
+        })
+    }
+
+    /// A call command without a result (`POST /calls/{id}/actions/{action}`).
+    fn action(
+        &self,
+        call_control_id: &str,
+        action: &str,
+        body: &Value,
+    ) -> Result<(), TelephonyError> {
+        self.post(
+            &format!("/calls/{}/actions/{action}", path_segment(call_control_id)),
+            body,
+            None,
+        )?;
+        Ok(())
+    }
+
     fn field(data: &serde_json::Map<String, Value>, key: &str) -> Result<String, ProviderError> {
         match data.get(key) {
             Some(Value::String(s)) if !s.is_empty() => Ok(s.clone()),
@@ -157,27 +211,7 @@ impl TelephonyProvider for LiveTelnyxProvider {
         idempotency_key: &str,
         client_state: Option<&IndexMap<String, Value>>,
     ) -> Result<DialResult, TelephonyError> {
-        if !self.allow_outbound {
-            return Err(TelephonyError::Forbidden(
-                "live outbound calls disabled (ALLOW_LIVE_OUTBOUND_CALLS=false)".into(),
-            ));
-        }
-        let mut body = json!({
-            "connection_id": self.connection_id,
-            "to": to,
-            "from": from,
-            "webhook_url": webhook_url,
-            "answering_machine_detection": "detect",
-            "timeout_secs": 40,
-        });
-        if let Some(cs) = client_state.filter(|c| !c.is_empty()) {
-            body["client_state"] = Value::String(encode_client_state(cs));
-        }
-        let data = self.post("/calls", &body, Some(idempotency_key))?;
-        Ok(DialResult {
-            call_control_id: Self::field(&data, "call_control_id")?,
-            state: "initiated".into(),
-        })
+        self.dial_request(to, from, webhook_url, idempotency_key, client_state, None)
     }
 
     fn speak(&self, call_control_id: &str, text: &str) -> Result<(), TelephonyError> {
@@ -246,6 +280,57 @@ impl TelephonyProvider for LiveTelnyxProvider {
             None,
         )?;
         Ok(())
+    }
+
+    fn dial_streaming(
+        &self,
+        to: &str,
+        from: &str,
+        webhook_url: &str,
+        idempotency_key: &str,
+        client_state: Option<&IndexMap<String, Value>>,
+        stream: &StreamOptions,
+    ) -> Result<DialResult, TelephonyError> {
+        self.dial_request(
+            to,
+            from,
+            webhook_url,
+            idempotency_key,
+            client_state,
+            Some(stream),
+        )
+    }
+
+    fn start_streaming(
+        &self,
+        call_control_id: &str,
+        stream: &StreamOptions,
+    ) -> Result<(), TelephonyError> {
+        self.action(
+            call_control_id,
+            "streaming_start",
+            &Value::Object(stream.to_fields()),
+        )
+    }
+
+    fn stop_streaming(
+        &self,
+        call_control_id: &str,
+        stream_id: Option<&str>,
+    ) -> Result<(), TelephonyError> {
+        let body = match stream_id {
+            Some(id) => json!({"stream_id": id}),
+            None => json!({}),
+        };
+        self.action(call_control_id, "streaming_stop", &body)
+    }
+
+    fn stop_transcription(&self, call_control_id: &str) -> Result<(), TelephonyError> {
+        self.action(call_control_id, "transcription_stop", &json!({}))
+    }
+
+    fn stop_playback(&self, call_control_id: &str) -> Result<(), TelephonyError> {
+        self.action(call_control_id, "playback_stop", &json!({"stop": "all"}))
     }
 
     fn status(&self) -> ProviderStatusEntry {

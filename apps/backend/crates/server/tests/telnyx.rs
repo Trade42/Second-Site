@@ -1188,3 +1188,378 @@ both_backends!(a_replayed_transcription_is_processed_once, |db| {
         1
     );
 });
+
+// ---- media-stream commands (telnyx-stream-1): mock server and fixture only -------------------
+
+mod stream {
+    use super::*;
+    use ss_domain::integrations::telnyx::{
+        Bidirectional, FixtureTelephonyProvider, StreamCodec, StreamEvent, StreamOptions,
+        StreamTargetLegs, StreamTrack, TelephonyCommand,
+    };
+
+    fn opts() -> StreamOptions {
+        StreamOptions::voice_agent("wss://x/voice/stream")
+    }
+
+    /// The exact bytes of every request body, for byte-level comparisons.
+    fn raw(server: &MockServer) -> Vec<(String, String, String)> {
+        server
+            .requests()
+            .iter()
+            .map(|r| {
+                (
+                    r.method.clone(),
+                    r.path.clone(),
+                    String::from_utf8(r.body.clone()).unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    /// The bodies the commands that existed before this change send, byte for byte (the same
+    /// bytes as at HEAD: `serde_json` without `preserve_order` writes keys sorted).
+    #[test]
+    fn existing_command_bodies_are_byte_identical() {
+        let server = telnyx_mock();
+        let tx =
+            LiveTelnyxProvider::with_base_url("KEY", "conn1", true, &format!("{}/v2", server.base));
+        tx.dial(
+            "+15555550100",
+            "+15555550111",
+            "https://x/w",
+            "idem",
+            Some(&client_state("c1", "counterparty")),
+        )
+        .unwrap();
+        tx.dial("+15555550100", "+15555550111", "https://x/w", "idem2", None)
+            .unwrap();
+        tx.speak("v3:abc", "hello").unwrap();
+        tx.play("v3:abc", "https://x/a.mp3").unwrap();
+        tx.start_transcription("v3:abc").unwrap();
+        tx.hangup("v3:abc").unwrap();
+        let cs = encode_client_state(&client_state("c1", "counterparty"));
+        let bodies: Vec<String> = raw(&server).into_iter().map(|(_, _, b)| b).collect();
+        assert_eq!(
+            bodies,
+            [
+                format!(
+                    r#"{{"answering_machine_detection":"detect","client_state":"{cs}","connection_id":"conn1","from":"+15555550111","timeout_secs":40,"to":"+15555550100","webhook_url":"https://x/w"}}"#
+                ),
+                r#"{"answering_machine_detection":"detect","connection_id":"conn1","from":"+15555550111","timeout_secs":40,"to":"+15555550100","webhook_url":"https://x/w"}"#.to_owned(),
+                r#"{"language":"en-US","payload":"hello","voice":"female"}"#.to_owned(),
+                r#"{"audio_url":"https://x/a.mp3"}"#.to_owned(),
+                r#"{"transcription_engine":"Telnyx"}"#.to_owned(),
+                "{}".to_owned(),
+            ]
+        );
+    }
+
+    /// Each new command's method, path, headers and JSON body.
+    /// Dial: https://developers.telnyx.com/api-reference/call-commands/dial
+    /// Streaming start: https://developers.telnyx.com/api-reference/call-commands/streaming-start
+    /// Streaming stop: https://developers.telnyx.com/api-reference/call-commands/streaming-stop
+    /// Transcription stop: https://developers.telnyx.com/api-reference/call-commands/transcription-stop
+    /// Stop audio playback: https://developers.telnyx.com/api-reference/call-commands/stop-audio-playback
+    /// Bidirectional RTP: https://developers.telnyx.com/docs/voice/programmable-voice/media-streaming
+    #[test]
+    fn stream_command_request_shapes() {
+        let server = telnyx_mock();
+        let tx =
+            LiveTelnyxProvider::with_base_url("KEY", "conn1", true, &format!("{}/v2", server.base));
+        let res = tx
+            .dial_streaming(
+                "+15555550100",
+                "+15555550111",
+                "https://x/w",
+                "idem",
+                Some(&client_state("c1", "counterparty")),
+                &opts(),
+            )
+            .unwrap();
+        assert_eq!(res.call_control_id, "v3:abc");
+        assert_eq!(res.state, "initiated");
+        tx.start_streaming("v3:abc", &opts()).unwrap();
+        let full = StreamOptions {
+            stream_url: "wss://x/s".into(),
+            track: StreamTrack::Both,
+            stream_codec: None,
+            bidirectional: Some(Bidirectional {
+                codec: StreamCodec::L16,
+                target_legs: Some(StreamTargetLegs::Own),
+                sampling_rate: Some(16000),
+            }),
+            auth_token: Some("tok".into()),
+        };
+        tx.start_streaming("v3:a/b", &full).unwrap();
+        let one_way = StreamOptions {
+            stream_url: "wss://x/s".into(),
+            track: StreamTrack::Outbound,
+            stream_codec: Some(StreamCodec::AmrWb),
+            bidirectional: None,
+            auth_token: None,
+        };
+        tx.start_streaming("v3:abc", &one_way).unwrap();
+        tx.stop_streaming("v3:abc", None).unwrap();
+        tx.stop_streaming("v3:abc", Some("32de0dea-53cb-4b21-89a4-9e1819c043bc"))
+            .unwrap();
+        tx.stop_transcription("v3:abc").unwrap();
+        tx.stop_playback("v3:abc").unwrap();
+        let reqs = server.requests();
+        let got: Vec<(&str, &str)> = reqs
+            .iter()
+            .map(|r| (r.method.as_str(), r.path.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("POST", "/v2/calls"),
+                ("POST", "/v2/calls/v3:abc/actions/streaming_start"),
+                ("POST", "/v2/calls/v3:a%2Fb/actions/streaming_start"),
+                ("POST", "/v2/calls/v3:abc/actions/streaming_start"),
+                ("POST", "/v2/calls/v3:abc/actions/streaming_stop"),
+                ("POST", "/v2/calls/v3:abc/actions/streaming_stop"),
+                ("POST", "/v2/calls/v3:abc/actions/transcription_stop"),
+                ("POST", "/v2/calls/v3:abc/actions/playback_stop"),
+            ]
+        );
+        assert!(reqs
+            .iter()
+            .all(|r| r.headers.get("authorization").map(String::as_str) == Some("Bearer KEY")));
+        assert_eq!(
+            reqs[0].headers.get("idempotency-key").map(String::as_str),
+            Some("idem")
+        );
+        assert!(reqs[1..]
+            .iter()
+            .all(|r| !r.headers.contains_key("idempotency-key")));
+        let body = |i: usize| serde_json::from_slice::<Value>(&reqs[i].body).unwrap();
+        assert_eq!(
+            body(0),
+            json!({
+                "connection_id": "conn1", "to": "+15555550100", "from": "+15555550111",
+                "webhook_url": "https://x/w", "answering_machine_detection": "detect",
+                "timeout_secs": 40,
+                "client_state": encode_client_state(&client_state("c1", "counterparty")),
+                "stream_url": "wss://x/voice/stream", "stream_track": "inbound_track",
+                "stream_codec": "PCMU", "stream_bidirectional_mode": "rtp",
+                "stream_bidirectional_codec": "PCMU",
+            })
+        );
+        let agent = json!({
+            "stream_url": "wss://x/voice/stream", "stream_track": "inbound_track",
+            "stream_codec": "PCMU", "stream_bidirectional_mode": "rtp",
+            "stream_bidirectional_codec": "PCMU",
+        });
+        assert_eq!(body(1), agent);
+        assert_eq!(
+            body(2),
+            json!({
+                "stream_url": "wss://x/s", "stream_track": "both_tracks",
+                "stream_bidirectional_mode": "rtp", "stream_bidirectional_codec": "L16",
+                "stream_bidirectional_target_legs": "self",
+                "stream_bidirectional_sampling_rate": 16000, "stream_auth_token": "tok",
+            })
+        );
+        assert_eq!(
+            body(3),
+            json!({"stream_url": "wss://x/s", "stream_track": "outbound_track", "stream_codec": "AMR-WB"})
+        );
+        assert_eq!(body(4), json!({}));
+        assert_eq!(
+            body(5),
+            json!({"stream_id": "32de0dea-53cb-4b21-89a4-9e1819c043bc"})
+        );
+        assert_eq!(body(6), json!({}));
+        assert_eq!(body(7), json!({"stop": "all"}));
+        // The token never shows in Debug output.
+        assert!(!format!("{full:?}").contains("tok\""));
+        // dial_streaming is refused like dial when live outbound calls are disabled.
+        let blocked = LiveTelnyxProvider::with_base_url(
+            "KEY",
+            "conn1",
+            false,
+            &format!("{}/v2", server.base),
+        );
+        let n = server.requests().len();
+        match blocked.dial_streaming("+1", "+1", "u", "k", None, &opts()) {
+            Err(TelephonyError::Forbidden(m)) => assert!(m.contains("disabled")),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(server.requests().len(), n);
+    }
+
+    #[test]
+    fn stream_command_errors() {
+        // A refusal: Telnyx's 422 (for example "call has already ended").
+        let server = MockServer::start_with(|_req: &Recorded| Canned {
+            status: 422,
+            content_type: Some("application/json".into()),
+            body: br#"{"errors":[{"code":"90018","title":"Call has already ended"}]}"#.to_vec(),
+        });
+        let tx =
+            LiveTelnyxProvider::with_base_url("KEY", "conn1", true, &format!("{}/v2", server.base));
+        for r in [
+            tx.start_streaming("v3:abc", &opts()),
+            tx.stop_streaming("v3:abc", None),
+            tx.stop_transcription("v3:abc"),
+            tx.stop_playback("v3:abc"),
+        ] {
+            match r {
+                Err(TelephonyError::Provider(e)) => {
+                    assert_eq!(e.kind, ProviderErrorKind::BadResponse);
+                    assert_eq!(e.message, "HTTP 422");
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+        assert_eq!(server.requests().len(), 4, "one attempt each, no retry");
+        // A transport failure: nothing listens on the port.
+        let closed = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            l.local_addr().unwrap().port()
+        };
+        let tx = LiveTelnyxProvider::with_base_url(
+            "KEY",
+            "conn1",
+            true,
+            &format!("http://127.0.0.1:{closed}/v2"),
+        );
+        match tx.start_streaming("v3:abc", &opts()) {
+            Err(TelephonyError::Provider(e)) => {
+                assert_eq!(e.provider, "telnyx");
+                assert!(
+                    matches!(
+                        e.kind,
+                        ProviderErrorKind::Unavailable | ProviderErrorKind::Timeout
+                    ),
+                    "{e:?}"
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn fixture_records_stream_commands() {
+        let f = FixtureTelephonyProvider::new();
+        let d = f
+            .dial_streaming("+15555550100", "+1", "u", "k1", None, &opts())
+            .unwrap();
+        assert_eq!(
+            f.dial_streaming("+15555550100", "+1", "u", "k1", None, &opts())
+                .unwrap(),
+            d
+        );
+        f.dial("+15555550101", "+1", "u", "k2", None).unwrap();
+        let calls = f.calls();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].stream, Some(opts()));
+        assert_eq!(calls[1].stream, None);
+        let leg = d.call_control_id.as_str();
+        f.start_streaming(leg, &opts()).unwrap();
+        f.stop_streaming(leg, Some("s1")).unwrap();
+        f.stop_streaming(leg, None).unwrap();
+        f.stop_transcription(leg).unwrap();
+        f.stop_playback(leg).unwrap();
+        let cmds = f.commands();
+        assert_eq!(
+            cmds,
+            [
+                TelephonyCommand::StreamingStart {
+                    leg: leg.into(),
+                    stream: opts()
+                },
+                TelephonyCommand::StreamingStop {
+                    leg: leg.into(),
+                    stream_id: Some("s1".into())
+                },
+                TelephonyCommand::StreamingStop {
+                    leg: leg.into(),
+                    stream_id: None
+                },
+                TelephonyCommand::TranscriptionStop { leg: leg.into() },
+                TelephonyCommand::PlaybackStop { leg: leg.into() },
+            ]
+        );
+        let json: Vec<Value> = cmds.iter().map(TelephonyCommand::to_json).collect();
+        assert_eq!(
+            json,
+            [
+                json!({"cmd": "streaming_start", "leg": leg, "stream_url": "wss://x/voice/stream", "stream_track": "inbound_track"}),
+                json!({"cmd": "streaming_stop", "leg": leg, "stream_id": "s1"}),
+                json!({"cmd": "streaming_stop", "leg": leg}),
+                json!({"cmd": "transcription_stop", "leg": leg}),
+                json!({"cmd": "playback_stop", "leg": leg}),
+            ]
+        );
+        // A provider written before these commands (here the test double `FailingDial`) refuses
+        // them without doing anything.
+        let old = FailingDial {
+            dials: Default::default(),
+            kind: ProviderErrorKind::Unavailable,
+            message: "x",
+        };
+        match old.start_streaming("l", &opts()) {
+            Err(TelephonyError::Provider(e)) => {
+                assert_eq!(e.kind, ProviderErrorKind::NotConfigured)
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn stream_event_names() {
+        for (s, e) in [
+            ("streaming.started", StreamEvent::Started),
+            ("streaming.stopped", StreamEvent::Stopped),
+            ("streaming.failed", StreamEvent::Failed),
+        ] {
+            assert_eq!(StreamEvent::parse(s), Some(e));
+            assert_eq!(e.as_str(), s);
+        }
+        assert_eq!(StreamEvent::parse("call.answered"), None);
+    }
+
+    // The three stream webhooks change nothing today: no state, no transcript, no command, no
+    // owner text, 204, in INTRO and in ACTIVE.
+    both_backends!(stream_webhooks_are_ignored_by_the_call_flow, |db| {
+        let (t, fake) = app_with_key(db, &[]);
+        let fixture = t.app.voice().fixture.clone().unwrap();
+        let (_, call) = dialing_call(&t, None).await;
+        let leg = call.provider_call_id.clone().unwrap();
+        let id = call.call_id;
+        let mine = cs(id, "counterparty");
+        let p = json!({"call_control_id": leg, "client_state": mine, "stream_url": "wss://x/s"});
+        for (et, eid) in [("call.answered", "a1"), ("call.speak.ended", "a2")] {
+            let before = serde_json::to_value(load(&t, id).await).unwrap();
+            let commands = fixture.commands();
+            let notices = fake.requests().len();
+            for s in ["streaming.started", "streaming.stopped", "streaming.failed"] {
+                assert_eq!(
+                    deliver(&t, &format!("{eid}-{s}"), s, p.clone()).await,
+                    204,
+                    "{s}"
+                );
+            }
+            assert_eq!(
+                serde_json::to_value(load(&t, id).await).unwrap(),
+                before,
+                "{et}"
+            );
+            assert_eq!(fixture.commands(), commands);
+            assert_eq!(fake.requests().len(), notices);
+            assert_eq!(
+                deliver(
+                    &t,
+                    eid,
+                    et,
+                    json!({"call_control_id": leg, "client_state": mine})
+                )
+                .await,
+                204
+            );
+        }
+        assert_eq!(load(&t, id).await.state, CallState::Active);
+    });
+}

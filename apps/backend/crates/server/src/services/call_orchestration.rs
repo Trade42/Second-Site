@@ -48,7 +48,7 @@
 //! - Carrier commands run on the blocking pool (`integrations::blocking`).
 
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex, RwLock, Weak};
 
 use chrono::{Duration, Utc};
 use indexmap::IndexMap;
@@ -59,8 +59,11 @@ use ss_domain::contracts::{
     CallSession, CallState, CommunicationState, HandoffReason, HandoffStatus, OwnerHandoffRequest,
     ParticipantState, SourceEvidence, StructuredFinding, TranscriptTurn,
 };
+use ss_domain::communications::response_agent::{
+    self as agent, CallContext, ConversationState, Say, Utterance,
+};
 use ss_domain::integrations::telnyx::{
-    client_state, decode_client_state_json, TelephonyError, TelephonyProvider,
+    client_state, decode_client_state_json, StreamOptions, TelephonyError, TelephonyProvider,
 };
 use uuid::Uuid;
 
@@ -72,6 +75,11 @@ use crate::logging;
 use crate::services::events::Emit;
 use crate::services::evidence::EvidenceService;
 use crate::services::notifier::NotifyRequest;
+use crate::services::voice_bridge::{
+    BridgeEnd, BridgeEvents, BridgeHandle, BridgeOptions, BridgeRegistry, CallBridgeSpec,
+    Speaker as BridgeSpeaker, ToolCall, TranscriptLine,
+};
+use crate::services::voice_session_config as vsc;
 use crate::store::comms::{
     call_by_provider_id, channel_for_owner, CALLS, COMMUNICATIONS, HANDOFFS,
 };
@@ -333,6 +341,14 @@ impl<'a> CallOrchestrator<'a> {
     /// `_say`: speak on the broker leg and keep the transcript.
     async fn say(&self, tx: &mut dyn Tx, call: CallSession, text: &str) -> AppResult<CallSession> {
         let mut text = text.to_owned();
+        if let Some(control) = self.app.voice_calls().speaking_control(&call) {
+            if !control.say(text.clone()).await {
+                text = format!("{text} [speak failed: bridge gone]");
+            }
+            let mut call = call;
+            call.transcript.push(turn("assistant", text));
+            return self.save(tx, call).await;
+        }
         if let Some(leg) = call.provider_call_id.clone() {
             let spoken = text.clone();
             match self.tel(move |t| t.speak(&leg, &spoken)).await? {
@@ -384,6 +400,21 @@ impl<'a> CallOrchestrator<'a> {
                 &payload,
             )
             .await?;
+        // With the voice bridge on, the introduction is the owner's ACTIVE recording (read under
+        // the owner's recording lock), or none: the recording is optional (owner, 07:16Z), and a
+        // call without one opens with the server's identification line. With the bridge off, the
+        // request's reference, as before.
+        let use_active = self.app.voice_calls().enabled();
+        let intro = if use_active {
+            tx.advisory_xact_lock(crate::services::design::lock_key(
+                "intro-recording",
+                s.owner_id,
+            ))
+            .await?;
+            crate::services::intro_recording::active_for_call(tx, s.owner_id).await?
+        } else {
+            None
+        };
         let assessments = match s.property_id {
             Some(pid) => {
                 ASSESSMENTS
@@ -399,7 +430,11 @@ impl<'a> CallOrchestrator<'a> {
             approved.approval.approval_id,
         );
         call.property_id = s.property_id;
-        call.intro_recording_reference = s.intro_recording_reference;
+        call.intro_recording_reference = if use_active {
+            intro.as_ref().map(|i| i.object_key.clone())
+        } else {
+            s.intro_recording_reference
+        };
         call.communication_id = s.communication_id;
         call.script = build_script(&assessments);
         call.simulated = s.simulated;
@@ -485,6 +520,11 @@ impl<'a> CallOrchestrator<'a> {
             };
         }
         let call = self.save(tx, call).await?;
+        if is_terminal(target) {
+            self.app.voice_calls().close(call.call_id).await;
+        } else if target == CallState::AiResumed {
+            self.app.voice_calls().unpause(call.call_id).await;
+        }
         let et = match target {
             CallState::Completed => Some(EventType::CallCompleted),
             CallState::Failed => Some(EventType::CallFailed),
@@ -600,6 +640,11 @@ impl<'a> CallOrchestrator<'a> {
                 .map(Some);
         }
         let et = et.as_deref();
+        if self.app.voice_calls().is_bridged(call.call_id) {
+            if let Some(call) = self.bridged_event(tx, &call, et, p).await? {
+                return Ok(Some(call));
+            }
+        }
         if et == Some("call.answered") && call.state == CallState::Dialing {
             return self.on_answered(tx, call).await.map(Some);
         }
@@ -657,6 +702,9 @@ impl<'a> CallOrchestrator<'a> {
             "joined",
         )];
         let mut call = self.save(tx, call).await?;
+        if self.app.voice_calls().enabled() {
+            return self.answered_bridged(tx, call).await;
+        }
         let owner = self.owner_name(tx, call.owner_id).await?;
         if let (Some(intro), Some(leg)) = (
             call.intro_recording_reference
@@ -714,6 +762,9 @@ impl<'a> CallOrchestrator<'a> {
     }
 
     async fn ask_next(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
+        if self.app.voice_calls().is_bridged(call.call_id) {
+            return self.agent_resume(tx, call).await;
+        }
         if let Some(q) = current_question(&call) {
             return self.say(tx, call, &q.question).await;
         }
@@ -1109,6 +1160,8 @@ impl<'a> CallOrchestrator<'a> {
         );
         let handoff = handoff.transition(HandoffStatus::Notified)?;
         HANDOFFS.upsert(tx, &handoff).await?;
+        // In the three handoff states nothing flows through the bridge either way.
+        self.app.voice_calls().pause(call.call_id).await;
         Ok(handoff)
     }
 
@@ -1235,13 +1288,13 @@ impl<'a> CallOrchestrator<'a> {
             call.participant_states
                 .push(participant("owner", Some(owner_leg), "dialing"));
             let call = self.save(tx, call).await?;
-            let call = self
-                .say(
-                    tx,
-                    call,
-                    "Great news, the owner is joining the call now. One moment please.",
-                )
-                .await?;
+            // On a bridged call nothing says the owner is joining: only HUMAN_JOINED says joined.
+            let line = if self.app.voice_calls().is_bridged(call.call_id) {
+                HOLD_FOR_OWNER_LINE
+            } else {
+                "Great news, the owner is joining the call now. One moment please."
+            };
+            let call = self.say(tx, call, line).await?;
             return self
                 .advance(
                     tx,
@@ -1319,14 +1372,19 @@ impl<'a> CallOrchestrator<'a> {
             call.transcript
                 .push(turn("system", "[owner joined the call]"));
             let call = self.save(tx, call).await?;
-            return self
+            let call = self
                 .advance(
                     tx,
                     call.call_id,
                     CallState::HumanJoined,
                     Some("owner joined"),
                 )
-                .await;
+                .await?;
+            if self.app.voice_calls().is_bridged(call.call_id) {
+                // The bridge is paused, so this goes out on the carrier (`speak`).
+                return self.say(tx, call, OWNER_JOINED_LINE).await;
+            }
+            return Ok(call);
         }
         if et == Some("call.hangup") && call.state == CallState::OwnerJoining {
             let question = match call.handoff_request_id {
@@ -1404,4 +1462,786 @@ impl<'a> CallOrchestrator<'a> {
 /// Number of join tokens currently held (tests).
 pub fn join_token_count() -> usize {
     join_tokens().len()
+}
+
+// ---- Grok Voice: the recording, then the bridge ---------------------------------------------
+//
+// With the bridge on (`Settings::voice_bridge_active`, or a launcher a test installs), a call
+// runs: answered -> INTRO, play the owner's ACTIVE recording and nothing else -> the carrier's
+// `call.playback.ended` for exactly that playback -> ACTIVE: the per-call stream secret, the
+// server-built session, `streaming_start`; the bridge speaks our opening line verbatim before the
+// model may speak -> every finished counterparty line goes through the Response Agent and the
+// functions above (`record_finding`, `request_handoff`) -> the three handoff states pause the
+// bridge -> any terminal state closes it. With the bridge off nothing below runs.
+
+/// The polite fixed line when the recording, the stream or the bridge fails.
+pub const APOLOGY_LINE: &str = "I'm sorry, we're having a technical problem on our side. The \
+                                owner will follow up with you directly. Goodbye.";
+/// Said (on the carrier) when the owner accepted a handoff and is being dialed.
+pub const HOLD_FOR_OWNER_LINE: &str = "Please hold for a moment.";
+/// Said by the server only on the HUMAN_JOINED transition.
+pub const OWNER_JOINED_LINE: &str = "The owner has joined the call.";
+/// A commitment or a sensitive disclosure the model asked about.
+pub const NOT_APPROVED_OUTPUT: &str = r#"{"status":"not_approved","detail":"Not approved; the owner has been asked. Say that you have asked the owner, and do not agree to or disclose anything."}"#;
+/// An escalation the model asked for.
+pub const OWNER_ASKED_OUTPUT: &str = r#"{"status":"owner_asked","detail":"The owner has been asked. Say so and wait; do not answer for them."}"#;
+pub const UNKNOWN_TOOL_OUTPUT: &str = r#"{"status":"unknown_tool"}"#;
+/// How long after the Response Agent's closing line the call is hung up.
+pub const CLOSING_HANGUP_DELAY_S: u64 = 8;
+
+/// The orchestrator's control of one bridge (the live [`BridgeHandle`], or a test's fixture).
+/// Each call answers whether the bridge took it.
+#[async_trait::async_trait]
+pub trait BridgeControl: Send + Sync {
+    async fn say(&self, text: String) -> bool;
+    async fn pause(&self) -> bool;
+    async fn resume(&self) -> bool;
+    async fn stop(&self) -> bool;
+}
+
+#[async_trait::async_trait]
+impl BridgeControl for BridgeHandle {
+    async fn say(&self, text: String) -> bool {
+        BridgeHandle::say(self, text).await.is_ok()
+    }
+    async fn pause(&self) -> bool {
+        BridgeHandle::pause(self).await.is_ok()
+    }
+    async fn resume(&self) -> bool {
+        BridgeHandle::resume(self).await.is_ok()
+    }
+    async fn stop(&self) -> bool {
+        BridgeHandle::stop(self).await.is_ok()
+    }
+}
+
+/// Registers a call's bridge before the carrier's stream connects.
+pub trait BridgeLauncher: Send + Sync {
+    /// The bridge id (the stream URL's path segment) and its control.
+    fn expect(&self, spec: CallBridgeSpec) -> (String, Arc<dyn BridgeControl>);
+    fn remove(&self, bridge_id: &str);
+}
+
+/// The live launcher: the registry the carrier's WebSocket route admits from.
+pub struct LiveBridgeLauncher {
+    pub registry: BridgeRegistry,
+}
+
+impl BridgeLauncher for LiveBridgeLauncher {
+    fn expect(&self, spec: CallBridgeSpec) -> (String, Arc<dyn BridgeControl>) {
+        let (id, handle) = self.registry.expect(spec);
+        (id, Arc::new(handle))
+    }
+    fn remove(&self, bridge_id: &str) {
+        self.registry.remove(bridge_id);
+    }
+}
+
+/// One bridged call's process-local state (lost on restart: a call in progress then gets no
+/// more decisions, and its stream is refused).
+struct VoiceCall {
+    bridge_id: Option<String>,
+    control: Option<Arc<dyn BridgeControl>>,
+    /// SHA-256 of the playback URL of the recording; the ended event must carry that URL.
+    intro_url_sha: Option<String>,
+    paused: bool,
+    context: Option<CallContext>,
+    agent: ConversationState,
+    next_turn: u64,
+}
+
+impl VoiceCall {
+    fn new() -> Self {
+        Self {
+            bridge_id: None,
+            control: None,
+            intro_url_sha: None,
+            paused: false,
+            context: None,
+            agent: ConversationState::default(),
+            next_turn: 1,
+        }
+    }
+}
+
+/// The voice bridges of this process: the carrier route's registry, the launcher (None: the
+/// bridge is off), and one entry per bridged call.
+pub struct VoiceCalls {
+    pub registry: BridgeRegistry,
+    launcher: RwLock<Option<Arc<dyn BridgeLauncher>>>,
+    app: RwLock<Weak<App>>,
+    calls: Mutex<HashMap<Uuid, VoiceCall>>,
+}
+
+fn sha_hex(s: &str) -> String {
+    use sha2::Digest;
+    hex::encode(sha2::Sha256::digest(s.as_bytes()))
+}
+
+impl VoiceCalls {
+    pub fn for_settings(settings: &crate::config::Settings) -> Self {
+        let registry = BridgeRegistry::new();
+        let launcher: Option<Arc<dyn BridgeLauncher>> = if settings.voice_bridge_active() {
+            Some(Arc::new(LiveBridgeLauncher {
+                registry: registry.clone(),
+            }))
+        } else {
+            None
+        };
+        Self {
+            registry,
+            launcher: RwLock::new(launcher),
+            app: RwLock::new(Weak::new()),
+            calls: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<Uuid, VoiceCall>> {
+        self.calls.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Install (or remove) the launcher; tests install a fixture bridge here.
+    pub fn set_launcher(&self, launcher: Option<Arc<dyn BridgeLauncher>>) {
+        *self.launcher.write().unwrap_or_else(|e| e.into_inner()) = launcher;
+    }
+
+    fn launcher(&self) -> Option<Arc<dyn BridgeLauncher>> {
+        self.launcher
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// Whether new calls take the bridge path.
+    pub fn enabled(&self) -> bool {
+        self.launcher().is_some()
+    }
+
+    /// Remember the shared app, so bridge events (which arrive outside any request) can open
+    /// their own transactions.
+    pub fn bind(&self, app: &Arc<App>) {
+        let mut w = self.app.write().unwrap_or_else(|e| e.into_inner());
+        if w.upgrade().is_none() {
+            *w = Arc::downgrade(app);
+        }
+    }
+
+    fn app_weak(&self) -> Weak<App> {
+        self.app.read().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+
+    pub fn is_bridged(&self, call_id: Uuid) -> bool {
+        self.map().contains_key(&call_id)
+    }
+
+    /// Whether the call has a registered bridge (tests).
+    pub fn has_bridge(&self, call_id: Uuid) -> bool {
+        self.map()
+            .get(&call_id)
+            .is_some_and(|v| v.bridge_id.is_some())
+    }
+
+    /// Whether the call's bridge is paused (tests).
+    pub fn is_paused(&self, call_id: Uuid) -> bool {
+        self.map().get(&call_id).is_some_and(|v| v.paused)
+    }
+
+    /// The control that speaks for the call now: a bridge exists, is not paused, and the call
+    /// is ACTIVE or AI_RESUMED. Otherwise the server speaks on the carrier.
+    fn speaking_control(&self, call: &CallSession) -> Option<Arc<dyn BridgeControl>> {
+        if !matches!(call.state, CallState::Active | CallState::AiResumed) {
+            return None;
+        }
+        self.map()
+            .get(&call.call_id)
+            .filter(|v| !v.paused)
+            .and_then(|v| v.control.clone())
+    }
+
+    async fn pause(&self, call_id: Uuid) {
+        let control = {
+            let mut m = self.map();
+            m.get_mut(&call_id).and_then(|v| {
+                v.paused = true;
+                v.control.clone()
+            })
+        };
+        if let Some(c) = control {
+            c.pause().await;
+        }
+    }
+
+    async fn unpause(&self, call_id: Uuid) {
+        let control = {
+            let mut m = self.map();
+            m.get_mut(&call_id).and_then(|v| {
+                v.paused = false;
+                v.control.clone()
+            })
+        };
+        if let Some(c) = control {
+            c.resume().await;
+        }
+    }
+
+    /// Stop and forget the call's bridge; the stream secret dies with it.
+    async fn close(&self, call_id: Uuid) {
+        let entry = self.map().remove(&call_id);
+        if let Some(v) = entry {
+            if let (Some(id), Some(l)) = (v.bridge_id.as_deref(), self.launcher()) {
+                l.remove(id);
+            }
+            if let Some(c) = v.control {
+                c.stop().await;
+            }
+        }
+    }
+
+    /// Drop the bridge without a stop (it ended by itself), keep the call bridged-and-paused so
+    /// the server speaks on the carrier.
+    fn detach(&self, call_id: Uuid) {
+        let id = {
+            let mut m = self.map();
+            m.get_mut(&call_id).and_then(|v| {
+                v.paused = true;
+                v.control = None;
+                v.bridge_id.take()
+            })
+        };
+        if let (Some(id), Some(l)) = (id, self.launcher()) {
+            l.remove(&id);
+        }
+    }
+}
+
+impl App {
+    /// The process's voice bridges (built from the settings on first use).
+    pub fn voice_calls(&self) -> Arc<VoiceCalls> {
+        if let Some(v) = self.extensions.get::<VoiceCalls>() {
+            return v;
+        }
+        let v = Arc::new(VoiceCalls::for_settings(&self.settings));
+        self.extensions.insert(v.clone());
+        self.extensions.get::<VoiceCalls>().unwrap_or(v)
+    }
+}
+
+/// `wss://<PUBLIC_BASE_URL host>/api/v1/voice/stream/{bridge_id}?token=<secret>`.
+pub fn stream_url(public_base_url: &str, bridge_id: &str, token: &str) -> String {
+    let base = public_base_url.trim_end_matches('/');
+    let base = if let Some(rest) = base.strip_prefix("https://") {
+        format!("wss://{rest}")
+    } else if let Some(rest) = base.strip_prefix("http://") {
+        format!("ws://{rest}")
+    } else {
+        base.to_owned()
+    };
+    format!("{base}/api/v1/voice/stream/{bridge_id}?token={token}")
+}
+
+/// What a bridge (or the intro watchdog) reports about a call.
+#[derive(Debug, Clone)]
+pub enum BridgeInput {
+    Counterparty(String),
+    Assistant(String),
+    Tool { name: String, arguments: Value },
+    /// The bridge ended by itself (`EndReason::as_str`).
+    Ended(String),
+    /// The recording's playback did not end within its bound.
+    IntroTimeout,
+}
+
+/// Run one bridge input in its own transaction, then send the owner texts it caused.
+pub async fn bridge_input(app: &Arc<App>, call_id: Uuid, input: BridgeInput) -> AppResult<String> {
+    app.voice_calls().bind(app);
+    let mut tx = app.store.begin().await?;
+    let mut orch = CallOrchestrator::new(app);
+    let out = orch.on_bridge_input(&mut *tx, call_id, input).await?;
+    tx.commit().await?;
+    app.owner_notify().dispatch(app.clone(), orch.take_notices());
+    Ok(out)
+}
+
+/// The orchestrator's side of one call's bridge.
+pub struct CallBridgeEvents {
+    app: Weak<App>,
+    call_id: Uuid,
+}
+
+impl CallBridgeEvents {
+    async fn run(&self, input: BridgeInput) -> Option<String> {
+        let app = self.app.upgrade()?;
+        match bridge_input(&app, self.call_id, input).await {
+            Ok(s) => Some(s),
+            Err(_) => {
+                // Ids only: an error message is not logged (it could quote call content).
+                logging::warning(
+                    "app.services.call_orchestration",
+                    "bridge event failed",
+                    &[("call_id", Value::String(self.call_id.to_string()))],
+                );
+                None
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl BridgeEvents for CallBridgeEvents {
+    async fn transcript(&self, line: TranscriptLine) {
+        let input = match line.speaker {
+            BridgeSpeaker::Counterparty => BridgeInput::Counterparty(line.text),
+            BridgeSpeaker::Assistant => BridgeInput::Assistant(line.text),
+        };
+        self.run(input).await;
+    }
+    async fn tool_call(&self, call: ToolCall) -> String {
+        self.run(BridgeInput::Tool {
+            name: call.name,
+            arguments: call.arguments,
+        })
+        .await
+        .unwrap_or_else(|| NOT_APPROVED_OUTPUT.to_owned())
+    }
+    async fn ended(&self, end: BridgeEnd) {
+        self.run(BridgeInput::Ended(end.reason.as_str())).await;
+    }
+}
+
+fn arg_str(v: &Value, k: &str) -> String {
+    let raw = v.get(k).and_then(Value::as_str).unwrap_or("");
+    let (cut, _) = agent::cut(raw);
+    let (red, _, _) = agent::redact(&cut);
+    red.chars().take(300).collect()
+}
+
+impl CallOrchestrator<'_> {
+    /// Carrier events of a bridged call that differ from the fixed-line flow; `None` lets the
+    /// normal handling run.
+    async fn bridged_event(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: &CallSession,
+        et: Option<&str>,
+        p: &serde_json::Map<String, Value>,
+    ) -> AppResult<Option<CallSession>> {
+        match et {
+            // Only the ended event of our own recording's playback moves the call on.
+            Some("call.playback.ended") if call.state == CallState::Intro => {
+                let expected = self
+                    .app
+                    .voice_calls()
+                    .map()
+                    .get(&call.call_id)
+                    .and_then(|v| v.intro_url_sha.clone());
+                let got = p.get("media_url").and_then(Value::as_str).map(sha_hex);
+                if expected.is_none() || got != expected {
+                    return Ok(Some(call.clone()));
+                }
+                let status = p.get("status").and_then(Value::as_str).unwrap_or("completed");
+                if status != "completed" {
+                    let why = format!("the recorded introduction did not play to its end ({status})");
+                    return self.fail_politely(tx, call.clone(), &why).await.map(Some);
+                }
+                self.begin_bridge(tx, call.clone()).await.map(Some)
+            }
+            // Nothing else speaks or moves the call during the recording.
+            Some("call.speak.ended" | "call.playback.ended") => Ok(Some(call.clone())),
+            // The bridge carries the speech: the carrier's transcription is not used.
+            Some("call.transcription") => Ok(Some(call.clone())),
+            Some("streaming.failed") if !is_terminal(call.state) => {
+                self.app.voice_calls().detach(call.call_id);
+                self.fail_politely(tx, call.clone(), "the media stream failed")
+                    .await
+                    .map(Some)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// `call.answered` with the bridge on: the recording and nothing else.
+    async fn answered_bridged(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+    ) -> AppResult<CallSession> {
+        let vcs = self.app.voice_calls();
+        vcs.map().insert(call.call_id, VoiceCall::new());
+        let Some(reference) = call.intro_recording_reference.clone().filter(|r| !r.is_empty())
+        else {
+            // No recording (optional): the bridge's opening line is the first thing heard.
+            return self.begin_bridge(tx, call).await;
+        };
+        // A recording revoked or replaced between the approval and the answer is not played;
+        // the call goes on without it and the reason is stored on the call.
+        tx.advisory_xact_lock(crate::services::design::lock_key(
+            "intro-recording",
+            call.owner_id,
+        ))
+        .await?;
+        let active = crate::services::intro_recording::active_for_call(tx, call.owner_id).await?;
+        let Some(intro) = active.filter(|i| i.object_key == reference) else {
+            let mut call = call;
+            call.transcript.push(turn(
+                "system",
+                "[the owner's recorded introduction was revoked or replaced after the approval; \
+                 not played]",
+            ));
+            call.intro_recording_reference = None;
+            let call = self.save(tx, call).await?;
+            return self.begin_bridge(tx, call).await;
+        };
+        let Some(leg) = call.provider_call_id.clone() else {
+            return self.fail_politely(tx, call, "the call has no carrier leg").await;
+        };
+        let token =
+            crate::security::sign_media_key(self.app.settings.auth_secret.expose(), &reference, 900);
+        let url = format!(
+            "{}/api/v1/media/public/{token}",
+            self.app.settings.public_base_url
+        );
+        let sha = sha_hex(&url);
+        match self.tel(move |t| t.play(&leg, &url)).await? {
+            Ok(()) => {}
+            Err(TelephonyError::Provider(e)) => {
+                let why = format!("the recorded introduction could not start ({})", e.kind);
+                return self.fail_politely(tx, call, &why).await;
+            }
+            Err(TelephonyError::Forbidden(m)) => return Err(AppError::forbidden(m)),
+        }
+        if let Some(v) = vcs.map().get_mut(&call.call_id) {
+            v.intro_url_sha = Some(sha);
+        }
+        let owner = self.owner_name(tx, call.owner_id).await?;
+        let mut call = call;
+        call.transcript.push(turn(
+            "system",
+            format!("[playing {owner}'s recorded introduction; waiting for it to end]"),
+        ));
+        let call = self.save(tx, call).await?;
+        // The watchdog: no matching ended event within the recording's length plus the grace.
+        let bound = std::time::Duration::from_millis(
+            u64::try_from(intro.duration_ms).unwrap_or(60_000)
+                + self.app.settings.voice_intro_grace_s * 1000,
+        );
+        if let Some(app) = vcs.app_weak().upgrade() {
+            let call_id = call.call_id;
+            tokio::spawn(async move {
+                tokio::time::sleep(bound).await;
+                let _ = bridge_input(&app, call_id, BridgeInput::IntroTimeout).await;
+            });
+        }
+        Ok(call)
+    }
+
+    /// After the recording: ACTIVE, the server's session, the stream secret, `streaming_start`.
+    async fn begin_bridge(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
+        let vcs = self.app.voice_calls();
+        if vcs.has_bridge(call.call_id) {
+            return Ok(call); // one bridge per call
+        }
+        let (Some(launcher), Some(leg)) = (vcs.launcher(), call.provider_call_id.clone()) else {
+            return self.fail_politely(tx, call, "the voice bridge is unavailable").await;
+        };
+        let call = call.transition(CallState::Active)?;
+        let mut call = self.save(tx, call).await?;
+        let owner = self.owner_name(tx, call.owner_id).await?;
+        let built = vsc::build(tx, &call, &owner, &self.app.settings.xai_voice).await?;
+        let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+        let key = self
+            .app
+            .settings
+            .xai_api_key
+            .as_ref()
+            .map(|k| k.expose().to_owned())
+            .unwrap_or_default();
+        let spec = CallBridgeSpec {
+            call_control_id: leg.clone(),
+            token: token.clone(),
+            session: built.session.clone(),
+            opening_line: Some(built.opening_line.clone()),
+            xai: crate::integrations::xai_realtime::XaiConfig::new(
+                self.app.settings.xai_realtime_url.clone(),
+                key,
+            ),
+            options: BridgeOptions::default(),
+            events: Arc::new(CallBridgeEvents {
+                app: vcs.app_weak(),
+                call_id: call.call_id,
+            }),
+        };
+        let (bridge_id, control) = launcher.expect(spec);
+        let url = stream_url(&self.app.settings.public_base_url, &bridge_id, &token);
+        let (first, state) = agent::start(&built.context);
+        {
+            let mut m = vcs.map();
+            let v = m.entry(call.call_id).or_insert_with(VoiceCall::new);
+            v.bridge_id = Some(bridge_id);
+            v.control = Some(control);
+            v.paused = false;
+            v.context = Some(built.context.clone());
+            v.agent = state;
+        }
+        let opts = StreamOptions::voice_agent(&url);
+        match self.tel(move |t| t.start_streaming(&leg, &opts)).await? {
+            Ok(()) => {}
+            Err(TelephonyError::Provider(e)) => {
+                vcs.detach(call.call_id);
+                let why = format!("the media stream could not start ({})", e.kind);
+                return self.fail_politely(tx, call, &why).await;
+            }
+            Err(TelephonyError::Forbidden(m)) => return Err(AppError::forbidden(m)),
+        }
+        // The bridge speaks this verbatim before the model may say anything.
+        call.transcript.push(turn("assistant", built.opening_line));
+        let call = self.save(tx, call).await?;
+        self.apply_say(tx, call, &first).await
+    }
+
+    /// The Response Agent's `say` and `end_call`.
+    async fn apply_say(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+        d: &agent::Decision,
+    ) -> AppResult<CallSession> {
+        let call = match &d.say {
+            Say::Exact(t) => self.say(tx, call, t).await?,
+            // The bridge has no "steer" control: the model follows the server's instructions,
+            // which list the approved questions in this order.
+            Say::Instruct(_) | Say::Silent => call,
+        };
+        if d.end_call {
+            if let Some(leg) = call.provider_call_id.clone() {
+                let t = self.telephony.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(CLOSING_HANGUP_DELAY_S))
+                        .await;
+                    let _ = blocking(move || t.hangup(&leg)).await;
+                });
+            }
+        }
+        Ok(call)
+    }
+
+    /// The fixed-line end: the bridge (if any) is let go, the reason stored, the apology spoken
+    /// on the carrier, the call hung up.
+    async fn fail_politely(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+        why: &str,
+    ) -> AppResult<CallSession> {
+        let vcs = self.app.voice_calls();
+        vcs.detach(call.call_id);
+        let mut call = call;
+        call.transcript.push(turn("system", format!("[{why}; ending the call]")));
+        let call = self.save(tx, call).await?;
+        let call = self.say(tx, call, APOLOGY_LINE).await?;
+        if let Some(leg) = call.provider_call_id.clone() {
+            let _ = self.tel(move |t| t.hangup(&leg)).await?;
+        }
+        Ok(call)
+    }
+
+    /// After a handoff: the Response Agent re-asks the open question, the next one, or closes.
+    async fn agent_resume(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
+        let decision = {
+            let vcs = self.app.voice_calls();
+            let mut m = vcs.map();
+            m.get_mut(&call.call_id).and_then(|v| {
+                let ctx = v.context.clone()?;
+                let turn_id = v.next_turn;
+                v.next_turn += 1;
+                let (d, st) = agent::resume(&ctx, &v.agent, turn_id);
+                v.agent = st;
+                Some(d)
+            })
+        };
+        match decision {
+            Some(d) => self.apply_say(tx, call, &d).await,
+            None => Ok(call),
+        }
+    }
+
+    /// One bridge input for the call, inside `tx`.
+    pub async fn on_bridge_input(
+        &mut self,
+        tx: &mut dyn Tx,
+        call_id: Uuid,
+        input: BridgeInput,
+    ) -> AppResult<String> {
+        let Some(call) = CALLS.get(tx, call_id).await? else {
+            return Ok(NOT_APPROVED_OUTPUT.to_owned());
+        };
+        lock_project(tx, call.project_id).await?;
+        let mut call = CALLS.require(tx, call_id).await?;
+        let vcs = self.app.voice_calls();
+        if is_terminal(call.state) || !vcs.is_bridged(call_id) {
+            return Ok(match input {
+                BridgeInput::Tool { .. } => NOT_APPROVED_OUTPUT.to_owned(),
+                _ => String::new(),
+            });
+        }
+        match input {
+            BridgeInput::Assistant(text) => {
+                let (cut, _) = agent::cut(&text);
+                let (red, _, _) = agent::redact(&cut);
+                // The opening line and our `say` lines are already in the transcript.
+                let already = call
+                    .transcript
+                    .iter()
+                    .rev()
+                    .take(6)
+                    .any(|t| t.speaker == "assistant" && t.text == red);
+                if !already && !red.trim().is_empty() {
+                    call.transcript.push(turn("assistant", red));
+                    self.save(tx, call).await?;
+                }
+                Ok(String::new())
+            }
+            BridgeInput::Counterparty(text) => {
+                self.on_bridge_utterance(tx, call, &text).await?;
+                Ok(String::new())
+            }
+            BridgeInput::Tool { name, arguments } => {
+                self.on_bridge_tool(tx, call, &name, &arguments).await
+            }
+            BridgeInput::Ended(reason) => {
+                vcs.detach(call_id);
+                let why = format!("the voice assistant ended ({reason})");
+                self.fail_politely(tx, call, &why).await?;
+                Ok(String::new())
+            }
+            BridgeInput::IntroTimeout => {
+                let pending = vcs
+                    .map()
+                    .get(&call_id)
+                    .is_some_and(|v| v.intro_url_sha.is_some() && v.bridge_id.is_none());
+                if call.state == CallState::Intro && pending {
+                    self.fail_politely(
+                        tx,
+                        call,
+                        "the recorded introduction did not end within its bound",
+                    )
+                    .await?;
+                }
+                Ok(String::new())
+            }
+        }
+    }
+
+    /// A finished counterparty line: the Response Agent decides; the functions above act.
+    async fn on_bridge_utterance(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+        text: &str,
+    ) -> AppResult<CallSession> {
+        let step = {
+            let vcs = self.app.voice_calls();
+            let mut m = vcs.map();
+            m.get_mut(&call.call_id).and_then(|v| {
+                let ctx = v.context.clone()?;
+                let turn_id = v.next_turn;
+                v.next_turn += 1;
+                let utt = Utterance {
+                    turn_id,
+                    speaker: agent::Speaker::Counterparty,
+                    text: text.to_owned(),
+                };
+                let (d, st) = agent::step(&ctx, &v.agent, &utt);
+                v.agent = st;
+                Some((d, ctx))
+            })
+        };
+        let mut call = call;
+        let Some((d, ctx)) = step else {
+            // No decision state (the bridge never started): keep only the redacted line.
+            let (cut, _) = agent::cut(text);
+            call.transcript
+                .push(turn("counterparty", agent::redact(&cut).0));
+            return self.save(tx, call).await;
+        };
+        // Only the cut and redacted text is stored.
+        call.transcript
+            .push(turn("counterparty", d.stored_text.clone()));
+        let mut call = self.save(tx, call).await?;
+        if !matches!(call.state, CallState::Active | CallState::AiResumed) {
+            return Ok(call); // the owner is (being) connected; nothing is decided or said
+        }
+        for f in &d.findings {
+            let question = f
+                .question_id
+                .as_ref()
+                .and_then(|id| ctx.questions.iter().find(|q| q.id == *id))
+                .map_or_else(|| f.topic.clone(), |q| q.text.clone());
+            let sf = f.to_structured_finding(&question);
+            call.findings.push(sf.clone());
+            call.question_index += 1;
+            call = self.save(tx, call).await?;
+            self.record_finding(tx, &call, f.requirement_id.as_deref(), &sf)
+                .await?;
+        }
+        if let Some(fu) = &d.owner_followup {
+            call.deferred_questions.push(fu.clone());
+        }
+        if let Some(esc) = d.escalation.as_ref().filter(|e| !e.hold) {
+            call.deferred_questions.push(esc.question_for_owner.clone());
+        }
+        let call = self.save(tx, call).await?;
+        if let Some(esc) = d.escalation.as_ref().filter(|e| e.hold) {
+            // Pauses the bridge; the hold line then goes out on the carrier.
+            self.request_handoff(tx, call.call_id, esc.reason, &esc.question_for_owner)
+                .await?;
+            let call = CALLS.require(tx, call.call_id).await?;
+            return self.apply_say(tx, call, &d).await;
+        }
+        self.apply_say(tx, call, &d).await
+    }
+
+    /// A tool call: commitments and sensitive disclosures are never approved by the model.
+    async fn on_bridge_tool(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+        name: &str,
+        args: &Value,
+    ) -> AppResult<String> {
+        let (reason, question, output) = match name {
+            vsc::TOOL_APPROVAL => {
+                let kind = arg_str(args, "kind");
+                let reason = match kind.as_str() {
+                    "commitment" => HandoffReason::BindingCommitment,
+                    "sensitive_disclosure" => HandoffReason::SensitivePersonalInfo,
+                    _ => HandoffReason::ExceedsAuthority,
+                };
+                let detail = arg_str(args, "detail");
+                (
+                    reason,
+                    format!("The assistant was asked for a {kind}: {detail}"),
+                    NOT_APPROVED_OUTPUT,
+                )
+            }
+            vsc::TOOL_ESCALATE => (
+                HandoffReason::CounterpartyRequestedOwner,
+                arg_str(args, "question"),
+                OWNER_ASKED_OUTPUT,
+            ),
+            _ => return Ok(UNKNOWN_TOOL_OUTPUT.to_owned()),
+        };
+        // No server record approves a commitment or a disclosure on a call (no approval payload
+        // names one), so the answer is always "not approved"; the owner is asked.
+        let mut call = call;
+        call.transcript.push(turn(
+            "system",
+            format!("[assistant tool {name}: {}]", reason.as_str()),
+        ));
+        let call = self.save(tx, call).await?;
+        if matches!(call.state, CallState::Active | CallState::AiResumed) {
+            self.request_handoff(tx, call.call_id, reason, &question)
+                .await?;
+        }
+        Ok(output.to_owned())
+    }
 }
