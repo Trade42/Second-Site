@@ -1,0 +1,1466 @@
+{
+ "_meta": {
+  "source": "Recorded from the Rust service (fixture providers, private schema, loopback) by orchestrator scratch record.py, 2026-11-15; trimmed. Synthetic listings, FIXTURE_REAL permit snapshot, synthetic geometry, fixture prices.",
+  "rust_commit": "af28202"
+ },
+ "properties": [
+  {
+   "record": {
+    "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+    "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+    "property_identity": {
+     "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+     "provider_property_ids": {
+      "fixture": "fixture-alhambra-1"
+     },
+     "normalized_address": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+     "street_address": "5380 E ALHAMBRA AVE",
+     "unit_or_suite": null,
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90032",
+     "parcel_id": "5220031007",
+     "latitude": 34.07668,
+     "longitude": -118.16837,
+     "identity_match_status": "PROBABLE",
+     "identity_match_confidence": 0.8
+    },
+    "commercial_listing": {
+     "provider": "fixture",
+     "provider_listing_id": "fixture-alhambra-1",
+     "data_origin": "FIXTURE_SYNTHETIC",
+     "listing_type": "LEASE",
+     "property_type": "Flex / converted R&D",
+     "available_area_sqm": 148.6,
+     "currency": "USD",
+     "asking_rent_monthly": 400000,
+     "nnn_charges_monthly": 70000,
+     "nnn_is_estimate": false,
+     "security_deposit": 800000,
+     "lease_term_months": 60,
+     "available_from": null,
+     "existing_buildout": "open_shell",
+     "lease_service_type": null,
+     "building_name": null,
+     "brokerage_company": null,
+     "broker_contact": {
+      "company": "Synthetic fixture (not a real broker)",
+      "name": "Demo Leasing Contact",
+      "phone": "+15555550100",
+      "role": "broker"
+     },
+     "photo_urls": [],
+     "source_record_date": null,
+     "listing_url": null,
+     "disclaimer": "Synthetic demo listing. Not a CoStar record."
+    },
+    "interior_assets": [],
+    "exterior_assets": [
+     {
+      "provider": "fixture",
+      "asset_id": "fixture-vexcel-alhambra",
+      "asset_type": "oblique",
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "captured_at": null,
+      "url": null
+     }
+    ],
+    "permit_records": [
+     {
+      "permit_record_id": "4349cc37-e568-4710-9dd6-2fd1bfa8d47e",
+      "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+      "permit_number": "19041-10000-39945",
+      "permit_category": "ELECTRICAL",
+      "permit_status": "Permit Finaled",
+      "issued_date": "2021-06-18",
+      "finaled_date": "2022-07-20",
+      "work_description": "FULL PLAN CHECK FOR A CHANGE OF USE FROM A WAREHOUSE SPACE TO A OFFICE AND RESEA",
+      "original_address": "5380 E ALHAMBRA AVE",
+      "normalized_address": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+      "unit_or_suite": null,
+      "scope": "BUILDING",
+      "parcel_id": "5220031007",
+      "source_dataset": "ysqd-apz7",
+      "source_url": "https://data.lacity.org/resource/ysqd-apz7.json?permit_nbr=19041-10000-39945",
+      "data_origin": "FIXTURE_REAL",
+      "matched_property_identity": "221e486d-f169-435c-ae7c-d60645684347",
+      "match_status": "EXACT",
+      "match_confidence": 1.0,
+      "match_explanation": "house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "source_evidence_ids": [
+       "836c7049-90cd-402f-a536-8a896f88a266",
+       "2b0d5475-9ec5-4033-8995-51e33435e58b",
+       "3ff705eb-734a-4b85-9f7e-471b0e4c1a0f",
+       "b02ba3b2-d41a-4a88-9383-f133cf59bfea",
+       "1f6be8c5-3baa-4bef-94e8-6319028f7c4b",
+       "5f7893e7-63d0-4239-b7ac-bbf68b2ec0f5"
+      ]
+     },
+     {
+      "permit_record_id": "fd0ec659-019b-4c99-877c-b4eb68d1f321",
+      "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+      "permit_number": "19041-10001-39945",
+      "permit_category": "ELECTRICAL",
+      "permit_status": "Issued",
+      "issued_date": "2022-01-18",
+      "finaled_date": null,
+      "work_description": "REVISION TO APPROVED SET INCLUDES UPDATE TO TITLE 24 FORMS, UPDATED SINGLE LINE ",
+      "original_address": "5380 E ALHAMBRA AVE",
+      "normalized_address": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+      "unit_or_suite": null,
+      "scope": "BUILDING",
+      "parcel_id": "5220031007",
+      "source_dataset": "ysqd-apz7",
+      "source_url": "https://data.lacity.org/resource/ysqd-apz7.json?permit_nbr=19041-10001-39945",
+      "data_origin": "FIXTURE_REAL",
+      "matched_property_identity": "221e486d-f169-435c-ae7c-d60645684347",
+      "match_status": "EXACT",
+      "match_confidence": 1.0,
+      "match_explanation": "house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "source_evidence_ids": [
+       "660fa719-9bc5-49c1-8f24-eb875dd6311e",
+       "8bbc9fee-0d83-4e0a-8596-a35f1e5b3df2",
+       "8bca63c1-1bbc-4009-a3d8-d02c9c5d1130",
+       "8cf1019d-1ab3-4081-9830-b5487a4dfbdf",
+       "5f697521-795a-4428-a4de-1e60de9da2a4",
+       "3d7eae02-10fa-4f7b-835c-98995ee00b51"
+      ]
+     },
+     {
+      "permit_record_id": "8b9d5c7b-e6e7-4823-b368-402e06041d5a",
+      "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+      "permit_number": "19044-10000-12223",
+      "permit_category": "HVAC",
+      "permit_status": "Permit Finaled",
+      "issued_date": "2021-04-13",
+      "finaled_date": "2022-08-24",
+      "work_description": "T.I. GENERAL HVAC INCLUDING ENVIRONMENTAL VENTILATION.",
+      "original_address": "5380 E ALHAMBRA AVE",
+      "normalized_address": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+      "unit_or_suite": null,
+      "scope": "BUILDING",
+      "parcel_id": "5220031007",
+      "source_dataset": "67is-svtd",
+      "source_url": "https://data.lacity.org/resource/67is-svtd.json?permit_nbr=19044-10000-12223",
+      "data_origin": "FIXTURE_REAL",
+      "matched_property_identity": "221e486d-f169-435c-ae7c-d60645684347",
+      "match_status": "EXACT",
+      "match_confidence": 1.0,
+      "match_explanation": "house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "source_evidence_ids": [
+       "b2d40e1b-50db-413a-976a-242ac922729e"
+      ]
+     },
+     {
+      "permit_record_id": "8db2edae-ba73-4d81-a884-efd17c064e68",
+      "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+      "permit_number": "19042-10000-24243",
+      "permit_category": "PLUMBING",
+      "permit_status": "Permit Finaled",
+      "issued_date": "2021-05-06",
+      "finaled_date": "2022-07-07",
+      "work_description": "POTABLE WATER AND WASTE/VENT. NEW 2 INCH WATER SERVICE WITH BACKFLOW PREVENTER.",
+      "original_address": "5380 E ALHAMBRA AVE",
+      "normalized_address": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+      "unit_or_suite": null,
+      "scope": "BUILDING",
+      "parcel_id": "5220031007",
+      "source_dataset": "67is-svtd",
+      "source_url": "https://data.lacity.org/resource/67is-svtd.json?permit_nbr=19042-10000-24243",
+      "data_origin": "FIXTURE_REAL",
+      "matched_property_identity": "221e486d-f169-435c-ae7c-d60645684347",
+      "match_status": "EXACT",
+      "match_confidence": 1.0,
+      "match_explanation": "house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "source_evidence_ids": [
+       "14767944-cc77-4136-beeb-d27e654c6aa6",
+       "70b4caf7-bb8e-4592-aab7-8a541b1b76d4",
+       "319fb222-3d80-4b9f-ad5a-96941e01076a"
+      ]
+     },
+     {
+      "permit_record_id": "aeec6edc-b5d2-44f6-a1c9-fd3e754d1a91",
+      "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+      "permit_number": "19042-10001-24243",
+      "permit_category": "PLUMBING",
+      "permit_status": "Permit Finaled",
+      "issued_date": "2021-09-28",
+      "finaled_date": "2022-07-07",
+      "work_description": "MODIFY PREVIOUSLY APPROVED PLANS UNDER 19042-10000-24243. REVISIONS TO POTABLE W",
+      "original_address": "5380 E ALHAMBRA AVE",
+      "normalized_address": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032",
+      "unit_or_suite": null,
+      "scope": "BUILDING",
+      "parcel_id": "5220031007",
+      "source_dataset": "67is-svtd",
+      "source_url": "https://data.lacity.org/resource/67is-svtd.json?permit_nbr=19042-10001-24243",
+      "data_origin": "FIXTURE_REAL",
+      "matched_property_identity": "221e486d-f169-435c-ae7c-d60645684347",
+      "match_status": "EXACT",
+      "match_confidence": 1.0,
+      "match_explanation": "house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "source_evidence_ids": [
+       "8e711661-e3ce-4ed7-883a-37e2833aa4f3"
+      ]
+     }
+    ],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "No interior model or measured floor plan"
+    ],
+    "source_manifest": [
+     {
+      "provider": "fixture",
+      "dataset": "listings",
+      "status": "MOCK",
+      "record_count": 1,
+      "retrieved_at": "2026-11-15T03:21:24.080079Z",
+      "note": "Synthetic demo listing. Not a CoStar record."
+     },
+     {
+      "provider": "la_open_data",
+      "dataset": "67is-svtd,ysqd-apz7",
+      "status": "MOCK",
+      "record_count": 12,
+      "retrieved_at": "2026-11-15T03:21:24.094399Z",
+      "note": "LADBS permits 2020-present; pre-2020 history not covered"
+     }
+    ],
+    "last_analyzed_at": "2026-11-15T03:21:24.100792Z"
+   },
+   "feasibility": [
+    {
+     "assessment_id": "3e76ed78-08ed-4000-b309-4046b6aecbe3",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+     "requirement_id": "facial_studio.space.min_area",
+     "status": "MAY_REQUIRE_WORK",
+     "observed_value": 148.6,
+     "required_value": 110.0,
+     "evidence_ids": [],
+     "limitations": [
+      "Area comes from the listing (not measured); usable area may be lower."
+     ],
+     "proposed_work": [],
+     "verification_questions": [
+      "Confirm usable (not rentable) square footage."
+     ],
+     "uncertainty": "Listing area, not a measured floor plan.",
+     "review_status": "NEEDS_REVIEW"
+    },
+    {
+     "assessment_id": "62f9ed63-9bfe-40c0-bef0-e8dde6698191",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+     "requirement_id": "facial_studio.space.enclosed_rooms",
+     "status": "MAY_REQUIRE_WORK",
+     "observed_value": "open_shell",
+     "required_value": 5.0,
+     "evidence_ids": [],
+     "limitations": [],
+     "proposed_work": [
+      "Build or adapt 5 enclosed rooms"
+     ],
+     "verification_questions": [
+      "Can existing partitions be reused for treatment rooms?"
+     ],
+     "uncertainty": "Existing partition layout not measured.",
+     "review_status": "AUTOMATED"
+    },
+    {
+     "assessment_id": "c115186b-f069-4ff4-862b-f899d77ea50a",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+     "requirement_id": "facial_studio.electrical.tenant_service",
+     "status": "UNKNOWN",
+     "observed_value": "800A building service (historical permit)",
+     "required_value": 100.0,
+     "evidence_ids": [
+      "836c7049-90cd-402f-a536-8a896f88a266",
+      "660fa719-9bc5-49c1-8f24-eb875dd6311e"
+     ],
+     "limitations": [
+      "Documents electrical service installed under this permit; does not establish current spare capacity.",
+      "Service may be shared by the whole building; allocation to a specific unit is not stated.",
+      "A finaled permit does not guarantee the condition is unchanged today.",
+      "Permit status at source: Permit Finaled",
+      "Match: house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "Scope: BUILDING"
+     ],
+     "proposed_work": [],
+     "verification_questions": [
+      "What amperage is allocated to the tenant space's subpanel, and how much is in use?"
+     ],
+     "uncertainty": "A documented building service does not establish capacity available to this unit.",
+     "review_status": "NEEDS_REVIEW"
+    },
+    {
+     "assessment_id": "8bc3558f-ebfb-4bc3-87b0-ea5d46f47070",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+     "requirement_id": "facial_studio.plumbing.treatment_sinks",
+     "status": "MAY_REQUIRE_WORK",
+     "observed_value": "No in-unit plumbing documented; building has 2.0in water service (historical)",
+     "required_value": 3.0,
+     "evidence_ids": [
+      "14767944-cc77-4136-beeb-d27e654c6aa6"
+     ],
+     "limitations": [
+      "Documents water service diameter; does not establish current pressure, flow or remaining capacity.",
+      "Concealed pipe routes and drain locations are not established by this record.",
+      "A finaled permit does not guarantee the condition is unchanged today.",
+      "Permit status at source: Permit Finaled",
+      "Match: house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "Scope: BUILDING",
+      "Owner prefers minimal plumbing changes; this property needs new runs."
+     ],
+     "proposed_work": [
+      "New supply and drain runs for 3 treatment sinks"
+     ],
+     "verification_questions": [
+      "Where are the nearest drain and supply lines? Is slab cutting required?"
+     ],
+     "uncertainty": "Drain locations unknown; new runs may require slab work.",
+     "review_status": "NEEDS_REVIEW"
+    },
+    {
+     "assessment_id": "756337be-d102-4852-a3f5-f79888d1394f",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+     "requirement_id": "facial_studio.plumbing.water_service",
+     "status": "MEETS",
+     "observed_value": "Domestic water documented (historical permits)",
+     "required_value": true,
+     "evidence_ids": [
+      "14767944-cc77-4136-beeb-d27e654c6aa6",
+      "319fb222-3d80-4b9f-ad5a-96941e01076a",
+      "8e711661-e3ce-4ed7-883a-37e2833aa4f3"
+     ],
+     "limitations": [
+      "Documents water service diameter; does not establish current pressure, flow or remaining capacity.",
+      "Concealed pipe routes and drain locations are not established by this record.",
+      "A finaled permit does not guarantee the condition is unchanged today.",
+      "Permit status at source: Permit Finaled",
+      "Match: house number, street name and type agree; direction E agrees; ZIP agrees; parcel APN agrees; building-level record (no unit)",
+      "Scope: BUILDING"
+     ],
+     "proposed_work": [],
+     "verification_questions": [
+      "Confirm service is active and adequate for added fixtures."
+     ],
+     "uncertainty": "Presence documented historically; adequacy for added fixtures not verified.",
+     "review_status": "NEEDS_REVIEW"
+    },
+    {
+     "assessment_id": "8d1ea62f-20d3-4db2-8239-ebcf095e5496",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+     "requirement_id": "facial_studio.hvac.ventilation",
+     "status": "UNKNOWN",
+     "observed_value": "No unit-level HVAC work documented",
+     "required_value": true,
+     "evidence_ids": [
+      "b2d40e1b-50db-413a-976a-242ac922729e"
+     ],
+     "limitations": [
+      "Historical HVAC permits do not establish current capacity or zoning."
+     ],
+     "proposed_work": [
+      "Supply/return to 3 treatment rooms"
+     ],
+     "verification_questions": [
+      "Can existing HVAC distribution be zoned to each treatment room?"
+     ],
+     "uncertainty": "Zoning and capacity not verified.",
+     "review_status": "NEEDS_REVIEW"
+    }
+   ]
+  },
+  {
+   "record": {
+    "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+    "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+    "property_identity": {
+     "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+     "provider_property_ids": {
+      "fixture": "fixture-hollywood-302"
+     },
+     "normalized_address": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90028",
+     "street_address": "6922 W HOLLYWOOD BLVD",
+     "unit_or_suite": "302",
+     "city": "Los Angeles",
+     "state": "CA",
+     "postal_code": "90028",
+     "parcel_id": "5548006011",
+     "latitude": 34.10137,
+     "longitude": -118.34103,
+     "identity_match_status": "PROBABLE",
+     "identity_match_confidence": 0.8
+    },
+    "commercial_listing": {
+     "provider": "fixture",
+     "provider_listing_id": "fixture-hollywood-302",
+     "data_origin": "FIXTURE_SYNTHETIC",
+     "listing_type": "LEASE",
+     "property_type": "Office suite (built out)",
+     "available_area_sqm": 139.4,
+     "currency": "USD",
+     "asking_rent_monthly": 600000,
+     "nnn_charges_monthly": 90000,
+     "nnn_is_estimate": false,
+     "security_deposit": 1200000,
+     "lease_term_months": 60,
+     "available_from": null,
+     "existing_buildout": "office_buildout",
+     "lease_service_type": null,
+     "building_name": null,
+     "brokerage_company": null,
+     "broker_contact": {
+      "company": "Synthetic fixture (not a real broker)",
+      "name": "Demo Leasing Contact",
+      "phone": "+15555550101",
+      "role": "broker"
+     },
+     "photo_urls": [],
+     "source_record_date": null,
+     "listing_url": null,
+     "disclaimer": "Synthetic demo listing. Not a CoStar record."
+    },
+    "interior_assets": [
+     {
+      "provider": "fixture",
+      "asset_id": "fixture-matterport-hollywood-302",
+      "asset_type": "matterport_model",
+      "data_origin": "FIXTURE_SYNTHETIC",
+      "url": null,
+      "label": null,
+      "area_sqm": null,
+      "matches_listing_unit": null,
+      "has_measured_geometry": true
+     }
+    ],
+    "exterior_assets": [],
+    "permit_records": [
+     {
+      "permit_record_id": "c95f6fec-b861-4049-aa46-93e8a712efa1",
+      "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+      "permit_number": "20042-90000-08431",
+      "permit_category": "PLUMBING",
+      "permit_status": "Permit Finaled",
+      "issued_date": "2020-04-24",
+      "finaled_date": "2020-06-19",
+      "work_description": "Rough and finish for 1 break room sink",
+      "original_address": "6922 W HOLLYWOOD BLVD 302",
+      "normalized_address": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90028",
+      "unit_or_suite": "302",
+      "scope": "UNIT",
+      "parcel_id": "5548006011",
+      "source_dataset": "67is-svtd",
+      "source_url": "https://data.lacity.org/resource/67is-svtd.json?permit_nbr=20042-90000-08431",
+      "data_origin": "FIXTURE_REAL",
+      "matched_property_identity": "b27274df-6b46-45e9-89a3-007add11c647",
+      "match_status": "EXACT",
+      "match_confidence": 1.0,
+      "match_explanation": "house number, street name and type agree; direction W agrees; ZIP agrees; parcel APN agrees; unit 302 agrees",
+      "source_evidence_ids": [
+       "9e8693ed-1c34-4d6a-88d8-69bbf39a30e4",
+       "f938273c-b60b-4a5b-90c3-63f36678a535"
+      ]
+     },
+     {
+      "permit_record_id": "a4956761-1230-48ab-8a67-cafc41240354",
+      "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+      "permit_number": "20044-90000-03892",
+      "permit_category": "HVAC",
+      "permit_status": "Permit Finaled",
+      "issued_date": "2020-04-14",
+      "finaled_date": "2020-05-29",
+      "work_description": "T.I",
+      "original_address": "6922 W HOLLYWOOD BLVD suite 302",
+      "normalized_address": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90028",
+      "unit_or_suite": "302",
+      "scope": "UNIT",
+      "parcel_id": "5548006011",
+      "source_dataset": "67is-svtd",
+      "source_url": "https://data.lacity.org/resource/67is-svtd.json?permit_nbr=20044-90000-03892",
+      "data_origin": "FIXTURE_REAL",
+      "matched_property_identity": "b27274df-6b46-45e9-89a3-007add11c647",
+      "match_status": "EXACT",
+      "match_confidence": 1.0,
+      "match_explanation": "house number, street name and type agree; direction W agrees; ZIP agrees; parcel APN agrees; unit 302 agrees",
+      "source_evidence_ids": [
+       "b16c0cb9-83c2-4d83-b214-f8184c262add"
+      ]
+     }
+    ],
+    "building_observations": [],
+    "geometry_reference": null,
+    "infrastructure_assessments": [],
+    "missing_information": [
+     "No exterior imagery"
+    ],
+    "source_manifest": [
+     {
+      "provider": "fixture",
+      "dataset": "listings",
+      "status": "MOCK",
+      "record_count": 1,
+      "retrieved_at": "2026-11-15T03:21:24.080559Z",
+      "note": "Synthetic demo listing. Not a CoStar record."
+     },
+     {
+      "provider": "la_open_data",
+      "dataset": "67is-svtd,ysqd-apz7",
+      "status": "MOCK",
+      "record_count": 25,
+      "retrieved_at": "2026-11-15T03:21:24.113847Z",
+      "note": "LADBS permits 2020-present; pre-2020 history not covered"
+     }
+    ],
+    "last_analyzed_at": "2026-11-15T03:21:24.118986Z"
+   },
+   "feasibility": [
+    {
+     "assessment_id": "689e72cb-7fe4-4829-86fc-d8c3c619277a",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+     "requirement_id": "facial_studio.space.min_area",
+     "status": "MAY_REQUIRE_WORK",
+     "observed_value": 139.4,
+     "required_value": 110.0,
+     "evidence_ids": [],
+     "limitations": [
+      "Area comes from the listing (not measured); usable area may be lower."
+     ],
+     "proposed_work": [],
+     "verification_questions": [
+      "Confirm usable (not rentable) square footage."
+     ],
+     "uncertainty": "Listing area, not a measured floor plan.",
+     "review_status": "NEEDS_REVIEW"
+    },
+    {
+     "assessment_id": "fa2563a3-c228-462b-b784-0881744dd506",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+     "requirement_id": "facial_studio.space.enclosed_rooms",
+     "status": "MAY_REQUIRE_WORK",
+     "observed_value": "office_buildout",
+     "required_value": 5.0,
+     "evidence_ids": [],
+     "limitations": [],
+     "proposed_work": [
+      "Build or adapt 5 enclosed rooms"
+     ],
+     "verification_questions": [
+      "Can existing partitions be reused for treatment rooms?"
+     ],
+     "uncertainty": "Existing partition layout not measured.",
+     "review_status": "AUTOMATED"
+    },
+    {
+     "assessment_id": "13794bc5-ff13-4e37-8d89-834aeab9df33",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+     "requirement_id": "facial_studio.electrical.tenant_service",
+     "status": "UNKNOWN",
+     "observed_value": null,
+     "required_value": 100.0,
+     "evidence_ids": [],
+     "limitations": [],
+     "proposed_work": [],
+     "verification_questions": [
+      "What amperage is allocated to the tenant space's subpanel, and how much is in use?"
+     ],
+     "uncertainty": "No electrical service rating found in permits or listing.",
+     "review_status": "AUTOMATED"
+    },
+    {
+     "assessment_id": "18b2f574-6fa8-4088-9148-2c0fef923c69",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+     "requirement_id": "facial_studio.plumbing.treatment_sinks",
+     "status": "MAY_REQUIRE_WORK",
+     "observed_value": "1 sink(s) documented in this unit",
+     "required_value": 3.0,
+     "evidence_ids": [
+      "9e8693ed-1c34-4d6a-88d8-69bbf39a30e4"
+     ],
+     "limitations": [
+      "Documents a fixture installed under this permit; does not prove capacity for additional fixtures.",
+      "A finaled permit does not guarantee the fixture still exists.",
+      "Permit status at source: Permit Finaled",
+      "Match: house number, street name and type agree; direction W agrees; ZIP agrees; parcel APN agrees; unit 302 agrees",
+      "Scope: UNIT"
+     ],
+     "proposed_work": [
+      "Extend supply/drain from existing in-unit plumbing to 3 treatment sinks"
+     ],
+     "verification_questions": [
+      "Where are the existing supply and drain lines and can they serve additional sinks?"
+     ],
+     "uncertainty": "An existing sink suggests nearby plumbing but does not prove capacity for more fixtures.",
+     "review_status": "NEEDS_REVIEW"
+    },
+    {
+     "assessment_id": "1bbae4d3-7944-4ea7-afa9-f8bbadaef2e0",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+     "requirement_id": "facial_studio.plumbing.water_service",
+     "status": "MEETS",
+     "observed_value": "Domestic water documented (historical permits)",
+     "required_value": true,
+     "evidence_ids": [
+      "9e8693ed-1c34-4d6a-88d8-69bbf39a30e4"
+     ],
+     "limitations": [
+      "Documents a fixture installed under this permit; does not prove capacity for additional fixtures.",
+      "A finaled permit does not guarantee the fixture still exists.",
+      "Permit status at source: Permit Finaled",
+      "Match: house number, street name and type agree; direction W agrees; ZIP agrees; parcel APN agrees; unit 302 agrees",
+      "Scope: UNIT"
+     ],
+     "proposed_work": [],
+     "verification_questions": [
+      "Confirm service is active and adequate for added fixtures."
+     ],
+     "uncertainty": "Presence documented historically; adequacy for added fixtures not verified.",
+     "review_status": "NEEDS_REVIEW"
+    },
+    {
+     "assessment_id": "7c026529-bbdc-484e-bebe-98053cc3812b",
+     "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+     "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+     "requirement_id": "facial_studio.hvac.ventilation",
+     "status": "MAY_REQUIRE_WORK",
+     "observed_value": "HVAC tenant improvement documented in this unit",
+     "required_value": true,
+     "evidence_ids": [
+      "b16c0cb9-83c2-4d83-b214-f8184c262add"
+     ],
+     "limitations": [
+      "Historical HVAC permits do not establish current capacity or zoning."
+     ],
+     "proposed_work": [
+      "Supply/return to 3 treatment rooms"
+     ],
+     "verification_questions": [
+      "Can existing HVAC distribution be zoned to each treatment room?"
+     ],
+     "uncertainty": "Zoning and capacity not verified.",
+     "review_status": "NEEDS_REVIEW"
+    }
+   ]
+  }
+ ],
+ "cost_scenarios": [
+  {
+   "scenario_id": "d2d04847-94fe-4daf-8a30-7d3de9b67839",
+   "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+   "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+   "design_version_id": null,
+   "currency": "USD",
+   "opening_cost_low": 12318010,
+   "opening_cost_expected": 20818350,
+   "opening_cost_high": 33452250,
+   "upfront_cash_expected": 21618350,
+   "monthly_operating_cost": 470000,
+   "comparison_horizon_months": 36,
+   "long_term_cost": 37738350,
+   "contingency": 2539350,
+   "line_items": [
+    {
+     "line_item_id": "work:0e230187-147a-4deb-884c-82ae515e51c9",
+     "category": "PARTITIONS",
+     "description": "Partitions for 5 rooms (open_shell)",
+     "kind": "ONE_TIME",
+     "low": 3500000,
+     "expected": 5500000,
+     "high": 8000000,
+     "source_work_item_id": "0e230187-147a-4deb-884c-82ae515e51c9",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "work:907a81bf-fa86-4d92-8b2a-09ac490b3bde",
+     "category": "ELECTRICAL",
+     "description": "Allowance: possible tenant subpanel/circuit upgrade (capacity unknown)",
+     "kind": "ONE_TIME",
+     "low": 0,
+     "expected": 600000,
+     "high": 1800000,
+     "source_work_item_id": "907a81bf-fa86-4d92-8b2a-09ac490b3bde",
+     "evidence_ids": [
+      "836c7049-90cd-402f-a536-8a896f88a266",
+      "660fa719-9bc5-49c1-8f24-eb875dd6311e"
+     ]
+    },
+    {
+     "line_item_id": "work:89d3f544-3dba-4e42-9c99-8577c83be34c",
+     "category": "PLUMBING",
+     "description": "Treatment sinks x3",
+     "kind": "ONE_TIME",
+     "low": 2400000,
+     "expected": 4500000,
+     "high": 7500000,
+     "source_work_item_id": "89d3f544-3dba-4e42-9c99-8577c83be34c",
+     "evidence_ids": [
+      "14767944-cc77-4136-beeb-d27e654c6aa6"
+     ]
+    },
+    {
+     "line_item_id": "work:83fea27e-c3b1-456d-bff8-6194a98f01a7",
+     "category": "HVAC",
+     "description": "HVAC distribution for 3 treatment rooms",
+     "kind": "ONE_TIME",
+     "low": 1500000,
+     "expected": 2700000,
+     "high": 4500000,
+     "source_work_item_id": "83fea27e-c3b1-456d-bff8-6194a98f01a7",
+     "evidence_ids": [
+      "b2d40e1b-50db-413a-976a-242ac922729e"
+     ]
+    },
+    {
+     "line_item_id": "work:398d23ea-5537-4ab9-88a3-61b74fa07111",
+     "category": "FINISHES",
+     "description": "Finishes (floor/wall/ceiling refresh)",
+     "kind": "ONE_TIME",
+     "low": 1337400,
+     "expected": 2229000,
+     "high": 3715000,
+     "source_work_item_id": "398d23ea-5537-4ab9-88a3-61b74fa07111",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "work:30a920f4-8177-4fa2-99db-711f51fc4c0e",
+     "category": "PERMITS_FEES",
+     "description": "Permits and plan check fees",
+     "kind": "ONE_TIME",
+     "low": 300000,
+     "expected": 500000,
+     "high": 900000,
+     "source_work_item_id": "30a920f4-8177-4fa2-99db-711f51fc4c0e",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "work:9aba0e1e-3f5a-4011-833b-cf12062b4fae",
+     "category": "DESIGN_PROFESSIONAL",
+     "description": "Architect/engineer for TI drawings",
+     "kind": "ONE_TIME",
+     "low": 500000,
+     "expected": 900000,
+     "high": 1500000,
+     "source_work_item_id": "9aba0e1e-3f5a-4011-833b-cf12062b4fae",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "contingency:renovation",
+     "category": "CONTINGENCY",
+     "description": "Contingency 15% of renovation subtotal",
+     "kind": "ONE_TIME",
+     "low": 1430610,
+     "expected": 2539350,
+     "high": 4187250,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "ffe:treatment_rooms",
+     "category": "FF&E",
+     "description": "Furniture/equipment allowance x3 treatment rooms",
+     "kind": "ONE_TIME",
+     "low": 1350000,
+     "expected": 1350000,
+     "high": 1350000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "occupancy:rent",
+     "category": "RENT",
+     "description": "Base rent",
+     "kind": "MONTHLY",
+     "low": 400000,
+     "expected": 400000,
+     "high": 400000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "occupancy:nnn",
+     "category": "NNN",
+     "description": "NNN / CAM charges",
+     "kind": "MONTHLY",
+     "low": 70000,
+     "expected": 70000,
+     "high": 70000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "deposit:security",
+     "category": "DEPOSIT",
+     "description": "Refundable security deposit (upfront cash; excluded from long-term cost)",
+     "kind": "REFUNDABLE_DEPOSIT",
+     "low": 800000,
+     "expected": 800000,
+     "high": 800000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    }
+   ],
+   "assumptions": [
+    "Comparison horizon 36 months",
+    "Rent and NNN held flat (no escalations)",
+    "Unit costs are illustrative planning ranges, not quotes"
+   ],
+   "excluded_costs": [
+    "Tenant improvement allowance (not provided)",
+    "Free rent concessions",
+    "Broker fees",
+    "Business operating costs other than occupancy (payroll, supplies)"
+   ],
+   "source_evidence_ids": [
+    "836c7049-90cd-402f-a536-8a896f88a266",
+    "660fa719-9bc5-49c1-8f24-eb875dd6311e",
+    "14767944-cc77-4136-beeb-d27e654c6aa6",
+    "b2d40e1b-50db-413a-976a-242ac922729e"
+   ],
+   "calculated_at": "2026-11-15T03:21:24.100111Z"
+  },
+  {
+   "scenario_id": "bd8952cb-095c-4633-9cdb-224442e4d62e",
+   "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+   "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+   "design_version_id": null,
+   "currency": "USD",
+   "opening_cost_low": 6070290,
+   "opening_cost_expected": 10769650,
+   "opening_cost_high": 18697750,
+   "upfront_cash_expected": 11969650,
+   "monthly_operating_cost": 690000,
+   "comparison_horizon_months": 36,
+   "long_term_cost": 35609650,
+   "contingency": 1228650,
+   "line_items": [
+    {
+     "line_item_id": "work:e7578862-8165-42dd-8b0e-c7904d3d45a8",
+     "category": "PARTITIONS",
+     "description": "Partitions for 5 rooms (office_buildout)",
+     "kind": "ONE_TIME",
+     "low": 1000000,
+     "expected": 2000000,
+     "high": 3500000,
+     "source_work_item_id": "e7578862-8165-42dd-8b0e-c7904d3d45a8",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "work:6ab8f4b6-5044-4784-b7ba-b1a27e08afa2",
+     "category": "ELECTRICAL",
+     "description": "Allowance: possible tenant subpanel/circuit upgrade (capacity unknown)",
+     "kind": "ONE_TIME",
+     "low": 0,
+     "expected": 600000,
+     "high": 1800000,
+     "source_work_item_id": "6ab8f4b6-5044-4784-b7ba-b1a27e08afa2",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "work:1ab9645b-37b3-407d-b9c2-f582c8b92a47",
+     "category": "PLUMBING",
+     "description": "Treatment sinks x3",
+     "kind": "ONE_TIME",
+     "low": 750000,
+     "expected": 1350000,
+     "high": 2400000,
+     "source_work_item_id": "1ab9645b-37b3-407d-b9c2-f582c8b92a47",
+     "evidence_ids": [
+      "9e8693ed-1c34-4d6a-88d8-69bbf39a30e4"
+     ]
+    },
+    {
+     "line_item_id": "work:7ebc3448-9636-42fb-a9cb-0d22202f9845",
+     "category": "HVAC",
+     "description": "HVAC distribution for 3 treatment rooms",
+     "kind": "ONE_TIME",
+     "low": 300000,
+     "expected": 750000,
+     "high": 1500000,
+     "source_work_item_id": "7ebc3448-9636-42fb-a9cb-0d22202f9845",
+     "evidence_ids": [
+      "b16c0cb9-83c2-4d83-b214-f8184c262add"
+     ]
+    },
+    {
+     "line_item_id": "work:09d9b8f0-8e81-4d48-a09c-513e54f4ddcb",
+     "category": "FINISHES",
+     "description": "Finishes (floor/wall/ceiling refresh)",
+     "kind": "ONE_TIME",
+     "low": 1254600,
+     "expected": 2091000,
+     "high": 3485000,
+     "source_work_item_id": "09d9b8f0-8e81-4d48-a09c-513e54f4ddcb",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "work:79bf181f-0bdf-4448-a725-93d93a3751bc",
+     "category": "PERMITS_FEES",
+     "description": "Permits and plan check fees",
+     "kind": "ONE_TIME",
+     "low": 300000,
+     "expected": 500000,
+     "high": 900000,
+     "source_work_item_id": "79bf181f-0bdf-4448-a725-93d93a3751bc",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "work:2c590e5c-b39f-4a04-afa0-1143c6c96302",
+     "category": "DESIGN_PROFESSIONAL",
+     "description": "Architect/engineer for TI drawings",
+     "kind": "ONE_TIME",
+     "low": 500000,
+     "expected": 900000,
+     "high": 1500000,
+     "source_work_item_id": "2c590e5c-b39f-4a04-afa0-1143c6c96302",
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "contingency:renovation",
+     "category": "CONTINGENCY",
+     "description": "Contingency 15% of renovation subtotal",
+     "kind": "ONE_TIME",
+     "low": 615690,
+     "expected": 1228650,
+     "high": 2262750,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "ffe:treatment_rooms",
+     "category": "FF&E",
+     "description": "Furniture/equipment allowance x3 treatment rooms",
+     "kind": "ONE_TIME",
+     "low": 1350000,
+     "expected": 1350000,
+     "high": 1350000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "occupancy:rent",
+     "category": "RENT",
+     "description": "Base rent",
+     "kind": "MONTHLY",
+     "low": 600000,
+     "expected": 600000,
+     "high": 600000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "occupancy:nnn",
+     "category": "NNN",
+     "description": "NNN / CAM charges",
+     "kind": "MONTHLY",
+     "low": 90000,
+     "expected": 90000,
+     "high": 90000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    },
+    {
+     "line_item_id": "deposit:security",
+     "category": "DEPOSIT",
+     "description": "Refundable security deposit (upfront cash; excluded from long-term cost)",
+     "kind": "REFUNDABLE_DEPOSIT",
+     "low": 1200000,
+     "expected": 1200000,
+     "high": 1200000,
+     "source_work_item_id": null,
+     "evidence_ids": []
+    }
+   ],
+   "assumptions": [
+    "Comparison horizon 36 months",
+    "Rent and NNN held flat (no escalations)",
+    "Unit costs are illustrative planning ranges, not quotes"
+   ],
+   "excluded_costs": [
+    "Tenant improvement allowance (not provided)",
+    "Free rent concessions",
+    "Broker fees",
+    "Business operating costs other than occupancy (payroll, supplies)"
+   ],
+   "source_evidence_ids": [
+    "9e8693ed-1c34-4d6a-88d8-69bbf39a30e4",
+    "b16c0cb9-83c2-4d83-b214-f8184c262add"
+   ],
+   "calculated_at": "2026-11-15T03:21:24.118599Z"
+  }
+ ],
+ "ranking": {
+  "ranking_id": "7a1ee3c3-7fa4-4cac-aae8-e05a7a457193",
+  "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+  "ranking_version": 1,
+  "criteria_weights": {
+   "evidence_certainty": 0.2,
+   "infrastructure_fit": 0.3,
+   "total_cost": 0.5
+  },
+  "ranked_properties": [
+   {
+    "rank": 1,
+    "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+    "total_score": 0.786667,
+    "disqualified": false,
+    "long_term_cost": 35609650,
+    "unknown_requirement_count": 1
+   },
+   {
+    "rank": 2,
+    "property_id": "221e486d-f169-435c-ae7c-d60645684347",
+    "total_score": 0.64513,
+    "disqualified": true,
+    "long_term_cost": 37738350,
+    "unknown_requirement_count": 2
+   }
+  ],
+  "normalized_scores": {
+   "221e486d-f169-435c-ae7c-d60645684347": {
+    "evidence_certainty": 0.666667,
+    "infrastructure_fit": 0.466667,
+    "total_cost": 0.943593
+   },
+   "b27274df-6b46-45e9-89a3-007add11c647": {
+    "evidence_certainty": 0.833333,
+    "infrastructure_fit": 0.566667,
+    "total_cost": 1.0
+   }
+  },
+  "uncertainty_penalties": {
+   "221e486d-f169-435c-ae7c-d60645684347": 0.1,
+   "b27274df-6b46-45e9-89a3-007add11c647": 0.05
+  },
+  "cost_scenario_ids": [
+   "d2d04847-94fe-4daf-8a30-7d3de9b67839",
+   "bd8952cb-095c-4633-9cdb-224442e4d62e"
+  ],
+  "explanations": {
+   "221e486d-f169-435c-ae7c-d60645684347": "5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032: disqualified by a hard constraint. expected opening cost $208,184 (range $123,180\u2013$334,523), $4,700/mo occupancy, 36-month total $377,384. Lower rent than 6922 W HOLLYWOOD BLVD but $21,287 more over 36 months because of higher renovation cost. 2 requirement(s) remain UNKNOWN and need verification.",
+   "b27274df-6b46-45e9-89a3-007add11c647": "6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90028: expected opening cost $107,697 (range $60,703\u2013$186,978), $6,900/mo occupancy, 36-month total $356,097. 1 requirement(s) remain UNKNOWN and need verification."
+  },
+  "calculated_at": "2026-11-15T03:21:24.124978Z"
+ },
+ "layout": {
+  "design_version_id": "2712a99d-63f7-4972-b0e5-c5318a177536",
+  "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+  "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+  "parent_version_id": null,
+  "version_number": 1,
+  "geometry_id": "76bf1d53-456f-453f-9305-62b88e38de5c",
+  "room_polygons": [
+   {
+    "room_id": "treatment-1",
+    "room_type": "treatment",
+    "polygon": [
+     [
+      0.0,
+      4.8
+     ],
+     [
+      5.0,
+      4.8
+     ],
+     [
+      5.0,
+      8.8
+     ],
+     [
+      0.0,
+      8.8
+     ]
+    ],
+    "area_sqm": 20.0
+   },
+   {
+    "room_id": "treatment-2",
+    "room_type": "treatment",
+    "polygon": [
+     [
+      0.0,
+      8.8
+     ],
+     [
+      5.0,
+      8.8
+     ],
+     [
+      5.0,
+      11.6
+     ],
+     [
+      0.0,
+      11.6
+     ]
+    ],
+    "area_sqm": 14.0
+   },
+   {
+    "room_id": "treatment-3",
+    "room_type": "treatment",
+    "polygon": [
+     [
+      6.2,
+      7.12
+     ],
+     [
+      12.0,
+      7.12
+     ],
+     [
+      12.0,
+      11.6
+     ],
+     [
+      6.2,
+      11.6
+     ]
+    ],
+    "area_sqm": 25.98
+   },
+   {
+    "room_id": "reception-1",
+    "room_type": "reception",
+    "polygon": [
+     [
+      0.0,
+      0.0
+     ],
+     [
+      5.0,
+      0.0
+     ],
+     [
+      5.0,
+      4.8
+     ],
+     [
+      0.0,
+      4.8
+     ]
+    ],
+    "area_sqm": 24.0
+   },
+   {
+    "room_id": "storage-1",
+    "room_type": "storage",
+    "polygon": [
+     [
+      6.2,
+      0.0
+     ],
+     [
+      12.0,
+      0.0
+     ],
+     [
+      12.0,
+      2.4
+     ],
+     [
+      6.2,
+      2.4
+     ]
+    ],
+    "area_sqm": 13.92
+   }
+  ],
+  "furniture_placements": [],
+  "proposed_walls": [],
+  "validation_report": {
+   "valid": true,
+   "issues": [],
+   "checked_at": "2026-11-15T03:21:24.148371Z",
+   "disclaimer": "Automated geometric check only. Not a code-compliance review or professionally approved plan."
+  },
+  "estimated_construction_cost": null,
+  "created_from_revision_request": null,
+  "approval_status": "PROPOSED"
+ },
+ "geometry": {
+  "site_geometry_id": "76bf1d53-456f-453f-9305-62b88e38de5c",
+  "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+  "geometry_source": "FIXTURE",
+  "data_origin": "FIXTURE_SYNTHETIC",
+  "units": "m",
+  "scale_verified": false,
+  "floor_boundary": [
+   [
+    0.0,
+    0.0
+   ],
+   [
+    12.0,
+    0.0
+   ],
+   [
+    12.0,
+    11.6
+   ],
+   [
+    0.0,
+    11.6
+   ]
+  ]
+ },
+ "bom": {
+  "bom_id": "369e2727-1412-44d3-9b15-eee297807d61",
+  "project_id": "fc4745cd-88e7-46d1-823c-6a3cd3ccd68a",
+  "property_id": "b27274df-6b46-45e9-89a3-007add11c647",
+  "design_version_id": "2712a99d-63f7-4972-b0e5-c5318a177536",
+  "currency": "USD",
+  "items": [
+   {
+    "bom_item_id": "25550a7a-5469-4c93-9d67-e7e771df7760",
+    "item_type": "treatment_bed",
+    "description": "treatment bed for treatment-1",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-1",
+    "design_element_ref": "room:treatment-1",
+    "unit_price_estimate": 120000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "a76d0d04-091e-40a1-bae1-e6731fc5e921",
+    "item_type": "storage_cabinet",
+    "description": "storage cabinet for treatment-1",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-1",
+    "design_element_ref": "room:treatment-1",
+    "unit_price_estimate": 35000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "043e3a61-d3a7-4fe0-bd23-ddc6d99e004b",
+    "item_type": "task_lighting",
+    "description": "task lighting for treatment-1",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-1",
+    "design_element_ref": "room:treatment-1",
+    "unit_price_estimate": 18000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "8dd88faf-da9d-456b-b041-e8a13f7d04d8",
+    "item_type": "hand_sink",
+    "description": "hand sink for treatment-1",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-1",
+    "design_element_ref": "room:treatment-1",
+    "unit_price_estimate": 60000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "f79f9265-b62b-4db3-96b0-e180453be3be",
+    "item_type": "treatment_bed",
+    "description": "treatment bed for treatment-2",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-2",
+    "design_element_ref": "room:treatment-2",
+    "unit_price_estimate": 120000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "cda7ebab-3ed4-46f8-a90e-2276b50ff788",
+    "item_type": "storage_cabinet",
+    "description": "storage cabinet for treatment-2",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-2",
+    "design_element_ref": "room:treatment-2",
+    "unit_price_estimate": 35000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "05fbf12e-20d9-4e55-a7fb-b34c002288bb",
+    "item_type": "task_lighting",
+    "description": "task lighting for treatment-2",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-2",
+    "design_element_ref": "room:treatment-2",
+    "unit_price_estimate": 18000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "b314e3d2-40b4-41ce-94ba-8c6fe2f1cfd8",
+    "item_type": "hand_sink",
+    "description": "hand sink for treatment-2",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-2",
+    "design_element_ref": "room:treatment-2",
+    "unit_price_estimate": 60000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "ce66ee52-26fa-4628-88c8-368de94ba04e",
+    "item_type": "treatment_bed",
+    "description": "treatment bed for treatment-3",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-3",
+    "design_element_ref": "room:treatment-3",
+    "unit_price_estimate": 120000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "0df6b868-c0cb-4b6b-8f1d-0c5192eda2dd",
+    "item_type": "storage_cabinet",
+    "description": "storage cabinet for treatment-3",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-3",
+    "design_element_ref": "room:treatment-3",
+    "unit_price_estimate": 35000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "f3a3f242-df0d-428c-8bcc-3938952932fc",
+    "item_type": "task_lighting",
+    "description": "task lighting for treatment-3",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-3",
+    "design_element_ref": "room:treatment-3",
+    "unit_price_estimate": 18000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "dcd4fbb9-81f6-4d01-a391-8e881caf3e61",
+    "item_type": "hand_sink",
+    "description": "hand sink for treatment-3",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "treatment-3",
+    "design_element_ref": "room:treatment-3",
+    "unit_price_estimate": 60000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "abe0a09b-5a76-4792-adf7-580f8d571e72",
+    "item_type": "reception_desk",
+    "description": "reception desk for reception-1",
+    "quantity": "1",
+    "unit": "ea",
+    "room_id": "reception-1",
+    "design_element_ref": "room:reception-1",
+    "unit_price_estimate": 150000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "f783ee32-78ba-4991-98e4-b08a421c23b9",
+    "item_type": "shelving_unit",
+    "description": "shelving unit for storage-1",
+    "quantity": "2",
+    "unit": "ea",
+    "room_id": "storage-1",
+    "design_element_ref": "room:storage-1",
+    "unit_price_estimate": 22000,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote."
+   },
+   {
+    "bom_item_id": "fecb76a6-94c7-4b5e-8107-ecf367c315db",
+    "item_type": "flooring_lvp_sqm",
+    "description": "neutral LVP (floor)",
+    "quantity": "22.0",
+    "unit": "m2",
+    "room_id": "treatment-1",
+    "design_element_ref": "finish:treatment-1:floor",
+    "unit_price_estimate": 4500,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste."
+   },
+   {
+    "bom_item_id": "ad1d5bbf-e95b-4c84-bee1-8e7050056b36",
+    "item_type": "flooring_lvp_sqm",
+    "description": "neutral LVP (floor)",
+    "quantity": "15.4",
+    "unit": "m2",
+    "room_id": "treatment-2",
+    "design_element_ref": "finish:treatment-2:floor",
+    "unit_price_estimate": 4500,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste."
+   },
+   {
+    "bom_item_id": "138cdd56-7ae1-47b0-8722-74fc47aba29b",
+    "item_type": "flooring_lvp_sqm",
+    "description": "neutral LVP (floor)",
+    "quantity": "28.6",
+    "unit": "m2",
+    "room_id": "treatment-3",
+    "design_element_ref": "finish:treatment-3:floor",
+    "unit_price_estimate": 4500,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste."
+   },
+   {
+    "bom_item_id": "0d5c547b-216b-4776-8f0a-e5601c2e366c",
+    "item_type": "flooring_lvp_sqm",
+    "description": "neutral LVP (floor)",
+    "quantity": "26.4",
+    "unit": "m2",
+    "room_id": "reception-1",
+    "design_element_ref": "finish:reception-1:floor",
+    "unit_price_estimate": 4500,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste."
+   },
+   {
+    "bom_item_id": "6b0ae975-ed4b-4bbd-89fd-f9acb38abf2c",
+    "item_type": "flooring_lvp_sqm",
+    "description": "neutral LVP (floor)",
+    "quantity": "15.3",
+    "unit": "m2",
+    "room_id": "storage-1",
+    "design_element_ref": "finish:storage-1:floor",
+    "unit_price_estimate": 4500,
+    "price_origin": "FIXTURE_SYNTHETIC",
+    "price_note": "Illustrative planning price (fixture), not a supplier quote. Includes 10% waste."
+   }
+  ],
+  "estimated_total": 1377650,
+  "approved_total": null,
+  "status": "DRAFT"
+ },
+ "chat": {
+  "reply": "Ranking (deterministic engine):\n#1: 6922 W HOLLYWOOD BLVD STE 302, LOS ANGELES, CA 90028: expected opening cost $107,697 (range $60,703\u2013$186,978), $6,900/mo occupancy, 36-month total $356,097. 1 requirement(s) remain UNKNOWN and need verification.\n#2: 5380 E ALHAMBRA AVE, LOS ANGELES, CA 90032: disqualified by a hard constraint. expected opening cost $208,184 (range $123,180\u2013$334,523), $4,700/mo occupancy, 36-month total $377,384. Lower rent than 6922 W HOLLYWOOD BLVD but $21,287 more over 36 months because of higher renovation cost. 2 requirement(s) remain UNKNOWN and need verification.",
+  "task_ids": [],
+  "mode": "deterministic",
+  "grounded_record_ids": [
+   "7a1ee3c3-7fa4-4cac-aae8-e05a7a457193"
+  ]
+ }
+}

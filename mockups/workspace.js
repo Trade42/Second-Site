@@ -1,5 +1,6 @@
 // Second Site workspace prototype. One page, three stages, one conversation.
 // Design mock: the conversation is scripted and every figure is demo data.
+const LIVE = new URLSearchParams(location.search).get('live') === '1' ? await import('./backend.js') : null; // opt-in backend link, see backend.js
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -7,7 +8,7 @@ const money = n => '$' + Math.round(n).toLocaleString('en-US');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const asset = (src, f) => `assets/${src}/${f}`;
+const asset = (src, f) => LIVE?.asset(src, f) ?? `assets/${src}/${f}`;
 const ICON = {
   x: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
 };
@@ -119,7 +120,7 @@ const BATCH = { reception: ['desk', 'bench', 'retail'], treatment: ['bed', 'stoo
 /* ----------------------------------------------------------------- state */
 
 const fresh = () => ({ stage: 'discover', step: 0, req: {}, slots: [...FIRST], saved: [], dismissed: [], open: null, offered: false, msgs: [], replies: [], finalist: null, issue: null, view: 'dollhouse', photo: 0, dir: 'oblique-n', seenCompare: false, chosen: null, committed: false, placed: [], hist: [], tab: null, room: null, sel: null, seenFurnish: null });
-const KEY = 'second-site-workspace';
+const KEY = 'second-site-workspace' + (LIVE ? '-live' : '');
 let S = fresh();
 try { S = { ...S, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { /* storage unavailable: run in memory */ }
 if (FURNISH_COMMAND.test(S.req.business || '')) S.req.business = null;
@@ -142,7 +143,7 @@ function replies(list) { S.replies = list; $('#replies').innerHTML = list.map((t
 async function send(text) {
   text = text.trim(); if (!text || busy) return;
   busy = true; say('u', esc(text)); replies([]);
-  try { await TURN[S.stage](text); } finally { busy = false; save(); }
+  try { await (LIVE?.turn(S.stage, text, S, STEPS.length) || TURN[S.stage](text)); } finally { busy = false; save(); }
 }
 
 /* ------------------------------------------------------------ 1 discover */
@@ -208,6 +209,7 @@ function refill() {
 async function research(noteFor) {
   $$('.frame').forEach(f => f.classList.add('loading'));
   const before = S.slots.join();
+  if (LIVE) await LIVE.search(S);
   await think(800);
   refill(); renderDiscover();
   const text = noteFor(fits().length);
@@ -363,7 +365,7 @@ function renderFindings() {
         ${row('Lease extras', (p, c) => c.unk ? 'Not stated' : c.d.extras ? '~' + money(c.d.extras) : 'Included')}
         ${row('Renovation', (p, c) => '~' + money(c.d.build))}
         ${row('Total to open', (p, c) => '~' + money(c.total), 'total')}
-        ${row('Time to open', (p, c) => `~${c.d.weeks} wks`)}
+        ${row('Time to open', (p, c) => c.d.weeks == null ? 'Not stated' : `~${c.d.weeks} wks`)}
       </tbody>
     </table></div>`;
   $('#findings').scrollTop = scroll;
@@ -381,8 +383,9 @@ function renderCompare() { renderFinalists(); renderFindings(); renderViewer(); 
 function draft(issue) {
   a(`<div class="draft"><span class="label">To ${esc(P[S.finalist].broker)}</span><p>${issue.ask}</p><button type="button" class="btn sm solid" data-act="send-draft">Approve and send</button></div>`);
 }
-function explore(commit) {
+async function explore(commit) {
   if (S.chosen !== S.finalist) { S.placed = []; S.hist = []; S.room = S.sel = null; }
+  if (LIVE && !(await LIVE.furnish(S))) return;
   S.chosen = S.finalist; S.committed = !!commit; go('furnish');
 }
 async function compareTurn(text) {
@@ -835,6 +838,7 @@ async function seed(to) {
   history.replaceState(null, '', location.pathname); // a reload keeps what you did next
 }
 
+LIVE?.bind({ POOL, P, D, CAT, C, FIRST, FILL, SPACE_NOTES, pins, S: () => S, map: () => map, a, note, esc, selectSpace });
 const start = location.hash.slice(1); // #reset clears saved state
 if (['searched', 'compare', 'furnish', 'reset'].includes(start)) S = fresh();
 if (start === 'reset') history.replaceState(null, '', location.pathname);

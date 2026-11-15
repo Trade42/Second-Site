@@ -1,0 +1,388 @@
+// Opt-in connection from the three-stage workspace to the Second Site backend (the Rust service, which
+// forwards the chat to the Python app). Loaded by workspace.js only when the page URL carries ?live=1;
+// without it this file is never imported and the page stays the scripted demo.
+//
+//   workspace.html?live=1                       backend at http://localhost:8000
+//   workspace.html?live=1&api=http://host:port  another backend origin
+//
+// What it sends: the dev sign-in, the project and its business profile, the property search, layout
+// generation and reads. Never outreach, calls, approval decisions or payments.
+// Money from the backend is integer minor units (cents) and geometry is metres; both are converted for
+// display only, in toDollars() and toSqft(). Pure mapping functions are exported for backend.test.mjs.
+
+const SQFT_PER_SQM = 10.7639104; // exact to the precision shown (1 m = 3.28084 ft)
+export const toDollars = cents => (Number.isInteger(cents) ? cents / 100 : null);
+export const toSqft = sqm => (typeof sqm === 'number' ? Math.round(sqm * SQFT_PER_SQM) : null);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const words = s => String(s || '').toLowerCase().replace(/_/g, ' ');
+// The page inserts finding, room and item text as HTML, so backend text is escaped here.
+export const html = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isFixture = origin => String(origin || '').startsWith('FIXTURE_');
+
+/* ------------------------------------------------------------ configuration */
+
+export function config(search = globalThis.location?.search || '') {
+  const q = new URLSearchParams(search);
+  return { live: q.get('live') === '1', api: (q.get('api') || 'http://localhost:8000').replace(/\/+$/, '') };
+}
+
+/* ------------------------------------------------- pure mapping: stage 1 */
+
+// The search stage's chat answers (the page's S.req) -> the project's business profile.
+// Only what the person said is sent. Rooms beyond treatment and reception, capital and reserve were not
+// asked, so they are left out (the backend keeps them unknown).
+export function profileFromAnswers(req = {}) {
+  const facial = req.business === 'Facial studio';
+  const type = facial ? 'facial_studio' : String(req.business || 'unspecified').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unspecified';
+  const profile = {
+    business_type: type,
+    business_description: req.business ? `${req.business} (from the workspace chat)` : null,
+    current_location_count: 1,
+    target_market: { city: 'Los Angeles', state: 'CA' },
+    monthly_rent_limit: Number.isFinite(req.rent) ? Math.round(req.rent) * 100 : null,
+    source_references: [{ field: '*', source: 'workspace chat answers', confirmation_status: 'CONFIRMED', note: 'Typed or chosen by the person in the search stage' }],
+    confirmation_status: 'CONFIRMED',
+  };
+  if (Number.isInteger(req.rooms)) profile.space_requirements = { required_rooms: { treatment: req.rooms, reception: 1 } };
+  return profile;
+}
+export function searchBody(req = {}) {
+  return { city: 'Los Angeles', state: 'CA', limit: 20, max_monthly_rent: Number.isFinite(req.rent) ? Math.round(req.rent) * 100 : null };
+}
+
+// The page's four areas, derived from the backend's coordinates (the backend has no such field).
+// Anything outside these boxes has no area and only appears when the person chose "Anywhere".
+export function zoneOf(lat, lon) {
+  if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+  if (lat > 34.135) return 'valley';
+  if (lon < -118.37) return 'westside';
+  if (lon > -118.225) return 'eastside';
+  if (lat < 34.065 && lon > -118.29) return 'downtown';
+  return null;
+}
+const DIRECTIONS = new Set(['N', 'S', 'E', 'W']);
+const SUFFIX = new Set(['ST', 'AVE', 'BLVD', 'DR', 'RD', 'WAY', 'PL', 'LN', 'CT', 'PKWY']);
+export function shortAddress(street) {
+  const t = String(street || '').split(/\s+/).filter(Boolean);
+  const keep = t.filter((w, i) => !(i > 0 && (DIRECTIONS.has(w.toUpperCase()) || SUFFIX.has(w.toUpperCase()))));
+  return keep.slice(0, 3).map(w => (/^\d/.test(w) ? w : cap(w.toLowerCase()))).join(' ');
+}
+
+// One backend property record -> one POOL entry. `src` is "live-<id>", never one of the three real
+// listings' asset folders, so the page's own "Demo property" label (id !== src) shows and no local
+// photo, scan or plan of a real listing is shown for it (asset() returns a neutral image instead).
+export function poolEntry(rec) {
+  const id = rec.property_id, ident = rec.property_identity || {}, cl = rec.commercial_listing || {};
+  const fixture = isFixture(cl.data_origin) || cl.provider === 'fixture';
+  const unit = ident.unit_or_suite;
+  return {
+    id, src: 'live-' + id, photo: 'none',
+    address: ident.street_address || ident.normalized_address || 'Address not stated',
+    short: shortAddress(ident.street_address),
+    suite: [unit, fixture ? 'Demo data' : null].filter(Boolean).join(' · ') || 'Unit not stated',
+    hood: ident.city || 'Los Angeles', zone: zoneOf(ident.latitude, ident.longitude),
+    rent: toDollars(cl.asking_rent_monthly) ?? 0, rentKnown: Number.isInteger(cl.asking_rent_monthly),
+    sqft: toSqft(cl.available_area_sqm) ?? 0,
+    use: cl.property_type || 'Use not stated', lease: cl.lease_service_type || 'Lease type not stated',
+    broker: cl.broker_contact?.company || cl.brokerage_company || 'Broker not stated',
+    lat: ident.latitude, lon: ident.longitude,
+    live: { fixture, provider: cl.provider, data_origin: cl.data_origin, disclaimer: cl.disclaimer || null, listing_id: cl.provider_listing_id },
+  };
+}
+// The tooltip text for a live listing (page's SPACE_NOTES shape), from the record only.
+export function spaceNotes(rec) {
+  const cl = rec.commercial_listing || {}, a = rec.infrastructure_assessments || [];
+  const count = s => a.filter(x => x.status === s).length;
+  return {
+    description: [cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null].filter(Boolean).join(' ') || 'No description from the listing.',
+    pros: a.filter(x => x.status === 'MEETS').map(x => requirementLabel(x.requirement_id) + ': meets').slice(0, 2).concat(count('MEETS') ? [] : ['No requirement confirmed as met']).slice(0, 2),
+    cons: [count('UNKNOWN') ? `${count('UNKNOWN')} requirement(s) unknown` : null, count('MAY_REQUIRE_WORK') ? `${count('MAY_REQUIRE_WORK')} may need work` : null, ...(rec.missing_information || [])].filter(Boolean).slice(0, 3),
+  };
+}
+
+/* ------------------------------------------------- pure mapping: stage 2 */
+
+const LABELS = {
+  'space.min_area': 'Floor area', 'space.enclosed_rooms': 'Enclosed rooms', 'electrical.tenant_service': 'Electrical service',
+  'plumbing.treatment_sinks': 'Sinks in the treatment rooms', 'plumbing.water_service': 'Water service', 'hvac.ventilation': 'Air supply to each room',
+};
+export const requirementLabel = rid => LABELS[String(rid).split('.').slice(1).join('.')] || cap(words(String(rid).split('.').pop()));
+const TOPIC = { plumbing: 'plumbing', electrical: 'power', hvac: 'hvac', space: 'layout' }; // ids the page's chat topics use
+const STATUS = {
+  MEETS: { sev: 'low', impact: 'Meets, per the evidence' }, MAY_REQUIRE_WORK: { sev: 'mid', impact: 'May need work' },
+  DOES_NOT_MEET: { sev: 'high', impact: 'Does not meet' }, UNKNOWN: { sev: 'unk', impact: 'Unknown' }, CONFLICTING: { sev: 'unk', impact: 'Conflicting evidence' },
+};
+// Evidence classes kept apart in words; the page's four kinds only pick the styling.
+const CLASS_KIND = { historical: 'documented', verified: 'documented', measured: 'observed', visual: 'observed', 'owner-reported': 'estimate', derived: 'estimate', unknown: 'unknown', conflicting: 'unknown' };
+export function evidenceClassOf(assessment, rec) {
+  const permits = new Map();
+  for (const p of rec.permit_records || []) for (const e of p.source_evidence_ids || []) permits.set(e, p);
+  const linked = (assessment.evidence_ids || []).map(e => permits.get(e)).filter(Boolean);
+  if (assessment.status === 'CONFLICTING') return { cls: 'conflicting', text: 'Conflicting evidence' };
+  if (linked.length) {
+    const uniq = [...new Map(linked.map(p => [p.permit_number, p])).values()];
+    const first = uniq[0];
+    return { cls: 'historical', text: `Historical permit ${uniq.map(p => p.permit_number).join(', ')} (${first.permit_status || 'status not stated'}${first.data_origin === 'FIXTURE_REAL' ? ', stored snapshot of public LA records' : ''}), not current capacity` };
+  }
+  if (/listing/i.test(assessment.uncertainty || '') || /listing/i.test((assessment.limitations || []).join(' '))) return { cls: 'derived', text: 'Derived from the listing (demo data), not measured' };
+  return { cls: 'unknown', text: 'No evidence record' };
+}
+// Feasibility assessments of one property -> the page's `issues`. UNKNOWN is never shown as met and gets
+// no dollar figure; the impact column carries the backend's status, not an amount.
+export function issuesFrom(assessments, rec) {
+  const seen = {};
+  return (assessments || []).map(a => {
+    const area = String(a.requirement_id).split('.')[1] || 'other';
+    const base = TOPIC[area] || area, n = (seen[base] = (seen[base] || 0) + 1);
+    const st = STATUS[a.status] || { sev: 'unk', impact: cap(words(a.status)) };
+    const ev = evidenceClassOf(a, rec);
+    const kind = a.status === 'UNKNOWN' ? 'unknown' : CLASS_KIND[ev.cls];
+    const work = (a.proposed_work || []).map(w => (typeof w === 'string' ? w : w.description || '')).filter(Boolean);
+    const question = (a.verification_questions || [])[0];
+    return {
+      id: n === 1 ? base : `${base}-${n}`, sev: st.sev, status: a.status,
+      title: html(`${requirementLabel(a.requirement_id)}: ${words(a.status)}`), impact: html(st.impact),
+      sum: html([a.uncertainty, work.length ? `Proposed work: ${work.join('; ')}.` : null, question ? `Open question: ${question}` : null].filter(Boolean).join(' ')),
+      why: html((a.limitations || []).join(' ')), kind, evidence_class: ev.cls,
+      ev: html(`${cap(ev.cls)} evidence: ${ev.text}`.replace(/\. /g, '; ')), next: question || null,
+      // No `ask`: the page's "Approve and send" only marks a draft as sent, so live mode offers no draft.
+    };
+  });
+}
+// The latest cost scenario of one property -> the page's cost fields (dollars, display only).
+// total to open = opening_cost_expected; "Renovation" = its one-time items except furniture (FF&E).
+export function costsFrom(scenarios, propertyId) {
+  const mine = (scenarios || []).filter(s => s.property_id === propertyId).sort((x, y) => String(x.calculated_at).localeCompare(String(y.calculated_at)));
+  const s = mine.at(-1);
+  if (!s) return { extras: null, build: null, other: null, weeks: null, scenario: null };
+  const ffe = s.line_items.filter(l => l.kind === 'ONE_TIME' && l.category === 'FF&E').reduce((n, l) => n + l.expected, 0);
+  const nnn = s.line_items.filter(l => l.kind === 'MONTHLY' && l.category === 'NNN').reduce((n, l) => n + l.expected, 0);
+  return {
+    extras: s.line_items.some(l => l.category === 'NNN') ? toDollars(nnn) : null,
+    build: toDollars(s.opening_cost_expected - ffe), other: toDollars(ffe), weeks: null, // the backend gives no schedule
+    scenario: { id: s.scenario_id, low: toDollars(s.opening_cost_low), expected: toDollars(s.opening_cost_expected), high: toDollars(s.opening_cost_high), assumptions: s.assumptions, excluded: s.excluded_costs },
+  };
+}
+export function detailEntry(rec, assessments, scenarios) {
+  return { ...costsFrom(scenarios, rec.property_id), photos: ['none'], plan: { w: 1000, h: 600, ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms: [], issues: issuesFrom(assessments ?? rec.infrastructure_assessments, rec), live: true };
+}
+
+/* ------------------------------------------------- pure mapping: stage 3 */
+
+// The layout solver needs a minimum area and width per room; the page never asks for them. These are
+// the demo minimums of the e2e driver (apps/backend/e2e/driver.py, ROOMS), said so in the chat note.
+export const ROOM_MINIMUMS = { treatment: { min_area_sqm: 10, min_width_m: 2.8, needs_plumbing: true }, reception: { min_area_sqm: 12, min_width_m: 3 }, storage: { min_area_sqm: 4, min_width_m: 1.5 } };
+export function roomRequirements(counts) {
+  return Object.entries(counts || { treatment: 3, reception: 1, storage: 1 }).map(([room_type, count]) => ({ room_type, count, ...ROOM_MINIMUMS[room_type] }));
+}
+
+// A generated layout and its site geometry (metres) -> the page's plan (100 px per metre) and rooms
+// (fractions of the plan). Every room is a proposal: drawn dashed, never as an approved plan.
+export function roomsFrom(layout, geometry) {
+  const pts = (geometry?.floor_boundary || []).concat(...(layout.room_polygons || []).map(r => r.polygon));
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0 || 1, h = Math.max(...ys) - y0 || 1;
+  const count = {};
+  const rooms = (layout.room_polygons || []).map(r => {
+    const rx = r.polygon.map(p => p[0]), ry = r.polygon.map(p => p[1]);
+    const t = ['treatment', 'reception', 'storage'].includes(r.room_type) ? r.room_type : r.room_type;
+    count[t] = (count[t] || 0) + 1;
+    return { id: r.room_id, type: t, name: html(`${cap(words(r.room_type))} ${count[t]}`), dim: `${toSqft(r.area_sqm)} SF`, proposed: 1,
+      r: [(Math.min(...rx) - x0) / w, (Math.min(...ry) - y0) / h, (Math.max(...rx) - x0) / w, (Math.max(...ry) - y0) / h] };
+  });
+  return { plan: { w: Math.round(w * 100), h: Math.round(h * 100), ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms };
+}
+// The bill of materials -> CAT entries (one per item type and room type) and the placed list.
+// The backend gives no size, supplier or lead time: sizes are 0 (nothing drawn on the plan), the rest is
+// marked as not available. Prices are fixture planning prices, never supplier quotes.
+export function catalogFrom(bom, rooms) {
+  const typeOf = Object.fromEntries(rooms.map(r => [r.id, r.type]));
+  const cat = new Map(), placed = [];
+  for (const it of bom.items || []) {
+    const room = typeOf[it.room_id] || 'storage', q = Number(it.quantity);
+    const pieces = it.unit === 'ea' && Number.isInteger(q) && q > 0; // counted items: one placed piece each
+    // Measured items (m2 of flooring): one line at the line total, quantity and unit kept in the name.
+    const id = pieces ? `${it.item_type}@${room}` : `${it.item_type}@${it.bom_item_id}`;
+    const cents = pieces ? it.unit_price_estimate : Math.round(it.unit_price_estimate * q);
+    if (!cat.has(id)) cat.set(id, {
+      id, room, name: html(`${cap(words(it.item_type))}${pieces ? '' : `, ${it.quantity} ${it.unit}`}, ${isFixture(it.price_origin) ? 'fixture price, not a quote' : 'estimate'}`),
+      kw: words(it.item_type), w: 0, d: 0, h: 0, price: toDollars(cents) ?? 0,
+      by: 'Not available', lead: 'Not available', at: [[0.5, 0.5]], live: { price_origin: it.price_origin, price_note: it.price_note },
+    });
+    for (let i = 0; i < (pieces ? q : 1); i++) placed.push({ c: id, r: it.room_id, st: 'placed' });
+  }
+  return { cat: [...cat.values()], placed, estimated_total: toDollars(bom.estimated_total), status: bom.status };
+}
+// Owner texts saved by Photon as design-change notes -> read-only chat notes.
+export function ownerTextNotes(comms) {
+  // Shape written by apps/api/app/domains/communications/inbound.py (_save_design_change).
+  return (comms || []).filter(c => String(c.purpose || '').toLowerCase() === 'design change').map(c => ({
+    id: c.communication_id, at: c.created_at, channel: c.channel,
+    text: (c.structured_findings || []).filter(f => f.question === 'design change' && f.classification === 'OWNER_REPORTED').map(f => String(f.answer || '').trim()).filter(Boolean).join(' '),
+  })).filter(x => x.text);
+}
+
+/* --------------------------------------------------------------- HTTP */
+
+export class Backend {
+  constructor(api, fetchImpl = globalThis.fetch) { this.api = api; this.fetch = fetchImpl; this.token = null; this.project = null; }
+  async req(method, path, body) {
+    const headers = { accept: 'application/json' };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    if (this.token) headers.authorization = 'Bearer ' + this.token;
+    let res;
+    try { res = await this.fetch(this.api + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }); } catch (e) {
+      throw Object.assign(new Error(`The backend at ${this.api} cannot be reached (${e.message}).`), { status: 0 });
+    }
+    const text = await res.text(); let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    if (!res.ok) throw Object.assign(new Error(`${method} ${path} answered ${res.status}${data?.error_code || data?.code ? ' ' + (data.error_code || data.code) : ''}`), { status: res.status, data });
+    return data;
+  }
+  async signIn() {
+    if (this.token) return;
+    try { this.token = (await this.req('POST', '/api/v1/dev/token')).access_token; } catch (e) {
+      throw Object.assign(new Error(`Sign-in refused: the backend's dev sign-in is not available (${e.message}). Live mode needs a local backend with ALLOW_DEV_TOKENS=true; no token was invented.`), { status: e.status });
+    }
+    if (!this.token) throw new Error('Sign-in answered without a token.');
+  }
+  async ensureProject(req) {
+    await this.signIn();
+    const profile = profileFromAnswers(req), key = JSON.stringify(profile);
+    if (!this.project) {
+      await this.req('GET', '/api/v1/dev/fixtures/project'); // the dev seed route, as the e2e driver uses it; its contents are not used
+      const out = await this.req('POST', '/api/v1/projects', { project_name: `Workspace: ${req.business || 'new location'}`, market: { city: 'Los Angeles', state: 'CA' }, business_profile: profile });
+      this.project = out.project.project_id; this.profileKey = key;
+    } else if (key !== this.profileKey) {
+      await this.req('PUT', this.p('/business-profile'), profile); this.profileKey = key;
+    }
+    return this.project;
+  }
+  p(rest = '') { return `/api/v1/projects/${this.project}${rest}`; }
+  async search(req) {
+    await this.ensureProject(req);
+    const task = (await this.req('POST', this.p('/properties/search'), searchBody(req))).task;
+    if (task?.status !== 'COMPLETED') throw new Error(`The search task is ${task?.status || 'missing'}${task?.error_message ? ': ' + task.error_message : ''}.`);
+    const ids = task.output_reference?.property_ids || [];
+    const [props, rankings, scenarios] = await Promise.all([this.req('GET', this.p('/properties')), this.req('GET', this.p('/rankings')), this.req('GET', this.p('/cost-scenarios'))]);
+    const ranking = rankings.find(r => r.ranking_id === task.output_reference?.ranking_id) || rankings.at(-1);
+    const order = (ranking?.ranked_properties || []).map(x => x.property_id);
+    const recs = props.filter(p => ids.includes(p.property_id)).sort((a, b) => (order.indexOf(a.property_id) + 1 || 1e9) - (order.indexOf(b.property_id) + 1 || 1e9));
+    const extra = await Promise.all(recs.map(r => Promise.all([this.req('GET', this.p(`/properties/${r.property_id}/feasibility`)), this.req('GET', this.p(`/properties/${r.property_id}/permits`))])));
+    return recs.map((rec, i) => ({ rec: { ...rec, permit_records: extra[i][1] }, assessments: extra[i][0], scenarios }));
+  }
+  async layout(propertyId) {
+    const rooms = roomRequirements(this.lastRooms);
+    const task = (await this.req('POST', this.p('/layouts/generate'), { property_id: propertyId, room_requirements: rooms })).task;
+    if (task?.status !== 'COMPLETED') throw new Error(`Layout generation is ${task?.status || 'missing'}${task?.error_message ? ': ' + task.error_message : ''}.`);
+    const id = task.output_reference?.design_version_ids?.[0];
+    const layout = (await this.req('GET', this.p('/layouts'))).find(l => l.design_version_id === id);
+    if (!layout) throw new Error('The generated layout is not in the layout list.');
+    const [geometry, bom] = await Promise.all([this.req('GET', this.p(`/layouts/geometry/${layout.geometry_id}`)), this.req('GET', this.p(`/layouts/${id}/bom`))]);
+    return { layout, geometry, bom };
+  }
+  chat(message) { return this.req('POST', this.p('/chat'), { message }); }
+  communications() { return this.req('GET', this.p('/communications')); }
+}
+// A chat failure in plain words. Never a scripted answer in the assistant's name.
+export function chatFailure(e) {
+  const code = e?.data?.error_code || e?.data?.code || e?.data?.detail?.error_code || '';
+  if (e?.status === 503 || /PYTHON_SERVICE_NOT_CONFIGURED/.test(code)) return 'The assistant is not reachable: the backend has no assistant service configured. Nothing was answered.';
+  if (e?.status === 502 || e?.status === 504) return 'The assistant is not reachable right now (the backend could not get an answer from it). Nothing was answered; try again.';
+  if (e?.status === 0) return `The assistant is not reachable: ${e.message}`;
+  return `The assistant could not answer: ${e?.message || 'unknown error'}.`;
+}
+
+/* ------------------------------------------------------- page wiring */
+
+// A neutral image in place of any local listing asset for a backend listing.
+const NEUTRAL = (text, origin) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect width="400" height="300" fill="#ECEBE7"/><text x="200" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#6B6A66">${text}</text><text x="200" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" fill="#8A8985">${origin}</text></svg>`);
+export function asset(src, f) {
+  if (!String(src).startsWith('live-')) return undefined; // the page's own path
+  // Say "fixture" only for a listing the backend marked as fixture data (review fix: it said so for every listing).
+  const fixture = page?.P?.[String(src).slice(5)]?.live?.fixture;
+  return NEUTRAL(/floorplan/.test(f) ? 'No floor plan image' : /vexcel/.test(f) ? 'No aerial image' : 'No photo',
+    fixture ? 'Demo data from the backend (fixture)' : 'From the backend; no image provided');
+}
+
+let page = null, backend = null;
+try { localStorage.removeItem('second-site-workspace-live'); } catch { /* storage unavailable */ } // live mode starts fresh
+
+// Called once by workspace.js with its data tables (mutated in place) and a few of its functions.
+export function bind(ctx) {
+  page = ctx; backend = new Backend(config().api);
+  for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
+  for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
+  const S = ctx.S(); S.slots = [null, null, null, null];
+}
+const markers = {};
+function addPin(p) {
+  const map = page.map();
+  if (!map || !window.maplibregl || page.pins[p.id]) return; // no map: the page's renderMap() returns early
+  const wrap = document.createElement('div'), el = document.createElement('button');
+  el.type = 'button'; el.setAttribute('aria-label', p.address); el.dataset.property = p.id; el.onclick = () => page.selectSpace(p.id);
+  wrap.append(el); page.pins[p.id] = el; // renderMap() styles every POOL entry's pin, so one exists even without coordinates
+  if (typeof p.lat === 'number' && typeof p.lon === 'number') markers[p.id] = new window.maplibregl.Marker({ element: wrap }).setLngLat([p.lon, p.lat]).addTo(map);
+}
+function dropPin(id) { markers[id]?.remove(); delete markers[id]; delete page.pins[id]; }
+// Stage 1: after each search-stage answer. Replaces the listing pool with the backend's results.
+export async function search(S) {
+  if (!S.req.business) return; // nothing to search for until the business is known
+  backend.lastRooms = Number.isInteger(S.req.rooms) ? { treatment: S.req.rooms, reception: 1, storage: 1 } : null;
+  let results;
+  try { results = await backend.search(S.req); } catch (e) { page.note(page.esc(`Live search failed: ${e.message}`)); return; }
+  const { POOL, P, D, FILL, SPACE_NOTES } = page;
+  for (const id of Object.keys(P)) if (!results.some(r => r.rec.property_id === id)) { dropPin(id); delete P[id]; }
+  POOL.length = 0; FILL.length = 0;
+  for (const { rec, assessments, scenarios } of results) {
+    const p = poolEntry(rec); POOL.push(p); P[p.id] = p; FILL.push(p.id);
+    D[p.src] = detailEntry(rec, assessments, scenarios); SPACE_NOTES[p.id] = spaceNotes(rec); addPin(p);
+  }
+  // Remove saved or shown ids the backend no longer returns (the page would look them up and fail).
+  S.slots = S.slots.map(id => (id && P[id] ? id : null));
+  S.saved = S.saved.filter(id => P[id]); if (S.open && !P[S.open]) S.open = null;
+  const fx = POOL.filter(p => p.live.fixture).length;
+  if (fx) page.note(page.esc(`${fx} of ${POOL.length} listings from the backend are synthetic demo data (fixture), not CoStar records.`));
+}
+// Stage 3: before the Furnish stage opens. False keeps the page in Compare.
+export async function furnish(S) {
+  const p = page.P[S.finalist], d = page.D[p?.src];
+  if (!p || !d) return false;
+  if (!d.rooms.length) {
+    let out;
+    try { out = await backend.layout(p.id); } catch (e) { page.note(page.esc(`No layout for ${p.address}: ${e.message}`)); return false; }
+    const { plan, rooms } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms);
+    Object.assign(d, { plan, rooms, bom: cat, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
+    for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
+    const g = out.geometry;
+    page.note(page.esc(`Layout version ${out.layout.version_number} for ${p.address}: ${out.layout.approval_status.toLowerCase()}, ${out.layout.validation_report?.disclaimer || 'not an approved plan'} Floor geometry: ${words(g.geometry_source)}${isFixture(g.data_origin) ? ' (synthetic fixture)' : ''}${g.scale_verified ? '' : ', scale not verified'}. Room minimums used: demo defaults (treatment 10 m² and 2.8 m wide, reception 12 m², storage 4 m²), not your answers. Bill of materials ${words(cat.status)}: ${cat.cat.length} item types, prices are fixture planning prices, not supplier quotes.`));
+  }
+  if (!S.placed.length || S.chosen !== S.finalist) S.placed = d.bom.placed.map(x => ({ ...x }));
+  ownerTexts();
+  return true;
+}
+const shown = new Set();
+async function ownerTexts() {
+  let list;
+  try { list = ownerTextNotes(await backend.communications()); } catch { return; }
+  for (const t of list) if (!shown.has(t.id)) {
+    shown.add(t.id);
+    page.note(`<b>Owner’s text message</b> (owner-reported; not applied to the layout, and it cannot approve anything): ${page.esc(t.text)}`);
+  }
+}
+// Typed or chosen chat text. Null lets the page handle it (the search questions and the page's own
+// navigation commands); everything else goes to the project chat.
+// discover: the page's own answer edits after the questions (rent, rooms, area, opening) re-run the live search.
+const PAGE_COMMANDS = { discover: /look into|compare|closer|ready|go ahead|\$|rent|budget|month|room|downtown|west|east|valley|anywhere|open/i, compare: /anyway|layout|try|choose|go with|pick|sign/i, furnish: /^$/ };
+export function turn(stage, text, S, steps) {
+  if (stage === 'discover' && S.step < steps) return null;
+  if (PAGE_COMMANDS[stage].test(text)) return null;
+  return (async () => {
+    if (!backend.project) { page.note('The assistant is not connected until the search has created a project.'); return; }
+    try {
+      const out = await backend.chat(text);
+      page.a(`${page.esc(out.reply).replace(/\n/g, '<br>')}<br><small>${out.mode === 'deterministic' ? 'Deterministic engine, no model configured' : 'Assistant'} · from the backend</small>`);
+    } catch (e) { page.note(page.esc(chatFailure(e))); }
+  })();
+}
