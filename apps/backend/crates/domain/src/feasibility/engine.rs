@@ -178,25 +178,6 @@ fn or_str<'a>(v: Option<&'a str>, default: &'a str) -> &'a str {
     }
 }
 
-/// Uncertainty of the enclosed-rooms assessment when no room program is stated (not in Python).
-pub const NO_PROGRAM_ROOMS: &str =
-    "No room program stated yet; room partitions are not assessed or priced.";
-/// Uncertainty of the area assessment when its 0 m2 comes only from an empty room program.
-pub const NO_PROGRAM_AREA: &str =
-    "No room program or minimum area stated yet; the area needed is not assessed.";
-/// Verification question on both of those assessments.
-pub const NO_PROGRAM_QUESTION: &str = "How many rooms of each type does the business need?";
-
-/// True when the profile states no room counts: `required_rooms` is empty or every count is 0.
-/// A negative count is not "no program"; it stays an error downstream.
-pub fn no_room_program(profile: &BusinessExpansionProfile) -> bool {
-    profile
-        .space_requirements
-        .required_rooms
-        .values()
-        .all(|n| *n == 0)
-}
-
 /// `FeasibilityEngine`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FeasibilityEngine;
@@ -210,19 +191,9 @@ impl FeasibilityEngine {
     /// whose classification is in [`USABLE`] is considered, in the order given.
     ///
     /// Errors where Python raises: [`DomainError::Validation`] for an assessment or work item
-    /// Pydantic would reject (for example a negative room count gives a negative quantity);
+    /// Pydantic would reject (for example a zero room count gives quantity 0);
     /// [`DomainError::BadRecord`] when an evidence value or a requirement value cannot be
     /// converted with `float()`/`int()`.
-    ///
-    /// Deliberate difference from Python: a profile whose room program is empty (or lists only
-    /// zero counts, see [`no_room_program`]) does not fail. Python builds a partitions work item
-    /// of quantity 0 and Pydantic rejects it, which fails the whole property search while the
-    /// person has simply not said how many rooms they need yet. Here the enclosed-rooms
-    /// requirement then gets no work item (there is nothing to build) and an UNKNOWN assessment
-    /// saying the room program is not stated, and an area requirement of 0 m2 that comes only
-    /// from that empty program is UNKNOWN instead of being compared with the listing area. Any
-    /// profile with a non-zero room count takes Python's path unchanged, and a zero quantity that
-    /// comes from negative counts is still a validation error.
     pub fn evaluate(
         &self,
         profile: &BusinessExpansionProfile,
@@ -257,7 +228,6 @@ impl FeasibilityEngine {
         let mut work: Vec<RenovationWorkItem> = Vec::new();
         let (pid, prj) = (prop.property_id, prop.project_id);
         let open_shell = buildout(prop) == Some("open_shell");
-        let no_program = no_room_program(profile);
         let base =
             |rid: &str, status: AssessmentStatus, uncertainty: &str| InfrastructureAssessment {
                 assessment_id: new_id(),
@@ -284,17 +254,6 @@ impl FeasibilityEngine {
             let rid = req.requirement_id.as_str();
             if rid.ends_with("space.min_area") {
                 let area = listing.and_then(|l| l.available_area_sqm);
-                // Not in Python (see `evaluate`): 0 m2 asked because no rooms were stated is
-                // not a requirement the listing area can meet.
-                if no_program && required_float(req)? == 0.0 {
-                    assessments.push(checked(InfrastructureAssessment {
-                        observed_value: area.map(ScalarValue::Number),
-                        required_value: req.required_value.clone(),
-                        verification_questions: strings(&[NO_PROGRAM_QUESTION]),
-                        ..base(rid, AssessmentStatus::Unknown, NO_PROGRAM_AREA)
-                    })?);
-                    continue;
-                }
                 let a = match area {
                     None => InfrastructureAssessment {
                         required_value: req.required_value.clone(),
@@ -332,16 +291,6 @@ impl FeasibilityEngine {
                 assessments.push(checked(a)?);
             } else if rid.ends_with("space.enclosed_rooms") {
                 let n = required_int(req)?;
-                // Not in Python (see `evaluate`): no rooms stated means no partitions to price.
-                if n == 0 && no_program {
-                    assessments.push(checked(InfrastructureAssessment {
-                        required_value: Some(ScalarValue::from(n)),
-                        observed_value: Some(ScalarValue::from(or_str(buildout(prop), "unknown"))),
-                        verification_questions: strings(&[NO_PROGRAM_QUESTION]),
-                        ..base(rid, AssessmentStatus::Unknown, NO_PROGRAM_ROOMS)
-                    })?);
-                    continue;
-                }
                 let key = if open_shell {
                     CostKey::PartitionRoomOpenShell
                 } else {

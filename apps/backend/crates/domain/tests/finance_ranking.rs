@@ -441,28 +441,24 @@ fn ranking_rejects_all_zero_priorities_and_bad_versions() {
 }
 
 #[test]
-fn zero_rooms_complete_unlike_pydantic() {
-    // required_rooms all zero: Python builds an enclosed-rooms work item of quantity 0 and
-    // Pydantic rejects it. Rust deliberately gives no partitions work item and an UNKNOWN
-    // assessment instead (see FeasibilityEngine::evaluate and tests/empty_program.rs).
+fn zero_rooms_fail_like_pydantic() {
+    // required_rooms all zero -> enclosed rooms quantity 0 -> Pydantic rejects the work item.
     let profile = demo_profile(json!({"space_requirements": {"required_rooms": {"treatment": 0}}}));
     let r = analyze_in_memory(&demo_profile(json!({})), None);
     let hw = &r.props[HW];
-    let (a, w) = FeasibilityEngine
-        .evaluate(
-            &profile,
-            &requirements_for(&profile),
-            hw,
-            &r.evidence[&hw.property_id],
-        )
-        .unwrap();
-    let rooms = a
-        .iter()
-        .find(|x| x.requirement_id.ends_with("space.enclosed_rooms"))
-        .unwrap();
-    assert_eq!(rooms.status, AssessmentStatus::Unknown);
-    assert!(w.iter().all(|x| x.category.as_str() != "PARTITIONS"));
-    assert!(w.iter().all(|x| !x.quantity.0.is_zero()));
+    match FeasibilityEngine.evaluate(
+        &profile,
+        &requirements_for(&profile),
+        hw,
+        &r.evidence[&hw.property_id],
+    ) {
+        Err(DomainError::Validation(e)) => {
+            assert_eq!(e.title, "RenovationWorkItem");
+            assert_eq!(e.errors_json()[0]["loc"], json!(["quantity"]));
+            assert!(e.mentions("Input should be greater than 0"), "{e:?}");
+        }
+        other => panic!("{other:?}"),
+    }
 }
 
 #[test]

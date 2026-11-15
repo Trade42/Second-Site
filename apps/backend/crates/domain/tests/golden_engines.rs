@@ -257,19 +257,6 @@ fn engine_cases_match_python() {
             other => panic!("unknown case kind {other}"),
         };
         let expected = &case["output"];
-        // The one deliberate difference from Python in these cases: a room program of zero
-        // counts fails Python's engine (partitions quantity 0) but completes here; the Rust
-        // result is pinned in tests/empty_program.rs. Python's recorded error is still checked.
-        if name == "error_zero_rooms" {
-            assert_eq!(expected["error"]["title"], "RenovationWorkItem", "{name}");
-            assert_eq!(
-                expected["error"]["errors"][0]["loc"],
-                json!(["quantity"]),
-                "{name}"
-            );
-            assert!(result.is_ok(), "{name}: {result:?}");
-            continue;
-        }
         match (result, expected.get("error")) {
             (Err(e), Some(py_err)) => {
                 errors += 1;
