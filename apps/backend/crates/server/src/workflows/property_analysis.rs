@@ -9,8 +9,13 @@
 //! Event idempotency keys and payloads are Python's. Earlier assessments, work items and cost
 //! scenarios are superseded, never deleted.
 //!
-//! Difference from Python: the evidence subscriber loads the property only from the event's own
-//! project (Python loads any property by id).
+//! Differences from Python:
+//! - the evidence subscriber loads the property only from the event's own project (Python loads
+//!   any property by id);
+//! - a permit provider failure (unavailable, timeout, rate limited, bad answer, ...) does not
+//!   fail the search or the analysis: the property continues without new permit records and
+//!   says so (see `ingest_permits_or_skip`); after a timeout the rest of the search skips the
+//!   provider. Python lets the `ProviderError` fail the whole task.
 
 use std::sync::Arc;
 
@@ -20,10 +25,11 @@ use serde_json::{json, Value};
 use ss_core::{utcnow, BusinessExpansionProfile, ProjectStatus};
 use ss_domain::contracts::{
     AssessmentStatus, CostScenario, InfrastructureAssessment, PropertyDigitalProfile,
-    PropertyRankingResult, PropertySearchRequest,
+    PropertyRankingResult, PropertySearchRequest, SourceManifestEntry,
 };
 use ss_domain::feasibility::FeasibilityEngine;
 use ss_domain::finance::FinancialCalculationService;
+use ss_domain::integrations::base::{ProviderError, ProviderErrorKind};
 use ss_domain::property::service::{attach_permits, PropertyScoutService};
 use ss_domain::ranking::RankingEngine;
 use ss_domain::requirements::templates::requirements_for;
@@ -216,16 +222,65 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
     }
 
     /// `ingest_permits`: fetch and store new matched permits, attach every stored permit of the
-    /// property to its profile, `property.permits.ingested`.
+    /// property to its profile, `property.permits.ingested`. A provider failure does not fail
+    /// the caller: see [`Self::ingest_permits_or_skip`].
     pub async fn ingest_permits(
         &self,
         tx: &mut dyn Tx,
         prop: PropertyDigitalProfile,
         correlation_id: Uuid,
     ) -> AppResult<PropertyDigitalProfile> {
+        Ok(self
+            .ingest_permits_or_skip(tx, prop, correlation_id, None)
+            .await?
+            .0)
+    }
+
+    /// The permit step, tolerant of the permit provider being down.
+    ///
+    /// Deliberate difference from Python (`property_analysis.py` lets the `ProviderError` fail
+    /// the whole task): when the provider fails for this property with a provider error, or
+    /// when `skip` carries an earlier timeout of the same search, the property continues
+    /// without new permit records. Its `la_open_data` manifest entry becomes `BLOCKED` with the
+    /// error kind in the note (no `retrieved_at`: nothing was retrieved, and `record_count` is
+    /// not a "zero permits found"), `missing_information` says the records were unavailable,
+    /// no `property.permits.ingested` event is emitted, and the returned [`PermitSkip`] is put
+    /// in the task result by [`Self::run`]. Nothing is stored for the property by the failed
+    /// fetch. Permits stored by an earlier successful retrieval of this property stay attached
+    /// (the feasibility evidence cites them) and the note says so. Any other failure (a
+    /// malformed record, a database error) still fails the caller.
+    pub async fn ingest_permits_or_skip(
+        &self,
+        tx: &mut dyn Tx,
+        prop: PropertyDigitalProfile,
+        correlation_id: Uuid,
+        skip: Option<&ProviderError>,
+    ) -> AppResult<(PropertyDigitalProfile, Option<PermitSkip>)> {
         let provider = self.providers.permits.clone();
         let live = provider.mode() == "live";
-        let res = permits::ingest(tx, provider, &prop.property_identity, prop.project_id).await?;
+        let fetched = match skip {
+            Some(earlier) => Err((earlier.clone(), false)),
+            None => permits::fetch(provider, &prop.property_identity, prop.project_id)
+                .await?
+                .map_err(|e| (e, true)),
+        };
+        let fetched = match fetched {
+            Ok(fetched) => fetched,
+            Err((error, provider_called)) => {
+                let stored = PERMITS
+                    .list(tx, Query::new().eq("property_id", prop.property_id))
+                    .await?;
+                let prop = permits_unavailable(&prop, stored, &error, provider_called);
+                PROPERTIES.upsert(tx, &prop).await?;
+                let skipped = PermitSkip {
+                    property_id: prop.property_id,
+                    error,
+                    provider_called,
+                };
+                return Ok((prop, Some(skipped)));
+            }
+        };
+        let res = permits::store(tx, &prop.property_identity, fetched).await?;
         let all_permits = PERMITS
             .list(tx, Query::new().eq("property_id", prop.property_id))
             .await?;
@@ -253,7 +308,7 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
                 .correlation(correlation_id),
             )
             .await?;
-        Ok(prop)
+        Ok((prop, None))
     }
 
     /// `evaluate`: feasibility and the cost scenario for one property. Earlier outputs of the
@@ -418,8 +473,20 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
         if props.is_empty() {
             return Err(AppError::conflict("no candidate properties found").code("NO_CANDIDATES"));
         }
+        // After a permit timeout, the remaining properties of this search skip the provider:
+        // one slow provider costs one timeout per search, not one per property.
+        let mut timed_out: Option<ProviderError> = None;
+        let mut skipped: Vec<PermitSkip> = Vec::new();
         for p in &props {
-            let p = self.ingest_permits(tx, p.clone(), correlation_id).await?;
+            let (p, skip) = self
+                .ingest_permits_or_skip(tx, p.clone(), correlation_id, timed_out.as_ref())
+                .await?;
+            if let Some(skip) = skip {
+                if skip.error.kind == ProviderErrorKind::Timeout && timed_out.is_none() {
+                    timed_out = Some(skip.error.clone());
+                }
+                skipped.push(skip);
+            }
             self.evaluate(tx, p, correlation_id, None).await?;
         }
         let ranking = self.rank(tx, project_id, correlation_id, None).await?;
@@ -445,7 +512,108 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
             "ranking_version".into(),
             Value::from(ranking.ranking_version),
         );
+        // Only when a permit step was skipped (fixture-mode results are unchanged).
+        if !skipped.is_empty() {
+            out.insert(
+                "permit_step_skipped".into(),
+                Value::from(skipped.iter().map(PermitSkip::to_json).collect::<Vec<_>>()),
+            );
+        }
         Ok(out)
+    }
+}
+
+/// A property whose permit step was skipped because the permit provider failed.
+#[derive(Debug, Clone)]
+pub struct PermitSkip {
+    pub property_id: Uuid,
+    pub error: ProviderError,
+    /// `false` when the provider was not called because it had timed out earlier in the search.
+    pub provider_called: bool,
+}
+
+impl PermitSkip {
+    /// The task-result entry. Provider messages never carry credentials (`AppError::provider`).
+    pub fn to_json(&self) -> Value {
+        json!({
+            "property_id": self.property_id.to_string(),
+            "provider": self.error.provider,
+            "error_kind": self.error.kind.as_str(),
+            "error_message": self.error.to_string(),
+            "provider_called": self.provider_called,
+            "summary": if self.provider_called {
+                "Permit step skipped: the permit provider could not be reached; permit records unknown"
+            } else {
+                "Permit step skipped: the permit provider timed out earlier in this search; permit records unknown"
+            },
+        })
+    }
+}
+
+/// The profile after a failed permit fetch: the `la_open_data` manifest entry says the provider
+/// could not be reached and why (status `BLOCKED`, the contract's closest value; no
+/// `retrieved_at`), `missing_information` says the records are unavailable (and drops any
+/// "No permit records matched", which would claim a successful empty answer). `stored` are the
+/// permits an earlier successful retrieval already stored for this property (none for a new
+/// property); they stay attached and the note says where they come from.
+fn permits_unavailable(
+    prop: &PropertyDigitalProfile,
+    stored: Vec<ss_domain::contracts::PermitRecord>,
+    error: &ProviderError,
+    provider_called: bool,
+) -> PropertyDigitalProfile {
+    let kind = error.kind.as_str();
+    let why = if provider_called {
+        format!("Permit provider could not be reached ({kind})")
+    } else {
+        format!(
+            "Permit provider could not be reached: it timed out earlier in this search and was \
+             not called again ({kind})"
+        )
+    };
+    let note = if stored.is_empty() {
+        format!("{why}; permit records unknown, not zero")
+    } else {
+        format!(
+            "{why}; the {} records shown are from an earlier retrieval; newer records unknown",
+            stored.len()
+        )
+    };
+    let mut manifest: Vec<SourceManifestEntry> = prop
+        .source_manifest
+        .iter()
+        .filter(|m| m.provider != "la_open_data")
+        .cloned()
+        .collect();
+    let datasets: Vec<String> = stored
+        .iter()
+        .map(|p| p.source_dataset.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let joined = datasets.join(",");
+    manifest.push(SourceManifestEntry {
+        provider: "la_open_data".into(),
+        dataset: (!joined.is_empty()).then_some(joined),
+        status: "BLOCKED".into(),
+        record_count: stored.len() as i64,
+        retrieved_at: None,
+        note: Some(note),
+    });
+    let mut missing: Vec<String> = prop
+        .missing_information
+        .iter()
+        .filter(|m| !m.starts_with("No permit") && !m.starts_with("Permit records unavailable"))
+        .cloned()
+        .collect();
+    missing.push(format!(
+        "Permit records unavailable: the public permit API could not be reached ({kind})"
+    ));
+    PropertyDigitalProfile {
+        permit_records: stored,
+        source_manifest: manifest,
+        missing_information: missing,
+        ..prop.clone()
     }
 }
 
