@@ -293,6 +293,7 @@ both_backends!(recording_first_then_the_bridge, |db| {
                 ),
                 ("call.playback.ended", Map::new()),
                 ("call.transcription", tr),
+                ("streaming.started", Map::new()),
             ],
         )
         .await;
@@ -657,6 +658,20 @@ both_backends!(the_bridge_is_off_by_default, |db| {
         !t2.app.settings.voice_bridge_active(),
         "fixture voice mode keeps it off"
     );
+    // Each two of the three is off; only all three is on (review, voice-wire-1).
+    let live = ("VOICE_PROVIDER_MODE", "live");
+    let on = ("VOICE_BRIDGE_ENABLED", "true");
+    let key = ("XAI_API_KEY", "x");
+    for (env, want) in [
+        (vec![live, key], false),
+        (vec![on, live], false),
+        (vec![on, live, ("XAI_API_KEY", "")], false),
+        (vec![on, live, key], true),
+    ] {
+        let t3 = TestApp::new(db, &env);
+        assert_eq!(t3.app.settings.voice_bridge_active(), want, "{env:?}");
+        assert_eq!(t3.app.voice_calls().enabled(), want, "{env:?}");
+    }
 });
 
 both_backends!(the_stream_route_refuses_without_the_secret, |db| {
@@ -822,4 +837,23 @@ both_backends!(no_recording_opens_with_the_identification_line, |db| {
         .find(|t| t.speaker == "assistant")
         .unwrap();
     assert_eq!(first_assistant.text, opening);
+});
+
+both_backends!(fifty_bridged_calls_leave_no_entry_behind, |db| {
+    // Review, voice-wire-1: every ending removes the call's bridge and its process-local entry.
+    let v = setup(db, &[]);
+    let mut ids = Vec::new();
+    for _ in 0..50 {
+        let (_, call) = start(&v, true).await;
+        let call = v.events(&call, vec![("call.answered", Map::new())]).await;
+        assert_eq!(call.state, CallState::Active);
+        let mut h = Map::new();
+        h.insert("hangup_cause".into(), json!("normal_clearing"));
+        let c = v.events(&call, vec![("call.hangup", h)]).await;
+        assert_eq!(c.state, CallState::Completed);
+        ids.push(c.call_id);
+    }
+    assert_eq!(v.bridge.specs().len(), 50);
+    assert_eq!(v.bridge.removed().len(), 50);
+    assert!(ids.iter().all(|id| !v.t.app.voice_calls().is_bridged(*id)));
 });

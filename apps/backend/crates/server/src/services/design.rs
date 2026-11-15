@@ -113,6 +113,10 @@ pub const ASSUMED_RATIO: f64 = 1.5;
 /// The width of the one assumed entrance (meters), a common commercial door leaf.
 pub const ASSUMED_ENTRANCE_WIDTH_M: f64 = 0.9;
 
+/// The smallest stated area laid out on an assumed floor (square meters): below it the listing's
+/// figure is not a suite's floor area.
+pub const MIN_LISTED_AREA_SQM: f64 = 1.0;
+
 /// The largest stated area laid out on an assumed floor (square meters, about 107,600 sq ft).
 /// A listed suite larger than this is far outside what a clinic or salon leases and is more
 /// likely a data error (a building's or a parcel's area); it is refused, not sketched.
@@ -136,22 +140,30 @@ pub const NO_FLOOR_NO_AREA: &str = "this listing has no 3D scan of its own suite
 /// nothing else (no windows, exits, fixed walls, obstacles or fixtures: they are unknown).
 /// `LISTED_AREA_ESTIMATE`, `DERIVED`, never `scale_verified`.
 ///
-/// `Err` (the message a person reads) when the area is not finite, not above 0 or above
-/// [`MAX_LISTED_AREA_SQM`]: such an area is refused, not laid out.
+/// The short side is rounded to the centimetre and the long side is `area_sqm / short`, so the
+/// area is exact and the ratio is 3:2 to within half a centimetre on the short side: the solver
+/// places rooms on centimetre positions and rounds their corners to the millimetre, and on an
+/// unrounded irrational width its validator finds rooms a fraction of a millimetre outside the
+/// floor or inside the corridor and refuses every candidate.
+///
+/// `Err` (the message a person reads) when the area is not finite, below
+/// [`MIN_LISTED_AREA_SQM`] or above [`MAX_LISTED_AREA_SQM`]: such an area is refused, not laid
+/// out.
 pub fn assumed_site(
     property_id: Uuid,
     listing_id: &str,
     area_sqm: f64,
 ) -> Result<SiteGeometry, String> {
-    if !area_sqm.is_finite() || area_sqm <= 0.0 || area_sqm > MAX_LISTED_AREA_SQM {
+    // `!(a >= min)` also refuses NaN.
+    if !(area_sqm >= MIN_LISTED_AREA_SQM && area_sqm <= MAX_LISTED_AREA_SQM) {
         return Err(format!(
             "this listing has no 3D scan of its own suite and its stated area ({area_sqm} m2) \
-             cannot be a suite's floor (a stated area must be above 0 and at most \
-             {MAX_LISTED_AREA_SQM:.0} m2), so no layout was sketched"
+             cannot be a suite's floor (a stated area must be at least {MIN_LISTED_AREA_SQM:.0} \
+             m2 and at most {MAX_LISTED_AREA_SQM:.0} m2), so no layout was sketched"
         ));
     }
-    let short = (area_sqm / ASSUMED_RATIO).sqrt();
-    let long = (area_sqm * ASSUMED_RATIO).sqrt();
+    let short = ((area_sqm / ASSUMED_RATIO).sqrt() * 100.0).round() / 100.0;
+    let long = area_sqm / short;
     let door = ASSUMED_ENTRANCE_WIDTH_M.min(short / 2.0);
     let mid = short / 2.0;
     let site = SiteGeometry {

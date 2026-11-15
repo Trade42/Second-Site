@@ -897,6 +897,21 @@ fn probe_review_utterances() {
         "born on April twelfth nineteen eighty five",
         "account ending 4321",
         "Suite 1200, 3 parking spaces, 200 amps, 1,400 square feet",
+        "078 05 and the rest, um, 1999.",
+        "078, 05, 2019",
+        "oh seven eight oh five eleven twenty",
+        "Yeah, rent is $4,500 a month.",
+        "No, the rent is $4,500.",
+        "Yeah the building is nice.",
+        "We have 3 parking spaces.",
+        "Units 101 and 102 are open, 1,200 and 1,350 feet.",
+        "Suites 300 and 310 are about 1,500 each.",
+        "Lease from 3/1/2027 to 2/28/2032.",
+        "What they're asking is $4,500 a month.",
+        "The deal is $4,500 a month.",
+        "Rent is fine at $4,500 a month.",
+        "I could do $4,400 a month.",
+        "4 to 5 thousand a month",
     ] {
         let (d, s) = one(&ctx(), t);
         let f: Vec<String> = d
@@ -960,4 +975,220 @@ fn review_a_leading_ok_or_yeah_is_filler_not_a_proposal() {
         let f = extract_findings(None, t);
         assert!(f.iter().all(|f| f.amount_cents.is_none()), "{t}: {f:?}");
     }
+}
+
+// ---- Response Agent 3: the second review's owed findings -------------------------------------
+
+/// Twenty harmless leasing sentences with several numbers each: none may hold or be redacted.
+const LEASING_SENTENCES: [&str; 20] = [
+    "Units 101 and 102 are open, 1,200 and 1,350 feet.",
+    "Suites 300 and 310 are about 1,500 each.",
+    "Lease from 3/1/2027 to 2/28/2032.",
+    "Suites 101, 102 and 103 are vacant, 900 to 1,100 square feet.",
+    "Units 4, 5 or 6 could work, each around 800 sq ft.",
+    "The lease runs from March 1, 2027 to February 28, 2032.",
+    "Rent is $4,500 a month for 2027 and $4,635 in 2028.",
+    "Built in 1985, renovated in 2019, 3 stories, 12,000 square feet.",
+    "Floors 2 and 3 are available, 4,200 square feet each.",
+    "It's suite 210 at 1450 Main Street, 1,850 square feet.",
+    "Available 4/1/2027, five year term through 3/31/2032.",
+    "Spaces 12, 14 and 15 are reserved for the tenant, 3 more in the lot.",
+    "The term is 60 months starting 6/1/2027 with 3% annual bumps.",
+    "CAM is $6.50 a foot, taxes $2.10, insurance $0.45 for 2026.",
+    "Suite 1200 is 1,400 sf and suite 1210 is 1,650 sf.",
+    "The building has 3 floors, 24 units, and 40 parking spaces, built in 2004.",
+    "Docks 1 through 4 are 10 by 12 feet.",
+    "Rent was $3,900 in 2024, $4,100 in 2025 and $4,300 in 2026.",
+    "Lease ends 12/31/2029, with an option to renew to 2034.",
+    "Units 305, 306, 307 and 308 total 5,600 square feet, available 1/15/2027.",
+];
+
+#[test]
+fn r4_common_leasing_sentences_do_not_hold() {
+    for t in LEASING_SENTENCES {
+        let (red, any, label) = redact(t);
+        assert!(!any && label.is_none(), "redacted: {t} -> {red}");
+        let (d, _) = one(&ctx(), t);
+        assert!(
+            d.escalation.as_ref().is_none_or(|e| !e.hold),
+            "holds: {t} -> {:?}",
+            d.escalation
+        );
+        assert_eq!(d.stored_text, t, "{t}");
+    }
+}
+
+#[test]
+fn r1_r2_a_year_shaped_last_part_or_spoken_pairs_still_hold() {
+    for (t, parts) in [
+        ("078 05 and the rest, um, 1999.", &["078", "05", "1999"][..]),
+        ("078, 05, 2019", &["078", "05", "2019"][..]),
+        ("It's 078 05, uh, 2001.", &["078", "2001"][..]),
+        (
+            "oh seven eight oh five eleven twenty",
+            &["seven", "eleven", "twenty"][..],
+        ),
+        (
+            "oh seven eight, oh five, eleven twenty",
+            &["seven", "eleven", "twenty"][..],
+        ),
+    ] {
+        let (d, s) = one(&ctx(), t);
+        let e = d
+            .escalation
+            .as_ref()
+            .unwrap_or_else(|| panic!("no escalation: {t}"));
+        assert!(e.sensitive_handoff && e.hold, "{t}");
+        assert!(d.findings.is_empty(), "{t}");
+        let js = serde_json::to_string(&(&d, &s)).unwrap();
+        for x in parts {
+            assert!(!js.contains(x), "{x} survives in {t}: {}", d.stored_text);
+        }
+    }
+    // A year with a date or period meaning stays explained (near misses).
+    for t in [
+        "Suite 210, renovated in 2019, 200 amps.",
+        "Since 2015 it's been 2 tenants, 900 square feet.",
+        "Built 1999, 12 units, 40 spaces.",
+        "We'd want 5 years starting March 2027, 1,200 feet.",
+    ] {
+        let (d, _) = one(&ctx(), t);
+        assert!(
+            d.escalation.as_ref().is_none_or(|e| !e.sensitive_handoff),
+            "false positive: {t}"
+        );
+    }
+}
+
+#[test]
+fn r3_only_an_answer_closes_the_open_question() {
+    let c = ctx();
+    let (d0, s0) = start(&c);
+    let open = d0.next_question.unwrap().id;
+    assert_eq!(open, "bank:tenant_subpanel_amps");
+    for t in [
+        "Yeah, rent is $4,500 a month.",
+        "No, the rent is $4,500.",
+        "Yeah the building is nice.",
+        "We have 3 parking spaces.",
+    ] {
+        let (d, s) = step(&c, &s0, &cp(1, t));
+        assert!(d.answered_question.is_none(), "{t}: {d:?}");
+        assert_eq!(s.current.as_deref(), Some(open.as_str()), "{t}");
+        assert!(
+            d.findings
+                .iter()
+                .all(|f| f.claim_type != "tenant_subpanel_amps" && !f.value.is_null()),
+            "{t}: {:?}",
+            d.findings
+        );
+    }
+    // A bare yes or no still answers.
+    for t in ["Yes.", "No.", "Yeah, it does.", "No, we don't."] {
+        let (d, _) = step(&c, &s0, &cp(1, t));
+        assert_eq!(d.answered_question.as_deref(), Some(open.as_str()), "{t}");
+    }
+}
+
+#[test]
+fn r8_a_clarifying_question_does_not_use_up_the_reask_and_a_late_value_unskips() {
+    let c = ctx();
+    let (d0, s0) = start(&c);
+    let open = d0.next_question.unwrap().id;
+    let (d1, s1) = step(&c, &s0, &cp(1, "What is this about?"));
+    assert_eq!(
+        d1.next_question.as_ref().map(|q| q.id.clone()),
+        Some(open.clone())
+    );
+    let (d2, s2) = step(&c, &s1, &cp(2, "Rent is $4,500."));
+    assert_eq!(
+        d2.next_question.as_ref().map(|q| q.id.clone()),
+        Some(open.clone()),
+        "the re-ask was used up by the clarifying question"
+    );
+    assert!(s2.skipped.iter().all(|(id, _)| *id != open));
+    // Still bounded: questions alone do not keep it forever.
+    let mut s = s2.clone();
+    for n in 3..8 {
+        s = step(&c, &s, &cp(n, "Who is calling?")).1;
+    }
+    assert!(
+        s.skipped.iter().any(|(id, _)| *id == open),
+        "{:?}",
+        s.skipped
+    );
+    // After a skip, a value records it and takes it out of `skipped`.
+    let (_, t1) = step(&c, &s0, &cp(1, "Nice place."));
+    let (_, t2) = step(&c, &t1, &cp(2, "Nice place."));
+    assert!(t2.skipped.iter().any(|(id, _)| *id == open));
+    let (d3, t3) = step(&c, &t2, &cp(3, "200 amps."));
+    assert!(d3
+        .findings
+        .iter()
+        .any(|f| f.claim_type == "tenant_subpanel_amps" && !f.value.is_null()));
+    assert!(
+        t3.skipped.iter().all(|(id, _)| *id != open),
+        "{:?}",
+        t3.skipped
+    );
+    assert!(t3.answered.contains(&open));
+}
+
+#[test]
+fn r6_r7_statements_offers_and_a_spoken_range() {
+    for t in [
+        "What they're asking is $4,500 a month.",
+        "The deal is $4,500 a month.",
+        "Rent is fine at $4,500 a month.",
+    ] {
+        let found: Vec<_> = extract_findings(None, t)
+            .into_iter()
+            .filter_map(|f| f.amount_cents)
+            .collect();
+        assert_eq!(found, vec![450_000], "{t}");
+    }
+    // An offer is not a stated rent and is not recorded.
+    for t in [
+        "I could do $4,400 a month.",
+        "We can do $4,400 a month.",
+        "I'd do $4,400 a month.",
+    ] {
+        let f = extract_findings(None, t);
+        assert!(
+            f.iter()
+                .all(|f| f.claim_type != "other_cost" && f.amount_cents.is_none()),
+            "{t}: {f:?}"
+        );
+    }
+    // Near misses: still questions or proposals.
+    for t in [
+        "What would the rent be at $4,500 a month?",
+        "What they're asking is $4,500 a month?",
+        "Do we have a deal at $4,200?",
+        "Is $4,500, fine?",
+    ] {
+        let f = extract_findings(None, t);
+        assert!(f.iter().all(|f| f.amount_cents.is_none()), "{t}: {f:?}");
+    }
+    for (t, whole) in [
+        ("4 to 5 thousand a month", "4 to 5 thousand a month"),
+        (
+            "Rent is 4 to 5 thousand a month.",
+            "4 to 5 thousand a month",
+        ),
+    ] {
+        let f: Vec<_> = extract_findings(None, t)
+            .into_iter()
+            .filter(|f| f.unit.as_deref().is_some_and(|u| u.starts_with("USD")))
+            .collect();
+        assert_eq!(f.len(), 1, "{t}: {f:?}");
+        assert_eq!(f[0].amount_cents, None, "{t}");
+        assert_eq!(f[0].value.as_str(), Some(whole), "{t}");
+    }
+    // A written number and a spoken multiplier.
+    let f = extract_findings(None, "Rent is 5 thousand a month.");
+    assert_eq!(
+        f.iter().filter_map(|f| f.amount_cents).collect::<Vec<_>>(),
+        vec![500_000]
+    );
 }

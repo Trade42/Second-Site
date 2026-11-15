@@ -479,24 +479,28 @@ fn fits(w: &TimeWindow, start: DateTime<FixedOffset>, d: Duration) -> bool {
     start >= w.start && start + d <= w.end
 }
 
-/// An ISO date-time; without an offset it is read with the offset of the first window it fits,
-/// else with the offset of the window nearest in local time.
+/// An ISO local date-time, read with the offset of the first window it fits, else with the offset
+/// of the window nearest in local time. An offset the model adds ("Z", "-05:00") is ignored: the
+/// counterparty speaks the property's local time, and the line said back must name that time.
 fn parse_start(s: &str, windows: &[TimeWindow], d: Duration) -> Option<DateTime<FixedOffset>> {
     let s = s.trim();
     if s.is_empty() || s.len() > 40 {
         return None;
     }
-    if let Ok(t) = DateTime::parse_from_rfc3339(s) {
-        return Some(t);
-    }
-    let naive = [
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%dT%H:%M",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-    ]
-    .iter()
-    .find_map(|f| NaiveDateTime::parse_from_str(s, f).ok())?;
+    let naive = match DateTime::parse_from_rfc3339(s) {
+        Ok(t) => Some(t.naive_local()),
+        Err(_) => None,
+    };
+    let naive = naive.or_else(|| {
+        [
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+        ]
+        .iter()
+        .find_map(|f| NaiveDateTime::parse_from_str(s, f).ok())
+    })?;
     // First the windows whose local clock range holds the time, with their own offsets (a window
     // that spans a daylight-saving change has two).
     for w in windows {
@@ -789,13 +793,14 @@ fn argument(n: &ApprovedNegotiation, i: i64, owner: &str) -> String {
 }
 
 fn push_event(st: &mut NegotiationState, said_by: SaidBy, amount_cents: i64, what: &str) {
-    if st.events.len() < MAX_EVENTS {
-        st.events.push(RentEvent {
-            said_by,
-            amount_cents,
-            what: what.into(),
-        });
+    if st.events.len() >= MAX_EVENTS {
+        st.events.remove(0);
     }
+    st.events.push(RentEvent {
+        said_by,
+        amount_cents,
+        what: what.into(),
+    });
 }
 
 pub fn decide_rent(
@@ -841,6 +846,17 @@ pub fn decide_rent(
         );
     }
     let cents = (d * 100.0).round() as i64;
+    if cents <= 0 {
+        return (
+            rent_line(
+                RentKind::AskAgain,
+                None,
+                "That number could not be used. Ask for the monthly rent again.",
+                None,
+            ),
+            st,
+        );
+    }
     let money = |c: i64| format_money(c, "USD");
     match ask.said_by {
         SaidBy::Counterparty => {
@@ -852,7 +868,7 @@ pub fn decide_rent(
                 st.declined = None;
                 st.at_or_under_target = cents <= n.target_cents;
                 let say = format!(
-                    "Thank you. I'll take {} a month to {owner} and get back to you today; the decision is theirs.",
+                    "Thank you. I can't decide that myself: I'll bring {} a month to {owner} and get back to you today.",
                     money(cents)
                 );
                 let outcome = PurposeOutcome::RentWithinLimits {
@@ -872,6 +888,8 @@ pub fn decide_rent(
                 );
             }
             st.with_owner = None;
+            st.at_or_under_target = false;
+            st.outcome = None;
             let next = n
                 .schedule
                 .iter()
@@ -1118,16 +1136,25 @@ pub fn owner_lines(s: &PurposeState) -> Vec<String> {
                 ": inside your limit"
             });
             line.push_str(". Nothing is agreed. Your decision.");
-        } else if n.declined.is_some() {
-            let lowest = n.lowest_counterparty.unwrap_or(0);
-            line.push_str(&format!(
-                ". They would not go under {}: above your limit. Nothing is agreed.",
-                money(lowest)
-            ));
-        } else {
+        } else if let Some(last) = n.declined {
+            let lowest = n.lowest_counterparty.unwrap_or(last);
+            line.push_str(&if lowest >= last {
+                format!(
+                    ". They would not go under {}: above your limit. Nothing is agreed.",
+                    money(last)
+                )
+            } else {
+                format!(
+                    ". Their last number, {}, is above your limit. Nothing is agreed.",
+                    money(last)
+                )
+            });
+        } else if n.last_counterparty.is_some() {
             line.push_str(
-                ". Still open: no number from them inside your limit. Nothing is agreed.",
+                ". Still open: their latest number is above your limit. Nothing is agreed.",
             );
+        } else {
+            line.push_str(". Still open: they have not named a number. Nothing is agreed.");
         }
         out.push(line);
     }

@@ -155,7 +155,7 @@ fn whole_negotiation_ends_inside_the_limits() {
     assert_eq!(d.decision, RentKind::TakeToOwner);
     assert_eq!(
         d.say.as_deref(),
-        Some("Thank you. I'll take $4,450 a month to Sal and get back to you today; the decision is theirs.")
+        Some("Thank you. I can't decide that myself: I'll bring $4,450 a month to Sal and get back to you today.")
     );
     assert_eq!(
         d.outcome,
@@ -816,4 +816,90 @@ fn tool_definitions_name_when_to_call_and_schema_shape() {
         json!(["monthly_rent_dollars", "said_by"])
     );
     let _ = Duration::minutes(1);
+}
+
+// ---- Review regressions (call-purposes-1 review) ----------------------------------------------
+
+#[test]
+fn review_an_offset_the_model_adds_is_ignored_and_the_local_time_is_said() {
+    let p = tour_only(vec![win(
+        "2026-11-17T09:00:00-08:00",
+        "2026-11-17T17:00:00-08:00",
+    )]);
+    for s in [
+        "2026-11-17T15:00:00Z",
+        "2026-11-17T15:00:00-05:00",
+        "2026-11-17T15:00",
+    ] {
+        let (d, st) = decide_tour(&p, &TourState::default(), &at(s), now());
+        assert_eq!(d.decision, TourKind::Book, "{s}");
+        assert!(
+            d.say
+                .as_deref()
+                .unwrap()
+                .starts_with("Tue 17 Nov, 3:00 PM works."),
+            "{s}"
+        );
+        assert_eq!(
+            st.booked.unwrap().start,
+            t("2026-11-17T15:00:00-08:00"),
+            "{s}"
+        );
+    }
+}
+
+#[test]
+fn review_a_number_that_rounds_to_zero_cents_is_asked_again() {
+    let p = rent_only(400_000, 450_000, 3);
+    let (d, s) = decide_rent(&p, &NegotiationState::default(), &cp(0.004), now());
+    assert_eq!(d.decision, RentKind::AskAgain);
+    assert!(s.events.is_empty() && s.outcome.is_none());
+}
+
+#[test]
+fn review_owner_lines_stay_true_when_they_go_back_up_or_talk_long() {
+    let p = rent_only(400_000, 450_000, 3);
+    // Within the limits, then back above them: the within-limits outcome is withdrawn.
+    let (_, s) = decide_rent(&p, &NegotiationState::default(), &cp(4450.0), now());
+    let (d, s) = decide_rent(&p, &s, &cp(4700.0), now());
+    assert_eq!(d.decision, RentKind::Counter);
+    let ps = PurposeState {
+        negotiation: s.clone(),
+        ..Default::default()
+    };
+    assert!(outcomes(&ps).is_empty());
+    assert!(owner_lines(&ps)[0]
+        .ends_with("Still open: their latest number is above your limit. Nothing is agreed."));
+    // Then declined: the line does not claim they would not go under a number they went under.
+    let fin = RentAsk {
+        is_final_offer: true,
+        ..cp(4700.0)
+    };
+    let (_, s) = decide_rent(&p, &s, &fin, now());
+    let ps = PurposeState {
+        negotiation: s,
+        ..Default::default()
+    };
+    assert!(owner_lines(&ps)[0]
+        .ends_with("Their last number, $4,700, is above your limit. Nothing is agreed."));
+    // 40 numbers: the line ends with the latest one, which is the one taken to the owner.
+    let mut s = NegotiationState::default();
+    for i in 0..40 {
+        let d = if i < 39 {
+            9000.0 - i as f64 * 10.0
+        } else {
+            4300.0
+        };
+        s = decide_rent(&p, &s, &cp(d), now()).1;
+    }
+    let ps = PurposeState {
+        negotiation: s,
+        ..Default::default()
+    };
+    assert!(
+        owner_lines(&ps)[0]
+            .ends_with("they came to $4,300: inside your limit. Nothing is agreed. Your decision."),
+        "{}",
+        owner_lines(&ps)[0]
+    );
 }

@@ -17,6 +17,7 @@ use serde_json::{json, Value};
 use ss_domain::contracts::{DesignApprovalStatus, DesignRevisionRequest, DesignVersion};
 use ss_server::services::design::{
     bom_lock_key, lock_key, room_requirements_from_profile, version_lock_key, DesignService,
+    NO_FLOOR_NO_AREA,
 };
 use ss_server::store::repo::{rooms, BOMS, DESIGNS, GEOMETRIES, PROPERTIES};
 use ss_server::store::{schema, Query};
@@ -397,6 +398,18 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
     let t = TestApp::new(db, &[]);
     let d = demo(&t).await;
     let (tok, pid) = (d.tok.as_str(), d.pid.as_str());
+    // No scan and no stated area (with an area the listing gets a sketch on an assumed floor:
+    // `tests/design_estimate.rs`).
+    {
+        let mut tx = t.app.store.begin().await.unwrap();
+        let mut prop = PROPERTIES
+            .require_in_project(&mut *tx, uuid(&json!(d.alhambra)), uuid(&json!(pid)), "x")
+            .await
+            .unwrap();
+        prop.commercial_listing.as_mut().unwrap().available_area_sqm = None;
+        PROPERTIES.upsert(&mut *tx, &prop).await.unwrap();
+        tx.commit().await.unwrap();
+    }
     let r = generate(
         &t,
         tok,
@@ -409,10 +422,7 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
     let task = &r.body["task"];
     assert_eq!(task["status"], "FAILED");
     assert_eq!(task["error_code"], "NotFoundError");
-    assert_eq!(
-        task["error_message"],
-        "no measured geometry available for this property"
-    );
+    assert_eq!(task["error_message"], NO_FLOOR_NO_AREA);
     assert!(layouts(&t, tok, pid).await.is_empty());
     assert_eq!(count(&t, &schema::SITE_GEOMETRIES).await, 0);
     let ev = events(&t, tok, pid).await;
@@ -433,10 +443,7 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
         .unwrap_err();
     assert_eq!(err.status(), StatusCode::NOT_FOUND);
     assert_eq!(err.error_code(), "GEOMETRY_UNAVAILABLE");
-    assert_eq!(
-        err.to_string(),
-        "no measured geometry available for this property"
-    );
+    assert_eq!(err.to_string(), NO_FLOOR_NO_AREA);
 });
 
 // ---- generation events ------------------------------------------------------------------------------
@@ -1546,7 +1553,7 @@ both_backends!(a_slow_geometry_fetch_holds_nothing, |db| {
         );
     }
     // Other writers of the same project do not wait for it: a profile update, an analysis and
-    // a generation that fails at once (no measured geometry). Before the fix each of them waited
+    // a generation on another property (a sketch on its listed area, nothing to fetch). Before the fix each of them waited
     // for the whole fetch and solve (the project's event lock on PostgreSQL, the store's lock in
     // memory).
     let quick = Duration::from_secs(10);
@@ -1592,7 +1599,8 @@ both_backends!(a_slow_geometry_fetch_holds_nothing, |db| {
     )
     .await
     .expect("another generation waited for the layout's geometry fetch");
-    assert_eq!(other.body["task"]["status"], "FAILED", "{}", other.text);
+    // A sketch on the listing's stated area (no scan of the suite): it fetches nothing either.
+    assert_eq!(other.body["task"]["status"], "COMPLETED", "{}", other.text);
     assert!(!first.is_finished());
 
     gate.open();

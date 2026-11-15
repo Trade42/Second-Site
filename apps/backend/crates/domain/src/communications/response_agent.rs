@@ -1536,8 +1536,11 @@ fn segment(toks: &[Tok], i: usize, s: usize, e: usize) -> (usize, usize) {
 
 /// Whether the money mention at `i` is asked or proposed ("Does $4,600 work for your client?",
 /// "So we're agreed at $4,500?", "Would the owner go to $5,000?"), not stated.
-fn proposed(toks: &[Tok], i: usize, s: usize, e: usize) -> bool {
+fn proposed(lx: &Lexed, i: usize, s: usize, e: usize) -> bool {
+    let toks = &lx.toks[..];
     let (a, b) = segment(toks, i, s, e);
+    // Whether the clause ends with a question mark.
+    let asked = e < toks.len() && lx.chars.get(lx.spans[e].0) == Some(&'?');
     // The segment's first word past leading filler ("Ok the rent is $4,500" is a statement: a
     // leading "ok" is filler, not a proposal word).
     let lead = (a..b)
@@ -1559,10 +1562,29 @@ fn proposed(toks: &[Tok], i: usize, s: usize, e: usize) -> bool {
             _ => false,
         })
         .unwrap_or(b);
-    if word(toks.get(lead)).is_some_and(|w| lead < b && QUESTION_WORDS.contains(&w)) {
+    // "What they're asking is $4,500" (a "what" followed by its subject, not by a verb, and no
+    // question mark) is a statement.
+    let cleft = word(toks.get(lead)) == Some("what")
+        && !asked
+        && word(toks.get(lead + 1)).is_some_and(|w| {
+            !QUESTION_WORDS.contains(&w)
+                && !matches!(
+                    w,
+                    "about" | "if" | "kind" | "sort" | "type" | "was" | "were"
+                )
+        });
+    if !cleft && word(toks.get(lead)).is_some_and(|w| lead < b && QUESTION_WORDS.contains(&w)) {
         return true;
     }
-    if has_any(toks, lead, b, &PROPOSAL_WORDS) {
+    // A proposal word, read as one: "deal" not after "the" ("The deal is $4,500" is a statement);
+    // "fine", "okay", "ok" only in a question or as the segment's last word ("$4,500, fine?").
+    let last_word = (lead..b).rev().find(|&k| matches!(toks[k], Tok::Word(_)));
+    if (lead..b).any(|k| match word(toks.get(k)) {
+        Some("deal") => k == 0 || word(toks.get(k - 1)) != Some("the"),
+        Some("fine" | "okay" | "ok") => asked || Some(k) == last_word,
+        Some(w) => PROPOSAL_WORDS.contains(&w),
+        None => false,
+    }) {
         return true;
     }
     let pair = |x: &str, ys: &[&str]| {
@@ -1577,6 +1599,16 @@ fn proposed(toks: &[Tok], i: usize, s: usize, e: usize) -> bool {
         || pair("go", &["to", "up"])
         || pair("come", &["down", "up"])
         || pair("meet", &["at", "in"])
+        // An offer from the counterparty ("I could do $4,400 a month") is not a stated rent: it
+        // is not recorded (no field of `AgentFinding` says "offer").
+        || pair("could", &["do", "go"])
+        || pair("can", &["do", "go"])
+        || pair("would", &["do"])
+        || pair("i'd", &["do", "go"])
+        || pair("we'd", &["do", "go"])
+        || pair("i'll", &["do", "go"])
+        || pair("we'll", &["do", "go"])
+        || pair("willing", &["to"])
 }
 
 /// A number token at `i` (written or spoken): its value in cents, the index past it, `$` before,
@@ -1590,8 +1622,14 @@ fn number_at(toks: &[Tok], i: usize) -> Option<(i128, usize, bool, bool)> {
             dollar,
         } => {
             let scale = 10i128.pow(*frac_len);
-            let num = mantissa * mult * 100;
-            (num % scale == 0).then(|| (num / scale, i + 1, *dollar, *mult > 1))
+            // "5 thousand", "1.2 million": the spoken multiplier after a written number.
+            let (spoken_mult, past) = match (*mult, word(toks.get(i + 1))) {
+                (1, Some("thousand")) => (1_000, i + 2),
+                (1, Some("million")) => (1_000_000, i + 2),
+                _ => (1, i + 1),
+            };
+            let num = mantissa * mult * spoken_mult * 100;
+            (num % scale == 0).then(|| (num / scale, past, *dollar, *mult > 1 || spoken_mult > 1))
         }
         Tok::Word(_) => match spoken_number(toks, i) {
             Some((v, j)) if j > i => Some((v * 100, j, false, false)),
@@ -1761,7 +1799,7 @@ fn money_findings(lx: &Lexed) -> Vec<AgentFinding> {
             continue;
         }
         // A number the counterparty asks about or proposes is not a claim.
-        if proposed(toks, i, s, e) {
+        if proposed(lx, i, s, e) {
             i = after.max(next);
             continue;
         }
@@ -2203,6 +2241,80 @@ fn specialists_for_topic(topic: &str, claim: &str) -> Vec<Specialist> {
     }
 }
 
+/// Words that may follow a yes or a no and still leave it a bare answer ("Yes, it does.", "No,
+/// we don't have one.", "Yeah, I think so."). Any other word, or any number, makes the turn a
+/// statement about something else, which answers no value question.
+const BARE_ANSWER_WORDS: [&str; 52] = [
+    "yes",
+    "yeah",
+    "yep",
+    "yup",
+    "yea",
+    "no",
+    "nope",
+    "nah",
+    "uh",
+    "um",
+    "oh",
+    "well",
+    "ok",
+    "okay",
+    "sure",
+    "right",
+    "correct",
+    "it",
+    "it's",
+    "its",
+    "does",
+    "doesn't",
+    "do",
+    "don't",
+    "is",
+    "isn't",
+    "has",
+    "hasn't",
+    "have",
+    "haven't",
+    "we",
+    "they",
+    "there",
+    "there's",
+    "that's",
+    "i",
+    "think",
+    "so",
+    "believe",
+    "not",
+    "one",
+    "sir",
+    "ma'am",
+    "of",
+    "course",
+    "absolutely",
+    "definitely",
+    "really",
+    "indeed",
+    "a",
+    "the",
+    "that",
+];
+
+/// Whether the turn is a yes or a no and nothing more (see [`BARE_ANSWER_WORDS`]).
+fn bare_yes_no(text: &str) -> bool {
+    let mut any = false;
+    for w in text
+        .split(|c: char| !(c.is_alphanumeric() || c == '\''))
+        .filter(|w| !w.is_empty())
+    {
+        let w = w.to_lowercase();
+        if w.chars().any(|c| c.is_ascii_digit()) || !BARE_ANSWER_WORDS.contains(&w.as_str()) {
+            return false;
+        }
+        any = true;
+    }
+    any
+}
+
 /// The answer to the question just asked, through the existing `extract` (unchanged). For a
 /// request question (free text) `extract` keeps the answer's first 200 characters; the yes, no or
 /// "I don't know" reading then comes from `extract`'s own yes/no reader (asked with the claim
@@ -2240,8 +2352,8 @@ fn current_answer(q: &PlannedQuestion, text: &str) -> AgentFinding {
             text,
         );
         match yn.value {
-            Value::Bool(true) => AnswerKind::Yes,
-            Value::Bool(false) => AnswerKind::No,
+            Value::Bool(true) if bare_yes_no(text) => AnswerKind::Yes,
+            Value::Bool(false) if bare_yes_no(text) => AnswerKind::No,
             _ => AnswerKind::Unclear,
         }
     } else {
@@ -2714,6 +2826,22 @@ pub fn step(
         next.current = None;
         d.answered_question = Some(q.id.clone());
     }
+    // A value given for a question skipped as unanswered ("200 amps." after the skip) answers it.
+    for f in findings.iter().filter(|f| !f.value.is_null()) {
+        let skipped = ctx.questions.iter().find(|q| {
+            q.claim_type == f.claim_type
+                && next
+                    .skipped
+                    .iter()
+                    .any(|(id, why)| *id == q.id && why == "not answered after being asked twice")
+        });
+        if let Some(q) = skipped {
+            next.skipped.retain(|(id, _)| *id != q.id);
+            if !next.answered.contains(&q.id) {
+                next.answered.push(q.id.clone());
+            }
+        }
+    }
     next.findings.extend(findings.iter().cloned());
     d.findings = findings;
     // 10. What to say.
@@ -2751,15 +2879,23 @@ pub fn step(
     };
     d.escalation = escalation;
     // The bound: a question that has been put twice (the first ask and one re-ask) and is still
-    // not answered is skipped, so the call never loops on it.
-    let put = |id: &str| {
+    // not answered is skipped, so the call never loops on it. A re-ask after the counterparty's
+    // own question ("What is this about?") does not count, up to `MAX_ASKS + 2` puts in all.
+    let puts = |id: &str| {
         state
             .decisions
             .iter()
             .filter(|x| x.next_question.as_ref().is_some_and(|q| q.id == id))
-            .count()
+            .fold((0usize, 0usize), |(plain, all), x| {
+                let after_question = is_counterparty_question(&x.stored_text);
+                (plain + usize::from(!after_question), all + 1)
+            })
     };
-    let exhausted = !answered && current.as_ref().is_some_and(|q| put(&q.id) >= MAX_ASKS);
+    let exhausted = !answered
+        && current.as_ref().is_some_and(|q| {
+            let (plain, all) = puts(&q.id);
+            (!asks && plain >= MAX_ASKS) || all >= MAX_ASKS + 2
+        });
     if exhausted {
         if let Some(q) = &current {
             next.skipped
