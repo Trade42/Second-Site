@@ -10,6 +10,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
     "@second-site/contracts": "workspace:*",
     "konva": "10.9.1",
     "lucide-react": "1.73.0",
@@ -17,7 +19,8 @@
     "openapi-fetch": "0.17.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "react-konva": "19.3.2"
+    "react-konva": "19.3.2",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.5",
