@@ -150,4 +150,6 @@ export type UnknownDetectedPayload = S["UnknownDetectedPayload"];
 export type ValidationError = S["ValidationError"];
 export type ValidationIssue = S["ValidationIssue"];
 export type VerificationStatus = S["VerificationStatus"];
+export type VoiceSessionRequest = S["VoiceSessionRequest"];
+export type VoiceSessionResponse = S["VoiceSessionResponse"];
 export type WorkCategory = S["WorkCategory"];

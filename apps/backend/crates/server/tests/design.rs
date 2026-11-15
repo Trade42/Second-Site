@@ -452,9 +452,27 @@ both_backends!(an_infeasible_program_stores_no_design_version, |db| {
         &json!({"property_id": d.hollywood, "room_requirements": twelve_rooms()}),
     )
     .await;
+    // Deliberately different from Python (which completes with `design_version_ids: []` and
+    // says nothing): the task fails and says why, with the measured sizes.
     let task = &r.body["task"];
-    assert_eq!(task["status"], "COMPLETED", "{}", r.text);
-    assert_eq!(task["output_reference"], json!({"design_version_ids": []}));
+    assert_eq!(task["status"], "FAILED", "{}", r.text);
+    assert_eq!(task["error_code"], "LayoutInfeasibleError");
+    assert_eq!(task["output_reference"], json!({}));
+    let msg = task["error_message"].as_str().unwrap();
+    assert!(
+        msg.starts_with("No layout fits the measured floor: the floor is ")
+            && msg.contains("largest rectangular area is ")
+            && msg.contains("the room program needs 12 room(s), at least 144.0 m2 in all")
+            && msg.contains("with minimum room widths up to 2.8 m.")
+            && msg.contains("floor is 139 m2 and its largest rectangular area is 12.0 x 11.6 m")
+            && msg.contains("No spine layout satisfies the room program")
+            && msg.ends_with("No layout was stored."),
+        "{msg}"
+    );
+    let polled = t
+        .get(r.body["status_url"].as_str().unwrap(), Some(tok))
+        .await;
+    assert_eq!(polled.body["status"], "FAILED", "{}", polled.text);
     assert!(layouts(&t, tok, pid).await.is_empty());
     assert_eq!(count(&t, &schema::DESIGN_VERSIONS).await, 0);
     assert_eq!(count(&t, &schema::ROOMS).await, 0);
@@ -478,6 +496,16 @@ both_backends!(an_infeasible_program_stores_no_design_version, |db| {
         assert_conforms("LayoutPayload", &e["payload"]);
     }
     assert!(of_type(&ev, "layout.version_created").is_empty());
+    // The task's last event says it failed; the floor it measured is still stored.
+    let task_events: Vec<&Value> = ev
+        .iter()
+        .filter(|e| e["payload"]["task_id"] == task["task_id"])
+        .collect();
+    assert_eq!(task_events.last().unwrap()["event_type"], "task.failed");
+    assert!(of_type(&ev, "task.completed")
+        .iter()
+        .all(|e| e["payload"]["task_id"] != task["task_id"]));
+    assert_eq!(count(&t, &schema::SITE_GEOMETRIES).await, 1);
 });
 
 both_backends!(each_stored_version_emits_one_created_event, |db| {

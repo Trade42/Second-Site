@@ -1,0 +1,92 @@
+{
+  "$id": "https://second-site.dev/contracts/1.0/VoiceSessionResponse.json",
+  "additionalProperties": false,
+  "description": "One short-lived voice session with the assistant (xAI realtime). The secret is returned once, never stored.",
+  "properties": {
+    "claim_pattern": {
+      "description": "Regular expression (JavaScript-compatible, use the i flag)",
+      "title": "Claim Pattern",
+      "type": "string"
+    },
+    "client_secret": {
+      "title": "Client Secret",
+      "type": "string"
+    },
+    "data_notice": {
+      "title": "Data Notice",
+      "type": "string"
+    },
+    "disclosure": {
+      "description": "Spoken first (disclosure_event) and kept on screen",
+      "title": "Disclosure",
+      "type": "string"
+    },
+    "disclosure_event": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Disclosure Event"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "grounded_record_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Grounded Record Ids",
+      "type": "array"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "mode": {
+      "const": "assistant",
+      "title": "Mode",
+      "type": "string"
+    },
+    "no_action_notice": {
+      "title": "No Action Notice",
+      "type": "string"
+    },
+    "provider": {
+      "title": "Provider",
+      "type": "string"
+    },
+    "session_update": {
+      "additionalProperties": true,
+      "title": "Session Update",
+      "type": "object"
+    },
+    "websocket_url": {
+      "title": "Websocket Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "mode",
+    "provider",
+    "websocket_url",
+    "client_secret",
+    "expires_at",
+    "session_update",
+    "disclosure",
+    "label",
+    "no_action_notice",
+    "claim_pattern",
+    "data_notice"
+  ],
+  "title": "VoiceSessionResponse",
+  "type": "object"
+}

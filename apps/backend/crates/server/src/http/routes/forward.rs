@@ -62,7 +62,10 @@ const fn long(method: &'static str, path: &'static str) -> Forwarded {
 }
 
 /// What the Python service keeps for good: Photon owner messaging (owner channel, simulated
-/// texts, polling, the Photon webhook) and the LangChain supervisor's chat.
+/// texts, polling, the Photon webhook), the LangChain supervisor's chat, and the voice session
+/// (an xAI client secret plus instructions built from the chat's facts, in
+/// `apps/api/app/agents/voice_session.py`; it gathers the same facts as the chat, so it gets the
+/// chat's timeout).
 pub const PYTHON_ROUTES: &[Forwarded] = &[
     route("GET", "/api/v1/owner/channel"),
     route("PUT", "/api/v1/owner/channel"),
@@ -70,6 +73,7 @@ pub const PYTHON_ROUTES: &[Forwarded] = &[
     route("POST", "/api/v1/owner/channel/poll"),
     route("POST", "/webhooks/photon"),
     long("POST", "/api/v1/projects/{project_id}/chat"),
+    long("POST", "/api/v1/projects/{project_id}/voice/session"),
 ];
 
 /// The Studio slice: a Python router owned by the frontend-product stream (announced on the team
@@ -181,6 +185,7 @@ mod tests {
     use super::*;
 
     const CHAT: &str = "/api/v1/projects/{project_id}/chat";
+    const VOICE: &str = "/api/v1/projects/{project_id}/voice/session";
     const PLAN: &str = "/api/v1/studio/plans/{plan_id}/bom.csv";
 
     #[test]
@@ -196,6 +201,10 @@ mod tests {
                 "/api/v1/projects/0b5d3c4e-8f1a-4c2b-9d3e-1f2a3b4c5d6e/chat",
             ),
             ("/webhooks/photon", "/webhooks/photon"),
+            (
+                VOICE,
+                "/api/v1/projects/0b5d3c4e-8f1a-4c2b-9d3e-1f2a3b4c5d6e/voice/session",
+            ),
             (PLAN, "/api/v1/studio/plans/plan_01.v2~a-b/bom.csv"),
             (PLAN, "/api/v1/studio/plans/..a/bom.csv"),
             (PLAN, "/api/v1/studio/plans/a../bom.csv"),
@@ -216,6 +225,18 @@ mod tests {
             (CHAT, "/api/v1/projects/a.b/chat"),
             (CHAT, "/api/v1/projects//chat"),
             (CHAT, "/api/v1/projects/x/chat/"),
+            (VOICE, "/api/v1/projects/../voice/session"),
+            (VOICE, "/api/v1/projects/%2e%2e/voice/session"),
+            (VOICE, "/api/v1/projects/x/voice/session/"),
+            (VOICE, "/api/v1/projects/x/voice"),
+            (VOICE, "/api/v1/projects/x/voice/sessions"),
+            (VOICE, "/api/v1/projects/x/voice%2Fsession"),
+            (
+                VOICE,
+                "/api/v1/projects/..%2F..%2Finternal%2Fv1%2Fowner%2Fnotify/voice/session",
+            ),
+            (VOICE, "/api/v1/projects/a.b/voice/session"),
+            (VOICE, "/api/v1/projects//voice/session"),
             ("/webhooks/photon", "/webhooks/photon/"),
             ("/webhooks/photon", "webhooks/photon"),
             ("/webhooks/photon", ""),
@@ -242,7 +263,7 @@ mod tests {
         dedup.sort();
         dedup.dedup();
         assert_eq!(dedup.len(), all.len());
-        assert_eq!(PYTHON_ROUTES.len(), 6);
+        assert_eq!(PYTHON_ROUTES.len(), 7);
         assert_eq!(STUDIO_ROUTES.len(), 12);
         for f in forwarded() {
             assert!(!f.path.contains('*'), "no wildcard: {}", f.path);
@@ -271,7 +292,7 @@ mod tests {
                 .filter(|f| f.budget == Budget::Chat)
                 .map(|f| f.path)
                 .collect::<Vec<_>>(),
-            [CHAT]
+            [CHAT, VOICE]
         );
     }
 }
