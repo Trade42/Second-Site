@@ -616,6 +616,108 @@ export function asset(src, f, P = page?.P) {
     !L ? 'From the backend; no image provided' : L.fixture ? 'Demo data from the backend (fixture)' : `${L.source_label}; no image provided`);
 }
 
+/* ------------------------------------------------- waiting sequence */
+
+// Shown at the end of the chat log while one backend request is pending. The page cannot see what the
+// server is doing (each call answers once, when everything is finished), so this says what the step
+// is and how long it has run, never a finished part, a fraction or a promise. The estimate is the
+// median of this page session's own earlier successful waits of the same kind; with none, there is none.
+export const WAIT_TEXT = {
+  chat: { verb: 'Thinking…', what: 'The assistant is working on a reply. It arrives in one piece when it is ready.', earlier: 'replies', composer: 'Waiting for the assistant…' },
+  search: { verb: 'Searching…', what: 'Searching listings, then checking each one’s 3D scans, aerial imagery and permit records, and ranking them. The results arrive together at the end.', earlier: 'searches', composer: 'Waiting for the search…' },
+  layout: { verb: 'Drawing a layout…', what: 'Fitting the rooms into the floor geometry the backend has for this listing, then listing furniture and fixtures with prices. The result says where the geometry and the prices come from.', earlier: 'layouts', composer: 'Waiting for the layout…' },
+};
+export const LATE_TEXT = 'This is taking longer than usual.';
+const LATE_WITHOUT_ESTIMATE_MS = 20000;
+let clock = { now: () => (globalThis.performance?.now?.() ?? Date.now()), every: (fn, ms) => setInterval(fn, ms), stop: id => clearInterval(id) };
+const took = { chat: [], search: [], layout: [] }; // ms of earlier successful waits, this page session only
+const active = []; // pending waits, oldest first; only the newest one's element is in the log
+export function useClock(c) { clock = { ...clock, ...c }; } // tests only
+export function forgetWaits() { for (const k of Object.keys(took)) took[k].length = 0; } // tests only
+export function estimateOf(kind) {
+  const xs = [...(took[kind] || [])].sort((a, b) => a - b), n = xs.length;
+  if (!n) return null;
+  return n % 2 ? xs[(n - 1) / 2] : (xs[n / 2 - 1] + xs[n / 2]) / 2;
+}
+export const isLate = (elapsed, estimate) => (estimate == null ? elapsed > LATE_WITHOUT_ESTIMATE_MS : elapsed > Math.max(2 * estimate, estimate + 5000));
+const logEl = () => globalThis.document?.getElementById?.('log') || null;
+const keepInView = log => { if (log) log.scrollTop = log.scrollHeight; };
+function waitElement(kind, estimate) {
+  const doc = globalThis.document, T = WAIT_TEXT[kind];
+  const box = doc.createElement('div'); box.className = 'live-wait';
+  box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite');
+  const dots = doc.createElement('div'); dots.className = 'typing'; dots.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i++) dots.append(doc.createElement('i'));
+  const line = doc.createElement('p'); line.className = 'live-wait-line';
+  const verb = doc.createElement('span'); verb.textContent = T.verb;
+  const secs = doc.createElement('span'); secs.className = 'live-wait-secs'; secs.setAttribute('aria-hidden', 'true'); // not re-announced every second
+  line.append(verb, secs);
+  const what = doc.createElement('p'); what.className = 'live-wait-what'; what.textContent = T.what;
+  box.append(dots, line, what);
+  if (estimate != null) {
+    const est = doc.createElement('p'); est.className = 'live-wait-est';
+    est.textContent = `Earlier ${T.earlier} in this session took about ${Math.max(1, Math.round(estimate / 1000))} s.`;
+    box.append(est);
+  }
+  const late = doc.createElement('p'); late.className = 'live-wait-late'; late.hidden = true; late.textContent = LATE_TEXT;
+  box.append(late);
+  return { box, secs, late };
+}
+// The composer while a sent message is pending: the page drops what is sent while its `busy` flag is
+// set (workspace.js line 144), so say so. Restored exactly as it was when the last mark ends.
+let composerMarks = 0, composerSaved = null;
+function markComposer(text) {
+  const doc = globalThis.document, form = doc?.getElementById?.('composer'), input = doc?.getElementById?.('say');
+  if (!form || !input) return () => {};
+  if (composerMarks++ === 0) composerSaved = { busy: form.getAttribute('aria-busy'), placeholder: input.placeholder };
+  form.setAttribute('aria-busy', 'true'); input.placeholder = text;
+  let ended = false;
+  return () => {
+    if (ended) return; ended = true;
+    if (--composerMarks > 0) return;
+    if (composerSaved.busy === null) form.removeAttribute('aria-busy'); else form.setAttribute('aria-busy', composerSaved.busy);
+    if (input.placeholder === text || Object.values(WAIT_TEXT).some(t => t.composer === input.placeholder)) input.placeholder = composerSaved.placeholder; // the page may have set a new stage hint meanwhile
+    composerSaved = null;
+  };
+}
+// Starts the sequence for one request; returns end(ok). end() is idempotent and always removes the
+// element; only a successful wait is counted for later estimates.
+export function waiting(kind, { composer = false } = {}) {
+  const start = clock.now(), estimate = estimateOf(kind), log = logEl();
+  const w = { el: log ? waitElement(kind, estimate) : null, timer: null, ended: false };
+  const unmark = composer ? markComposer(WAIT_TEXT[kind].composer) : () => {};
+  if (w.el) {
+    active.at(-1)?.el?.box.remove(); // a second wait replaces the shown one; never two in the log
+    active.push(w); log.append(w.el.box); keepInView(log);
+    w.timer = clock.every(() => {
+      const ms = clock.now() - start, s = Math.floor(ms / 1000);
+      w.el.secs.textContent = s >= 1 ? ` ${s} s` : '';
+      if (w.el.late.hidden && isLate(ms, estimate)) { w.el.late.hidden = false; keepInView(log); }
+    }, 250);
+  }
+  return (ok = false) => {
+    if (w.ended) return; w.ended = true;
+    if (ok) took[kind].push(clock.now() - start);
+    unmark();
+    if (!w.el) return;
+    clock.stop(w.timer);
+    const i = active.indexOf(w), wasShown = i === active.length - 1;
+    w.el.box.remove(); if (i >= 0) active.splice(i, 1);
+    if (wasShown && active.length) { log.append(active.at(-1).el.box); keepInView(log); } // the older wait is still pending
+  };
+}
+const WAIT_STYLE = `.live-wait { margin: -2px 0; font-size: 13px; color: var(--ink3); }
+.live-wait .typing { padding: 4px 0 2px; }
+.live-wait p { margin: 2px 0; }
+.live-wait-line { color: var(--ink2); font-weight: 500; }
+.live-wait-secs { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .live-wait .typing i { animation: none; opacity: .6; } }`;
+function waitStyle() {
+  const doc = globalThis.document, at = doc?.head || doc?.documentElement;
+  if (!at || doc.getElementById('live-wait-style')) return;
+  const s = doc.createElement('style'); s.id = 'live-wait-style'; s.textContent = WAIT_STYLE; at.append(s);
+}
+
 let page = null, backend = null;
 try { localStorage.removeItem('second-site-workspace-live'); } catch { /* storage unavailable */ } // live mode starts fresh
 
@@ -625,7 +727,7 @@ export function bind(ctx) {
   for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
   for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
   const S = ctx.S(); S.slots = [null, null, null, null];
-  viewerElements();
+  viewerElements(); waitStyle();
 }
 const markers = {};
 function addPin(p) {
@@ -642,8 +744,11 @@ let waitNoted = false;
 // One search at a time: the page's inline answer edit (workspace.js line 332) is not guarded by its
 // `busy` flag, so a second search could start while the first is still creating the project.
 let queue = Promise.resolve();
-export function search(S) { const run = queue.then(() => searchNow(S)); queue = run.catch(() => {}); return run; }
-async function searchNow(S) {
+// A search started by a sent message runs while the page's `busy` flag is set: turn() returned null for
+// it and the page called search() in the same synchronous run (send -> discoverTurn -> research).
+let inSend = false;
+export function search(S) { const fromSend = inSend, run = queue.then(() => searchNow(S, fromSend)); queue = run.catch(() => {}); return run; }
+async function searchNow(S, fromSend = false) {
   if (!S.req.business) return; // nothing to search for until the business is known
   if (!roomsKnown(S.req)) { // said once, not after every answer
     if (!waitNoted) { waitNoted = true; page.note(page.esc('Live results start once you have said how many rooms you need.')); }
@@ -651,7 +756,8 @@ async function searchNow(S) {
   }
   backend.lastRooms = Number.isInteger(S.req.rooms) ? { treatment: S.req.rooms, reception: 1, storage: 1 } : null;
   let results;
-  try { results = await backend.search(S.req); } catch (e) { page.note(page.esc(`Live search failed: ${e.message}`)); return; }
+  const end = waiting('search', { composer: fromSend });
+  try { results = await backend.search(S.req); end(true); } catch (e) { end(); page.note(page.esc(`Live search failed: ${e.message}`)); return; } finally { end(); }
   const { POOL, P, D, FILL, SPACE_NOTES } = page, index = await localPlaces();
   // A slug is used only when exactly one listing of this result has that suite scan.
   const hits = results.map(r => localMatch(r.rec, index)), uses = s => hits.filter(h => h?.slug === s).length;
@@ -676,7 +782,8 @@ export async function furnish(S) {
   if (!p || !d) return false;
   if (!d.rooms.length) {
     let out;
-    try { out = await backend.layout(p.live?.property_id ?? p.id); } catch (e) { page.note(page.esc(`No layout for ${p.address}: ${e.message}`)); return false; }
+    const end = waiting('layout');
+    try { out = await backend.layout(p.live?.property_id ?? p.id); end(true); } catch (e) { end(); page.note(page.esc(`No layout for ${p.address}: ${e.message}`)); return false; } finally { end(); }
     const { plan, rooms } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms);
     Object.assign(d, { plan, rooms, bom: cat, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
     for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
@@ -701,13 +808,15 @@ async function ownerTexts() {
 // discover: the page's own answer edits after the questions (rent, rooms, area, opening) re-run the live search.
 const PAGE_COMMANDS = { discover: /look into|compare|closer|ready|go ahead|\$|rent|budget|month|room|downtown|west|east|valley|anywhere|open/i, compare: /anyway|layout|try|choose|go with|pick|sign/i, furnish: /^$/ };
 export function turn(stage, text, S, steps) {
-  if (stage === 'discover' && S.step < steps) return null;
-  if (PAGE_COMMANDS[stage].test(text)) return null;
+  if ((stage === 'discover' && S.step < steps) || PAGE_COMMANDS[stage].test(text)) { // the page handles it, still inside its send()
+    inSend = true; queueMicrotask(() => { inSend = false; }); return null;
+  }
   return (async () => {
     if (!backend.project) { page.note('The assistant is not connected until the search has created a project.'); return; }
+    const end = waiting('chat', { composer: true });
     try {
-      const out = await backend.chat(text);
+      const out = await backend.chat(text); end(true);
       page.a(`${page.esc(out.reply).replace(/\n/g, '<br>')}<br><small>${out.mode === 'deterministic' ? 'Deterministic engine, no model configured' : 'Assistant'} · from the backend</small>`);
-    } catch (e) { page.note(page.esc(chatFailure(e))); }
+    } catch (e) { end(); page.note(page.esc(chatFailure(e))); } finally { end(); }
   })();
 }

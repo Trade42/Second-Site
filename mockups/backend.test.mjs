@@ -600,6 +600,167 @@ await t('dollhouse: while a live listing is asked for its model, the previous li
   assert.deepEqual(run(null), { state: 'loading', text: 'Loading model', poster: 'assets/dollhouses/next.png' });
 });
 
+/* ------------------------------------- (a) the waiting sequence (web-link-5) */
+// A fake DOM with the page's chat log and composer, and a clock the test moves by hand.
+function waitDoc() {
+  const el = tag => ({ tagName: tag.toUpperCase(), id: '', className: '', hidden: false, textContent: '', placeholder: '', scrollTop: 0, scrollHeight: 0, attrs: {}, children: [], parent: null,
+    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }, removeAttribute(k) { delete this.attrs[k]; },
+    append(...c) { for (const x of c) { x.remove?.(); x.parent = this; this.children.push(x); } this.scrollHeight = this.children.length * 40; },
+    remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; },
+    all() { return this.children.flatMap(c => [c, ...c.all()]); }, querySelector() { return null; } });
+  const root = el('html'), head = el('head'), body = el('body'), log = el('div'), form = el('form'), say = el('input');
+  log.id = 'log'; form.id = 'composer'; say.id = 'say'; say.placeholder = 'Describe what you need';
+  root.append(head, body); body.append(log, form); form.append(say);
+  return { createElement: el, head, documentElement: root, getElementById: id => root.all().find(c => c.id === id) || null, querySelector: () => null, root, log, form, say };
+}
+let now = 0; const ticks = new Set();
+B.useClock({ now: () => now, every: fn => { ticks.add(fn); return fn; }, stop: fn => ticks.delete(fn) });
+const advance = ms => { now += ms; for (const f of [...ticks]) f(); };
+const boxes = doc => doc.root.all().filter(c => c.className === 'live-wait');
+const textOf = n => [n.textContent, ...n.children.map(textOf)].join(' ');
+const shownText = b => [b, ...b.all()].filter(n => !n.hidden).map(n => n.textContent).join(' ');
+const tick = () => new Promise(r => setImmediate(r));
+// strictFetch, except that a route matching `hold` waits for release(), then answers or fails.
+function heldFetch(hold) {
+  let release; const gate = new Promise(r => { release = r; });
+  const f = function (u, o) { const path = new URL(u).pathname; return hold.test(path) ? gate.then(mode => (mode === 'reject' ? Promise.reject(new TypeError('Failed to fetch')) : mode === 503 ? { ok: false, status: 503, text: async () => JSON.stringify({ error_code: 'PYTHON_SERVICE_NOT_CONFIGURED' }) } : strictFetch(u, o))) : strictFetch(u, o); };
+  return { f, release: m => release(m) };
+}
+// bind() makes its client with the global fetch of that moment; the tests switch `current` instead.
+let current = strictFetch; const viaCurrent = (u, o) => current(u, o);
+async function waitPage(ctxExtra = {}) {
+  const doc = waitDoc(); globalThis.document = doc; globalThis.fetch = viaCurrent; current = strictFetch;
+  const notes = [], said = [];
+  const ctx = { POOL: [], P: {}, D: {}, CAT: [], C: {}, FIRST: [], FILL: [], SPACE_NOTES: {}, pins: {}, a: h => said.push(h), note: h => notes.push(h), esc: B.html, selectSpace() {}, ...ctxExtra };
+  const S = { stage: 'discover', step: 5, req: { business: 'Facial studio', rent: null, rooms: 3 }, slots: [], saved: [], open: null, finalist: null, chosen: null, placed: [] };
+  B.bind({ ...ctx, S: () => S, map: () => null }); B.useLocalPlaces([]);
+  return { doc, ctx, S, notes, said };
+}
+async function withDoc(fn) {
+  const realDoc = globalThis.document, realFetch = globalThis.fetch;
+  try { return await fn(); } finally { globalThis.fetch = realFetch; if (realDoc === undefined) delete globalThis.document; else globalThis.document = realDoc; }
+}
+await t('waiting: each of the three kinds shows the page\'s dots, a verb and what it is doing, and is gone after success', () => withDoc(async () => {
+  B.forgetWaits(); now = 0;
+  const { doc, S, said } = await waitPage();
+  assert.equal(doc.head.children.filter(c => c.tagName === 'STYLE' && c.id === 'live-wait-style').length, 1, 'one <style>, added by bind() in live mode');
+  for (const [kind, hold, run] of [
+    ['search', /\/properties\/search$/, () => B.search(S)],
+    ['layout', /\/layouts\/generate$/, () => { S.finalist = k1.property_id; return B.furnish(S); }],
+    ['chat', /\/chat$/, () => { S.stage = 'compare'; return B.turn('compare', 'what about parking', S, 5); }],
+  ]) {
+    const h = heldFetch(hold); current = h.f;
+    const p = run(); await tick(); await tick();
+    const [b] = boxes(doc); assert.equal(boxes(doc).length, 1, kind);
+    assert.equal(b.parent, doc.log, 'at the end of the conversation log'); assert.equal(doc.log.children.at(-1), b);
+    assert.equal(b.attrs.role, 'status'); assert.equal(b.attrs['aria-live'], 'polite');
+    const dots = b.children.find(c => c.className === 'typing'); assert.equal(dots.children.length, 3); assert.equal(dots.attrs['aria-hidden'], 'true');
+    assert.ok(shownText(b).includes(B.WAIT_TEXT[kind].verb) && shownText(b).includes(B.WAIT_TEXT[kind].what), shownText(b));
+    const secs = b.all().find(c => c.className === 'live-wait-secs'); assert.equal(secs.attrs['aria-hidden'], 'true');
+    advance(500); assert.equal(secs.textContent, '', 'nothing in the first second'); advance(2700); assert.equal(secs.textContent, ' 3 s');
+    h.release('ok'); await p;
+    assert.equal(boxes(doc).length, 0, `${kind}: removed after success`); assert.equal(ticks.size, 0, 'its timer is stopped');
+  }
+  assert.ok(said.at(-1).includes('from the backend'), 'the reply still arrives');
+}));
+await t('waiting: gone after a rejected call and after a thrown error inside the handler; the failure notes still appear', () => withDoc(async () => {
+  B.forgetWaits();
+  const { doc, S, notes } = await waitPage();
+  await B.search(S); // creates the project
+  for (const [hold, mode, run, note] of [
+    [/\/chat$/, 503, () => B.turn('compare', 'parking?', S, 5), /no assistant service configured/],
+    [/\/chat$/, 'reject', () => B.turn('compare', 'parking?', S, 5), /The assistant is not reachable/],
+    [/\/properties\/search$/, 'reject', () => B.search({ ...S, req: { ...S.req, rent: 5000 } }), /^Live search failed: /],
+    [/\/layouts\/generate$/, 'reject', () => { S.finalist = k1.property_id; B.useLocalPlaces([]); return B.furnish(S); }, /^No layout for /],
+  ]) {
+    const h = heldFetch(hold); current = h.f; notes.length = 0;
+    const p = run(); await tick(); await tick(); assert.equal(boxes(doc).length, 1);
+    h.release(mode); await p;
+    assert.equal(boxes(doc).length, 0); assert.equal(ticks.size, 0); assert.match(notes.at(-1) || '', note, notes.join(' | '));
+  }
+  // A throw inside the handler itself (here the page's note and reply functions).
+  const thrower = await waitPage({ a() { throw new Error('page broke'); }, note() { throw new Error('page broke'); } });
+  current = strictFetch; await B.search(thrower.S).catch(() => {});
+  assert.equal(boxes(thrower.doc).length, 0, 'search: removed although the page threw');
+  await assert.rejects(B.turn('compare', 'parking?', thrower.S, 5), /page broke/);
+  assert.equal(boxes(thrower.doc).length, 0, 'chat: removed although the page threw'); assert.equal(thrower.doc.form.getAttribute('aria-busy'), null);
+}));
+await t('waiting: two overlapping waits show one element, and none is left behind in either end order', () => withDoc(async () => {
+  const { doc, S } = await waitPage();
+  for (const order of [[0, 1], [1, 0]]) {
+    const ends = [B.waiting('chat'), B.waiting('search')];
+    assert.equal(boxes(doc).length, 1); assert.ok(textOf(boxes(doc)[0]).includes('Searching…'), 'the newest is shown');
+    ends[order[0]](); assert.equal(boxes(doc).length, 1, 'the other one is still pending and shown');
+    ends[order[1]](); assert.equal(boxes(doc).length, 0); ends[0](); ends[1](); assert.equal(boxes(doc).length, 0, 'end() twice is harmless');
+  }
+  // Real calls: a chat turn and an inline-edit search at once.
+  current = strictFetch; await B.search(S);
+  const h = heldFetch(/\/chat$|\/properties\/search$/); current = h.f;
+  const p1 = B.turn('compare', 'parking?', S, 5), p2 = B.search({ ...S, req: { ...S.req, rent: 4000 } }); await tick(); await tick();
+  assert.equal(boxes(doc).length, 1); h.release('ok'); await Promise.all([p1, p2]);
+  assert.equal(boxes(doc).length, 0); assert.equal(ticks.size, 0);
+}));
+await t('waiting: no estimate on the first wait; later ones show the median of earlier successful waits; failures not counted', () => withDoc(async () => {
+  B.forgetWaits(); now = 0; const { doc } = await waitPage();
+  const est = () => boxes(doc)[0].all().find(c => c.className === 'live-wait-est')?.textContent ?? null;
+  let end = B.waiting('search'); assert.equal(est(), null); advance(4000); end(true);
+  end = B.waiting('search'); assert.equal(est(), 'Earlier searches in this session took about 4 s.'); advance(10000); end(true);
+  end = B.waiting('search'); assert.equal(est(), 'Earlier searches in this session took about 7 s.', 'median of 4 and 10'); advance(6000); end(true);
+  end = B.waiting('search'); assert.equal(est(), 'Earlier searches in this session took about 6 s.', 'median of 4, 6, 10'); advance(300); end(); // a failure
+  end = B.waiting('search'); assert.equal(est(), 'Earlier searches in this session took about 6 s.', 'the failed wait is not counted'); end();
+  end = B.waiting('chat'); assert.equal(est(), null, 'each kind has its own history'); end();
+  assert.equal(B.estimateOf('search'), 6000);
+}));
+await t('waiting: "longer than usual" only past the threshold (20 s with no estimate; twice the estimate and 5 s more with one)', () => withDoc(async () => {
+  B.forgetWaits(); now = 0; const { doc } = await waitPage();
+  const late = () => boxes(doc)[0].all().find(c => c.className === 'live-wait-late');
+  let end = B.waiting('chat'); assert.equal(late().hidden, true); advance(19900); assert.equal(late().hidden, true); advance(200); assert.equal(late().hidden, false);
+  assert.equal(late().textContent, B.LATE_TEXT); end(true); // 20.1 s recorded
+  end = B.waiting('chat'); advance(40000); assert.equal(late().hidden, true, 'under twice the 20.1 s estimate'); advance(300); assert.equal(late().hidden, false); end();
+  B.forgetWaits(); end = B.waiting('layout'); advance(2000); end(true); // estimate 2 s: late after 7 s
+  end = B.waiting('layout'); advance(6900); assert.equal(late().hidden, true); advance(200); assert.equal(late().hidden, false); end();
+  assert.equal(B.isLate(12001, 6000), true); assert.equal(B.isLate(11000, 6000), false);
+}));
+await t('waiting: no text claims progress (no percentage, "almost" or "done"), and none comes from the backend or the demo script', () => withDoc(async () => {
+  B.forgetWaits(); now = 0; const { doc } = await waitPage();
+  const all = [B.LATE_TEXT, ...Object.values(B.WAIT_TEXT).flatMap(Object.values)];
+  for (const kind of Object.keys(B.WAIT_TEXT)) { const e = B.waiting(kind); advance(3000); e(true); const e2 = B.waiting(kind); advance(60000); all.push(textOf(boxes(doc)[0])); e2(); }
+  for (const s of all) { assert.doesNotMatch(s, /%|\balmost\b|\bdone\b|\bcomplete|\bnearly\b|\bstep \d/i, s); }
+  const src = readFileSync(new URL('./workspace.js', import.meta.url), 'utf8');
+  for (const s of Object.values(B.WAIT_TEXT).flatMap(t => [t.what, t.verb])) assert.ok(!src.includes(s), `scripted: ${s}`);
+  const mine = readFileSync(new URL('./backend.js', import.meta.url), 'utf8'), block = mine.slice(mine.indexOf('/* ------------------------------------------------- waiting sequence'), mine.indexOf('let page = null'));
+  assert.doesNotMatch(block, /innerHTML/, 'the indicator is built with DOM calls and textContent only');
+}));
+await t('composer: placeholder and aria-busy while a sent message waits, restored exactly afterwards; an inline edit search does not mark it', () => withDoc(async () => {
+  const { doc, S } = await waitPage(); current = strictFetch;
+  doc.say.placeholder = 'Ask about these spaces'; await B.search(S);
+  assert.equal(doc.say.placeholder, 'Ask about these spaces', 'an inline-edit search (no turn) leaves the composer alone');
+  let h = heldFetch(/\/chat$/); current = h.f;
+  let p = B.turn('compare', 'parking?', S, 5); await tick(); await tick();
+  assert.equal(doc.form.getAttribute('aria-busy'), 'true'); assert.equal(doc.say.placeholder, 'Waiting for the assistant…');
+  h.release(503); await p;
+  assert.equal(doc.form.getAttribute('aria-busy'), null, 'attribute removed, as before'); assert.equal(doc.say.placeholder, 'Ask about these spaces');
+  // A search answer sent through the composer: turn() hands it to the page, which calls search() at once.
+  h = heldFetch(/\/properties\/search$/); current = h.f; doc.form.setAttribute('aria-busy', 'false');
+  assert.equal(B.turn('discover', 'Up to $4,000', { step: 5 }, 5), null); p = B.search({ ...S, req: { ...S.req, rent: 4000 } }); await tick(); await tick();
+  assert.equal(doc.say.placeholder, 'Waiting for the search…'); assert.equal(doc.form.getAttribute('aria-busy'), 'true');
+  h.release('ok'); await p; assert.equal(doc.form.getAttribute('aria-busy'), 'false', 'a value that was there is put back'); assert.equal(doc.say.placeholder, 'Ask about these spaces');
+  // The page changing its hint during the wait (a stage change) is kept.
+  const end = B.waiting('chat', { composer: true }); doc.say.placeholder = 'Furnish hint'; end(); assert.equal(doc.say.placeholder, 'Furnish hint');
+  // After the microtask the flag is gone: a later search is not marked.
+  B.turn('discover', 'Up to $4,000', { step: 5 }, 5); await tick(); h = heldFetch(/\/properties\/search$/); current = h.f;
+  p = B.search({ ...S, req: { ...S.req, rent: 3000 } }); await tick(); await tick(); assert.equal(doc.say.placeholder, 'Furnish hint'); h.release('ok'); await p;
+}));
+await t('waiting: the layout line does not claim the suite\'s own geometry or estimated prices before the answer says where they come from', () => {
+  assert.doesNotMatch(B.WAIT_TEXT.layout.what, /suite’s floor geometry|estimated prices/, 'the geometry may be a fixture or a photo estimate, the prices fixture prices');
+  assert.match(B.WAIT_TEXT.layout.what, /result says where/);
+});
+await t('without ?live=1 nothing of the waiting sequence exists: no page file names it, and only bind() and the live calls create it', () => {
+  for (const f of ['workspace.js', 'workspace.css', 'workspace.html']) assert.doesNotMatch(readFileSync(new URL('./' + f, import.meta.url), 'utf8'), /live-wait|waiting\(|Waiting for the/, f);
+  const mine = readFileSync(new URL('./backend.js', import.meta.url), 'utf8');
+  assert.deepEqual([...mine.matchAll(/\b(waitStyle|waiting)\(/g)].length, 6, 'definitions + bind + search + layout + chat');
+});
+
 /* ----------------------------------------------------------------- (b) */
 const URL_ = process.env.BACKEND_URL, ORIGIN = process.env.MOCKUP_ORIGIN || 'http://localhost:8090';
 if (!URL_) console.log('SKIPPED (b) end to end: BACKEND_URL is not set');
