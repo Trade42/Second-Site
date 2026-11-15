@@ -302,7 +302,8 @@ UNRANKED_LISTING = "a listing that is not in the ranking"
 COSTAR_NOT_LIVE = "listing labeled CoStar but not retrieved live from CoStar"
 SNAPSHOT_NOTICE = (
     "These listings are genuine CoStar records from the sponsor's data-kit snapshot, not a live query, so rent "
-    "and availability may have changed; say so once when you cite one: {names}."
+    "and availability may have changed; say so once when you cite one: {names}. This is about the listings "
+    "only: permits are separate public records, not CoStar's."
 )
 
 

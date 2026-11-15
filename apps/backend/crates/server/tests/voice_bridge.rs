@@ -177,11 +177,16 @@ struct Rec {
     ended_count: AtomicUsize,
     tool_done: AtomicUsize,
     hold_transcripts: AtomicBool,
+    /// Makes `transcript` panic (an orchestrator whose handler fails).
+    panic_transcripts: AtomicBool,
 }
 
 #[async_trait::async_trait]
 impl BridgeEvents for Rec {
     async fn transcript(&self, line: TranscriptLine) {
+        if self.panic_transcripts.load(Ordering::SeqCst) {
+            panic!("the orchestrator's transcript handler failed (deliberate, in a test)");
+        }
         while self.hold_transcripts.load(Ordering::SeqCst) {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
@@ -1280,4 +1285,293 @@ async fn a_tool_call_still_running_when_the_bridge_ends_is_aborted() {
         0,
         "the tool call ran on after `ended`"
     );
+}
+
+// ---------------------------------------------------------------- bridge 2, independent review
+
+/// The directions in `msgs`, checked: a direction is removed before the next one is added, and
+/// nothing is removed without a replacement. Returns the text of the one left in the conversation.
+fn directions_are_whole(msgs: &[Value]) -> String {
+    let mut current: Option<(Value, String)> = None;
+    let mut removed = false;
+    for v in msgs {
+        match v["type"].as_str() {
+            Some("conversation.item.delete") => {
+                let (id, _) = current
+                    .take()
+                    .expect("a delete with no direction to remove");
+                assert_eq!(v["item_id"], id);
+                removed = true;
+            }
+            Some("conversation.item.create") if v["item"]["role"] == "system" => {
+                assert!(current.is_none(), "two directions in the conversation");
+                current = Some((v["item"]["id"].clone(), direction(v).to_string()));
+                removed = false;
+            }
+            Some("response.create") => panic!("an instruction started a response: {v}"),
+            _ => {}
+        }
+    }
+    assert!(!removed, "a direction was removed and not replaced");
+    current.expect("a direction").1
+}
+
+#[tokio::test]
+async fn instruct_removes_separators_and_invisible_characters_and_a_burst_stays_in_order() {
+    let mut h = live(false, |_| {}).await;
+    // A lone surrogate, as lossy input gives it.
+    let lossy = String::from_utf8_lossy(b"a\xED\xA0\x80b").into_owned();
+    let dirty = format!(
+        "one\u{2028}two\u{2029}three\u{0}four\u{200B}\u{202E}\u{FEFF}five\u{85}six {lossy}"
+    );
+    h.handle.instruct(dirty).await.expect("instruct");
+    let first = h.xai.next_non_audio().await;
+    let body = direction(&first);
+    assert!(body.starts_with("one two threefourfivesix a"), "{body:?}");
+    assert!(body.ends_with('b'));
+    assert!(!body
+        .chars()
+        .any(|c| c.is_control() || "\u{2028}\u{2029}\u{200B}\u{202E}\u{FEFF}".contains(c)));
+    // Two instructions with nothing between them.
+    h.handle.instruct("burst A").await.expect("instruct");
+    h.handle.instruct("burst B").await.expect("instruct");
+    let mut msgs = vec![first];
+    while msgs
+        .last()
+        .is_none_or(|v| v["item"]["content"][0]["text"] != format!("{INSTRUCTION_PREFIX}burst B"))
+    {
+        msgs.push(h.xai.next_non_audio().await);
+    }
+    assert_eq!(directions_are_whole(&msgs), "burst B");
+    h.xai.nothing_for(Duration::from_millis(200)).await;
+    h.handle.stop().await.expect("stop");
+    ended(&mut h).await;
+    assert_clean_logs(&h, &[], &["burst", "three", "five"]);
+}
+
+// One thread: `live` sends its probe frame once and relies on that scheduling.
+#[tokio::test]
+async fn an_instruction_racing_stop_is_sent_whole_or_not_at_all_100_runs() {
+    let gate = Arc::new(tokio::sync::Semaphore::new(16));
+    let mut set = tokio::task::JoinSet::new();
+    for i in 0..100u32 {
+        let gate = gate.clone();
+        set.spawn(async move {
+            let _slot = gate.acquire_owned().await.expect("gate");
+            let mut h = live(false, |_| {}).await;
+            h.handle.instruct("before").await.expect("instruct");
+            let first = h.xai.next_non_audio().await;
+            let (a, b) = (h.handle.clone(), h.handle.clone());
+            let racer = tokio::spawn(async move {
+                if i % 2 == 0 {
+                    tokio::task::yield_now().await;
+                }
+                let _ = a.instruct("racing").await;
+            });
+            let stopper = tokio::spawn(async move {
+                if i % 2 == 1 {
+                    tokio::task::yield_now().await;
+                }
+                let _ = b.stop().await;
+            });
+            let _ = racer.await;
+            let _ = stopper.await;
+            let end = ended(&mut h).await;
+            assert_eq!(end.reason, EndReason::Stopped);
+            let mut msgs = vec![first];
+            while let Some(v) = tokio::time::timeout(T, h.xai.rx.recv())
+                .await
+                .expect("xai closed in time")
+            {
+                msgs.push(v);
+            }
+            let last = directions_are_whole(&msgs);
+            assert!(last == "before" || last == "racing", "{last}");
+            assert_eq!(h.handle.instruct("late").await, Err(BridgeGone));
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert_eq!(h.rec.ended_count.load(Ordering::SeqCst), 1);
+            let logs = h.logs.lock().expect("lock").join("\n");
+            assert!(!logs.contains("racing") && !logs.contains("before"));
+            last == "racing"
+        });
+    }
+    let mut sent = 0;
+    while let Some(r) = set.join_next().await {
+        sent += usize::from(r.expect("run"));
+    }
+    eprintln!("REVIEW instruct racing stop: sent in {sent} of 100 runs, dropped in the rest");
+}
+
+#[derive(serde::Deserialize)]
+struct EdgeQ {
+    token: Option<String>,
+    d: u64,
+}
+
+async fn route_at_the_edge(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+    Query(q): Query<EdgeQ>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    // Admitted now; the 101 leaves `d` microseconds later.
+    let r = accept_carrier(&s.0, &id, q.token.as_deref(), ws);
+    tokio::time::sleep(Duration::from_micros(q.d)).await;
+    r
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_upgrade_completing_at_the_timeouts_edge_is_a_bridge_or_a_failure_never_both_200_runs() {
+    let gate = Arc::new(tokio::sync::Semaphore::new(32));
+    let mut set = tokio::task::JoinSet::new();
+    for i in 0..200u64 {
+        let gate = gate.clone();
+        set.spawn(async move {
+            let _slot = gate.acquire_owned().await.expect("gate");
+            let logs = Arc::new(Mutex::new(Vec::new()));
+            let rec = Arc::new(Rec::default());
+            let (etx, erx) = oneshot::channel();
+            *rec.ended.lock().expect("lock") = Some(etx);
+            let registry = BridgeRegistry::new();
+            let (id, handle) = registry.expect(CallBridgeSpec {
+                call_control_id: CALL.into(),
+                token: TOKEN.into(),
+                session: session(),
+                opening_line: None,
+                xai: XaiConfig::new("ws://127.0.0.1:9/none", KEY),
+                options: opts(&logs, |o| o.start_timeout = Duration::from_millis(40)),
+                events: rec.clone(),
+            });
+            let app = Router::new()
+                .route("/edge/{id}", get(route_at_the_edge))
+                .with_state(AppState(registry));
+            let l = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+            let addr = l.local_addr().expect("addr");
+            tokio::spawn(async move {
+                let _ = axum::serve(l, app).await;
+            });
+            // The 101 leaves the route 38.0 to 42.0 ms after the admission: both sides of 40 ms.
+            let d = 38_000 + (i % 41) * 100;
+            let carrier =
+                connect_carrier(&format!("ws://{addr}/edge/{id}?token={TOKEN}&d={d}")).await;
+            let end = tokio::time::timeout(T, erx)
+                .await
+                .expect("ended")
+                .expect("sent");
+            // A bridge that ran (it never gets a `start`) ends by itself within 40 ms more: a
+            // second `ended` would be that bridge next to a reported failure.
+            tokio::time::sleep(Duration::from_millis(400)).await;
+            assert_eq!(
+                rec.ended_count.load(Ordering::SeqCst),
+                1,
+                "{:?}",
+                end.reason
+            );
+            assert_eq!(handle.say("x").await, Err(BridgeGone));
+            drop(carrier);
+            match end.reason {
+                EndReason::Error { kind } if kind == "upgrade_failed" => true,
+                EndReason::Error { kind } if kind == "carrier_start_timeout" => false,
+                other => panic!("unexpected end {other:?}"),
+            }
+        });
+    }
+    let mut failed = 0;
+    while let Some(r) = set.join_next().await {
+        failed += usize::from(r.expect("run"));
+    }
+    eprintln!("REVIEW upgrade edge: upgrade_failed in {failed} of 200 runs, a bridge in the rest");
+}
+
+#[tokio::test]
+async fn an_orchestrator_that_panics_on_a_line_ends_the_call_instead_of_losing_the_rest() {
+    let mut h = live(false, |_| {}).await;
+    h.rec.panic_transcripts.store(true, Ordering::SeqCst);
+    h.xai.send(counterparty_line(0));
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    h.xai.send(counterparty_line(1));
+    let end = ended(&mut h).await;
+    assert_eq!(
+        end.reason,
+        EndReason::Error {
+            kind: "transcript_consumer_gone".into()
+        }
+    );
+    assert_eq!(end.stats.transcripts_undelivered, 2);
+}
+
+#[tokio::test]
+async fn lines_during_a_pause_arrive_and_lines_queued_at_stop_are_counted() {
+    let mut h = live(false, |_| {}).await;
+    h.handle.pause().await.expect("pause");
+    h.xai.send(counterparty_line(1000));
+    tokio::time::timeout(T, async {
+        while h.rec.transcripts.lock().expect("lock").is_empty() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("a line that arrived during the pause reached the orchestrator");
+    // A full queue and more behind it at the moment of `stop`, and an orchestrator that takes none.
+    h.rec.hold_transcripts.store(true, Ordering::SeqCst);
+    for i in 0..300 {
+        h.xai.send(counterparty_line(i));
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    h.handle.stop().await.expect("stop");
+    let end = ended(&mut h).await;
+    assert_eq!(end.reason, EndReason::Stopped);
+    assert_eq!(end.stats.transcripts_undelivered, 300);
+    assert_eq!(h.rec.transcripts.lock().expect("lock").len(), 1);
+}
+
+// One thread: `live` sends its probe frame once and relies on that scheduling.
+#[tokio::test]
+async fn no_tool_call_starts_or_finishes_after_ended_200_runs() {
+    let gate = Arc::new(tokio::sync::Semaphore::new(16));
+    let mut set = tokio::task::JoinSet::new();
+    for i in 0..200u64 {
+        let gate = gate.clone();
+        set.spawn(async move {
+            let _slot = gate.acquire_owned().await.expect("gate");
+            let mut h = live(false, |_| {}).await;
+            *h.rec.tool_delay.lock().expect("lock") = Duration::from_millis(i % 20);
+            h.xai
+                .send(json!({"type": "response.created", "response": {"id": "resp_t"}}));
+            h.xai.send(json!({"type": "response.function_call_arguments.done", "response_id": "resp_t", "call_id": "call_s", "name": "record_finding", "arguments": "{}"}));
+            // Odd runs stop at once (the call may never start); even runs wait until the
+            // orchestrator has the call, so it is running or just finished at the stop.
+            if i % 2 == 0 {
+                tokio::time::timeout(T, async {
+                    while h.rec.calls.lock().expect("lock").is_empty() {
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                    }
+                })
+                .await
+                .expect("tool call reached the orchestrator");
+            }
+            tokio::time::sleep(Duration::from_millis(i % 7 * 3)).await;
+            h.handle.stop().await.expect("stop");
+            ended(&mut h).await;
+            let at_end = (
+                h.rec.calls.lock().expect("lock").len(),
+                h.rec.tool_done.load(Ordering::SeqCst),
+            );
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            let later = (
+                h.rec.calls.lock().expect("lock").len(),
+                h.rec.tool_done.load(Ordering::SeqCst),
+            );
+            assert_eq!(later, at_end, "a tool call started or finished after `ended`");
+            at_end
+        });
+    }
+    let (mut started, mut done) = (0, 0);
+    while let Some(r) = set.join_next().await {
+        let (s, d) = r.expect("run");
+        started += s;
+        done += d;
+    }
+    assert!(started >= 100, "the runs that waited for the call did not get one");
+    eprintln!("REVIEW tool calls at the end: {started} started and {done} finished before `ended` in 200 runs, none after");
 }

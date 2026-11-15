@@ -247,8 +247,13 @@ impl BridgeHandle {
         let clean: String = text
             .chars()
             .filter_map(|c| match c {
-                '\n' | '\r' | '\t' => Some(' '),
+                '\n' | '\r' | '\t' | '\u{2028}' | '\u{2029}' => Some(' '),
                 c if c.is_control() => None,
+                // Invisible format characters (zero width, direction overrides, the byte order mark).
+                '\u{200B}'..='\u{200F}'
+                | '\u{202A}'..='\u{202E}'
+                | '\u{2060}'..='\u{2069}'
+                | '\u{FEFF}' => None,
                 c => Some(c),
             })
             .take(MAX_INSTRUCTION_CHARS)
@@ -716,8 +721,20 @@ async fn run_inner(
             st.transcripts_produced += 1;
             if !st.backlog.is_empty() {
                 st.backlog.push_back((Instant::now(), line));
-            } else if let Err(mpsc::error::TrySendError::Full(line)) = t_tx.try_send(line) {
-                st.backlog.push_back((Instant::now(), line));
+            } else {
+                match t_tx.try_send(line) {
+                    Ok(()) => {}
+                    Err(mpsc::error::TrySendError::Full(line)) => {
+                        st.backlog.push_back((Instant::now(), line));
+                    }
+                    // The orchestrator's transcript task is gone (its handler panicked): nobody
+                    // would see this line or any later one, so the call ends.
+                    Err(mpsc::error::TrySendError::Closed(_)) => {
+                        break EndReason::Error {
+                            kind: "transcript_consumer_gone".into(),
+                        };
+                    }
+                }
             }
             if st.backlog.len() > TRANSCRIPT_QUEUE {
                 break EndReason::Error {
@@ -776,7 +793,10 @@ async fn run_inner(
                     break EndReason::Error { kind: "transcript_backlog".into() };
                 }
                 permit = t_tx.reserve(), if !st.backlog.is_empty() => {
-                    if let (Ok(permit), Some((_, line))) = (permit, st.backlog.pop_front()) {
+                    let Ok(permit) = permit else {
+                        break EndReason::Error { kind: "transcript_consumer_gone".into() };
+                    };
+                    if let Some((_, line)) = st.backlog.pop_front() {
                         permit.send(line);
                     }
                 }

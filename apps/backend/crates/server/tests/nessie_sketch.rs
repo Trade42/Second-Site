@@ -105,7 +105,7 @@ async fn furnishing(t: &TestApp, d: &Demo, property: &str) -> (Value, Value) {
     let r = t
         .get(
             &format!(
-                "/api/v1/projects/{}/nessie/properties/{property}/plan",
+                "/api/v1/projects/{}/properties/{property}/nessie/plan",
                 d.pid
             ),
             Some(&d.tok),
@@ -163,7 +163,7 @@ both_backends!(a_plan_on_a_sketchs_bill_says_that_it_is_a_sketch, |db| {
         .call(
             axum::http::Method::POST,
             &format!(
-                "/api/v1/projects/{pid}/nessie/properties/{}/payments/{ITEM_FURNISHING}/approval",
+                "/api/v1/projects/{pid}/properties/{}/nessie/payments/{ITEM_FURNISHING}/approval",
                 d.alhambra
             ),
             Some(&d.tok),
@@ -232,9 +232,9 @@ both_backends!(
         let (_, line) = furnishing(&t, &d, &d.hollywood).await;
         assert_eq!(line["basis"], MEASURED_BASIS);
 
-        // A later bill of this property whose design version belongs to the other project (and, a
-        // second time, to nothing at all).
-        for version in [foreign_version, Uuid::new_v4()] {
+        // A later bill of this property whose design version belongs to the other project. (A
+        // bill cannot name a version that does not exist: the stores' foreign key refuses it.)
+        for version in [foreign_version] {
             let mut tx = t.app.store.begin().await.unwrap();
             let mut later: ss_domain::contracts::BillOfMaterials =
                 serde_json::from_value(bom.clone()).unwrap();

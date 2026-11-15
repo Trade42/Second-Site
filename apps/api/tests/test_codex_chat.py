@@ -676,7 +676,8 @@ def test_a_data_kit_listing_is_named_a_genuine_snapshot_once_and_the_validator_l
     assert facts["data_notice"] == (
         "Permits in these facts are fixture (demo) data, not live records. Say so when citing them. "
         "These listings are genuine CoStar records from the sponsor's data-kit snapshot, not a live query, so rent "
-        "and availability may have changed; say so once when you cite one: 12 EXAMPLE ST, 100."
+        "and availability may have changed; say so once when you cite one: 12 EXAMPLE ST, 100. This is about "
+        "the listings only: permits are separate public records, not CoStar's."
     )
     assert text.count("data-kit snapshot") == 1 and "the listing ranked 4" not in facts["data_notice"]
     assert raw == _facts_with_problems(cc.COSTAR_NOT_LIVE, OTHER_PROBLEM)  # the raw facts are not changed
