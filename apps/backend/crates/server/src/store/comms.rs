@@ -14,7 +14,7 @@ use uuid::Uuid;
 use super::repo::{Document, ProjectScoped, Repo};
 use super::schema::{self, TableDef};
 use super::{Query, Row, Tx};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 
 impl Document for CommunicationSession {
     const TABLE: &'static TableDef = &schema::COMMUNICATIONS;
@@ -128,16 +128,33 @@ pub mod webhooks {
     use super::*;
 
     pub const UNIQUE_CONSTRAINT: &str = "uq_processed_webhook_events_provider";
+    /// `provider_event_id` is VARCHAR(255): characters, not bytes.
+    pub const MAX_EVENT_ID_CHARS: usize = 255;
 
     /// `record_once(db, verified, payload)`: `true` if this provider event is new. The row stores
     /// `verified = (mode == "live")` and `payload = {"mode": mode, "event": payload}`; the unique
     /// `(provider, provider_event_id)` constraint decides concurrent deliveries (the loser sees a
     /// unique violation inside its savepoint and answers `false`).
+    ///
+    /// An event id longer than the column ([`MAX_EVENT_ID_CHARS`]) is refused before anything is
+    /// read or written, with the 400 the signature check gives a payload without `data.id`
+    /// (Python, and this function before, answered 500 from the database's length check), so
+    /// both stores answer the same and the provider sees a permanent refusal, not a retryable
+    /// server error.
     pub async fn record_once(
         tx: &mut dyn Tx,
         verified: &VerifiedWebhook,
         payload: &Value,
     ) -> AppResult<bool> {
+        if verified.event_id.chars().count() > MAX_EVENT_ID_CHARS {
+            let what = match verified.provider.as_str() {
+                "telnyx" => "telnyx payload data.id",
+                _ => "webhook event id",
+            };
+            return Err(AppError::invalid_signature(format!(
+                "{what} is longer than {MAX_EVENT_ID_CHARS} characters"
+            )));
+        }
         let existing = tx
             .select(
                 &schema::PROCESSED_WEBHOOK_EVENTS,
