@@ -10,8 +10,9 @@ mod common;
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
@@ -22,34 +23,84 @@ use ss_server::integrations::{
     Integrations, LiveLaPermitProvider, LiveMatterportProvider, LiveVexcelProvider,
 };
 use ss_server::workflows::property_analysis::{SearchConcurrency, PROVIDER_CONCURRENCY};
+use ss_server::workflows::property_analysis::SearchTimingSink; // SINK
 
 use common::*;
 
 const DELAY: Duration = Duration::from_millis(100);
 const LISTINGS: usize = 20;
+/// The listing pool a 20-result search asks for (`limit * 3`, at most 50): 50 Matterport ids,
+/// three batched summary requests.
+const POOL: usize = 50;
 
-/// A threaded loopback HTTP server: one thread per connection, each answer after [`DELAY`].
+/// Answer delay per provider request.
+#[derive(Debug, Clone, Copy)]
+struct Delays {
+    permits: Duration,
+    vexcel: Duration,
+    matterport: Duration,
+}
+
+impl Delays {
+    const UNIFORM: Delays = Delays {
+        permits: DELAY,
+        vexcel: DELAY,
+        matterport: DELAY,
+    };
+    /// Unequal latencies close to what the real providers can take (estimates, not measured):
+    /// a Socrata `like` query on a large dataset 400 ms (each permit call is two of them, one
+    /// after the other), a Vexcel extract 250 ms, a batched Matterport GraphQL query of 20 models
+    /// 1.5 s.
+    const REALISTIC: Delays = Delays {
+        permits: Duration::from_millis(400),
+        vexcel: Duration::from_millis(250),
+        matterport: Duration::from_millis(1500),
+    };
+}
+
+/// Per provider: first request received, last answer sent (relative to [`SlowServer::reset`]),
+/// request count, most in flight.
+#[derive(Debug, Default, Clone, Copy)]
+struct Span {
+    first_ms: Option<u128>,
+    last_ms: u128,
+    requests: usize,
+    in_flight: usize,
+    max_in_flight: usize,
+}
+
+type Spans = Arc<Mutex<(Instant, BTreeMap<&'static str, Span>)>>;
+
+/// A threaded loopback HTTP server: one thread per connection, each answer after its provider's
+/// delay.
 struct SlowServer {
     base: String,
     addr: std::net::SocketAddr,
     stop: Arc<AtomicBool>,
     max_in_flight: Arc<AtomicUsize>,
     total: Arc<AtomicUsize>,
+    spans: Spans,
 }
 
 impl SlowServer {
     fn start() -> SlowServer {
+        SlowServer::with_delays(Delays::UNIFORM)
+    }
+
+    fn with_delays(delays: Delays) -> SlowServer {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
         let addr = listener.local_addr().unwrap();
         let stop = Arc::new(AtomicBool::new(false));
         let in_flight = Arc::new(AtomicUsize::new(0));
         let max_in_flight = Arc::new(AtomicUsize::new(0));
         let total = Arc::new(AtomicUsize::new(0));
-        let (s, i, m, t) = (
+        let spans: Spans = Arc::new(Mutex::new((Instant::now(), BTreeMap::new())));
+        let (s, i, m, t, sp) = (
             stop.clone(),
             in_flight.clone(),
             max_in_flight.clone(),
             total.clone(),
+            spans.clone(),
         );
         std::thread::spawn(move || {
             for stream in listener.incoming() {
@@ -57,8 +108,8 @@ impl SlowServer {
                     break;
                 }
                 let Ok(stream) = stream else { continue };
-                let (i, m, t) = (i.clone(), m.clone(), t.clone());
-                std::thread::spawn(move || serve(stream, &i, &m, &t));
+                let (i, m, t, sp) = (i.clone(), m.clone(), t.clone(), sp.clone());
+                std::thread::spawn(move || serve(stream, &i, &m, &t, &sp, delays));
             }
         });
         SlowServer {
@@ -67,12 +118,39 @@ impl SlowServer {
             stop,
             max_in_flight,
             total,
+            spans,
         }
     }
 
     fn reset(&self) {
         self.max_in_flight.store(0, Ordering::SeqCst);
         self.total.store(0, Ordering::SeqCst);
+        *self.spans.lock().unwrap() = (Instant::now(), BTreeMap::new());
+    }
+
+    /// `provider: requests, first..last ms, max in flight` per provider since the last reset.
+    /// The most requests one provider had in flight at once since the last reset.
+    fn max_per_provider(&self) -> usize {
+        let spans = self.spans.lock().unwrap();
+        spans.1.values().map(|s| s.max_in_flight).max().unwrap_or(0)
+    }
+
+    fn spans(&self) -> String {
+        let spans = self.spans.lock().unwrap();
+        spans
+            .1
+            .iter()
+            .map(|(k, s)| {
+                format!(
+                    "{k}: {} requests, {}..{} ms, at most {} in flight",
+                    s.requests,
+                    s.first_ms.unwrap_or(0),
+                    s.last_ms,
+                    s.max_in_flight
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 }
 
@@ -83,7 +161,24 @@ impl Drop for SlowServer {
     }
 }
 
-fn serve(mut stream: TcpStream, in_flight: &AtomicUsize, max: &AtomicUsize, total: &AtomicUsize) {
+fn provider_of(path: &str) -> &'static str {
+    if path.contains("/resource/") {
+        "permits"
+    } else if path.ends_with("/property/extract") || path.ends_with("/ortho/collections") {
+        "vexcel"
+    } else {
+        "matterport"
+    }
+}
+
+fn serve(
+    mut stream: TcpStream,
+    in_flight: &AtomicUsize,
+    max: &AtomicUsize,
+    total: &AtomicUsize,
+    spans: &Mutex<(Instant, BTreeMap<&'static str, Span>)>,
+    delays: Delays,
+) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
     let mut buf = Vec::new();
     let mut chunk = [0u8; 8192];
@@ -111,12 +206,33 @@ fn serve(mut stream: TcpStream, in_flight: &AtomicUsize, max: &AtomicUsize, tota
             Ok(n) => body.extend_from_slice(&chunk[..n]),
         }
     }
+    let provider = provider_of(target.split('?').next().unwrap_or(""));
     let now = in_flight.fetch_add(1, Ordering::SeqCst) + 1;
     max.fetch_max(now, Ordering::SeqCst);
     total.fetch_add(1, Ordering::SeqCst);
-    std::thread::sleep(DELAY);
+    {
+        let mut g = spans.lock().unwrap();
+        let at = g.0.elapsed().as_millis();
+        let s = g.1.entry(provider).or_default();
+        s.first_ms.get_or_insert(at);
+        s.requests += 1;
+        s.in_flight += 1;
+        s.max_in_flight = s.max_in_flight.max(s.in_flight);
+    }
+    std::thread::sleep(match provider {
+        "permits" => delays.permits,
+        "vexcel" => delays.vexcel,
+        _ => delays.matterport,
+    });
     let answer = answer(&target, &body);
     in_flight.fetch_sub(1, Ordering::SeqCst);
+    {
+        let mut g = spans.lock().unwrap();
+        let at = g.0.elapsed().as_millis();
+        let s = g.1.entry(provider).or_default();
+        s.in_flight -= 1;
+        s.last_ms = s.last_ms.max(at);
+    }
     let text = answer.to_string();
     let out = format!(
         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{text}",
@@ -162,10 +278,13 @@ fn answer(target: &str, body: &[u8]) -> Value {
     json!({"data": data})
 }
 
-/// [`LISTINGS`] distinct listings built from the first fixture listing, each with one Matterport
+/// Up to `pool` distinct listings built from the first fixture listing, each with one Matterport
 /// model, coordinates and suite 100.
 struct ManyListings {
     base: RawListing,
+    pool: usize,
+    /// The second listing repeats the first one's address.
+    dup: bool,
     /// The first listing's model id is malformed (the Matterport adapter refuses it).
     bad_first: bool,
 }
@@ -175,14 +294,15 @@ impl CoStarProvider for ManyListings {
         "fixture"
     }
     fn search(&self, request: &PropertySearchRequest) -> Result<Vec<RawListing>, ProviderError> {
-        let n = LISTINGS.min(usize::try_from(request.limit).unwrap_or(0));
+        let n = self.pool.min(usize::try_from(request.limit).unwrap_or(0));
         Ok((0..n)
             .map(|i| {
                 let mut r = self.base.clone();
                 r.provider_listing_id = format!("speed-{i}");
+                let house = if self.dup && i == 1 { 5000 } else { 5000 + i };
                 r.address.insert(
                     "street_address".into(),
-                    json!(format!("{} E Alhambra Ave", 5000 + i)),
+                    json!(format!("{house} E Alhambra Ave")),
                 );
                 r.address.insert("unit_or_suite".into(), json!("100"));
                 r.address
@@ -211,10 +331,10 @@ impl CoStarProvider for ManyListings {
 }
 
 fn install(t: &TestApp, server: &SlowServer) {
-    install_listings(t, server, false);
+    install_listings(t, server, false, POOL, false);
 }
 
-fn install_listings(t: &TestApp, server: &SlowServer, bad_first: bool) {
+fn install_listings(t: &TestApp, server: &SlowServer, bad_first: bool, pool: usize, dup: bool) {
     let policy = RetryPolicy {
         attempts: 1,
         backoff_s: 0.0,
@@ -238,6 +358,8 @@ fn install_listings(t: &TestApp, server: &SlowServer, bad_first: bool) {
     t.app.extensions.insert(Arc::new(Integrations {
         costar: Arc::new(ManyListings {
             base: first,
+            pool,
+            dup,
             bad_first,
         }),
         permits: Arc::new(LiveLaPermitProvider::with_policy(
@@ -341,11 +463,22 @@ async fn run_search(
     bound: usize,
 ) -> (Outcome, Duration) {
     install(t, server);
-    t.app.extensions.insert(Arc::new(SearchConcurrency(bound)));
     let pid = t.create_project(tok, &demo_project_body()).await["project"]["project_id"]
         .as_str()
         .unwrap()
         .to_owned();
+    search_in(t, tok, bound, &pid, LISTINGS).await
+}
+
+/// One search at `bound` in the project `pid` with the installed adapters; `expect` results.
+async fn search_in(
+    t: &TestApp,
+    tok: &str,
+    bound: usize,
+    pid: &str,
+    expect: usize,
+) -> (Outcome, Duration) {
+    t.app.extensions.insert(Arc::new(SearchConcurrency(bound)));
     let started = Instant::now();
     let r = t
         .post(
@@ -360,7 +493,7 @@ async fn run_search(
     assert_eq!(task["status"], "COMPLETED", "{task}");
     let out = &task["output_reference"];
     let ids = out["property_ids"].as_array().unwrap();
-    assert_eq!(ids.len(), LISTINGS, "{task}");
+    assert_eq!(ids.len(), expect, "{task}");
     let mut task_view = out.as_object().unwrap().clone();
     task_view.insert("property_ids".into(), json!(ids.len()));
     task_view.remove("ranking_id");
@@ -396,15 +529,18 @@ both_backends!(concurrent_search_is_faster_and_identical, |db| {
 
     let (sequential, seq_time) = run_search(&t, &tok, &server, 1).await;
     let seq_requests = server.total.load(Ordering::SeqCst);
-    assert_eq!(server.max_in_flight.load(Ordering::SeqCst), 1);
+    // The bound is per provider: at bound 1 each provider has one request in flight, but the
+    // permit fetches overlap the Vexcel requests.
+    assert_eq!(server.max_per_provider(), 1, "{}", server.spans());
     server.reset();
 
     let (concurrent, con_time) = run_search(&t, &tok, &server, PROVIDER_CONCURRENCY).await;
     let requests = server.total.load(Ordering::SeqCst);
-    let max = server.max_in_flight.load(Ordering::SeqCst);
+    let max = server.max_per_provider();
     eprintln!(
         "search_speed: bound 1: {seq_requests} requests in {seq_time:?}; bound {PROVIDER_CONCURRENCY}: \
-         {requests} requests in {con_time:?}, at most {max} in flight"
+         {requests} requests in {con_time:?}, at most {max} in flight per provider ({})",
+        server.spans()
     );
     assert_eq!(requests, seq_requests, "same provider requests");
     assert!(max <= PROVIDER_CONCURRENCY, "{max} in flight");
@@ -462,7 +598,7 @@ both_backends!(one_bad_matterport_id_costs_only_its_listing, |db| {
     let t = TestApp::new(db, &[]);
     let (tok, _) = t.dev_token().await;
     let server = SlowServer::start();
-    install_listings(&t, &server, true);
+    install_listings(&t, &server, true, LISTINGS, false);
     let pid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
         .as_str()
         .unwrap()
@@ -496,4 +632,71 @@ both_backends!(one_bad_matterport_id_costs_only_its_listing, |db| {
         .collect();
     assert_eq!(lost.len(), 1, "{lost:?}");
     assert!(lost[0].starts_with("5000 "), "{lost:?}");
+});
+
+// Not an assertion of speed: the search with unequal, realistic provider latencies
+// (`Delays::REALISTIC`), the request spans the server saw per provider, and the search's own
+// timing line. Run with `--nocapture` to read them.
+both_backends!(realistic_latencies_timing_line, |db| {
+    let t = TestApp::new(db, &[]);
+    let (tok, _) = t.dev_token().await;
+    let server = SlowServer::with_delays(Delays::REALISTIC);
+    let sink = Arc::new(SearchTimingSink::default()); // SINK
+    t.app.extensions.insert(sink.clone()); // SINK
+    server.reset();
+    let (outcome, took) = run_search(&t, &tok, &server, PROVIDER_CONCURRENCY).await;
+    assert_eq!(outcome.properties.len(), LISTINGS);
+    assert!(server.max_per_provider() <= PROVIDER_CONCURRENCY, "{}", server.spans());
+    eprintln!(
+        "search_speed realistic: {} requests in {took:?}; {}",
+        server.total.load(Ordering::SeqCst),
+        server.spans()
+    );
+    let lines = sink.0.lock().unwrap().clone(); // SINK
+    assert_eq!(lines.len(), 1, "{lines:?}"); // SINK
+    let line = &lines[0]; // SINK
+    eprintln!("search timing {line}"); // SINK
+    // Numbers and phase names only. // SINK
+    let text = line.to_string(); // SINK
+    assert!(!text.contains("ALHAMBRA") && !text.contains("http"), "{text}"); // SINK
+    assert_eq!(line["calls"]["matterport"]["calls"], 3, "{text}"); // SINK
+    assert_eq!(line["calls"]["permits"]["calls"], LISTINGS, "{text}"); // SINK
+    assert_eq!(line["counts"]["pool"], POOL, "{text}"); // SINK
+});
+
+// A search whose addresses are already stored in the project (and one whose two first listings
+// share an address): the permit fetches, started before the results are stored, use the stored
+// identities, nothing is fetched twice, and the outcome is the sequential one.
+both_backends!(repeated_search_uses_stored_identities, |db| {
+    let t = TestApp::new(db, &[]);
+    let (tok, _) = t.dev_token().await;
+    let server = SlowServer::start();
+    let sink = Arc::new(SearchTimingSink::default()); // SINK
+    t.app.extensions.insert(sink.clone()); // SINK
+    let mut outcomes = Vec::new();
+    for bound in [1, PROVIDER_CONCURRENCY] {
+        install_listings(&t, &server, false, LISTINGS, true);
+        let pid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let (first, _) = search_in(&t, &tok, bound, &pid, LISTINGS).await;
+        server.reset();
+        let (again, _) = search_in(&t, &tok, bound, &pid, LISTINGS).await;
+        // The second search asks the permit provider once per result, as before.
+        assert_eq!(
+            server.spans().matches("permits: 40 requests").count(),
+            1,
+            "{}",
+            server.spans()
+        );
+        outcomes.push((first, again));
+    }
+    assert_eq!(outcomes[0], outcomes[1]);
+    let lines = sink.0.lock().unwrap().clone(); // SINK
+    assert_eq!(lines.len(), 4); // SINK
+    for line in &lines { // SINK
+        assert_eq!(line["counts"]["permit_refetches"], 0, "{line}"); // SINK
+    } // SINK
+    assert_eq!(lines[3]["counts"]["new"], 0, "{}", lines[3]); // SINK
 });

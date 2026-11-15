@@ -1360,22 +1360,31 @@ fn segment(toks: &[Tok], i: usize, s: usize, e: usize) -> (usize, usize) {
 /// "So we're agreed at $4,500?", "Would the owner go to $5,000?"), not stated.
 fn proposed(toks: &[Tok], i: usize, s: usize, e: usize) -> bool {
     let (a, b) = segment(toks, i, s, e);
-    let first = toks[a..b]
-        .iter()
-        .filter_map(|t| match t {
-            Tok::Word(w) => Some(w.as_str()),
-            _ => None,
+    // The segment's first word past leading filler ("Ok the rent is $4,500" is a statement: a
+    // leading "ok" is filler, not a proposal word).
+    let lead = (a..b)
+        .find(|&k| match &toks[k] {
+            Tok::Word(w) => !matches!(
+                w.as_str(),
+                "so" | "and"
+                    | "but"
+                    | "well"
+                    | "then"
+                    | "okay"
+                    | "ok"
+                    | "um"
+                    | "uh"
+                    | "yeah"
+                    | "yes"
+                    | "alright"
+            ),
+            _ => false,
         })
-        .find(|w| {
-            !matches!(
-                *w,
-                "so" | "and" | "but" | "well" | "then" | "okay" | "ok" | "um"
-            )
-        });
-    if first.is_some_and(|w| QUESTION_WORDS.contains(&w)) {
+        .unwrap_or(b);
+    if word(toks.get(lead)).is_some_and(|w| lead < b && QUESTION_WORDS.contains(&w)) {
         return true;
     }
-    if has_any(toks, a, b, &PROPOSAL_WORDS) {
+    if has_any(toks, lead, b, &PROPOSAL_WORDS) {
         return true;
     }
     let pair = |x: &str, ys: &[&str]| {

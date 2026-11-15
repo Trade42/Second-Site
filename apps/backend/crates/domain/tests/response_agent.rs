@@ -935,3 +935,29 @@ fn probe_review_utterances() {
         println!("TIME | {name} | decision {a:?} | redact uncut {b:?}");
     }
 }
+
+// ---- Review of Response Agent 2 ---------------------------------------------------------------
+
+#[test]
+fn review_a_leading_ok_or_yeah_is_filler_not_a_proposal() {
+    for t in [
+        "Ok the rent is $4,500 a month.",
+        "Okay so rent is $4,500 a month",
+        "Yeah okay the rent is 4500 a month",
+    ] {
+        let found: Vec<_> = extract_findings(None, t)
+            .into_iter()
+            .filter_map(|f| f.amount_cents.map(|c| (f.claim_type, c)))
+            .collect();
+        assert_eq!(found, vec![("rent".to_owned(), 450_000)], "{t}");
+    }
+    // Near misses: still a proposal.
+    for t in [
+        "Ok so we're agreed at $4,500?",
+        "Yeah, does $4,600 work for your client?",
+        "Okay, would the owner go to $5,000 a month?",
+    ] {
+        let f = extract_findings(None, t);
+        assert!(f.iter().all(|f| f.amount_cents.is_none()), "{t}: {f:?}");
+    }
+}
