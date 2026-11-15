@@ -380,3 +380,111 @@ fn deterministic() {
         owner_text(&summarize(&fixture_input(true)))
     );
 }
+
+// ---- Added by the independent review (call-summary-1-review) ----------------------------------
+
+fn review_input(findings: Vec<InputFinding>, transcript: Vec<TranscriptTurn>) -> SummaryInput {
+    SummaryInput {
+        call_id: id(9),
+        property_id: None,
+        property_label: None,
+        contact_name: Some("Pat".into()),
+        contact_role: Some("property manager".into()),
+        started_at: None,
+        ended_at: None,
+        ended: CallEnd::Completed,
+        questions: vec![],
+        transcript,
+        findings,
+        deferred_questions: vec![],
+        handoffs: vec![],
+        simulated: false,
+        monthly_rent_limit_cents: None,
+    }
+}
+
+fn review_finding(claim: &str, topic: &str, said: &str, cents: Option<i64>) -> InputFinding {
+    InputFinding {
+        question: None,
+        claim_type: claim.into(),
+        topic: topic.into(),
+        reported: Some(said.into()),
+        value: Value::from(1),
+        unit: None,
+        amount_cents: cents,
+        period: None,
+        purpose: None,
+    }
+}
+
+#[test]
+fn review_figures_survive_a_sensitive_word_elsewhere_and_purpose_is_redacted() {
+    let mut retrofit = review_finding(
+        "improvement_cost",
+        "improvement",
+        "needs a retrofit",
+        Some(4_000_000),
+    );
+    retrofit.purpose = Some("retrofit, SSN 123-45-6789".into());
+    let input = review_input(
+        vec![
+            review_finding(
+                "monthly_rent",
+                "rent",
+                "Rent is $4,200.50 a month.",
+                Some(420_050),
+            ),
+            review_finding("account", "listing", "Ask for the account number.", None),
+            retrofit,
+        ],
+        vec![],
+    );
+    let s = summarize(&input);
+    let json = serde_json::to_string(&s).unwrap();
+    let text = owner_text(&s);
+    assert!(
+        !json.contains("6789") && !text.contains("6789"),
+        "{json}\n{text}"
+    );
+    assert!(text.contains("$4,200.50 a month"), "{text}");
+    assert!(text.contains("$40,000"), "{text}");
+}
+
+#[test]
+fn review_assumed_commitments_need_the_owners_attention() {
+    let lines = [
+        ("counterparty", "So you'll send the deposit Friday."),
+        ("counterparty", "The owner agreed to 4,200."),
+        ("assistant", "The owner agreed to 4,200."),
+        (
+            "assistant",
+            "Sure, we'll send the deposit Friday, no problem.",
+        ),
+    ];
+    for (who, line) in lines {
+        let s = summarize(&review_input(vec![], vec![turn(who, line, 1)]));
+        assert!(s.commitments_made.is_empty());
+        assert_eq!(s.needs_owner_attention.len(), 1, "{who}: {line}");
+    }
+}
+
+#[test]
+fn review_the_bound_never_cuts_a_figure() {
+    let findings = (0..30)
+        .map(|k| {
+            review_finding(
+                &format!("c{k}"),
+                "cost",
+                "a one-time fee of $1,234,567.89",
+                Some(123_456_789),
+            )
+        })
+        .collect();
+    let text = owner_text(&summarize(&review_input(findings, vec![])));
+    assert!(text.chars().count() <= MAX_OWNER_TEXT_CHARS);
+    let body = text.trim_end_matches('…').trim_end();
+    assert!(
+        body.ends_with("$1,234,567.89") || body.ends_with('.'),
+        "{text}"
+    );
+}

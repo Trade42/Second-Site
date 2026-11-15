@@ -111,6 +111,13 @@ pub struct InputFinding {
     pub purpose: Option<String>,
 }
 
+fn purpose_of(f: &InputFinding) -> String {
+    f.purpose
+        .as_deref()
+        .map(clean)
+        .unwrap_or_else(|| "work".into())
+}
+
 impl From<&StructuredFinding> for InputFinding {
     fn from(f: &StructuredFinding) -> Self {
         let claim = f.claim_type.clone().unwrap_or_default();
@@ -318,12 +325,16 @@ struct Patterns {
     commitment: PyRegex,
     assistant_agrees: PyRegex,
     negation: PyRegex,
+    assumed: PyRegex,
 }
 
 const DECLINE_PATTERN: &str = r"\b(can'?t (say|share|disclose|tell)|won'?t (say|share|disclose)|rather not|not at liberty|no comment|not (able|allowed) to (say|share|disclose)|prefer not)\b";
 const DOCUMENTS_PATTERN: &str = r"\b(send|email|provide|need|bring|submit|forward)\b.{0,60}\b(financials|financial statements?|tax returns?|bank statements?|business plan|application|credit (report|check)|references?|proof of (income|funds|insurance)|insurance certificate|id|identification|documents?|paperwork|w-?9|p&l|profit and loss)\b";
 const ASSISTANT_AGREES_PATTERN: &str = r"\b((we|i|the owner|my client|they)('ll| will| would| can| accept| agree| are ready)|(we|i) (accept|agree)|deal|sounds good,? (we|they))\b";
-const NEGATION_PATTERN: &str = r"\b(can'?t|cannot|not|won'?t|unable|no)\b";
+const NEGATION_PATTERN: &str = r"\b(can'?t|cannot|not|won'?t|unable)\b";
+/// A line that states or assumes an agreement or a promise ("you'll send the deposit", "the owner
+/// agreed to 4,200"). Over-matching only adds a line to what needs the owner's attention.
+const ASSUMED_COMMITMENT_PATTERN: &str = r"\b(you('ll| will| are going to)|(the owner|my client|your client|you|we|i|they) (agreed|accepted|promised|committed)|(the owner|your client|my client) (will|'ll|is going to)|(we|i)('ll| will) (hold|reserve|keep|send))\b";
 
 fn patterns() -> &'static Patterns {
     static P: OnceLock<Patterns> = OnceLock::new();
@@ -335,6 +346,7 @@ fn patterns() -> &'static Patterns {
             commitment: re(COMMITMENT_PATTERN),
             assistant_agrees: re(ASSISTANT_AGREES_PATTERN),
             negation: re(NEGATION_PATTERN),
+            assumed: re(ASSUMED_COMMITMENT_PATTERN),
         }
     })
 }
@@ -387,7 +399,13 @@ fn reported_item(f: &InputFinding) -> Item {
         .as_deref()
         .map(clean)
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| format!("{}: {}", f.claim_type, crate::py::value_str(&f.value)));
+        .unwrap_or_else(|| {
+            clean(&format!(
+                "{}: {}",
+                f.claim_type,
+                crate::py::value_str(&f.value)
+            ))
+        });
     let ck = cost_kind(&f.topic);
     let mut period = period_of(f.period, f.amount_cents);
     if f.topic == "improvement" && period == Some(Period::Unknown) {
@@ -524,7 +542,7 @@ pub fn summarize(input: &SummaryInput) -> CallSummary {
                 format!(
                     "{} for {}",
                     format_money(f.amount_cents.unwrap_or(0), "USD"),
-                    f.purpose.as_deref().unwrap_or("work")
+                    purpose_of(f)
                 )
             })
             .collect();
@@ -550,7 +568,7 @@ pub fn summarize(input: &SummaryInput) -> CallSummary {
                 format!(
                     "Derived concern: the reported {} of {} is a cost the tenant may carry; it is \
                      unverified and may change the property's ranking.",
-                    f.purpose.as_deref().unwrap_or("work"),
+                    purpose_of(f),
                     format_money(f.amount_cents.unwrap_or(0), "USD")
                 ),
                 vec![f.claim_type.clone()],
@@ -661,13 +679,18 @@ pub fn summarize(input: &SummaryInput) -> CallSummary {
                 s.requested_documents
                     .push(quote(&t.speaker, "documents", text));
             }
-            if p.commitment.search(text).is_some() {
+            if p.commitment.search(text).is_some() || p.assumed.search(text).is_some() {
                 let mut q = quote(&t.speaker, "commitment", text);
-                q.statement = format!("They asked for a commitment: {}", q.statement);
+                q.statement = format!(
+                    "They asked for or assumed a commitment; none was made: {}",
+                    q.statement
+                );
                 s.needs_owner_attention.push(q);
             }
         } else if t.speaker == "assistant"
-            && (p.assistant_agrees.search(text).is_some() || p.commitment.search(text).is_some())
+            && (p.assistant_agrees.search(text).is_some()
+                || p.commitment.search(text).is_some()
+                || p.assumed.search(text).is_some())
             && p.negation.search(text).is_none()
         {
             let mut q = quote(&t.speaker, "commitment", text);
@@ -761,9 +784,15 @@ fn push_bounded(out: &mut String, part: &str, max: usize) -> bool {
         out.push_str(part);
         return true;
     }
+    // Cut only at a clause boundary ("; "), never inside a figure; drop the part if none fits.
     let room = max.saturating_sub(have + 1);
-    out.extend(part.chars().take(room));
-    out.push('…');
+    let head: String = part.chars().take(room).collect();
+    if let Some(at) = head.rfind("; ") {
+        out.push_str(&head[..at]);
+    }
+    if out.chars().count() < max {
+        out.push('…');
+    }
     false
 }
 
@@ -840,7 +869,7 @@ pub fn owner_text(s: &CallSummary) -> String {
             break;
         }
     }
-    let trimmed = out.trim_end().to_owned();
-    let (red, _, _) = redact(&trimmed);
-    red.chars().take(max).collect()
+    // Every part was redacted when the summary was built. A second pass over the joined text
+    // would let one clause's sensitive word ("number", "account") blank every figure after it.
+    out.trim_end().chars().take(max).collect()
 }
