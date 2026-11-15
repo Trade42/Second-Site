@@ -2429,6 +2429,13 @@ TEXT_TABLES = {"communications", "activity_events", "processed_webhook_events", 
 DESIGN_REPLY = "Noted. I saved this design change: {}. Layout edits still happen in the app."
 
 
+def ok(r: R, code: int) -> None:
+    """status_is, except that a route neither service has (the ordinary 404) is a SKIP, never a FAIL or a PASS."""
+    if r.status == 404 and r.body == {"detail": "Not Found"}:
+        raise Skip(f"route missing: {r.show(150)}")
+    status_is(r, code)
+
+
 @check("K01", "set-up: a fresh project through rust is the one python files the owner's texts under")
 def k01() -> str:
     """Python files an owner text under the owner's latest project (`latest_project_id`: the newest created_at),
@@ -2439,12 +2446,13 @@ def k01() -> str:
 
     (tok, owner) = need("rs_token", "owner")
     r = rs("POST", "/api/v1/projects", token=tok, body=fixture_body() | {"project_name": f"E2E texts {RUN}"})
-    status_is(r, 201)
+    ok(r, 201)
     tp = r.body["project"]["project_id"]
     s = rs("POST", proj(tp, "/properties/search"), token=tok, body={"city": "Los Angeles", "state": "CA"})
-    status_is(s, 202)
+    ok(s, 202)
     rk = rs("GET", proj(tp, "/rankings"), token=tok)
-    expect(rk.status == 200 and len(rk.body) == 1, "one ranking (for STATUS)", rk.show(200))
+    ok(rk, 200)
+    expect(len(rk.body) == 1, "one ranking (for STATUS)", rk.show(200))
     with Session(_engine()) as db:  # read only
         latest = latest_project_id(db, uuid.UUID(owner))
     expect(str(latest) == tp, f"python's latest_project_id is the new project {tp}", latest)
@@ -2456,7 +2464,7 @@ def received_event(text: str) -> dict[str, Any]:
     """The communication.message_received event Python wrote for this owner text, read through the rust origin."""
     (tok, pid) = need("rs_token", "text_pid")
     r = rs("GET", proj(pid, "/events?limit=500"), token=tok)
-    status_is(r, 200)
+    ok(r, 200)
     ev = [
         e
         for e in r.body.get("events", [])
@@ -2473,7 +2481,7 @@ def design_comms(words: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]
     out = []
     for side in (rs, py):
         r = side("GET", proj(pid, "/communications"), token=tok)
-        status_is(r, 200)
+        ok(r, 200)
         out.append(
             [
                 c
@@ -2493,7 +2501,7 @@ def owner_text(text: str) -> tuple[R, list[dict[str, Any]], list[str]]:
     before = quiet_digest()
     off_rs = log_offset(RUST_LOG)
     r = via_rust("POST", SIMULATE_TEXT, py_status=200, token=tok, body={"text": text})
-    status_is(r, 200)
+    ok(r, 200)
     rust_reqs = requests_since(RUST_LOG, off_rs)
     changed = digest_diff(before, quiet_digest())
     return r, rust_reqs, changed
@@ -2644,7 +2652,7 @@ def k05() -> str:
     st, _, changed = owner_text("STATUS")
     only_text_tables(changed)
     direct = py("POST", SIMULATE_TEXT, token=tok, body={"text": "STATUS"})
-    status_is(direct, 200)
+    ok(direct, 200)
     expect(
         st.body.get("reply") == direct.body.get("reply") and "Top pick:" in (st.body.get("reply") or ""),
         "the python STATUS reply (with the top pick)",
@@ -2668,7 +2676,9 @@ def k05() -> str:
         "PENDING_FIRST_MESSAGE from both origins",
         [a.show(200), b.show(200)],
     )
-    comms = same_answer(proj(pid, "/communications"), tok, "communications list")
+    (tp,) = need("text_pid")
+    comms = same_answer(proj(tp, "/communications"), tok, "communications list of the texts' project")
+    comms_main = same_answer(proj(pid, "/communications"), tok, "communications list of the first project")
     # Link again for what follows (the first text after STOP links the channel).
     hi, _, _ = owner_text("hi")
     g = py("GET", "/api/v1/owner/channel", token=tok)
@@ -2679,7 +2689,8 @@ def k05() -> str:
     )
     return (
         f"STATUS reply = python's ({_short(st.body.get('reply'), 80)}); ordinary text handled_as chat, rust "
-        f"tool requests {tools}; STOP -> PENDING_FIRST_MESSAGE on both origins; communications {comms}; relinked"
+        f"tool requests {tools}; STOP -> PENDING_FIRST_MESSAGE on both origins; communications of the texts' project {comms}, "
+        f"of the first project {comms_main}; relinked"
     )
 
 
@@ -2719,14 +2730,14 @@ def call_to_handoff(name: str, phone: str) -> dict[str, Any]:
         token=tok,
         body={"decision": "APPROVED", "action_payload_hash": a["action_payload_hash"]},
     )
-    status_is(d, 200)
+    ok(d, 200)
     c = rs(
         "POST",
         proj(pid, "/calls"),
         token=tok,
         body={"communication_id": o["communication"]["communication_id"]},
     )
-    status_is(c, 202)
+    ok(c, 202)
     call = c.body
     state = base64.b64encode(
         json.dumps({"call_id": call["call_id"], "role": "counterparty"}).encode()
@@ -2741,7 +2752,7 @@ def call_to_handoff(name: str, phone: str) -> dict[str, Any]:
         ),
     ):
         r = telnyx_send(et, p | extra)
-        expect(r.status == 204, f"204 from rust's telnyx webhook for {et}", r.show())
+        ok(r, 204)
     now = next(x for x in rs("GET", proj(pid, "/calls"), token=tok).body if x["call_id"] == call["call_id"])
     expect(now.get("state") == "HANDOFF_PENDING" and now.get("handoff_request_id"), "HANDOFF_PENDING", now)
     return now
@@ -2753,8 +2764,8 @@ def call_and_handoff(call_id: str, handoff_id: str) -> tuple[dict[str, Any], dic
     out = {}
     for side in (rs, py):
         cs, hs = side("GET", proj(pid, "/calls"), token=tok), side("GET", proj(pid, "/handoffs"), token=tok)
-        status_is(cs, 200)
-        status_is(hs, 200)
+        ok(cs, 200)
+        ok(hs, 200)
         out[side] = (
             next((x for x in cs.body if x["call_id"] == call_id), None),
             next((x for x in hs.body if x["handoff_request_id"] == handoff_id), None),
@@ -2776,7 +2787,7 @@ def k06() -> str:
         _, h0 = call_and_handoff(call["call_id"], hid)
         expect(h0 and h0.get("status") in ("PENDING", "NOTIFIED"), "an open handoff before the text", h0)
         r = via_rust("POST", SIMULATE_TEXT, py_status=200, token=tok, body={"text": word})
-        status_is(r, 200)
+        ok(r, 200)
         c1, h1 = call_and_handoff(call["call_id"], hid)
         expect(h1.get("status") == expect_status, f"handoff {expect_status} after {word}", h1)
         if word == "JOIN":
@@ -2806,7 +2817,7 @@ def k06() -> str:
                 token=tok,
                 body={"response": "ACCEPTED"},
             )
-            expect(a.status == 409, f"409 from {side} for a second answer to handoff {hid}", a.show())
+            ok(a, 409)
             again.append(f"{side} 409 {(a.body or {}).get('error_code')}")
         t2 = via_rust("POST", SIMULATE_TEXT, py_status=200, token=tok, body={"text": word})
         expect(
@@ -2816,6 +2827,8 @@ def k06() -> str:
         )
         c2, h2 = call_and_handoff(call["call_id"], hid)
         expect(h2.get("status") == expect_status, f"handoff still {expect_status}", h2)
+        if word == "JOIN":
+            put("K06", joined_call=c2)
         notes.append(
             f"{word}: call {call['call_id'][:8]} -> {c1.get('state')}, handoff {expect_status}; {', '.join(again)}"
         )
@@ -2825,7 +2838,7 @@ def k06() -> str:
 def python_photon_routes() -> list[tuple[str, str]]:
     """Photon and owner-channel routes of the live python app (its OpenAPI document)."""
     r = py("GET", "/openapi.json")
-    status_is(r, 200)
+    ok(r, 200)
     out = []
     for path, ops in r.body.get("paths", {}).items():
         if "/owner" in path or "photon" in path:
@@ -2870,6 +2883,40 @@ def k07() -> str:
     expect(not missing, "every route forwarded and answered by python", missing)
     expect(len(reached) >= 5, "at least the five known photon routes", reached)
     return f"{len(reached)} routes, each once in both logs: {reached}; not forwarded by design: {internal}"
+
+
+@check("K08", "after the JOIN text: the owner leg python dialed, driven by signed telnyx events to rust")
+def k08() -> str:
+    """Python's owner_response (K06) dialed the owner and stored the owner leg and the conference on the call rust
+    wrote; the carrier's events for that leg come to rust's native webhook. Rust must take them on that call."""
+    (call,) = need("joined_call")
+    legs = [s for s in call.get("participant_states") or [] if s.get("role") == "owner"]
+    expect(len(legs) == 1 and legs[0].get("leg_id"), "one owner leg with a leg id (python dialed it)", call)
+    expect(bool(call.get("conference_id")), "a conference id on the call", call.get("conference_id"))
+    leg = legs[0]["leg_id"]
+    owner = base64.b64encode(json.dumps({"call_id": call["call_id"], "role": "owner"}).encode()).decode()
+    p = {"call_control_id": leg, "client_state": owner, "conference_id": call["conference_id"]}
+    states = []
+    for et, extra in (
+        ("call.answered", {}),
+        ("conference.participant.joined", {}),
+        ("call.hangup", {"hangup_cause": "normal_clearing"}),
+    ):
+        ok(telnyx_send(et, p | extra), 204)
+        c, _ = call_and_handoff(call["call_id"], call["handoff_request_id"])
+        states.append(c.get("state"))
+    expect(
+        states == ["OWNER_JOINING", "HUMAN_JOINED", "AI_RESUMED"],
+        "OWNER_JOINING after the owner answers, HUMAN_JOINED once in the conference, AI_RESUMED after the owner hangs up",
+        states,
+    )
+    texts = [t.get("text") for t in c.get("transcript") or []]
+    expect(
+        "[owner joined the call]" in texts and "[owner left the call]" in texts,
+        "the joined and left turns in the transcript",
+        texts[-6:],
+    )
+    return f"owner leg {leg} of conference {call['conference_id']}: states {states}; read identically by both services"
 
 
 # =================================================================================================================

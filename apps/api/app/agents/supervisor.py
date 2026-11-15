@@ -21,6 +21,7 @@ from app.contracts import ChatResponse
 from app.core.config import Settings
 
 from .backend_client import MAX_MESSAGE_CHARS, TOOL_ERROR_STATUS
+from .codex_chat import codex_chat, is_codex_model
 from .tools import ToolContext, build_tools
 
 SUPERVISOR_PROMPT = """You are the Second Site Expansion Supervisor. You help a business owner open their next
@@ -220,6 +221,8 @@ def run_chat(
     model = model or settings.supervisor_model
     if not model:
         return DeterministicSupervisor(ctx).chat(message)
+    if is_codex_model(model):  # codex:<model>[:<effort>]: the owner's ChatGPT subscription via the Codex CLI
+        return codex_chat(ctx, message, model, thread_id or project_thread(ctx.project_id))
     if settings.agent_checkpointer == "memory":
         if _MEMORY_CHECKPOINTER is None:
             _MEMORY_CHECKPOINTER = build_checkpointer(settings)

@@ -1,0 +1,338 @@
+"""Chat mode on the owner's ChatGPT subscription through the Codex CLI (`SUPERVISOR_MODEL=codex:<model>[:<effort>]`).
+
+A subscription is not an API key; the supported way to use it from a program is `codex exec` (non-interactive).
+Design:
+- One model call per message, and the model gets no tools. The project's facts are gathered first with the same
+  read-only tools the other modes use (project state, ranking, cost scenarios, feasibility, evidence and the
+  evidence check for the top-ranked properties), then one `codex exec` call gets a prompt holding the rules, the
+  facts as JSON, the recent turns and the owner's message. Its last message is the reply.
+- The model cannot act. The CLI runs with the read-only sandbox, the shell/exec/browser tools disabled, the user's
+  Codex config and rules ignored, in an empty temporary directory, with `--ephemeral` and a hard timeout. Its
+  environment holds only PATH, HOME, CODEX_HOME and the locale: no app setting, key or database URL. The prompt
+  goes on standard input, so it never shows in the process list.
+- Requests to act (call, email, text, buy, approve...) never reach the model: they get a fixed answer saying the
+  action is requested and approved in the app, and that nothing was done (mode `deterministic:action_request`).
+- Failure is said: a missing CLI, no sign-in, a timeout, a non-zero exit or an empty answer gives a reply that says
+  the assistant's model could not be reached (mode `codex_cli_unavailable:...`). No fallback to another mode,
+  no exception, and no CLI output in the reply or the log (only the failure kind and exit code are logged).
+Privacy: the facts and the recent turns are sent to OpenAI through the owner's subscription; nothing else is.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import tempfile
+import threading
+from collections import deque
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
+from app.contracts import ChatResponse
+from app.core.config import ProviderMode, Settings
+from app.core.logging import get_logger
+
+from .backend_client import TOOL_ERROR_STATUS
+from .tools import ToolContext, build_tools
+
+log = get_logger(__name__)
+
+PREFIX = "codex:"
+EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
+_MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+# Seconds before the CLI is killed (with its process group); the owner then reads that the model did not answer.
+TIMEOUT_S = 90
+# Properties (in rank order) whose feasibility, evidence and evidence check go into the facts.
+TOP_PROPERTIES = 3
+MAX_EVIDENCE_PER_PROPERTY = 20
+MAX_FACTS_CHARS = 60_000
+# Past exchanges (owner message + reply) kept per thread, in this process only, and sent with the next message.
+HISTORY_TURNS = 4
+MAX_HISTORY_CHARS = 1_500
+# The CLI's own features that would let the model run commands or open pages; all switched off.
+DISABLED_FEATURES = ("shell_tool", "unified_exec", "browser_use", "computer_use", "in_app_browser")
+# Only these variables reach the CLI. HOME/CODEX_HOME locate its sign-in; nothing from the app's settings.
+ENV_PASSTHROUGH = ("PATH", "HOME", "CODEX_HOME", "LANG", "LC_ALL")
+
+SYSTEM_RULES = """You are the Second Site assistant. You help a business owner open their next location.
+Rules, all binding:
+- Answer only from the FACTS JSON below and the conversation. Do not use outside knowledge about these properties,
+  prices, permits, laws or infrastructure. If the facts do not answer the question, say that you do not know.
+- Where a fact is UNKNOWN (or missing), say it is unknown. Never treat UNKNOWN as meeting a requirement.
+- Historical permits do not prove current capacity. Evidence classes (historical, visual, measured, owner-reported,
+  professionally verified, derived, unknown, conflicting) stay separate; say which class a fact is.
+- Money in the facts is integer US cents. Give amounts exactly as the facts give them, converted to dollars and
+  cents only by moving the decimal point (123456 cents = $1,234.56). Do not estimate or round new figures.
+- If data_notice says the data is fixture (demo) data, say so whenever you cite a listing, permit or price.
+- You cannot contact anyone, place calls, send messages, buy anything or approve anything. Never say that you did.
+  Outreach and purchases are requested and approved by the owner in the app.
+- Cite property ids, ranking ids or evidence ids from the facts for the claims you make.
+- Reply in plain text, briefly (at most about 200 words). No tables, no headings."""
+
+ACTION_REPLY = (
+    "I can't do that from chat: I can't contact anyone, place calls, send messages, buy anything or approve "
+    "anything. Outreach and purchases are requested and approved by you in the app ({web}). Nothing was sent, "
+    "called, bought or approved. Ask me a question about your project and I'll answer from its records."
+)
+UNAVAILABLE_REPLY = "The assistant's model could not be reached: {why}. Nothing was done. Try again later."
+
+# Messages that ask the assistant to act. They get ACTION_REPLY and never reach the model.
+_ACTION_RE = re.compile(
+    r"\b(call|phone|ring|e-?mail|sms|text (him|her|them|the|my|our|a|an)|message (him|her|them|the)|contact|"
+    r"reach out|outreach|send|buy|purchase|pay|place an order|order (the|a|an|some)|approve|book|negotiate|"
+    r"sign (the|a)|schedule (a|the))\b",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class CodexSpec:
+    model: str
+    effort: str | None
+
+    @property
+    def label(self) -> str:
+        return f"{self.model}:{self.effort}" if self.effort else self.model
+
+
+class CodexUnavailable(Exception):
+    """The CLI could not give an answer. `why` is fixed text for the owner; it never carries CLI output."""
+
+    def __init__(self, kind: str, why: str, exit_code: int | None = None):
+        super().__init__(kind)
+        self.kind = kind
+        self.why = why
+        self.exit_code = exit_code
+
+
+def is_codex_model(model: object) -> bool:
+    return isinstance(model, str) and model.strip().lower().startswith(PREFIX)
+
+
+def parse_spec(model: str) -> CodexSpec:
+    """`codex:<model>[:<effort>]`. Raises ValueError for a bad model name or an unknown effort."""
+    rest = model.strip()[len(PREFIX) :]
+    name, _, effort = rest.partition(":")
+    if not _MODEL_RE.fullmatch(name):
+        raise ValueError("SUPERVISOR_MODEL codex: model name is missing or has unexpected characters")
+    effort = effort.strip().lower() or None
+    if effort is not None and effort not in EFFORTS:
+        raise ValueError(f"SUPERVISOR_MODEL codex: effort must be one of {', '.join(EFFORTS)}")
+    return CodexSpec(name, effort)
+
+
+def is_action_request(message: str) -> bool:
+    return bool(_ACTION_RE.search(message))
+
+
+# ---- conversation memory (process-local) ---------------------------------------------------------------------
+_HISTORY: dict[str, deque[tuple[str, str]]] = {}
+_HISTORY_LOCK = threading.Lock()
+
+
+def _history(thread: str) -> list[tuple[str, str]]:
+    with _HISTORY_LOCK:
+        return list(_HISTORY.get(thread, ()))
+
+
+def _remember(thread: str, message: str, reply: str) -> None:
+    with _HISTORY_LOCK:
+        turns = _HISTORY.setdefault(thread, deque(maxlen=HISTORY_TURNS))
+        turns.append((message[:MAX_HISTORY_CHARS], reply[:MAX_HISTORY_CHARS]))
+
+
+def clear_history() -> None:
+    with _HISTORY_LOCK:
+        _HISTORY.clear()
+
+
+# ---- facts ---------------------------------------------------------------------------------------------------
+def _call(tools: dict[str, Any], name: str, args: dict[str, Any] | None = None) -> Any:
+    """The tool's JSON, or an error marker. A tool that raises (in-process mode) gives only its exception type."""
+    try:
+        text = tools[name].invoke(args or {})
+    except Exception as exc:  # noqa: BLE001 - recorded as unavailable facts, never shown as data
+        return {"status": TOOL_ERROR_STATUS, "error_code": type(exc).__name__}
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError):
+        return {"status": TOOL_ERROR_STATUS, "error_code": "BAD_TOOL_ANSWER"}
+
+
+def _data_notice(settings: Settings) -> str:
+    fixture = [
+        name
+        for name, mode in (
+            ("property listings", settings.property_provider_mode),
+            ("permits", settings.permit_provider_mode),
+        )
+        if mode == ProviderMode.FIXTURE
+    ]
+    if not fixture:
+        return "Listings and permits come from the configured providers; each fact keeps its source id."
+    return (
+        f"{' and '.join(fixture).capitalize()} in these facts are fixture (demo) data, not live records. "
+        "Say so when citing them."
+    )
+
+
+def gather_facts(ctx: ToolContext) -> tuple[dict[str, Any], list[UUID]]:
+    """Read-only facts for the prompt and the ids of the records they came from. Never runs the analysis."""
+    tools = {t.name: t for t in build_tools(ctx)}
+    ids: list[UUID] = [ctx.project_id]
+    facts: dict[str, Any] = {
+        "data_notice": _data_notice(ctx.c.settings),
+        "money_unit": "integer US cents",
+        "project_state": _call(tools, "get_project_state"),
+        "ranking": _call(tools, "get_ranking"),
+        "cost_scenarios": _call(tools, "get_cost_scenarios"),
+    }
+    ranking = facts["ranking"]
+    if isinstance(ranking, dict) and ranking.get("status") == "NO_RANKING":
+        facts["ranking_note"] = "No ranking exists yet; the owner can run the property search in the app."
+    ranked = ranking.get("ranked") if isinstance(ranking, dict) else None
+    if isinstance(ranking, dict) and isinstance(ranking.get("ranking_id"), str):
+        ids.append(UUID(ranking["ranking_id"]))
+    details = []
+    for r in (ranked if isinstance(ranked, list) else [])[:TOP_PROPERTIES]:
+        if not isinstance(r, dict) or not isinstance(r.get("property_id"), str):
+            continue
+        pid = r["property_id"]
+        evidence = _call(tools, "get_property_evidence", {"property_id": pid})
+        if isinstance(evidence, list):
+            evidence = evidence[:MAX_EVIDENCE_PER_PROPERTY]
+            ids += [UUID(e["id"]) for e in evidence if isinstance(e, dict) and isinstance(e.get("id"), str)]
+        details.append(
+            {
+                "property_id": pid,
+                "rank": r.get("rank"),
+                "feasibility": _call(tools, "get_feasibility", {"property_id": pid}),
+                "evidence": evidence,
+                "evidence_check": _call(tools, "validate_evidence", {"property_id": pid}),
+            }
+        )
+        ids.append(UUID(pid))
+    facts["top_properties"] = details
+    if len(json.dumps(facts, default=str)) > MAX_FACTS_CHARS:
+        for d in details:
+            d["evidence"] = "omitted: too long for one message"
+        facts["truncated"] = True
+    ids += [i for i in ctx.touched_records if i not in ids]
+    return facts, list(dict.fromkeys(ids))
+
+
+def build_prompt(facts: dict[str, Any], history: list[tuple[str, str]], message: str) -> str:
+    parts = [SYSTEM_RULES, "", "FACTS (JSON):", json.dumps(facts, default=str, indent=1), ""]
+    if history:
+        parts.append("RECENT CONVERSATION (oldest first):")
+        for owner, reply in history:
+            parts += [f"Owner: {owner}", f"Assistant: {reply}"]
+        parts.append("")
+    parts += ["OWNER'S MESSAGE:", message, "", "Write the assistant's reply."]
+    return "\n".join(parts)
+
+
+# ---- the CLI -------------------------------------------------------------------------------------------------
+def command(executable: str, spec: CodexSpec, workdir: str, out_file: str) -> list[str]:
+    argv = [executable, "exec", "-m", spec.model]
+    if spec.effort:
+        argv += ["-c", f'model_reasoning_effort="{spec.effort}"']
+    argv += ["-s", "read-only", "-C", workdir, "--skip-git-repo-check", "--ephemeral"]
+    argv += ["--ignore-user-config", "--ignore-rules", "--color", "never"]
+    for feature in DISABLED_FEATURES:
+        argv += ["--disable", feature]
+    argv += ["-o", out_file, "-"]  # "-": the prompt is read from standard input
+    return argv
+
+
+def _cli_env() -> dict[str, str]:
+    return {k: os.environ[k] for k in ENV_PASSTHROUGH if os.environ.get(k)}
+
+
+_SIGN_IN_RE = re.compile(r"log ?in|sign(ed)? ?in|unauthori[sz]ed|\b401\b|auth", re.IGNORECASE)
+
+
+def run_codex(spec: CodexSpec, prompt: str, timeout_s: float | None = None) -> str:
+    """The model's last message, or CodexUnavailable. Output of the CLI is never logged or returned on failure."""
+    exe = shutil.which("codex")
+    if exe is None:
+        raise CodexUnavailable("missing", "the Codex CLI is not installed on the server")
+    with tempfile.TemporaryDirectory(prefix="ss-codex-") as base:
+        workdir = Path(base, "work")
+        workdir.mkdir()  # empty: the model has no files to look at
+        out_file = Path(base, "last-message.txt")  # outside the working directory
+        proc = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+            command(exe, spec, str(workdir), str(out_file)),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=workdir,
+            env=_cli_env(),
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            _stdout, stderr = proc.communicate(prompt, timeout=timeout_s or TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            _kill_group(proc)
+            raise CodexUnavailable(
+                "timeout", f"the model did not answer within {timeout_s or TIMEOUT_S:g} seconds"
+            ) from None
+        if proc.returncode != 0:
+            if _SIGN_IN_RE.search(stderr or ""):
+                raise CodexUnavailable(
+                    "not_signed_in",
+                    "the Codex CLI is not signed in or its sign-in was refused",
+                    proc.returncode,
+                )
+            raise CodexUnavailable(
+                "exit", f"the Codex CLI stopped with exit code {proc.returncode}", proc.returncode
+            )
+        answer = out_file.read_text(encoding="utf-8", errors="replace").strip() if out_file.exists() else ""
+    if not answer:
+        raise CodexUnavailable("empty", "the model returned an empty answer")
+    return answer
+
+
+def _kill_group(proc: subprocess.Popen) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        proc.kill()
+    proc.communicate()
+
+
+# ---- the chat ------------------------------------------------------------------------------------------------
+def codex_chat(ctx: ToolContext, message: str, model: str, thread_id: str) -> ChatResponse:
+    try:
+        spec = parse_spec(model)
+    except ValueError as exc:
+        log.warning("codex chat misconfigured: %s", exc)
+        return ChatResponse(
+            reply=UNAVAILABLE_REPLY.format(why="SUPERVISOR_MODEL has an invalid codex: setting"),
+            mode="codex_cli_unavailable:invalid_setting",
+        )
+    if is_action_request(message):
+        return ChatResponse(
+            reply=ACTION_REPLY.format(web=ctx.c.settings.public_web_url), mode="deterministic:action_request"
+        )
+    facts, ids = gather_facts(ctx)
+    prompt = build_prompt(facts, _history(thread_id), message)
+    try:
+        reply = run_codex(spec, prompt)
+    except CodexUnavailable as exc:
+        log.warning("codex chat unavailable: kind=%s exit_code=%s", exc.kind, exc.exit_code)
+        return ChatResponse(
+            reply=UNAVAILABLE_REPLY.format(why=exc.why),
+            mode=f"codex_cli_unavailable:{spec.label}",
+            grounded_record_ids=[],
+        )
+    _remember(thread_id, message, reply)
+    return ChatResponse(reply=reply, mode=f"codex_cli:{spec.label}", grounded_record_ids=ids)
