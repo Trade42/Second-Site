@@ -16,7 +16,7 @@
 #
 # Settings (environment; see README "What it needs"):
 #   E2E_PG_URL   PostgreSQL URL of a database the harness may create and drop private schemas in, e.g.
-#                postgresql://secondsite:secondsite@localhost:5432/secondsite (TCP) or postgresql://u@/db?host=/sock/dir
+#                postgresql://secondsite:secondsite@localhost:5432/secondsite (TCP) or postgresql://u@localhost/db?host=/sock/dir
 #   E2E_CARGO    cargo command, run in apps/backend (default: cargo)
 #   E2E_PYTHON   Python of apps/api's virtualenv (default: apps/api/.venv/bin/python)
 #   CARGO_TARGET_DIR  where the release binary is built (default: apps/backend/target)
@@ -134,7 +134,7 @@ say "repository $REPO; run directory $RUN; migrate with $MIGRATE_WITH; driver $D
 [ -n "$E2E_PG_URL" ] || fatal "no database: set E2E_PG_URL, e.g. postgresql://secondsite:secondsite@localhost:5432/secondsite (this harness never starts one)"
 command -v curl >/dev/null || fatal "curl is required (health probes)"
 [ ! -e "$CWD/.env" ] && [ ! -e "$RUN/cwd/.env" ] || fatal "a .env file exists where a process would read it"
-DB="$("$PY" -I "$E2E/pgschema.py" dbname 2>>"$RUN/harness.log")" || fatal "E2E_PG_URL is not a usable PostgreSQL URL (see $RUN/harness.log)"
+DB="$("$PY" -I "$E2E/pgschema.py" dbname 2>>"$RUN/harness.log")" || fatal "cannot connect to the database at E2E_PG_URL (see $RUN/harness.log)"
 
 # ---- 1. the binary -------------------------------------------------------------------------------------------
 BIN_ORIGIN=""

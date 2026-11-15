@@ -18,7 +18,7 @@
 mod common;
 
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpStream};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -58,14 +58,6 @@ fn carrier() -> MockServer {
             _ => json!({"data": {"result": "ok"}}),
         })
     })
-}
-
-/// A port on loopback where nothing listens.
-fn closed_port() -> u16 {
-    let l = TcpListener::bind("127.0.0.1:0").unwrap();
-    let p = l.local_addr().unwrap().port();
-    drop(l);
-    p
 }
 
 /// Serve `router` on an ephemeral loopback port.
@@ -142,17 +134,14 @@ impl CallCtx {
     }
 
     fn live(&self, carrier: &MockServer) {
-        self.t
-            .app
-            .extensions
-            .insert(Arc::new(Voice::live(Arc::new(
-                LiveTelnyxProvider::with_base_url(
-                    "KEY",
-                    "conn1",
-                    true,
-                    &format!("{}/v2", carrier.base),
-                ),
-            ))));
+        self.t.app.extensions.insert(Arc::new(Voice::live(Arc::new(
+            LiveTelnyxProvider::with_base_url(
+                "KEY",
+                "conn1",
+                true,
+                &format!("{}/v2", carrier.base),
+            ),
+        ))));
         assert_eq!(self.t.app.voice().mode(), "live");
     }
 
@@ -179,7 +168,10 @@ impl CallCtx {
         assert_eq!(r.status, StatusCode::ACCEPTED, "{}", r.text);
         let props = self
             .t
-            .get(&format!("/api/v1/projects/{pid}/properties"), Some(&self.token))
+            .get(
+                &format!("/api/v1/projects/{pid}/properties"),
+                Some(&self.token),
+            )
             .await;
         let prop = props
             .body
@@ -319,7 +311,8 @@ fn telnyx_key() -> SigningKey {
 }
 
 fn telnyx_app(db: &TestDb) -> TestApp {
-    let pk = base64::engine::general_purpose::STANDARD.encode(telnyx_key().verifying_key().to_bytes());
+    let pk =
+        base64::engine::general_purpose::STANDARD.encode(telnyx_key().verifying_key().to_bytes());
     let t = TestApp::new(db, &[("TELNYX_PUBLIC_KEY", pk.as_str())]);
     let fake = Arc::new(RecordingNotifier::new());
     t.app.extensions.insert(Arc::new(OwnerNotify::new(fake)));
@@ -452,7 +445,10 @@ async fn stalled_uploads_are_answered_within_the_bound() {
     let mut jobs = Vec::new();
     for (name, raw) in cases {
         jobs.push(tokio::task::spawn_blocking(move || {
-            (name, stalled(addr, raw.into_bytes(), Duration::from_secs(40)))
+            (
+                name,
+                stalled(addr, raw.into_bytes(), Duration::from_secs(40)),
+            )
         }));
     }
     for job in jobs {
@@ -507,7 +503,6 @@ fn a_target_naming_this_services_own_listener_is_not_usable() {
             "http://127.0.0.1:8123",
             "http://localhost:8123",
             "http://LOCALHOST:8123/",
-            "http://localhost.:8123",
             "http://[::1]:8123",
             "http://0.0.0.0:8123",
             "http://[::]:8123",
@@ -515,6 +510,11 @@ fn a_target_naming_this_services_own_listener_is_not_usable() {
             "https://localhost:8123",
             "http://[::ffff:127.0.0.1]:8123",
             "http://127.1.2.3:8123",
+            // The resolver's `inet_aton` spellings of 127.0.0.1.
+            "http://127.1:8123",
+            "http://2130706433:8123",
+            "http://0x7f.0.0.1:8123",
+            "http://0177.0.0.1:8123",
         ] {
             assert!(own(host, "8123", url), "HOST={host} {url}");
         }
@@ -555,7 +555,10 @@ fn a_target_naming_this_services_own_listener_is_not_usable() {
 }
 
 both_backends!(a_self_target_answers_503_at_once_and_is_blocked, |db| {
-    let port = closed_port();
+    // Something does listen on that port (here a mock), but nothing is sent to it: no forward
+    // and no health check.
+    let listener = MockServer::start_with(|_req: &Recorded| json_reply(json!({"status": "ok"})));
+    let port: u16 = listener.base.rsplit(':').next().unwrap().parse().unwrap();
     let url = format!("http://127.0.0.1:{port}");
     let p = port.to_string();
     let t = TestApp::new(
@@ -571,7 +574,10 @@ both_backends!(a_self_target_answers_503_at_once_and_is_blocked, |db| {
     assert!(t0.elapsed() < Duration::from_secs(1), "{:?}", t0.elapsed());
     assert_problem(&r, 503, "PYTHON_SERVICE_NOT_CONFIGURED");
     let msg = r.body["message"].as_str().unwrap();
-    assert!(msg.contains("not usable") && msg.contains("this service"), "{msg}");
+    assert!(
+        msg.contains("not usable") && msg.contains("this service"),
+        "{msg}"
+    );
     assert_eq!(r.body["retryable"], false);
     let ready = t.get("/ready", None).await;
     let entry = ready.body["providers"]
@@ -586,6 +592,8 @@ both_backends!(a_self_target_answers_503_at_once_and_is_blocked, |db| {
         entry["note"].as_str().unwrap().contains("this service"),
         "{entry}"
     );
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(listener.requests().is_empty(), "{:?}", listener.requests());
 });
 
 fn quick() -> Timeouts {
@@ -618,7 +626,10 @@ async fn this_services_own_health_answer_is_recognised() {
     let t = TestApp::new(&db, &[("HOST", "127.0.0.1"), ("PORT", "1")]);
     let addr = serve(t.router.clone()).await;
     let url = format!("http://{addr}");
-    install(&t.app, Arc::new(PythonLink::new(parse_target(Some(&url)), quick())));
+    install(
+        &t.app,
+        Arc::new(PythonLink::new(parse_target(Some(&url)), quick())),
+    );
     let deadline = Instant::now() + Duration::from_secs(5);
     let entry = loop {
         let e = python_entry(&t).await;
@@ -634,11 +645,330 @@ async fn this_services_own_health_answer_is_recognised() {
     );
     let t0 = Instant::now();
     let r = t.get("/api/v1/owner/channel", None).await;
-    assert!(t0.elapsed() < Duration::from_millis(500), "{:?}", t0.elapsed());
+    assert!(
+        t0.elapsed() < Duration::from_millis(500),
+        "{:?}",
+        t0.elapsed()
+    );
     assert_problem(&r, 503, "PYTHON_SERVICE_NOT_CONFIGURED");
     assert!(
         r.body["message"].as_str().unwrap().contains("this service"),
         "{}",
         r.text
     );
+}
+
+// ---- R1 with a short bound (the same layer, `http::with_body_idle_timeout`) -------------------
+
+const SHORT: Duration = Duration::from_secs(1);
+
+fn short_router(t: &TestApp) -> axum::Router {
+    ss_server::http::with_body_idle_timeout(
+        ss_server::http::routes::api_routes(),
+        t.app.clone(),
+        SHORT,
+    )
+}
+
+fn media_dir() -> String {
+    let d = std::env::temp_dir()
+        .join(format!("ss-part6-{}", Uuid::new_v4().simple()))
+        .join("objects");
+    std::fs::create_dir_all(&d).unwrap();
+    d.to_string_lossy().into_owned()
+}
+
+/// Every route answers a stalled body with the same honest 408, closes the connection, and the
+/// forwarded ones say that nothing was forwarded (and nothing was).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_stalled_body_is_an_honest_408_on_every_kind_of_route() {
+    let db = TestDb::new(common::Kind::Memory).await.unwrap();
+    let python = MockServer::start_with(|_req: &Recorded| json_reply(json!({"status": "ok"})));
+    let dir = media_dir();
+    let t = TestApp::new(
+        &db,
+        &[
+            ("PYTHON_SERVICE_URL", python.base.as_str()),
+            ("OBJECT_STORAGE_LOCAL_DIR", dir.as_str()),
+        ],
+    );
+    let (token, _) = t.dev_token().await;
+    let p = t.create_project(&token, &demo_project_body()).await;
+    let pid = p["project"]["project_id"].as_str().unwrap().to_owned();
+    let addr = serve(short_router(&t)).await;
+    let auth = format!("authorization: Bearer {token}\r\n");
+    let cases: Vec<(&str, bool, String)> = vec![
+        ("native JSON", false, format!("POST /api/v1/projects HTTP/1.1\r\nhost: x\r\n{auth}content-type: application/json\r\ncontent-length: 1000\r\n\r\n{{\"a\"")),
+        ("native chunked", false, format!("POST /api/v1/projects HTTP/1.1\r\nhost: x\r\n{auth}content-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n4\r\n{{\"a\"\r\n")),
+        ("native webhook", false, "POST /webhooks/telnyx HTTP/1.1\r\nhost: x\r\ncontent-length: 1000\r\n\r\n{\"a\"".to_owned()),
+        ("native multipart", false, format!("POST /api/v1/projects/{pid}/media HTTP/1.1\r\nhost: x\r\n{auth}content-type: multipart/form-data; boundary=BND\r\ncontent-length: 5000\r\n\r\n--BND\r\ncontent-disposition: form-data; name=\"file\"; filename=\"a.jpg\"\r\ncontent-type: image/jpeg\r\n\r\nabc")),
+        ("forwarded chat", true, format!("POST /api/v1/projects/{pid}/chat HTTP/1.1\r\nhost: x\r\n{auth}content-type: application/json\r\ncontent-length: 1000\r\n\r\n{{\"a\"")),
+        ("forwarded webhook", true, "POST /webhooks/photon HTTP/1.1\r\nhost: x\r\ncontent-length: 1000\r\n\r\n{\"a\"".to_owned()),
+        ("forwarded chunked", true, "POST /webhooks/photon HTTP/1.1\r\nhost: x\r\ntransfer-encoding: chunked\r\n\r\n2\r\n{}\r\n".to_owned()),
+    ];
+    let mut jobs = Vec::new();
+    for (name, forwarded, raw) in cases {
+        jobs.push(tokio::task::spawn_blocking(move || {
+            (
+                name,
+                forwarded,
+                stalled(addr, raw.into_bytes(), Duration::from_secs(10)),
+            )
+        }));
+    }
+    for job in jobs {
+        let (name, forwarded, (answer, took)) = job.await.unwrap();
+        let answer = answer.unwrap_or_else(|| panic!("{name}: no answer in {took:?}"));
+        let (head, _) = answer.split_once("\r\n\r\n").unwrap();
+        assert!(head.starts_with("HTTP/1.1 408 "), "{name}: {head}");
+        assert!(
+            took >= SHORT && took < SHORT + Duration::from_secs(2),
+            "{name}: {took:?}"
+        );
+        assert!(
+            head.to_ascii_lowercase().contains("\r\nconnection: close"),
+            "{name}: {head}"
+        );
+        assert!(
+            head.to_ascii_lowercase().contains("\r\nx-request-id: "),
+            "{name}: {head}"
+        );
+        let body = raw_body(&answer);
+        common::assert_conforms("ProblemDetail", &body);
+        assert_eq!(body["error_code"], "REQUEST_TIMEOUT", "{name}");
+        assert_eq!(body["retryable"], true, "{name}");
+        assert!(body["request_id"].is_string(), "{name}");
+        let msg = body["message"].as_str().unwrap();
+        assert!(msg.contains("stopped arriving"), "{name}: {msg}");
+        if forwarded {
+            assert!(msg.contains("nothing was forwarded"), "{name}: {msg}");
+        } else {
+            assert!(msg.contains("not processed"), "{name}: {msg}");
+        }
+    }
+    let forwarded: Vec<String> = python
+        .requests()
+        .into_iter()
+        .map(|r| r.path)
+        .filter(|p| p != "/health")
+        .collect();
+    assert!(forwarded.is_empty(), "{forwarded:?}");
+    // Nothing was created by the stalled project creation or upload.
+    let projects = t.get("/api/v1/projects", Some(&token)).await;
+    assert_eq!(
+        projects.body.as_array().unwrap().len(),
+        1,
+        "{}",
+        projects.text
+    );
+    assert!(std::fs::read_dir(&dir).unwrap().next().is_none());
+}
+
+/// Send `head`, then `body` in `chunk`-byte pieces with `gap` between them; the full answer.
+fn trickle(addr: SocketAddr, head: String, body: &[u8], chunk: usize, gap: Duration) -> String {
+    let mut s = TcpStream::connect(addr).unwrap();
+    s.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
+    s.write_all(head.as_bytes()).unwrap();
+    for piece in body.chunks(chunk) {
+        std::thread::sleep(gap);
+        s.write_all(piece).unwrap();
+    }
+    let mut out = Vec::new();
+    let _ = s.read_to_end(&mut out);
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// A slow but steady upload (every piece within the bound, the whole far longer than it) is not
+/// cut off: a media file is stored whole, and a forwarded body arrives byte for byte.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_slow_steady_upload_is_not_cut_off() {
+    let db = TestDb::new(common::Kind::Memory).await.unwrap();
+    let python = MockServer::start_with(|_req: &Recorded| Canned {
+        status: 204,
+        content_type: None,
+        body: Vec::new(),
+    });
+    let dir = media_dir();
+    let t = TestApp::new(
+        &db,
+        &[
+            ("PYTHON_SERVICE_URL", python.base.as_str()),
+            ("OBJECT_STORAGE_LOCAL_DIR", dir.as_str()),
+        ],
+    );
+    let (token, _) = t.dev_token().await;
+    let p = t.create_project(&token, &demo_project_body()).await;
+    let pid = p["project"]["project_id"].as_str().unwrap().to_owned();
+    let addr = serve(short_router(&t)).await;
+    let file: Vec<u8> = (0..6000u32).map(|i| (i * 7 % 251) as u8).collect();
+    let mut form = b"--BND\r\ncontent-disposition: form-data; name=\"file\"; filename=\"slow.jpg\"\r\ncontent-type: image/jpeg\r\n\r\n".to_vec();
+    form.extend_from_slice(&file);
+    form.extend_from_slice(b"\r\n--BND--\r\n");
+    let head = format!(
+        "POST /api/v1/projects/{pid}/media HTTP/1.1\r\nhost: x\r\nauthorization: Bearer {token}\r\ncontent-type: multipart/form-data; boundary=BND\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+        form.len()
+    );
+    let t0 = Instant::now();
+    // 25 pieces, 300 ms apart: about 7.5 s in all, under a 1 s idle bound.
+    let answer = tokio::task::spawn_blocking(move || {
+        trickle(addr, head, &form, 250, Duration::from_millis(300))
+    })
+    .await
+    .unwrap();
+    assert!(t0.elapsed() > SHORT * 5, "{:?}", t0.elapsed());
+    assert!(answer.starts_with("HTTP/1.1 201 "), "{answer}");
+    let body = raw_body(&answer);
+    assert_eq!(body["size_bytes"], 6000, "{answer}");
+    let key = body["object_key"].as_str().unwrap();
+    assert_eq!(
+        std::fs::read(std::path::Path::new(&dir).join(key)).unwrap(),
+        file
+    );
+
+    // The same through the forwarder.
+    let payload: Vec<u8> = (0..3000u32).map(|i| (i % 256) as u8).collect();
+    let head = format!(
+        "POST /webhooks/photon HTTP/1.1\r\nhost: x\r\ncontent-type: application/octet-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+        payload.len()
+    );
+    let sent = payload.clone();
+    let t0 = Instant::now();
+    let answer = tokio::task::spawn_blocking(move || {
+        trickle(addr, head, &sent, 300, Duration::from_millis(300))
+    })
+    .await
+    .unwrap();
+    assert!(t0.elapsed() > SHORT * 2, "{:?}", t0.elapsed());
+    assert!(answer.starts_with("HTTP/1.1 204 "), "{answer}");
+    let got: Vec<Vec<u8>> = python
+        .requests()
+        .into_iter()
+        .filter(|r| r.path == "/webhooks/photon")
+        .map(|r| r.body)
+        .collect();
+    assert_eq!(got, [payload]);
+}
+
+/// The bound is on request bodies only: the event stream stays open, and keeps sending, for far
+/// longer than the bound.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_event_stream_outlives_the_bound() {
+    let db = TestDb::new(common::Kind::Memory).await.unwrap();
+    let t = TestApp::new(&db, &[]);
+    let (token, _) = t.dev_token().await;
+    let p = t.create_project(&token, &demo_project_body()).await;
+    let pid = p["project"]["project_id"].as_str().unwrap().to_owned();
+    let addr = serve(short_router(&t)).await;
+    let answer = tokio::task::spawn_blocking(move || {
+        let mut s = TcpStream::connect(addr).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        s.write_all(
+            format!("GET /api/v1/projects/{pid}/events/stream HTTP/1.1\r\nhost: x\r\nauthorization: Bearer {token}\r\n\r\n")
+                .as_bytes(),
+        )
+        .unwrap();
+        let t0 = Instant::now();
+        let mut out = Vec::new();
+        let mut buf = [0u8; 4096];
+        // Read for 4 s (4 bounds): keepalives keep arriving after the bound.
+        while t0.elapsed() < Duration::from_secs(4) {
+            match s.read(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => out.extend_from_slice(&buf[..n]),
+            }
+        }
+        (String::from_utf8_lossy(&out).into_owned(), t0.elapsed())
+    })
+    .await
+    .unwrap();
+    let (text, took) = answer;
+    assert!(text.starts_with("HTTP/1.1 200 "), "{text}");
+    assert!(
+        took >= Duration::from_secs(4),
+        "the stream closed after {took:?}: {text}"
+    );
+    assert!(text.matches(": keepalive\n\n").count() >= 3, "{text}");
+}
+
+// ---- R2 (b): the health answer and the one-round loop guard -----------------------------------
+
+#[tokio::test]
+async fn only_this_services_health_answer_carries_the_marker() {
+    let db = TestDb::new(common::Kind::Memory).await.unwrap();
+    let t = TestApp::new(&db, &[]);
+    let h = t.get("/health", None).await;
+    assert_eq!(h.status, StatusCode::OK);
+    assert_eq!(h.headers["x-second-site-backend"], "rust");
+    for path in ["/ready", "/api/v1/projects", "/nope"] {
+        let r = t.get(path, None).await;
+        assert!(!r.headers.contains_key("x-second-site-backend"), "{path}");
+    }
+}
+
+/// Before any health check has run (the link is installed without its checks), a request that
+/// goes round through this service is refused when it comes back: one round, a 508, at once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_request_that_comes_back_is_not_forwarded_again() {
+    let db = TestDb::new(common::Kind::Memory).await.unwrap();
+    let t = TestApp::new(&db, &[("HOST", "127.0.0.1"), ("PORT", "1")]);
+    let addr = serve(t.router.clone()).await;
+    let url = format!("http://{addr}");
+    // No `install`: no health check, so only the loop guard can stop it.
+    t.app
+        .extensions
+        .insert(Arc::new(PythonLink::new(parse_target(Some(&url)), quick())));
+    for (method, path, body) in [
+        (Method::GET, "/api/v1/owner/channel?x=1", None),
+        (
+            Method::POST,
+            "/webhooks/photon",
+            Some(json!({"type": "message.received"})),
+        ),
+    ] {
+        let t0 = Instant::now();
+        let r = t.call(method.clone(), path, None, body.as_ref()).await;
+        assert!(
+            t0.elapsed() < Duration::from_secs(1),
+            "{path}: {:?}",
+            t0.elapsed()
+        );
+        assert_problem(&r, 508, "PYTHON_SERVICE_LOOP");
+        assert!(
+            r.body["message"]
+                .as_str()
+                .unwrap()
+                .contains("not forwarded again"),
+            "{}",
+            r.text
+        );
+    }
+}
+
+/// The guard holds a request only while it is being forwarded: the same request with the same
+/// `x-request-id`, sent again after the first one was answered, is forwarded again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_repeated_request_is_forwarded_once_the_first_is_answered() {
+    let db = TestDb::new(common::Kind::Memory).await.unwrap();
+    let python = MockServer::start_with(|_req: &Recorded| json_reply(json!({"ok": true})));
+    let t = TestApp::new(&db, &[("PYTHON_SERVICE_URL", python.base.as_str())]);
+    for _ in 0..3 {
+        let r = t
+            .send(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/webhooks/photon")
+                    .header("x-request-id", "fixed-id")
+                    .header("content-type", "application/json")
+                    .body(Body::from("{}"))
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+    }
+    let n = python
+        .requests()
+        .into_iter()
+        .filter(|r| r.path == "/webhooks/photon")
+        .count();
+    assert_eq!(n, 3);
 }

@@ -23,7 +23,7 @@ Settings come from the environment of `run.sh`; set-up stops with exit 2 and nam
 
 | variable | meaning | default |
 |---|---|---|
-| `E2E_PG_URL` | a running PostgreSQL 16 database the harness may create and drop private schemas `e2e_<12 hex>` in: `postgresql://user:password@host:port/db` over TCP, or `postgresql://user@/db?host=/socket/dir` | none (this repository's sandbox socket instance, only where that socket exists) |
+| `E2E_PG_URL` | a running PostgreSQL 16 database the harness may create and drop private schemas `e2e_<12 hex>` in: `postgresql://user:password@host:port/db` over TCP, or `postgresql://user@localhost/db?host=/socket/dir` (a socket; `localhost` is added when the host is empty) | none (this repository's sandbox socket instance, only where that socket exists) |
 | `E2E_CARGO` | the cargo command, run in `apps/backend` (may carry arguments, e.g. `cargo +stable`) | `cargo` (this repository's sandbox wrapper, only where it exists) |
 | `CARGO_TARGET_DIR` | where `release/second-site-backend` is built and found (`--no-build` uses it as is) | `apps/backend/target` |
 | `E2E_PYTHON` | the Python of the `apps/api` virtualenv (the app, alembic, `httpx`, `psycopg`) | `apps/api/.venv/bin/python` |

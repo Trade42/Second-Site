@@ -265,11 +265,12 @@ type DotenvValues = Vec<(String, Option<String>)>;
 /// reads as empty; a set but empty name stays empty (no default). `$NAME` without braces stays
 /// as it is.
 fn dotenv_values(text: &str, environ: &dyn Fn(&str) -> Option<String>) -> DotenvValues {
-    let chars: Vec<char> = text.strip_prefix('\u{feff}').unwrap_or(text).chars().collect();
-    let mut r = DotenvReader {
-        s: &chars,
-        pos: 0,
-    };
+    let chars: Vec<char> = text
+        .strip_prefix('\u{feff}')
+        .unwrap_or(text)
+        .chars()
+        .collect();
+    let mut r = DotenvReader { s: &chars, pos: 0 };
     let mut out: DotenvValues = Vec::new();
     let mut index: HashMap<String, usize> = HashMap::new();
     while r.pos < chars.len() {
@@ -355,7 +356,10 @@ impl DotenvReader<'_> {
         // `(?:export[^\S\r\n]+)?`
         let export: Vec<char> = "export".chars().collect();
         if self.s[self.pos..].starts_with(&export)
-            && self.s.get(self.pos + export.len()).is_some_and(|&c| hspace(c))
+            && self
+                .s
+                .get(self.pos + export.len())
+                .is_some_and(|&c| hspace(c))
         {
             self.pos += export.len();
             self.skip(hspace);
@@ -460,7 +464,10 @@ impl DotenvReader<'_> {
                     }
                 }
                 let kept = &part[..cut];
-                let end = kept.iter().rposition(|&c| !py_space(c)).map_or(0, |p| p + 1);
+                let end = kept
+                    .iter()
+                    .rposition(|&c| !py_space(c))
+                    .map_or(0, |p| p + 1);
                 Some(kept[..end].iter().collect())
             }
         }
@@ -534,9 +541,7 @@ fn variable_at(s: &[char], i: usize) -> Option<(usize, String, Option<String>)> 
         return None;
     }
     let name_start = i + 2;
-    let name_len = s[name_start..]
-        .iter()
-        .position(|&c| c == '}' || c == ':')?;
+    let name_len = s[name_start..].iter().position(|&c| c == '}' || c == ':')?;
     let name: String = s[name_start..name_start + name_len].iter().collect();
     let after = name_start + name_len;
     if s[after] == '}' {
@@ -548,7 +553,9 @@ fn variable_at(s: &[char], i: usize) -> Option<(usize, String, Option<String>)> 
     }
     let default_start = after + 2;
     let default_len = s[default_start..].iter().position(|&c| c == '}')?;
-    let default = s[default_start..default_start + default_len].iter().collect();
+    let default = s[default_start..default_start + default_len]
+        .iter()
+        .collect();
     Some((default_start + default_len + 1, name, Some(default)))
 }
 
@@ -958,7 +965,12 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|p| (p[0].as_str().unwrap().to_owned(), p[1].as_str().map(str::to_owned)))
+                .map(|p| {
+                    (
+                        p[0].as_str().unwrap().to_owned(),
+                        p[1].as_str().map(str::to_owned),
+                    )
+                })
                 .collect();
             let got = read_dotenv(f["text"].as_str().unwrap(), &|n| environ.get(n).cloned());
             assert_eq!(got, want, "{}", f["name"]);
@@ -978,7 +990,11 @@ mod tests {
              PHOTON_PROJECT_ID=from-dot-env\nAPP_ENV=from-dot-env\n",
         )
         .unwrap();
-        std::fs::write(root.join(".env"), "PHOTON_PROJECT_ID\rAPP_VERSION='${VERSION}'\r").unwrap();
+        std::fs::write(
+            root.join(".env"),
+            "PHOTON_PROJECT_ID\rAPP_VERSION='${VERSION}'\r",
+        )
+        .unwrap();
         let env = vec![
             ("VERSION".to_owned(), "9.9.9".to_owned()),
             ("APP_ENV".to_owned(), "from-env".to_owned()),

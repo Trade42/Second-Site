@@ -1943,7 +1943,7 @@ enum CallResult {
     /// The call was not started: the send window had passed, or its task never ran.
     NotStarted(String),
     /// The crate's answer.
-    Answer(Result<SimulatedPaymentRecord, PaymentError>),
+    Answer(Result<Box<SimulatedPaymentRecord>, PaymentError>),
     /// The call's task failed after it may have sent the request.
     Lost(String),
 }
@@ -2183,7 +2183,7 @@ async fn call_bank(
     })
     .await;
     match joined {
-        Ok(Some(answer)) => CallResult::Answer(answer),
+        Ok(Some(answer)) => CallResult::Answer(answer.map(Box::new)),
         Ok(None) => CallResult::NotStarted(format!(
             "the bank call could not start within {} ms of the claim",
             window.as_millis()

@@ -5,7 +5,7 @@ Usage (the database is E2E_PG_URL, a PostgreSQL URL: TCP with a password, or a U
   pgschema.py drop <schema>        end this run's connections (application_name = schema), drop it
   pgschema.py tables <schema>      table names in a schema (or in `public`, read only), one per line
   pgschema.py list                 non-system schemas of the database, one line
-  pgschema.py dbname               the database name of E2E_PG_URL
+  pgschema.py dbname               connect to E2E_PG_URL and print its database name
   pgschema.py url <schema>         the services' DATABASE_URL: +psycopg, search_path and application_name set
 
 Schema names must look like `e2e_<hex>`, so this helper can never create or drop `public` or another
@@ -46,15 +46,19 @@ def main(argv: list[str]) -> int:
         print(__doc__, file=sys.stderr)
         return 2
     cmd = argv[0]
-    if cmd == "dbname":
-        print(urlsplit(_url()).path.lstrip("/") or os.environ.get("USER", ""))
+    if cmd == "dbname":  # connects, so that set-up stops before the build when the database cannot be reached
+        with _connect() as c:
+            print(c.info.dbname)
         return 0
     if cmd == "url":
         u = urlsplit(_url())
         # The values are not percent-encoded on purpose (as before): libpq, sqlx and alembic all read them as is.
         extra = f"options=-csearch_path={_schema(argv[1])}&application_name={argv[1]}"
         query = f"{u.query}&{extra}" if u.query else extra
-        print(urlunsplit(("postgresql+psycopg", u.netloc, u.path, query, "")))
+        netloc = u.netloc  # libpq takes `user@/db?host=/dir`; the Rust service (sqlx) refuses an empty host
+        if not u.hostname:
+            netloc = f"{netloc}localhost" if netloc.endswith("@") or not netloc else f"{netloc}@localhost"
+        print(urlunsplit(("postgresql+psycopg", netloc, u.path, query, "")))
         return 0
     if cmd == "list":
         with _connect() as c:

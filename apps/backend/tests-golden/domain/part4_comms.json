@@ -7373,6 +7373,120 @@
    }
   },
   {
+   "answer": "from 200 up to 400 amps",
+   "describe": "tenant_subpanel_amps: 400 A",
+   "finding": {
+    "answer": "from 200 up to 400 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 400
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "up to 400 amps",
+   "describe": "tenant_subpanel_amps: 400 A",
+   "finding": {
+    "answer": "up to 400 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 400
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "at least 200 amps",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "at least 200 amps",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "200 amps or more",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "200 amps or more",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "2000 a month",
+   "describe": "tenant_subpanel_amps: 2000 A",
+   "finding": {
+    "answer": "2000 a month",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 2000
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
+   "answer": "The panel is 200 amps, and we use about 80 of them",
+   "describe": "tenant_subpanel_amps: 200 A",
+   "finding": {
+    "answer": "The panel is 200 amps, and we use about 80 of them",
+    "claim_type": "tenant_subpanel_amps",
+    "classification": "OWNER_REPORTED",
+    "question": "How many amps?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "A",
+    "value": 200
+   },
+   "question": {
+    "claim_type": "tenant_subpanel_amps",
+    "question": "How many amps?",
+    "requirement_id": "fs.electrical.tenant_service"
+   }
+  },
+  {
    "answer": "It's about 1,250 usable square feet.",
    "describe": "usable_area_sqft: 1250 sqft",
    "finding": {
@@ -8707,6 +8821,44 @@
    "describe": "usable_area_sqft: 1128 sqft",
    "finding": {
     "answer": "1,128 square feet, roughly",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1128
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "It's about 1,128 square feet, maybe 1,200",
+   "describe": "usable_area_sqft: 1128 sqft",
+   "finding": {
+    "answer": "It's about 1,128 square feet, maybe 1,200",
+    "claim_type": "usable_area_sqft",
+    "classification": "OWNER_REPORTED",
+    "question": "Square footage?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": "sqft",
+    "value": 1128
+   },
+   "question": {
+    "claim_type": "usable_area_sqft",
+    "question": "Square footage?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "1,128 sq ft (about 105 m2)",
+   "describe": "usable_area_sqft: 1128 sqft",
+   "finding": {
+    "answer": "1,128 sq ft (about 105 m2)",
     "claim_type": "usable_area_sqft",
     "classification": "OWNER_REPORTED",
     "question": "Square footage?",
@@ -11944,6 +12096,82 @@
     "transcript_offset_s": null,
     "unit": null,
     "value": true
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "Probably yes",
+   "describe": "hvac_zonable: yes",
+   "finding": {
+    "answer": "Probably yes",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "I think so, yes",
+   "describe": "hvac_zonable: yes",
+   "finding": {
+    "answer": "I think so, yes",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": true
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "There is no sink but there is a drain",
+   "describe": "hvac_zonable: unclear",
+   "finding": {
+    "answer": "There is no sink but there is a drain",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
+   },
+   "question": {
+    "claim_type": "hvac_zonable",
+    "question": "HVAC?",
+    "requirement_id": null
+   }
+  },
+  {
+   "answer": "No sink, but there is a floor drain",
+   "describe": "hvac_zonable: unclear",
+   "finding": {
+    "answer": "No sink, but there is a floor drain",
+    "claim_type": "hvac_zonable",
+    "classification": "OWNER_REPORTED",
+    "question": "HVAC?",
+    "speaker": "counterparty",
+    "transcript_offset_s": null,
+    "unit": null,
+    "value": null
    },
    "question": {
     "claim_type": "hvac_zonable",

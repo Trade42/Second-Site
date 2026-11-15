@@ -223,7 +223,8 @@ fn inet_aton(s: &str) -> Option<Ipv4Addr> {
     }
     let mut nums = Vec::with_capacity(parts.len());
     for p in &parts {
-        let (digits, radix) = if let Some(h) = p.strip_prefix("0x").or_else(|| p.strip_prefix("0X")) {
+        let (digits, radix) = if let Some(h) = p.strip_prefix("0x").or_else(|| p.strip_prefix("0X"))
+        {
             (h, 16)
         } else if p.len() > 1 && p.starts_with('0') {
             (&p[1..], 8)
@@ -353,7 +354,11 @@ impl Drop for InFlightGuard<'_> {
 /// `x-request-id`), the method, the path with the query, and the body.
 fn fingerprint(rid: &str, method: &Method, target: &str, body: &[u8]) -> [u8; 32] {
     let mut h = Sha256::new();
-    for part in [rid.as_bytes(), method.as_str().as_bytes(), target.as_bytes()] {
+    for part in [
+        rid.as_bytes(),
+        method.as_str().as_bytes(),
+        target.as_bytes(),
+    ] {
         h.update((part.len() as u64).to_be_bytes());
         h.update(part);
     }
@@ -725,12 +730,10 @@ impl PythonLink {
             Some(q) => format!("{path}?{q}"),
             None => path.clone(),
         };
-        let Some(_in_flight) = self.in_flight.enter(fingerprint(
-            &rid,
-            &parts.method,
-            &path_and_query,
-            &bytes,
-        )) else {
+        let Some(_in_flight) =
+            self.in_flight
+                .enter(fingerprint(&rid, &parts.method, &path_and_query, &bytes))
+        else {
             return self.looped(&parts.method, &path);
         };
         let target = format!("{base}{path_and_query}");
