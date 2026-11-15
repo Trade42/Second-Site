@@ -64,7 +64,9 @@ pub enum XaiConnectError {
     /// Bad URL or key characters (not a valid header value).
     Request,
     /// TCP, TLS or handshake refusal; `status` is the HTTP status when the server answered.
-    Handshake { status: Option<u16> },
+    Handshake {
+        status: Option<u16>,
+    },
 }
 
 impl std::fmt::Display for XaiConnectError {

@@ -230,7 +230,10 @@ struct Pending {
 
 enum Slot {
     Waiting(Box<Pending>),
-    Connected,
+    /// Keeps the token, so a caller without it learns nothing about the bridge.
+    Connected {
+        token: String,
+    },
 }
 
 /// The bridges this process expects or runs, by bridge id (the stream URL's path segment).
@@ -291,18 +294,18 @@ impl BridgeRegistry {
     fn admit(&self, bridge_id: &str, token: Option<&str>) -> Result<Box<Pending>, Refusal> {
         let mut m = self.slots.lock().map_err(|_| Refusal::Unauthorized)?;
         let presented = token.unwrap_or("");
-        match m.get(bridge_id) {
-            None => Err(Refusal::Unauthorized),
-            Some(Slot::Connected) => Err(Refusal::AlreadyConnected),
-            Some(Slot::Waiting(p)) => {
-                if !constant_time_eq(p.spec.token.as_bytes(), presented.as_bytes()) {
-                    return Err(Refusal::Unauthorized);
-                }
-                match m.insert(bridge_id.to_owned(), Slot::Connected) {
-                    Some(Slot::Waiting(p)) => Ok(p),
-                    _ => Err(Refusal::Unauthorized),
-                }
-            }
+        let expected = match m.get(bridge_id) {
+            None => return Err(Refusal::Unauthorized),
+            Some(Slot::Connected { token }) => token.as_str(),
+            Some(Slot::Waiting(p)) => p.spec.token.as_str(),
+        };
+        if !constant_time_eq(expected.as_bytes(), presented.as_bytes()) {
+            return Err(Refusal::Unauthorized);
+        }
+        let token = expected.to_owned();
+        match m.insert(bridge_id.to_owned(), Slot::Connected { token }) {
+            Some(Slot::Waiting(p)) => Ok(p),
+            _ => Err(Refusal::AlreadyConnected),
         }
     }
 }

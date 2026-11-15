@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -41,6 +42,28 @@ class ChatResponse(Contract):
     reply: str
     task_ids: list[UUID] = Field(default_factory=list)
     mode: str = Field(description="'deep_agent' (live model) or 'deterministic' (no model configured)")
+    grounded_record_ids: list[UUID] = Field(default_factory=list)
+
+
+class VoiceSessionRequest(Contract):
+    mode: Literal["assistant"]
+
+
+class VoiceSessionResponse(Contract):
+    """One short-lived voice session with the assistant (xAI realtime). The secret is returned once, never stored."""
+
+    mode: Literal["assistant"]
+    provider: str
+    websocket_url: str
+    client_secret: str
+    expires_at: datetime
+    session_update: dict[str, Any]
+    disclosure: str = Field(description="Spoken first (disclosure_event) and kept on screen")
+    disclosure_event: dict[str, Any] | None = None
+    label: str
+    no_action_notice: str
+    claim_pattern: str = Field(description="Regular expression (JavaScript-compatible, use the i flag)")
+    data_notice: str
     grounded_record_ids: list[UUID] = Field(default_factory=list)
 
 

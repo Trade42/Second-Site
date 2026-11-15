@@ -94,7 +94,9 @@
     "TimelinePayload",
     "TranscriptTurn",
     "UnknownDetectedPayload",
-    "ValidationIssue"
+    "ValidationIssue",
+    "VoiceSessionRequest",
+    "VoiceSessionResponse"
   ],
   "schema_version": "1.0"
 }
