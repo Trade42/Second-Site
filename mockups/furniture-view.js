@@ -49,16 +49,49 @@ export function baseRotation(d, room, size) {
 const validPos = p => !!p && [p.x, p.z, p.rotation].every(Number.isFinite);
 const isSurface = c => F.ITEM_MODELS[String(c?.id ?? '').split('@')[0]] === null;
 
-// The floor plan's rectangle for a moved piece (its footprint's bounding box), for pieces() in workspace.js.
+// Where an untouched piece without a size of its own starts (the backend's bill gives no size and the
+// page's rule would put every one on the room's centre): the room's pieces in the order of the list,
+// each at its nominal size with its long side along the room's long side, in rows from the bottom right
+// corner (the room's label is at the top left) along the room's long wall, 0.2 m apart and 0.12 m from
+// the walls; a row ends 0.46 m short of the top wall in a tall room. Plan pixels. Pieces the person has moved keep their place, and
+// their slot in the row stays empty (web-link-10 review: the others must not close up onto a piece moved by a step). When a room is too small for the rows, the last pieces are kept inside it and may overlap.
+const EDGE = 12, GAP = 20, LABEL = 46;
+export function spread(d, room, list, C) {
+  const x0 = room.r[0] * d.plan.w, y0 = room.r[1] * d.plan.h, rw = room.r[2] * d.plan.w - x0, rh = room.r[3] * d.plan.h - y0;
+  const top = rh > 240 ? LABEL : EDGE, wide = rw >= rh, len = wide ? rw - 2 * EDGE : rh - top - EDGE, out = new Map();
+  let main = 0, cross = 0, thick = 0;
+  for (const it of list) {
+    const c = C[it.c], size = sizeOf(c);
+    if (!c || !size || !size.nominal || isSurface(c)) continue;
+    let w = size.width * PX, h = size.depth * PX; if ((rh > rw) !== (h > w)) [w, h] = [h, w]; // long side follows the room (pieceRect)
+    const a = wide ? w : h, b = wide ? h : w;
+    if (main > 0 && main + a > len) { cross += thick + GAP; main = 0; thick = 0; }
+    const m = main + a / 2, k = cross + b / 2; main += a + GAP; thick = Math.max(thick, b);
+    if (validPos(it.pos)) continue; // a moved piece is where it was put; its slot in the row stays empty, so no other piece moves
+    const cx = x0 + rw - EDGE - (wide ? m : k), cy = y0 + rh - EDGE - (wide ? k : m); // from the corner opposite the room's label
+    const fit = (v, lo, hi) => (hi < lo ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
+    out.set(it, { w, h, cx: fit(cx, x0 + w / 2 + EDGE, x0 + rw - w / 2 - EDGE), cy: fit(cy, y0 + h / 2 + EDGE, y0 + rh - h / 2 - EDGE) });
+  }
+  return out;
+}
+// The floor plan's rectangle for a piece, for pieces() in workspace.js (it overrides the page's pieceRect):
+// a moved piece's footprint (its bounding box) where it was put; an untouched piece with no size of its
+// own at its nominal size in its row (spread); a piece with a size of its own keeps the page's rule ({}).
 export function planRect(d, it) {
   try {
-    if (!page || !validPos(it?.pos)) return {};
-    const c = page.C[it.c], { px, py } = toPlan(d, it.pos.x, it.pos.z), out = { cx: px, cy: py };
-    if (c && [c.w, c.d].every(v => Number.isFinite(v) && v > 0)) {
-      const co = Math.abs(Math.cos(it.pos.rotation)), si = Math.abs(Math.sin(it.pos.rotation)), w = c.w * FT * PX, h = c.d * FT * PX;
-      Object.assign(out, { w: co * w + si * h, h: si * w + co * h });
+    if (!page || !it) return {};
+    const c = page.C[it.c], size = sizeOf(c);
+    if (validPos(it.pos)) {
+      const { px, py } = toPlan(d, it.pos.x, it.pos.z), out = { cx: px, cy: py };
+      if (size && !isSurface(c)) {
+        const co = Math.abs(Math.cos(it.pos.rotation)), si = Math.abs(Math.sin(it.pos.rotation)), w = size.width * PX, h = size.depth * PX;
+        Object.assign(out, { w: co * w + si * h, h: si * w + co * h });
+      }
+      return out;
     }
-    return out;
+    if (!size || !size.nominal || isSurface(c)) return {};
+    const room = d.rooms.find(r => r.id === it.r); if (!room) return {};
+    return spread(d, room, page.S().placed.filter(x => x.r === it.r), page.C).get(it) || {};
   } catch (e) { warn('planRect', e); return {}; }
 }
 
@@ -119,7 +152,35 @@ function paintModels(T, d, list) {
     keep.add(e.id);
   }
   for (const [id, g] of view.groups) if (!keep.has(id)) { F.dispose(T.THREE, g); view.groups.delete(id); }
+  paintOutlines(T, d);
   showTools();
+}
+// A sketch (a layout on an assumed floor, d.sketch from backend.js) has no scan under it: the page's
+// floor is a plain rectangle, and the rooms' outlines are drawn on it here as low flat strips, in the
+// furnish stage only. Their group hangs on the scene, not on T.blocks: it is never hit by a click or a
+// drag. On any other layout, and outside the furnish stage, there is none.
+const LINE_W = 0.05, LINE_H = 0.012;
+function paintOutlines(T, d) {
+  const on = !!(d?.sketch && d.rooms?.length && page.S().stage === 'furnish' && T.scene?.add);
+  const sig = on ? JSON.stringify([d.plan.w, d.plan.h, d.plan.mesh, d.plan.ink, d.rooms.map(r => r.r)]) : '';
+  if (view.outlines && view.outlines.userData.sig !== sig) {
+    for (const m of view.outlines.children) m.geometry?.dispose?.();
+    view.outlines.userData.material?.dispose?.(); view.outlines.parent?.remove(view.outlines); view.outlines = null;
+  }
+  if (!on || view.outlines) return;
+  const THREE = T.THREE, g = new THREE.Group(), mat = new THREE.MeshStandardMaterial({ color: 0x6B6A66, roughness: 0.95 });
+  Object.assign(g.userData, { sketchOutlines: true, sig, material: mat });
+  for (const room of d.rooms) {
+    const p = roomPolygon(d, room);
+    for (let i = 0; i < 4; i++) {
+      const [ax, az] = p[i], [bx, bz] = p[(i + 1) % 4], dx = Math.abs(bx - ax), dz = Math.abs(bz - az);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(dx + LINE_W, LINE_H, dz + LINE_W), mat);
+      m.position.set((ax + bx) / 2, LINE_H / 2 + 0.002, (az + bz) / 2);
+      Object.assign(m.userData, { room: room.id, size: [dx + LINE_W, LINE_H, dz + LINE_W] });
+      g.add(m);
+    }
+  }
+  T.scene.add(g); view.outlines = g;
 }
 function stateOf(e, S) { return pending.has(e.it) ? 'proposed' : S.sel === e.key ? 'selected' : e.it.st === 'proposed' ? 'proposed' : 'placed'; }
 
@@ -198,8 +259,8 @@ export function annotate(pane) {
 
 function attach(T) {
   if (view?.T === T) return;
-  if (view) for (const g of view.groups.values()) F.dispose(view.T.THREE, g);
-  view = { T, groups: new Map(), entries: [], d: null, active: null, fitEl: null, tools: [] };
+  if (view) { for (const g of view.groups.values()) F.dispose(view.T.THREE, g); view.outlines?.parent?.remove(view.outlines); }
+  view = { T, groups: new Map(), entries: [], d: null, active: null, fitEl: null, tools: [], outlines: null };
   const canvas = T.renderer.domElement, host = canvas.parentElement || canvas, doc = canvas.ownerDocument;
   // Capture on the parent, so the orbit controls (listening on the canvas) are off before they see a press on a piece.
   host.addEventListener('pointerdown', ev => guard('pointerdown', () => down(ev)), true);

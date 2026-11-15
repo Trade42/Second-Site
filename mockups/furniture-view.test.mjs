@@ -276,6 +276,72 @@ async function suite(THREE, label, real) {
 
 const STUB = stub();
 await suite(STUB, 'stub', false);
+/* ---- browser sweep 1: a live layout's pieces (no size from the backend), and the furnish view on a sketch */
+function sketchPage(THREE) {
+  V._reset();
+  const item = (id, name) => [id, { id, room: id.split('@')[1], name, w: 0, d: 0, h: 0, at: [[0.5, 0.5]], live: {} }];
+  const C = Object.fromEntries([item('treatment_bed@treatment', 'Treatment bed'), item('storage_cabinet@treatment', 'Storage cabinet'), item('task_lighting@treatment', 'Task lighting'), item('hand_sink@treatment', 'Hand sink'),
+    item('reception_desk@reception', 'Reception desk'), item('shelving_unit@storage', 'Shelving unit'), item('flooring_lvp_sqm@b1', 'Flooring, vinyl plank, 12 m²')]);
+  // 12 m by 8 m: two treatment rooms (one wide, one tall), a reception and a storage room.
+  const dd = { plan: { w: 1200, h: 800, ink: [0, 0], mesh: [0, 0] }, sketch: { label: 'Approximate sketch' }, rooms: [
+    { id: 't1', type: 'treatment', name: 'Treatment 1', r: [0, 0, .3, .4] }, { id: 't2', type: 'treatment', name: 'Treatment 2', r: [0, .4, .25, 1] },
+    { id: 'rc', type: 'reception', name: 'Reception 1', r: [.3, 0, 1, .6] }, { id: 'st', type: 'storage', name: 'Storage 1', r: [.3, .6, .55, 1] }] };
+  const S = { stage: 'furnish', sel: null, placed: [
+    ...['t1', 't2'].flatMap(r => ['treatment_bed@treatment', 'storage_cabinet@treatment', 'task_lighting@treatment', 'hand_sink@treatment', 'flooring_lvp_sqm@b1'].map(c => ({ c, r, st: 'placed' }))),
+    { c: 'reception_desk@reception', r: 'rc', st: 'placed' }, { c: 'flooring_lvp_sqm@b1', r: 'rc', st: 'placed' }, { c: 'shelving_unit@storage', r: 'st', st: 'placed' }, { c: 'shelving_unit@storage', r: 'st', st: 'placed' }] };
+  const dom = makeDoc(), blocks = new THREE.Group(), scene = THREE.Scene ? new THREE.Scene() : new THREE.Group(); scene.add(blocks);
+  const T = { THREE, scene, blocks, camera: { isCamera: true }, controls: { enabled: true }, renderer: { domElement: dom.canvas } };
+  const pieces = makePieces(S, C, V);
+  V.bind({ S: () => S, C, save() {}, selectPiece() {}, renderViewer() {} });
+  return { C, dd, S, T, pieces };
+}
+const outlinesOf = T => T.scene.children.filter(o => o.userData.sketchOutlines);
+await test('sweep 2: pieces with no size are drawn on the plan at nominal size, spread inside their room, none on another', () => {
+  const { C, dd, S, pieces } = sketchPage(STUB), list = pieces(dd);
+  const solid = list.filter(q => !q.it.c.startsWith('flooring')), flat = list.filter(q => q.it.c.startsWith('flooring'));
+  assert.equal(solid.length, 11); assert.ok(flat.every(q => q.w === 0 && q.h === 0), 'a surface draws nothing, as before');
+  for (const q of solid) {
+    const n = F.nominalSize(q.it.c), room = dd.rooms.find(r => r.id === q.it.r);
+    near(Math.max(q.w, q.h), Math.max(n.width, n.depth) * 100, `${q.key} long side`); near(Math.min(q.w, q.h), Math.min(n.width, n.depth) * 100, `${q.key} short side`);
+    assert.ok(q.cx - q.w / 2 >= room.r[0] * 1200 && q.cx + q.w / 2 <= room.r[2] * 1200 && q.cy - q.h / 2 >= room.r[1] * 800 && q.cy + q.h / 2 <= room.r[3] * 800, `${q.key} in ${room.id}`);
+  }
+  for (const a of solid) for (const b of solid) if (a !== b) assert.ok(Math.abs(a.cx - b.cx) >= (a.w + b.w) / 2 + 10 || Math.abs(a.cy - b.cy) >= (a.h + b.h) / 2 + 10, `${a.key} and ${b.key} are apart`);
+  assert.equal(new Set(solid.map(q => `${q.cx}|${q.cy}`)).size, solid.length, 'no pile');
+  // The page's own sized items keep the page's rule: nothing from here.
+  assert.deepEqual(V.planRect(dd, { c: 'bed', r: 't1' }), {});
+  // A moved piece keeps its place and its turned footprint.
+  const bed = S.placed[0]; bed.pos = { x: 1.5, z: 2, rotation: Math.PI / 2 };
+  const moved = pieces(dd)[0]; near(moved.cx, 150, 'cx'); near(moved.cy, 200, 'cy'); near(moved.w, 76, 'turned width'); near(moved.h, 189, 'turned depth');
+});
+await test('sweep (added 9): on a sketch the scene has the rooms’ outlines on the floor’s rectangle and every model stands inside its room, clear of the others; none on a measured layout', () => {
+  const { dd, S, T, pieces } = sketchPage(STUB);
+  assert.equal(V.paint(T, dd, pieces(dd)), true);
+  const es = V._view().entries; assert.equal(es.length, 11); assert.equal(groups(T).length, 11);
+  for (const e of es) assert.deepEqual(V.check(e), [], `${e.id} fits where it starts`);
+  assert.equal(new Set(es.map(e => `${e.x}|${e.z}`)).size, 11); assert.ok(es.every(e => e.x > 0 && e.z > 0), 'nothing at the origin');
+  const [o] = outlinesOf(T); assert.ok(o && outlinesOf(T).length === 1); assert.equal(o.children.length, 16, 'four sides for each of four rooms');
+  const xs = o.children.flatMap(m => [m.position.x - m.userData.size[0] / 2, m.position.x + m.userData.size[0] / 2]), zs = o.children.flatMap(m => [m.position.z - m.userData.size[2] / 2, m.position.z + m.userData.size[2] / 2]);
+  near(Math.min(...xs), 0, 'floor min x', 0.03); near(Math.max(...xs), 12, 'floor max x', 0.03); near(Math.min(...zs), 0, 'floor min z', 0.03); near(Math.max(...zs), 8, 'floor max z', 0.03);
+  assert.ok(!T.blocks.children.includes(o) && o.children.every(m => m.position.y < 0.02), 'flat, and never hit by a click on a piece');
+  for (let i = 0; i < 20; i++) V.paint(T, dd, pieces(dd));
+  assert.equal(outlinesOf(T).length, 1, 'one group after repaints');
+  S.stage = 'compare'; V.paint(T, dd, []); assert.equal(outlinesOf(T).length, 0, 'the furnish stage only');
+  S.stage = 'furnish'; V.paint(T, dd, pieces(dd)); assert.equal(outlinesOf(T).length, 1);
+  delete dd.sketch; V.paint(T, dd, pieces(dd)); assert.equal(outlinesOf(T).length, 0, 'a measured layout has no drawn outlines');
+});
+await test('review: a small move of one piece leaves every other piece where it was, and nothing reads overlaps', () => {
+  const { dd, S, T, pieces } = sketchPage(STUB);
+  V.paint(T, dd, pieces(dd));
+  const before = V._view().entries.map(e => [e.id, e.x, e.z]), e = V._view().entries[0];
+  assert.deepEqual(V.moveTo(e.id, e.x, e.z, 0, -0.1), [], 'the move itself is clean'); assert.deepEqual(V.drop(e.id), []);
+  assert.ok(S.placed[0].pos, 'stored');
+  V.paint(T, dd, pieces(dd));
+  const after = V._view().entries;
+  for (const [id, x, z] of before.slice(1)) { const a = after.find(o => o.id === id); near(a.x, x, id + ' x'); near(a.z, z, id + ' z'); }
+  for (const a of after) assert.deepEqual(V.check(a), [], a.id + ' still fits');
+  // removing the moved piece's neighbour does not move the moved piece; the list still has no pile
+  assert.equal(new Set(after.map(a => a.x + '|' + a.z)).size, after.length);
+});
 await test('workspace.js: without ?live=1 or ?models=1 none of our code runs (one guard)', () => {
   const guard = src.match(/^const FV = .*$/m)?.[0];
   assert.ok(guard && guard.includes("LIVE || new URLSearchParams(location.search).get('models') === '1' ? await import('./furniture-view.js')") && guard.includes(': null;'), 'the guard');

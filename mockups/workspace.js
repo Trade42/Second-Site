@@ -269,7 +269,7 @@ function renderStrip() {
         ghost = document.createElement('div'); ghost.className = 'frame-ghost'; ghost.inert = true; ghost.setAttribute('aria-hidden', 'true'); ghost.innerHTML = $('img', el)?.outerHTML || '';
       }
       el.dataset.id = id;
-      if (id) { el.innerHTML = frameHTML(P[id]); } else { el.innerHTML = 'No more spaces fit'; }
+      if (id) { el.innerHTML = frameHTML(P[id]); } else { el.innerHTML = LIVE?.emptyFrame() ?? 'No more spaces fit'; }
       if (ghost) {
         el.append(ghost);
         const reveal = () => {
@@ -385,8 +385,8 @@ function draft(issue) {
   a(`<div class="draft"><span class="label">To ${esc(P[S.finalist].broker)}</span><p>${issue.ask}</p><button type="button" class="btn sm solid" data-act="send-draft">Approve and send</button></div>`);
 }
 async function explore(commit) {
-  if (S.chosen !== S.finalist) { S.placed = []; S.hist = []; S.room = S.sel = null; }
   if (LIVE && !(await LIVE.furnish(S))) return;
+  if (S.chosen !== S.finalist) { S.placed = []; S.hist = []; S.room = S.sel = null; }
   S.chosen = S.finalist; S.committed = !!commit; go('furnish');
 }
 async function compareTurn(text) {
@@ -632,7 +632,7 @@ function paintMapView(p) {
 }
 function renderViewer() {
   const furnish = S.stage === 'furnish', p = P[furnish ? S.chosen : S.finalist]; if (!p || S.stage === 'discover') return;
-  const d = D[p.src], views = (furnish ? ['floorplan', 'dollhouse', 'photos'] : ['dollhouse', 'floorplan', 'aerial', 'map', 'photos']).concat(LIVE ? LIVE.views(p) : []);
+  const d = D[p.src], views = (furnish ? ['floorplan', 'dollhouse', 'photos'] : ['dollhouse', 'floorplan', 'aerial', 'map', 'photos']).concat(LIVE ? LIVE.views(p) : []).filter(v => !LIVE || LIVE.hasView(v, p, d));
   if (!views.includes(S.view)) S.view = views[0];
   $('#views').innerHTML = views.map(v => `<button type="button" data-view="${v}" aria-pressed="${v === S.view}">${VIEW[v] || LIVE?.viewName(v)}</button>`).join('');
   $$('#viewer .layer').forEach(l => { l.hidden = l.id !== 'v-' + S.view; });
@@ -683,7 +683,7 @@ function go(stage) {
   }
   if (stage === 'furnish') {
     S.tab = null; S.view = 'floorplan'; renderFurnish();
-    if (S.seenFurnish !== S.chosen) { S.seenFurnish = S.chosen; a(`Tell me how ${P[S.chosen].suite} should feel, and I will furnish it.`); }
+    if (S.seenFurnish !== S.chosen) { S.seenFurnish = S.chosen; a(`Tell me how ${LIVE?.unitName(P[S.chosen]) ?? P[S.chosen].suite} should feel, and I will furnish it.`); }
     replies(furnishReplies());
   }
   scrollLog(); save();

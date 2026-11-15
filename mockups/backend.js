@@ -220,6 +220,19 @@ const photoCount = m => (Number.isInteger(m?.photos?.count) && m.photos.count > 
 // The extra viewer view a live listing gets, and its button label.
 export const views = p => (p?.live?.interior ? ['tour'] : []);
 export const viewName = v => (v === 'tour' ? '3D tour' : v);
+// Whether the page offers a view's tab for a live listing (workspace.js renderViewer filters with it):
+// no Floor plan tab without a layout's rooms, no Dollhouse tab without any scan (in the furnish stage a
+// sketch has its plain floor), no Aerial tab without an aerial image. Map, Photos and the tour stay.
+export function hasView(v, p, d) {
+  if (!p?.live) return true;
+  if (v === 'floorplan') return !!d?.rooms?.length;
+  if (v === 'dollhouse') return !!(p.live.local || p.live.interior || (d?.sketch && page?.S().stage === 'furnish'));
+  if (v === 'aerial') return aerialDirs(p.live).length > 0;
+  return true;
+}
+// The furnish stage's first chat line names the space by what a person sees (address and unit), not by
+// the card's line, which carries the data-origin label (workspace.js go()).
+export const unitName = p => (p?.live ? `${p.address}${p.live.unit ? `, ${p.live.unit}` : ''}` : undefined);
 // What paint3D (workspace.js) loads for a live listing: the saved copy of a matched suite (web-link-3,
 // unchanged, blocks as before), else the backend's mesh of the chosen scan (no furniture blocks: the
 // layout plan is in the backend geometry's frame, whose fit to the mesh nobody has checked), else no mesh.
@@ -227,7 +240,9 @@ export async function dollhouse(p) {
   const L = p?.live;
   if (!L) return null;
   // A layout sketched on an assumed floor is shown in the furnish stage: no scan mesh under or beside it.
-  if (page?.D[p.src]?.sketch && page.S().stage === 'furnish') return { key: p.src, mesh: null, poster: null, text: SKETCH_NO_MODEL, blocks: false };
+  // The page then loads this plain floor like any mesh and furniture-view.js stands our models on it.
+  const sk = page?.D[p.src];
+  if (sk?.sketch && page.S().stage === 'furnish') return { key: `sketch:${p.src}:${sk.plan.w}x${sk.plan.h}`, mesh: sketchFloorObj(sk.plan), poster: null, caption: SKETCH_3D_TEXT, blocks: true };
   if (L.local) return { key: p.src, mesh: `assets/meshes/${p.src}.obj`, poster: `assets/dollhouses/${p.src}.png`, caption: '3D scan of this suite · Matterport (saved copy)', blocks: true };
   const it = L.interior;
   if (!it) return { key: p.src, mesh: null, poster: null, text: 'No 3D scan', blocks: false };
@@ -286,7 +301,7 @@ export function viewer(view, p, d) {
     const img = doc.querySelector('#v-photos > img');
     if (text && img) img.alt = `${p.address}: ${text}`;
   }
-  aerialDirections(view, p); sketchBanner(view, p, d); extrasNote();
+  aerialDirections(view, p); sketchBanner(view, p, d); extrasNote(); findingsExtras(); billPatch();
 }
 // The aerial view's direction buttons (workspace.html .dirs): only the directions this listing has an
 // image of its own for. A live listing has one overhead image, so it gets one button, "Overhead"; a
@@ -308,7 +323,16 @@ function aerialDirections(view, p) {
     b.textContent = b.dataset.dir === 'ortho' && have.length === 1 ? 'Overhead' : b.dataset.label;
     if (S) b.setAttribute('aria-pressed', String(b.dataset.dir === S.dir));
   }
+  // The image's source, said in this view too (browser sweep 1, defect 10): the saved copy's caption, else the backend's.
+  const layer = box.parentElement;
+  if (layer?.querySelector && S) {
+    let cap = layer.querySelector('.live-caption');
+    if (!cap) { cap = doc.createElement('p'); cap.className = 'evidence live-caption'; layer.append(cap); }
+    const text = aerialCaption(p.live, S.dir);
+    cap.textContent = text || ''; cap.hidden = !text;
+  }
 }
+export const aerialCaption = (L, dir) => L?.local?.captions?.[`vexcel-${dir}.jpg`] || (!L?.local?.aerial?.[dir] && L?.aerial ? L.aerial.caption : null);
 // The sketch label under the viewer (in the page's flow, in the bar below the stage: it covers nothing):
 // in the furnish stage for every view, and in Compare while the floor plan view shows the sketch.
 function sketchBanner(view, p, d) {
@@ -355,6 +379,64 @@ function extrasNote() {
   note.textContent = EXTRAS_NOTE(unknown.map(x => x.p.short));
   (table.closest('.table-scroll') || table).after(note);
 }
+// In Compare, in #findings (rebuilt with the cost table): a line when more than three are saved (the page
+// compares the first three, workspace.js finalists()), and a button that stays in view at the bottom of
+// the panel while the cost table's last row is below it, and scrolls to "What it takes to open".
+export const MORE_SAVED = n => `${n} more saved ${n === 1 ? 'listing is' : 'listings are'} not compared here: only three compare at a time, the first three you saved. Unsave one in Search to bring another in.`;
+function findingsExtras() {
+  const doc = globalThis.document, f = doc?.getElementById?.('findings'), S = page?.S();
+  if (!f?.querySelector || !S || S.stage !== 'compare' || !f.querySelector('table.costs')) return;
+  f.querySelector('.live-more')?.remove();
+  if (S.saved.length > 3) { const n = mk('p', 'live-more', MORE_SAVED(S.saved.length - 3)); n.style.cssText = 'margin:0 0 12px;font-size:13px;line-height:1.4;color:var(--ink2)'; f.prepend(n); }
+  let cue = f.querySelector('.live-cue');
+  if (!cue) {
+    cue = mk('button', 'live-cue', 'What it takes to open ↓'); cue.type = 'button';
+    cue.style.cssText = 'position:sticky;bottom:4px;display:block;margin:8px 0 0 auto;padding:6px 12px;border-radius:999px;border:1px solid var(--ink3);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:500;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.14)';
+    cue.onclick = () => { const h = [...f.querySelectorAll('h2')].at(-1); if (h) f.scrollTo({ top: h.offsetTop - f.offsetTop - 4, behavior: 'smooth' }); };
+    f.append(cue);
+  }
+  const update = () => { const c = f.querySelector('.live-cue'), t = f.querySelector('table.costs'); if (c) c.hidden = !t || t.getBoundingClientRect().bottom <= f.getBoundingClientRect().bottom - 30; };
+  update();
+  if (!f.dataset.liveCue) { f.dataset.liveCue = '1'; f.addEventListener('scroll', update, { passive: true }); globalThis.addEventListener?.('resize', update); }
+}
+// The furnish total (defect 9 of the browser sweep). The page adds delivery, tax and installation by its
+// own demo rules (workspace.js sums()); the backend gives no such figure. In live mode the headline is
+// the backend's bill total while the list is the bill's own, else the total of the items now listed,
+// said so; the three invented lines are taken out of the parts list and named as not included.
+const usd = n => '$' + Math.round(n).toLocaleString('en-US');
+export const NOT_IN_BILL = 'Delivery, sales tax and installation are not in this figure: the backend gives none for them.';
+export function billHead(S, C, bom) {
+  const placed = (S?.placed || []).filter(i => i.st === 'placed' && C[i.c]), items = placed.reduce((n, i) => n + C[i.c].price, 0);
+  const known = Number.isFinite(bom?.estimated_total), whole = known && placed.length === bom.placed.length && Math.abs(items - bom.estimated_total) < 0.5;
+  return { amount: whole ? bom.estimated_total : items, whole, count: placed.length,
+    line: whole ? `The backend’s bill of materials total for this layout: ${placed.length} items at planning prices, not quotes. ${NOT_IN_BILL}`
+      : `Total of the ${placed.length} ${placed.length === 1 ? 'item' : 'items'} now in the parts list, at planning prices, not quotes${known ? ` (the backend’s bill for this layout was ${usd(bom.estimated_total)})` : ''}. ${NOT_IN_BILL}` };
+}
+function billPatch() {
+  const doc = globalThis.document, S = page?.S();
+  if (!doc?.querySelector || !S || S.stage !== 'furnish') return;
+  const p = page.P[S.chosen], d = p && page.D[p.src];
+  if (!p?.live || !d?.bom) return;
+  const b = billHead(S, page.C, d.bom), cost = doc.querySelector('#furnish-head .cost');
+  if (cost && !cost.dataset.live) {
+    cost.dataset.live = '1';
+    const amount = cost.querySelector('b'), line = cost.querySelector('p');
+    if (amount) amount.textContent = usd(b.amount);
+    if (line) line.textContent = b.line;
+  }
+  const foot = doc.querySelector('#pane table.parts tfoot');
+  if (foot && !foot.dataset.live) {
+    foot.dataset.live = '1';
+    for (const tr of [...foot.querySelectorAll('tr')]) {
+      const cells = tr.querySelectorAll('td');
+      if (tr.className === 'total') { cells[0].textContent = b.whole ? 'Bill of materials total' : 'Total of these items'; cells[1].textContent = usd(b.amount); } else tr.remove();
+    }
+    const tr = doc.createElement('tr'), td = doc.createElement('td');
+    td.colSpan = 5; td.textContent = 'Not included: delivery, sales tax and installation (the backend gives no figure for them).';
+    td.style.cssText = 'padding-top:6px;font-size:13px;font-weight:400;color:var(--ink3);text-align:left;white-space:normal';
+    tr.append(td); foot.append(tr);
+  }
+}
 // An item's footprint in the tooltip. The page prints "<w> × <d> ft" from the catalog entry
 // (workspace.js showTip), and the backend's bill of materials gives no size (w = d = 0).
 const FT_PER_M = 3.28084;
@@ -379,7 +461,7 @@ function watchPage() {
   if (!doc?.getElementById || !MO) return;
   const tip = doc.getElementById('tip'), pane = doc.getElementById('pane');
   if (tip) new MO(tipSize).observe(tip, { childList: true });
-  if (pane) new MO(paneSketch).observe(pane, { childList: true });
+  if (pane) new MO(() => { paneSketch(); billPatch(); }).observe(pane, { childList: true });
 }
 const clampIndex = (i, n) => Math.max(0, Math.min(n - 1, Number.isInteger(i) ? i : 0));
 // The viewer's extra elements, made once by bind() in a browser: the tour layer (its caption above the
@@ -595,7 +677,21 @@ export function sketchLabel(area, fe = null) {
 }
 // The backend's sentence at the end of a sketch's bill items ("Quantity from an approximate sketch …"), kept visible.
 const SKETCH_QUANTITY = /Quantity from an approximate sketch[^.]*\./;
-export const SKETCH_NO_MODEL = 'No 3D model under this layout: it is a sketch on an assumed floor, and this suite has no 3D scan of its own. The floor plan view shows the sketch.';
+// The 3D furnish view of a sketch: a plain floor of the sketch's rectangle (the plan's own box), as a
+// two-triangle OBJ in a data: link the page's own loader reads. No scan's mesh, photo or texture.
+// The page's scans are Z-up and are turned by -90° about X (workspace.js paint3D), so the floor lies in
+// the OBJ's x-y plane at z = 0, facing +Z, with y = -(scene z); corners follow the page's plan-to-scene
+// rule (x = mesh[0] + (px - ink[0]) / 100, z = -(mesh[1] - (py - ink[1]) / 100)).
+export const SKETCH_3D_TEXT = 'Plain floor of the sketch’s assumed rectangle, with the rooms’ outlines and furniture models. Not a scan: no walls, windows or columns.';
+export function sketchFloorBox(plan) {
+  const x0 = plan.mesh[0] - plan.ink[0] / 100, z0 = -plan.mesh[1] - plan.ink[1] / 100;
+  return { x0, z0, x1: x0 + plan.w / 100, z1: z0 + plan.h / 100 };
+}
+export function sketchFloorObj(plan) {
+  const b = sketchFloorBox(plan), n = v => String(Number((v === 0 ? 0 : v).toFixed(4)));
+  const text = ['o sketch_floor', `v ${n(b.x0)} ${n(-b.z0)} 0`, `v ${n(b.x1)} ${n(-b.z0)} 0`, `v ${n(b.x1)} ${n(-b.z1)} 0`, `v ${n(b.x0)} ${n(-b.z1)} 0`, 'f 4 3 2', 'f 4 2 1', ''].join('\n');
+  return 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
+}
 // null for a layout on any other floor. The area is the estimate's own listed_area (square metres as
 // stored, shown in SF like every area on the page), else the listing's area the page already shows.
 export function sketchOf(layout, geometry, p, bom = null) {
@@ -611,6 +707,14 @@ export function sketchOf(layout, geometry, p, bom = null) {
 }
 // The plan image under a sketch: a plain rectangle (the assumed floor's outline), nothing else.
 const SKETCH_FLOOR = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect x="2" y="2" width="396" height="296" fill="#F4F3EF" stroke="#8A8985" stroke-width="2" stroke-dasharray="9 7" vector-effect="non-scaling-stroke"/></svg>');
+// The plan image under a layout on any other floor: the backend's floor outline and nothing else (no
+// "No floor plan image" text through the rooms). `outline`: the boundary in fractions of the plan box.
+export function floorImage(plan, outline) {
+  const w = plan?.w > 0 ? plan.w : 400, h = plan?.h > 0 ? plan.h : 300;
+  const pts = (Array.isArray(outline) ? outline : []).filter(q => Array.isArray(q) && q.every(Number.isFinite)).map(q => `${(q[0] * w).toFixed(1)},${(q[1] * h).toFixed(1)}`);
+  const shape = pts.length >= 3 ? `<polygon points="${pts.join(' ')}" fill="#F4F3EF" stroke="#8A8985" stroke-width="2" vector-effect="non-scaling-stroke"/>` : '';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><rect width="${w}" height="${h}" fill="#ECEBE7"/>${shape}</svg>`);
+}
 export function roomsFrom(layout, geometry) {
   const assumed = isSketch(layout, geometry);
   const pts = (geometry?.floor_boundary || []).concat(...(layout.room_polygons || []).map(r => r.polygon));
@@ -624,7 +728,8 @@ export function roomsFrom(layout, geometry) {
     return { id: r.room_id, type: t, name: html(`${cap(words(r.room_type))} ${count[t]}`), dim: `${toSqft(r.area_sqm)} SF${assumed ? ', approximate (assumed floor)' : ''}`, proposed: 1,
       r: [(Math.min(...rx) - x0) / w, (Math.min(...ry) - y0) / h, (Math.max(...rx) - x0) / w, (Math.max(...ry) - y0) / h] };
   });
-  return { plan: { w: Math.round(w * 100), h: Math.round(h * 100), ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms };
+  const outline = (geometry?.floor_boundary || []).map(q => [(q[0] - x0) / w, (q[1] - y0) / h]);
+  return { plan: { w: Math.round(w * 100), h: Math.round(h * 100), ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms, outline };
 }
 // The bill of materials -> CAT entries (one per item type and room type) and the placed list.
 // The backend gives no size, supplier or lead time: sizes are 0 (nothing drawn on the plan), the rest is
@@ -639,7 +744,7 @@ export function catalogFrom(bom, rooms) {
     const id = pieces ? `${it.item_type}@${room}` : `${it.item_type}@${it.bom_item_id}`;
     const cents = pieces ? it.unit_price_estimate : Math.round(it.unit_price_estimate * q);
     if (!cat.has(id)) cat.set(id, {
-      id, room, name: html(`${cap(words(it.item_type))}${pieces ? '' : `, ${it.quantity} ${it.unit}`}, ${priceWords(it.price_origin)}`),
+      id, room, name: html(`${itemWords(it.item_type)}${pieces ? '' : `, ${it.quantity} ${unitWords(it.unit)}`}, ${priceWords(it.price_origin)}`),
       kw: words(it.item_type), w: 0, d: 0, h: 0, price: toDollars(cents) ?? 0,
       by: 'Not available', lead: 'Not available', at: [[0.5, 0.5]], live: { price_origin: it.price_origin, price_note: it.price_note },
     });
@@ -647,6 +752,10 @@ export function catalogFrom(bom, rooms) {
   }
   return { cat: [...cat.values()], placed, estimated_total: toDollars(bom.estimated_total), status: bom.status };
 }
+// An item type as words: "flooring_lvp_sqm" reads "Flooring, vinyl plank"; the unit is said once, after the quantity.
+const ITEM_WORDS = { flooring_lvp_sqm: 'Flooring, vinyl plank', wall_paint_sqm: 'Wall paint' };
+export const itemWords = t => ITEM_WORDS[t] || cap(words(String(t ?? '').replace(/_(sqm|sqft|m2|ea)$/i, '')) || 'item');
+export const unitWords = u => (/^(m2|sqm|m²)$/i.test(String(u)) ? 'm²' : /^(sqft|sf|ft2)$/i.test(String(u)) ? 'SF' : String(u ?? ''));
 // A BOM price's origin in words. None of them is a supplier quote.
 export function priceWords(origin) {
   const k = sourceOf(null, origin);
@@ -761,8 +870,35 @@ export class Backend {
     const fe = task.output_reference?.floor_estimate;
     return { layout: fe && typeof fe === 'object' && layout.floor_estimate == null ? { ...layout, floor_estimate: fe } : layout, geometry, bom };
   }
-  chat(message) { return this.req('POST', this.p('/chat'), { message }); }
+  // The chat request has one field, `message` (ChatRequest, at most 8,000 characters): what is on the
+  // person's screen goes before their text as one plain sentence (chatContext), never into a new field.
+  chat(message, context = '') { return this.req('POST', this.p('/chat'), { message: withContext(context, message) }); }
   communications() { return this.req('GET', this.p('/communications')); }
+}
+// What the person sees, by the names the page shows (address and unit), for the assistant: which
+// listings are saved, which are compared (the page compares the first three saved), which one is
+// selected, and which were dismissed. Empty when nothing is saved, selected or dismissed.
+const CHAT_MAX = 8000;
+export function chatContext(S, P = {}) {
+  // A name is a listing's own text (a provider's): one line, at most 120 characters, so that it cannot start a
+  // paragraph of its own after this sentence and pose as the person's message (web-link-10 review).
+  const plain = t => { const x = String(t ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim(); return x.length > 120 ? `${x.slice(0, 119)}…` : x; };
+  const name = id => { const p = P[id]; return p ? plain(`${p.address}${p.live?.unit ? `, ${p.live.unit}` : ''}`) || null : null; };
+  const list = ids => [...new Set((ids || []).map(name).filter(Boolean))];
+  const saved = list(S?.saved), dismissed = list(S?.dismissed);
+  const sel = name(S?.stage === 'furnish' ? S.chosen : S?.stage === 'compare' ? S.finalist : S?.open);
+  const parts = [
+    saved.length ? `saved: ${saved.join('; ')}` : null,
+    saved.length > 3 && S.stage !== 'discover' ? `side by side now (the first three saved): ${saved.slice(0, 3).join('; ')}` : null,
+    sel ? `${S.stage === 'furnish' ? 'being furnished' : 'selected'}: ${sel}` : null,
+    dismissed.length ? `dismissed and no longer shown: ${dismissed.slice(0, 12).join('; ')}${dismissed.length > 12 ? `; and ${dismissed.length - 12} more` : ''}` : null,
+  ].filter(Boolean);
+  return parts.length ? `Context from the page, not typed by the person. Listings on their screen, by the names they see: ${parts.join('. ')}. Speak about these and do not offer a dismissed listing unless asked. The person’s message follows.` : '';
+}
+// The context is dropped, never the person's text, when both would not fit the request.
+export function withContext(context, message) {
+  const text = String(message ?? '');
+  return context && context.length + 2 + text.length <= CHAT_MAX ? `${context}\n\n${text}` : text;
 }
 // A chat failure in plain words. Never a scripted answer in the assistant's name.
 export function chatFailure(e) {
@@ -785,6 +921,7 @@ export function asset(src, f, P = page?.P, D = page?.D) {
   const p = P?.[src.startsWith('live-') ? src.slice(5) : src], L = p?.live;
   if (!L && !src.startsWith('live-')) return undefined;
   if (/floorplan/.test(f) && D?.[src]?.sketch) return SKETCH_FLOOR; // an assumed floor: a plain rectangle, never a plan image
+  if (/floorplan/.test(f) && D?.[src]?.rooms?.length) return floorImage(D[src].plan, D[src].outline); // a layout's rooms are drawn: the floor's outline, no placeholder text
   if (L?.local?.captions[f]) return `assets/${L.local.slug}/${f}`; // a saved copy from this suite's own scan or listing
   const still = MEDIA_PHOTO.exec(f);
   if (still && L?.interior && !L.local) return mediaUrl(L.interior.asset_id, `photo/${+still[1]}.jpg`); // the backend's still of the chosen scan
@@ -895,7 +1032,14 @@ const RESULT_STYLE = `
 .live-result p { margin: 2px 0; }
 .live-result-head { color: var(--ink); font-weight: 600; font-size: 14px; }
 .live-result-label { color: var(--ink3); }
-.live-result-reasons { margin: 2px 0 4px; padding-left: 18px; }`;
+.live-result-reasons { margin: 2px 0 4px; padding-left: 18px; }
+/* Live mode only (browser sweep 1, defects 11 and 12): a card's second line wraps so that the area after the
+   source label is not cut off, and the dollhouse poster takes no space while it has no image. */
+.cap small { white-space: normal; text-overflow: clip; overflow: visible; }
+#v-dollhouse .poster:not([src]) { visibility: hidden; }
+/* Defect 10: the backend's one overhead image is never enlarged past its own size. Defect 11: the hover summary is not see-through. */
+#v-aerial > img { object-fit: scale-down; }
+.tip.space-tip { background: rgb(232 233 230 / .98); }`;
 function waitStyle() {
   const doc = globalThis.document, at = doc?.head || doc?.documentElement;
   if (!at || doc.getElementById('live-wait-style')) return;
@@ -903,14 +1047,114 @@ function waitStyle() {
 }
 
 let page = null, backend = null;
-try { localStorage.removeItem('second-site-workspace-live'); } catch { /* storage unavailable */ } // live mode starts fresh
+
+/* ------------------------------------------------- what survives a reload (browser sweep, defect 3) */
+// Two entries in this browser's localStorage, both for live mode only:
+//   second-site-workspace-live       the page's own state (workspace.js save()): the answers, the stage,
+//                                    saved, dismissed and selected listings, the placed pieces, the chat log.
+//   second-site-workspace-live-link  this file's: the backend origin, the project id, the profile sent, the
+//                                    last search's records as the backend answered (with the saved-copy
+//                                    matches), and the layouts fetched since. No token: the dev sign-in is
+//                                    asked again on load.
+// On load the listings are rebuilt from the stored records with no search; one read of the project's
+// properties then checks that the backend still has that project and those listings. If it does not (it
+// was restarted with another database), both entries go and the page reloads once to a clean start with
+// one plain line. A stored state the link cannot rebuild is dropped, never half restored.
+const PAGE_KEY = 'second-site-workspace-live', LINK_KEY = 'second-site-workspace-live-link', NOTICE_KEY = 'second-site-workspace-live-notice', LINK_VERSION = 1;
+const SEEDS = /^#(reset|searched|compare|furnish)$/;
+export const STALE_TEXT = 'The saved session could not be continued: the backend no longer has that project (it may have been restarted with another database). Nothing was carried over; this is a new start.';
+let stores = null, reload = () => globalThis.location?.reload?.();
+export function useStorage(x) { stores = x || null; } // tests only: { local, session }
+export function useReload(f) { reload = f; } // tests only
+const boxOf = w => { try { return (stores ? stores[w] : globalThis[w === 'local' ? 'localStorage' : 'sessionStorage']) || null; } catch { return null; } };
+const kv = {
+  get: (k, w = 'local') => { try { return boxOf(w)?.getItem(k) ?? null; } catch { return null; } },
+  set: (k, v, w = 'local') => { try { boxOf(w).setItem(k, v); return true; } catch { return false; } },
+  del: (k, w = 'local') => { try { boxOf(w)?.removeItem(k); } catch { /* storage unavailable */ } },
+};
+const parse = t => { try { return t ? JSON.parse(t) : null; } catch { return null; } };
+// Read at import, before the page reads its own entry: what can be continued is kept, the rest removed.
+export function savedLink(hash = globalThis.location?.hash || '', api = config().api) {
+  const notice = kv.get(NOTICE_KEY, 'session');
+  if (notice) { kv.del(LINK_KEY); kv.del(PAGE_KEY); return { link: null, notice }; } // the clean start after a stale session
+  const link = parse(kv.get(LINK_KEY)), seeded = SEEDS.test(hash);
+  if (!seeded && link && link.v === LINK_VERSION && link.api === api && typeof link.project === 'string' && Array.isArray(link.results) && link.results.length) return { link, notice: null };
+  kv.del(LINK_KEY);
+  // No project to come back to: the page's answers are kept only while no search was made with them.
+  const pg = parse(kv.get(PAGE_KEY));
+  if (seeded || !pg || roomsKnown(pg.req || {}) || (pg.saved || []).length || pg.stage !== 'discover') kv.del(PAGE_KEY);
+  return { link: null, notice: null };
+}
+let boot = savedLink(), link = null, searched = false, lastSearchKey = null;
+export function reboot(hash, api) { boot = savedLink(hash, api); link = null; searched = false; lastSearchKey = null; return boot; } // tests only: as a new page load
+function persist() {
+  if (!link) return;
+  if (kv.set(LINK_KEY, JSON.stringify(link))) return;
+  link.layouts = {}; // too large for this browser's storage: the layouts go first (they are asked again)
+  if (!kv.set(LINK_KEY, JSON.stringify(link))) { kv.del(LINK_KEY); link = null; } // nothing stored: the next load starts clean
+}
+// The page's state as its own fresh() makes it in live mode (its tables are empty).
+function resetState(S) {
+  Object.assign(S, { stage: 'discover', step: 0, req: {}, slots: [null, null, null, null], saved: [], dismissed: [], open: null, offered: false, msgs: [], replies: [], finalist: null, issue: null, view: 'dollhouse', photo: 0, seenCompare: false, chosen: null, committed: false, placed: [], hist: [], tab: null, room: null, sel: null, seenFurnish: null });
+}
+// Rebuild the listings and layouts from the stored link and make the page's state consistent with them.
+function restore(S, L) {
+  backend.project = L.project; backend.profileKey = L.profileKey ?? null; backend.lastRooms = L.lastRooms ?? null;
+  fill(S, L.results.map(r => ({ ...r, scenarios: L.scenarios || [] })), L.locals || [], false);
+  const { POOL, P, D, C } = page;
+  for (const [id, out] of Object.entries(L.layouts || {})) { const p = POOL.find(x => x.live.property_id === id); if (p && out?.layout && out.geometry && out.bom) applyLayout(p, D[p.src], out); }
+  S.slots = [0, 1, 2, 3].map(i => (P[S.slots?.[i]] ? S.slots[i] : null));
+  S.dismissed = (S.dismissed || []).filter(id => P[id]);
+  if (!S.saved.includes(S.finalist)) S.finalist = S.saved[0] ?? null;
+  const rooms = P[S.chosen] ? D[P[S.chosen].src].rooms : [];
+  if (!rooms.length) { S.chosen = null; S.committed = false; S.placed = []; S.hist = []; S.room = S.sel = null; S.seenFurnish = null; }
+  else { S.placed = (S.placed || []).filter(it => C[it.c] && rooms.some(r => r.id === it.r)); S.hist = []; if (!rooms.some(r => r.id === S.room)) S.room = null; }
+  if (S.stage === 'furnish' && !S.chosen) S.stage = 'compare';
+  if (S.stage === 'compare' && S.saved.length < 2) S.stage = 'discover';
+  if (!['discover', 'compare', 'furnish'].includes(S.stage)) S.stage = 'discover';
+  // The page's initMap() (which runs after bind) puts a map marker on every listing in POOL and would
+  // throw on one without coordinates: such a listing joins POOL right after, with a pin and no marker.
+  const all = [...POOL], late = all.filter(x => !(typeof x.lat === 'number' && typeof x.lon === 'number'));
+  if (late.length) {
+    POOL.length = 0; POOL.push(...all.filter(x => !late.includes(x)));
+    setTimeout(() => { POOL.length = 0; POOL.push(...all); late.forEach(addPin); const o = page.S().open; page.selectSpace(o); if (o) page.selectSpace(o); }, 0);
+  }
+  link = L; searched = true; lastSearchKey = L.searchKey ?? null; waitNoted = true;
+  return true;
+}
+// One read, no search: does the backend still have this project and these listings?
+async function verifyRestored(L) {
+  const ids = L.results.map(r => r.rec?.property_id);
+  try {
+    await backend.signIn();
+    const props = await backend.req('GET', backend.p('/properties'));
+    if (Array.isArray(props) && ids.every(id => props.some(x => x.property_id === id))) return true;
+  } catch (e) {
+    if (![400, 401, 403, 404, 410, 422].includes(e?.status)) { page.note(page.esc(`The backend could not be asked whether it still has this saved session (${e?.message || 'unknown error'}). What is shown is what this browser saved.`)); return null; }
+  }
+  kv.del(LINK_KEY); kv.del(PAGE_KEY); kv.set(NOTICE_KEY, STALE_TEXT, 'session'); link = null;
+  reload();
+  return false;
+}
 
 // Called once by workspace.js with its data tables (mutated in place) and a few of its functions.
 export function bind(ctx) {
   page = ctx; backend = new Backend(config().api);
   for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
   for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
-  const S = ctx.S(); S.slots = [null, null, null, null];
+  const S = ctx.S(), L = boot.link, notice = boot.notice; boot = { link: null, notice: null };
+  let back = false;
+  if (L) {
+    try { back = restore(S, L); } catch (e) { console.warn(`live mode: the saved session could not be rebuilt (${e?.message}); starting clean`); }
+    if (!back) { // never half restored
+      for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
+      for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
+      kv.del(LINK_KEY); kv.del(PAGE_KEY); resetState(S); backend = new Backend(config().api); link = null; searched = false; lastSearchKey = null;
+    }
+  }
+  if (!back) { S.slots = [null, null, null, null]; link = null; searched = false; lastSearchKey = null; }
+  if (back) verifyRestored(L);
+  if (notice) { kv.del(NOTICE_KEY, 'session'); setTimeout(() => page?.note(page.esc(notice)), 0); }
   viewerElements(); waitStyle(); cardStyle(); watchPage();
   import('./furniture.js').then(m => { nominalSize = typeof m.nominalSize === 'function' ? m.nominalSize : null; }, () => {}); // optional: the tooltip's nominal sizes
   if (config().talk) voiceElements(); // never in plain live mode (the owner, 07:32Z: voice only on a call to the property)
@@ -924,7 +1168,9 @@ function addPin(p) {
   wrap.append(el); page.pins[p.id] = el; // renderMap() styles every POOL entry's pin, so one exists even without coordinates
   if (typeof p.lat === 'number' && typeof p.lon === 'number') markers[p.id] = new window.maplibregl.Marker({ element: wrap }).setLngLat([p.lon, p.lat]).addTo(map);
 }
-function dropPin(id) { markers[id]?.remove(); delete markers[id]; delete page.pins[id]; }
+function dropPin(id) { markers[id]?.remove(); page.pins[id]?.parentElement?.remove?.(); delete markers[id]; delete page.pins[id]; } // also a marker the page itself made after a reload
+// The text of an empty card frame (workspace.js renderStrip): nothing before a search has answered.
+export const emptyFrame = () => (searched ? 'No more spaces fit' : '');
 // Stage 1: after each search-stage answer. Replaces the listing pool with the backend's results.
 let waitNoted = false;
 // One search at a time: the page's inline answer edit (workspace.js line 332) is not guarded by its
@@ -940,28 +1186,57 @@ async function searchNow(S, fromSend = false) {
     if (!waitNoted) { waitNoted = true; page.note(page.esc('Live results start once you have said how many rooms you need.')); }
     return;
   }
+  // Nothing the backend is asked has changed (the opening date and the area are the page's own): no second search.
+  const key = JSON.stringify([profileFromAnswers(S.req), searchBody(S.req)]);
+  if (key === lastSearchKey && page.POOL.length) return;
   backend.lastRooms = Number.isInteger(S.req.rooms) ? { treatment: S.req.rooms, reception: 1, storage: 1 } : null;
   let results;
   const end = waiting('search', { composer: fromSend });
   try { results = await backend.search(S.req); end(true); } catch (e) { end(); page.note(page.esc(`Live search failed: ${e.message}`)); return; } finally { end(); voiceRefresh(); }
-  const { POOL, P, D, FILL, SPACE_NOTES } = page, index = await localPlaces();
+  const index = await localPlaces();
   // A slug is used only when exactly one listing of this result has that suite scan.
-  const hits = results.map(r => localMatch(r.rec, index)), uses = s => hits.filter(h => h?.slug === s).length;
-  const entries = results.map((r, i) => { const p = poolEntry(r.rec, backend.api), h = hits[i]; if (p.zone == null) openArea(p, () => page.S().req.zones); return h && uses(h.slug) === 1 ? withLocal(p, h) : p; });
+  const hits = results.map(r => localMatch(r.rec, index)), uses = x => hits.filter(h => h?.slug === x).length;
+  const locals = hits.map(h => (h && uses(h.slug) === 1 ? h : null));
+  fill(S, results, locals, true);
+  searched = true; lastSearchKey = key;
+  for (const el of globalThis.document?.querySelectorAll?.('#strip .frame.none') || []) if (!el.dataset.id) el.textContent = emptyFrame();
+  link = { v: LINK_VERSION, api: backend.api, project: backend.project, profileKey: backend.profileKey, lastRooms: backend.lastRooms, searchKey: key, results: results.map(r => ({ rec: r.rec, assessments: r.assessments })), scenarios: results[0]?.scenarios || [], locals, layouts: {}, at: new Date().toISOString() };
+  persist();
+  // What the page will show, by its own rule (fits and minSqft come from workspace.js through bind()).
+  const msg = searchNote(page.POOL, typeof page.fits === 'function' ? { shown: page.fits(), min: page.minSqft?.() } : null);
+  const order = typeof page.fits === 'function' ? orderNote(page.fits()) : '';
+  if (msg) page.note(page.esc([msg, order].filter(Boolean).join(' ')));
+}
+// What order the cards come in (the backend's ranking; the page shows four at a time and never reorders),
+// and where a listing with a scan of its own suite is when it is not among the first four.
+export function orderNote(shown) {
+  if (!Array.isArray(shown) || shown.length <= 4) return '';
+  const far = shown.map((p, i) => ({ p, i })).filter(x => x.p.live?.scan && x.i >= 4);
+  const where = far.map(x => `${x.p.address}${x.p.live.unit ? `, ${x.p.live.unit}` : ''} (number ${x.i + 1} of ${shown.length})`);
+  return `The cards come in the backend’s ranking order, four at a time; dismissing one brings the next.${where.length ? ` With a 3D scan of its own suite: ${where.join('; ')}.` : ''}`;
+}
+// The backend's results into the page's tables (after a search, and from the stored link on a reload).
+function fill(S, results, locals, pins) {
+  const { POOL, P, D, FILL, SPACE_NOTES } = page;
+  const entries = results.map((r, i) => { const p = poolEntry(r.rec, backend.api); if (p.zone == null) openArea(p, () => page.S().req.zones); return locals[i] ? withLocal(p, locals[i]) : p; });
   for (const id of Object.keys(P)) if (!entries.some(p => p.id === id)) { dropPin(id); delete P[id]; }
   POOL.length = 0; FILL.length = 0;
   for (const [i, { rec, assessments, scenarios }] of results.entries()) {
     const p = entries[i]; POOL.push(p); P[p.id] = p; FILL.push(p.id);
     D[p.src] = { ...detailEntry(rec, assessments, scenarios), photos: p.live.images.length ? p.live.images : ['none'] };
-    SPACE_NOTES[p.id] = spaceNotes(rec, backend.api, p.live.local || null); addPin(p);
+    SPACE_NOTES[p.id] = spaceNotes(rec, backend.api, p.live.local || null); if (pins) addPin(p);
   }
   disambiguate(POOL);
   // Remove saved or shown ids the backend no longer returns (the page would look them up and fail).
   S.slots = S.slots.map(id => (id && P[id] ? id : null));
   S.saved = S.saved.filter(id => P[id]); if (S.open && !P[S.open]) S.open = null;
-  // What the page will show, by its own rule (fits and minSqft come from workspace.js through bind()).
-  const msg = searchNote(POOL, typeof page.fits === 'function' ? { shown: page.fits(), min: page.minSqft?.() } : null);
-  if (msg) page.note(page.esc(msg));
+}
+// A fetched layout into the page's tables: the plan, the rooms, the bill's catalog and the sketch mark.
+function applyLayout(p, d, out) {
+  const { plan, rooms, outline } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms), sketch = sketchOf(out.layout, out.geometry, p, out.bom);
+  Object.assign(d, { plan, rooms, outline, bom: cat, sketch, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
+  for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
+  return { cat, sketch };
 }
 // Stage 3: before the Furnish stage opens. False keeps the page in Compare.
 export async function furnish(S) {
@@ -976,13 +1251,14 @@ export async function furnish(S) {
       if (r) resultCard(r); else page.note(page.esc(`No layout for ${p.address}: ${e.message}`));
       return false; // the page stays in Compare; a later try (new rooms) asks again
     } finally { end(); }
-    const { plan, rooms } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms), sketch = sketchOf(out.layout, out.geometry, p, out.bom);
-    Object.assign(d, { plan, rooms, bom: cat, sketch, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
-    for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
-    const g = out.geometry;
+    const { cat, sketch } = applyLayout(p, d, out), g = out.geometry;
+    if (link) { link.layouts[p.live?.property_id ?? p.id] = out; persist(); } // kept for a reload
     page.note(page.esc(`Layout version ${out.layout.version_number} for ${p.address}: ${out.layout.approval_status.toLowerCase()}, ${out.layout.validation_report?.disclaimer || 'not an approved plan'} ${sketch ? [sketch.label, sketch.detail, sketch.bill].filter(Boolean).join(' ') : `Floor geometry: ${geometryWords(g)}.`} Room minimums used: demo defaults (treatment 10 m² and 2.8 m wide, reception 12 m², storage 4 m²), not your answers. Bill of materials ${words(cat.status)}: ${cat.cat.length} item types, prices: ${[...new Set((out.bom.items || []).map(i => priceWords(i.price_origin)))].join('; ') || 'none'}.`));
   }
-  if (!S.placed.length || S.chosen !== S.finalist) S.placed = d.bom.placed.map(x => ({ ...x }));
+  // Only here, with a layout in hand, does the list of placed pieces change: a failed request above has
+  // left another listing's pieces alone (the page's explore() clears nothing in live mode any more).
+  if (S.chosen !== S.finalist) { S.placed = d.bom.placed.map(x => ({ ...x })); S.hist = []; S.room = S.sel = null; S.chosen = S.finalist; }
+  else if (!S.placed.length) S.placed = d.bom.placed.map(x => ({ ...x }));
   ownerTexts();
   return true;
 }
@@ -1079,7 +1355,7 @@ export function turn(stage, text, S, steps) {
     if (!backend.project) { page.note('The assistant is not connected until the search has created a project.'); return; }
     const end = waiting('chat', { composer: true });
     try {
-      const out = await backend.chat(text); end(true);
+      const out = await backend.chat(text, chatContext(S, page.P)); end(true);
       page.a(`${page.esc(cleanReply(out.reply)).replace(/\n/g, '<br>')}<br><small>${out.mode === 'deterministic' ? 'Deterministic engine, no model configured' : 'Assistant'} · from the backend</small>`);
     } catch (e) { end(); page.note(page.esc(chatFailure(e))); } finally { end(); }
   })();
