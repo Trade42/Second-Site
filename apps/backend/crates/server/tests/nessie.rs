@@ -1193,6 +1193,57 @@ both_backends!(bank_failures_are_recorded_honestly, |db| {
     }
 });
 
+/// Review fix F1 (nessie-2 review): the client closes the connection during the bank call. The
+/// execute still commits its outcome, so a later execute of the same approval, also after a
+/// restart (an empty in-process ledger), never reaches the bank again.
+#[tokio::test]
+async fn a_closed_connection_during_the_bank_call_still_records_the_payment() {
+    use tokio::io::AsyncWriteExt;
+    let db = TestDb::new(Kind::Memory).await.expect("memory");
+    let (srv, ctl) = stub();
+    let t = app_with_stub(&db, &srv, 5.0);
+    let d = demo(&t).await;
+    let (tok, pid, prop) = (d.tok.as_str(), d.pid.as_str(), d.hollywood.as_str());
+    t.post(&sandbox_path(pid), Some(tok), &json!({})).await;
+    let a = request_approval(&t, &d, prop, ITEM_DEPOSIT).await;
+    decide(&t, tok, &a.body["approval"], "APPROVED").await;
+    let id = a.body["approval"]["approval_id"].clone();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let router = t.router.clone();
+    tokio::spawn(async move { axum::serve(listener, router).await });
+    ctl.delay_ms.store(1000, Ordering::SeqCst);
+    let body = json!({"approval_id": id}).to_string();
+    let path = pay_path(pid, prop, ITEM_DEPOSIT, "execute");
+    let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
+    let head = format!("POST {path} HTTP/1.1\r\nHost: {addr}\r\nAuthorization: Bearer {tok}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", body.len());
+    s.write_all(format!("{head}{body}").as_bytes())
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    drop(s);
+    tokio::time::sleep(Duration::from_millis(2000)).await;
+    ctl.delay_ms.store(0, Ordering::SeqCst);
+    assert_eq!(count(&srv, "POST", "/purchases"), 1);
+    assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+    let stored = attempt(&t, pid, prop, ITEM_DEPOSIT).await.unwrap();
+    assert_eq!(stored.attempt_status, "SENT");
+    // A restart: the same stub behind a fresh client, so the crate's ledger is empty.
+    let key = ApiKey::new("nsk_TEST_server_stub_5d4c3b2a1f0e").unwrap();
+    let policy = RetryPolicy {
+        attempts: 1,
+        backoff_s: 0.0,
+        timeout_s: 5.0,
+    };
+    let bank = LiveNessieBank::with_policy(&srv.base, key, policy);
+    let bank_ref = format!("sandbox:{}", srv.base);
+    install(&t.app, NessieState::with_bank(Arc::new(bank), bank_ref));
+    let r = execute(&t, &d, prop, ITEM_DEPOSIT, &id).await;
+    assert_problem(&r, 409, "NESSIE_ALREADY_ATTEMPTED");
+    assert_eq!(count(&srv, "POST", "/purchases"), 1);
+    db.finish().await;
+}
+
 both_backends!(the_ready_entry_follows_the_bank, |db| {
     let (srv, _ctl) = stub();
     let t = app_with_fixture(db);

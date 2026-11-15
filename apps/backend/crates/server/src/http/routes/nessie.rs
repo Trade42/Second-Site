@@ -127,6 +127,22 @@ fn status_problem(status: StatusCode, e: AppError) -> Response {
     (status, Json(e.to_problem_detail())).into_response()
 }
 
+/// Runs a flow that calls the bank inside its transaction on a task of its own, so it commits its
+/// outcome even when the client goes away during the bank call: hyper drops the handler's future
+/// when the connection closes, which would roll the transaction back after the bank acted.
+async fn detached<T, F>(flow: F) -> AppResult<T>
+where
+    T: Send + 'static,
+    F: std::future::Future<Output = AppResult<T>> + Send + 'static,
+{
+    let task = match crate::logging::current_request_id() {
+        Some(rid) => tokio::spawn(crate::logging::REQUEST_ID.scope(rid, flow)),
+        None => tokio::spawn(flow),
+    };
+    task.await
+        .map_err(|e| AppError::internal(format!("the Nessie task failed: {e}")))?
+}
+
 /// Owned project, `property_id` from the path, and the property loaded through the project.
 async fn property_scope(
     app: &App,
@@ -164,13 +180,13 @@ async fn set_up_sandbox(
             }
         }
     });
-    Ok(
-        match svc::set_up_sandbox(&app, project_id, requested).await? {
-            SetUp::Created(view) => (StatusCode::CREATED, Json(*view)).into_response(),
-            SetUp::Existing(view) => (StatusCode::OK, Json(*view)).into_response(),
-            SetUp::Incomplete(e) => status_problem(StatusCode::BAD_GATEWAY, e),
-        },
-    )
+    let task = app.clone();
+    let set_up = detached(async move { svc::set_up_sandbox(&task, project_id, requested).await });
+    Ok(match set_up.await? {
+        SetUp::Created(view) => (StatusCode::CREATED, Json(*view)).into_response(),
+        SetUp::Existing(view) => (StatusCode::OK, Json(*view)).into_response(),
+        SetUp::Incomplete(e) => status_problem(StatusCode::BAD_GATEWAY, e),
+    })
 }
 
 async fn read_sandbox(
@@ -255,13 +271,15 @@ async fn execute(
         property_in_project(tx, project.project_id, property_id).await?;
         (property_id, item, body.approval_id)
     });
-    Ok(
-        match svc::execute_payment(&app, project_id, property_id, &item, approval_id).await? {
-            Executed::Sent(view) => (StatusCode::OK, Json(*view)).into_response(),
-            Executed::Refused(e) => status_problem(StatusCode::UNPROCESSABLE_ENTITY, e),
-            Executed::MayExist(e) => status_problem(StatusCode::BAD_GATEWAY, e),
-        },
-    )
+    let task = app.clone();
+    let executed = detached(async move {
+        svc::execute_payment(&task, project_id, property_id, &item, approval_id).await
+    });
+    Ok(match executed.await? {
+        Executed::Sent(view) => (StatusCode::OK, Json(*view)).into_response(),
+        Executed::Refused(e) => status_problem(StatusCode::UNPROCESSABLE_ENTITY, e),
+        Executed::MayExist(e) => status_problem(StatusCode::BAD_GATEWAY, e),
+    })
 }
 
 async fn refresh(

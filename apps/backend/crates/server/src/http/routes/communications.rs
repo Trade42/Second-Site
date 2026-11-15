@@ -229,6 +229,21 @@ async fn needs_linked_renotify(
     if !linked {
         return Ok(false);
     }
+    // REVIEW FIX (rust-server-4-review F3): an earlier attempt whose outcome is unknown (timeout,
+    // 5xx: Python may have texted) is not sent again, so the derived key texts at most once.
+    let unreached = format!(
+        "{}{}",
+        crate::services::notifier::UNREACHED_KEY_PREFIX,
+        linked_renotify_key(approval_id)
+    );
+    for row in
+        event_rows::select(tx, Query::new().eq("idempotency_key", unreached).limit(1)).await?
+    {
+        let ev = event_rows::parse(&row)?;
+        if ev.payload.get("delivery").and_then(Value::as_str) == Some("unknown") {
+            return Ok(false);
+        }
+    }
     Ok(event_rows::select(
         tx,
         Query::new()

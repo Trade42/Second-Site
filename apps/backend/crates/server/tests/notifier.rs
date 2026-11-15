@@ -530,3 +530,219 @@ both_backends!(
         );
     }
 );
+
+// ---- added by the independent review (rust-server-4-review F3, F5) --------------------------
+
+// The derived ":linked" key is sent at most once per approval: after an attempt whose outcome is
+// unknown (a 5xx: Python may have texted), a repeated outreach does not send it again. After a
+// definite non-send (404: refused before notify_owner) it may be sent again.
+both_backends!(
+    a_linked_renotify_with_an_unknown_outcome_is_not_sent_again,
+    |db| {
+        let server = MockServer::start_with(|r: &Recorded| {
+            if r.path != "/internal/v1/owner/notify" {
+                return ok_answer(Uuid::new_v4(), "recorded");
+            }
+            let body = serde_json::from_slice::<Value>(&r.body).unwrap();
+            let key = body["idempotency_key"].as_str().unwrap().to_owned();
+            if !key.ends_with(":linked") {
+                ok_answer(Uuid::new_v4(), "not_linked")
+            } else if body["text"].as_str().unwrap().contains("refused") {
+                status(404, "NOT_FOUND")
+            } else {
+                status(500, "INTERNAL_ERROR")
+            }
+        });
+        let t = TestApp::new(db, &[("PYTHON_SERVICE_URL", server.base.as_str())]);
+        let (token, user) = t.dev_token().await;
+        let p = t.create_project(&token, &common::demo_project_body()).await;
+        let pid: Uuid = p["project"]["project_id"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        t.post(
+            &format!("/api/v1/projects/{pid}/properties/search"),
+            Some(&token),
+            &json!({"city": "Los Angeles", "state": "CA"}),
+        )
+        .await;
+        let props = t
+            .get(&format!("/api/v1/projects/{pid}/properties"), Some(&token))
+            .await;
+        let prop = props.body[0]["property_id"].as_str().unwrap().to_owned();
+        let outreach = |name: &'static str| {
+            let (t, token, prop) = (&t, token.clone(), prop.clone());
+            async move {
+                let r = t
+                .post(
+                    &format!("/api/v1/projects/{pid}/outreach"),
+                    Some(&token),
+                    &json!({"property_id": prop, "channel": "VOICE",
+                            "recipient": {"name": name, "phone": "+15555550100"}, "purpose": "check"}),
+                )
+                .await;
+                assert_eq!(r.status.as_u16(), 202, "{}", r.text);
+                t.app.owner_notify().idle().await;
+                r.body["approval"]["approval_id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            }
+        };
+        let linked_sent = |a: &str| {
+            server
+                .requests()
+                .into_iter()
+                .filter(|r| {
+                    serde_json::from_slice::<Value>(&r.body)
+                        .map(|v| v["idempotency_key"] == format!("approval-notify:{a}:linked"))
+                        .unwrap_or(false)
+                })
+                .count()
+        };
+        let a = outreach("Dana").await;
+        python_recorded(&t, pid, &format!("approval-notify:{a}"), "not_linked").await;
+        let mut tx = t.app.store.begin().await.unwrap();
+        ss_server::store::comms::OWNER_CHANNELS
+            .add(
+                &mut *tx,
+                &ss_domain::contracts::OwnerChannel {
+                    owner_channel_id: Uuid::new_v4(),
+                    owner_id: user,
+                    platform: "imessage".into(),
+                    handle: "+15555550142".into(),
+                    status: ss_domain::contracts::OwnerChannelStatus::Linked,
+                    space_id: Some("spc".into()),
+                    agent_user_id: Some("usr".into()),
+                    last_inbound_message_id: None,
+                    linked_at: None,
+                    updated_at: ss_core::UtcDateTime::now(),
+                },
+            )
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        outreach("Dana").await;
+        assert_eq!(linked_sent(&a), 1);
+        outreach("Dana").await;
+        outreach("Dana").await;
+        assert_eq!(linked_sent(&a), 1, "sent again after an unknown outcome");
+        // A recipient whose ":linked" request is refused (404, nothing sent) may be tried again.
+        let b = outreach("refused").await;
+        python_recorded(&t, pid, &format!("approval-notify:{b}"), "not_linked").await;
+        outreach("refused").await;
+        outreach("refused").await;
+        assert_eq!(linked_sent(&b), 2);
+    }
+);
+
+/// Answers 200 after looking, from its own PostgreSQL connection, for the approval its key names.
+struct CommitProbe {
+    opts: sqlx::postgres::PgConnectOptions,
+    seen: std::sync::Mutex<Vec<bool>>,
+}
+
+#[async_trait::async_trait]
+impl OwnerNotifier for CommitProbe {
+    async fn notify(&self, r: &NotifyRequest) -> NotifyOutcome {
+        let id = r
+            .idempotency_key
+            .trim_start_matches("approval-notify:")
+            .to_owned();
+        let mut c = sqlx::ConnectOptions::connect(&self.opts).await.unwrap();
+        let n: (i64,) = sqlx::query_as("SELECT count(*) FROM approvals WHERE id::text = $1")
+            .bind(&id)
+            .fetch_one(&mut c)
+            .await
+            .unwrap();
+        self.seen.lock().unwrap().push(n.0 == 1);
+        NotifyOutcome::Answered {
+            communication_id: Uuid::new_v4(),
+            delivery: "recorded".into(),
+        }
+    }
+    fn kind(&self) -> &'static str {
+        "probe"
+    }
+}
+
+// PostgreSQL only. A deferred trigger makes the outreach commit take one second; the notifier
+// looks for the approval from its own connection. Sent after the commit it sees the approval;
+// sent before or while the commit runs, it would not.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_outreach_notify_is_sent_after_the_commit_postgres() {
+    let Some(url) = common::pg_url() else {
+        eprintln!("SKIPPED: TEST_DATABASE_URL is not set; PostgreSQL variant not run");
+        return;
+    };
+    let base = <sqlx::postgres::PgConnectOptions as std::str::FromStr>::from_str(
+        &ss_server::config::normalize_database_url(&url),
+    )
+    .unwrap();
+    let schema = format!("rt_{}", Uuid::new_v4().simple());
+    let mut admin = sqlx::ConnectOptions::connect(&base).await.unwrap();
+    sqlx::Executor::execute(&mut admin, format!("CREATE SCHEMA {schema}").as_str())
+        .await
+        .unwrap();
+    drop(admin);
+    let opts = base
+        .options([("search_path", schema.as_str())])
+        .application_name(&schema);
+    let store = ss_server::store::postgres::PgStore::connect_with(opts.clone(), 4)
+        .await
+        .unwrap();
+    store.migrate().await.unwrap();
+    let app = ss_server::build_app(common::test_settings(&[]), Arc::new(store));
+    let probe = Arc::new(CommitProbe {
+        opts: opts.clone(),
+        seen: std::sync::Mutex::new(Vec::new()),
+    });
+    app.extensions
+        .insert(Arc::new(OwnerNotify::new(probe.clone())));
+    let router = ss_server::http::router(app.clone());
+    let t = TestApp {
+        app,
+        router,
+        kind: common::Kind::Postgres,
+    };
+    let token = t.token_for(Uuid::new_v4());
+    let p = t.create_project(&token, &common::demo_project_body()).await;
+    let pid = p["project"]["project_id"].as_str().unwrap().to_owned();
+    t.post(
+        &format!("/api/v1/projects/{pid}/properties/search"),
+        Some(&token),
+        &json!({"city": "Los Angeles", "state": "CA"}),
+    )
+    .await;
+    let props = t
+        .get(&format!("/api/v1/projects/{pid}/properties"), Some(&token))
+        .await;
+    let prop = props.body[0]["property_id"].as_str().unwrap().to_owned();
+    let mut c = sqlx::ConnectOptions::connect(&opts).await.unwrap();
+    for sql in [
+        "CREATE FUNCTION slow_commit() RETURNS trigger LANGUAGE plpgsql AS \
+         $$ BEGIN PERFORM pg_sleep(1); RETURN NULL; END $$",
+        "CREATE CONSTRAINT TRIGGER slow_commit AFTER INSERT ON approvals \
+         DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION slow_commit()",
+    ] {
+        sqlx::Executor::execute(&mut c, sql).await.unwrap();
+    }
+    drop(c);
+    let r = t
+        .post(
+            &format!("/api/v1/projects/{pid}/outreach"),
+            Some(&token),
+            &json!({"property_id": prop, "channel": "VOICE",
+                    "recipient": {"name": "D", "phone": "+15555550100"}, "purpose": "p"}),
+        )
+        .await;
+    assert_eq!(r.status.as_u16(), 202, "{}", r.text);
+    t.app.owner_notify().idle().await;
+    assert_eq!(
+        *probe.seen.lock().unwrap(),
+        [true],
+        "the notify ran before the commit"
+    );
+    common::drop_schema(&schema).await;
+}

@@ -936,3 +936,255 @@ both_backends!(live_client_through_the_orchestrator, |db| {
     );
     tx.commit().await.unwrap();
 });
+
+// ---- added by the independent review (rust-server-4-review F1, F2, F4) ----------------------
+
+/// A carrier whose dial fails with a fixed provider error, counting the dial attempts.
+struct FailingDial {
+    dials: std::sync::atomic::AtomicUsize,
+    kind: ProviderErrorKind,
+    message: &'static str,
+}
+
+impl TelephonyProvider for FailingDial {
+    fn mode(&self) -> &str {
+        "live"
+    }
+    fn dial(
+        &self,
+        _to: &str,
+        _from: &str,
+        _webhook_url: &str,
+        _key: &str,
+        _cs: Option<&IndexMap<String, Value>>,
+    ) -> Result<ss_domain::integrations::telnyx::DialResult, TelephonyError> {
+        self.dials.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Err(TelephonyError::Provider(
+            ss_domain::integrations::base::ProviderError::new("telnyx", self.kind, self.message),
+        ))
+    }
+    fn speak(&self, _: &str, _: &str) -> Result<(), TelephonyError> {
+        Ok(())
+    }
+    fn play(&self, _: &str, _: &str) -> Result<(), TelephonyError> {
+        Ok(())
+    }
+    fn start_transcription(&self, _: &str) -> Result<(), TelephonyError> {
+        Ok(())
+    }
+    fn hangup(&self, _: &str) -> Result<(), TelephonyError> {
+        Ok(())
+    }
+    fn create_conference(&self, _: &str, _: &str) -> Result<String, TelephonyError> {
+        Ok("conf".into())
+    }
+    fn join_conference(&self, _: &str, _: &str) -> Result<(), TelephonyError> {
+        Ok(())
+    }
+    fn status(&self) -> ss_domain::contracts::ProviderStatusEntry {
+        ss_domain::integrations::base::status_entry(
+            "telnyx",
+            "live",
+            ss_core::IntegrationStatus::Partial,
+            true,
+            "test carrier",
+        )
+    }
+}
+
+// A dial the carrier did not confirm (no answer, a 5xx, an unreadable 2xx) may have placed the
+// call: the approval is spent and the record says the outcome is unknown, so a second start for
+// the same approval dials nothing. A refusal the carrier stated leaves the approval APPROVED.
+both_backends!(
+    a_dial_the_carrier_did_not_confirm_spends_the_approval,
+    |db| {
+        for (kind, message, unknown) in [
+            (ProviderErrorKind::Timeout, "timed out", true),
+            (ProviderErrorKind::Unavailable, "HTTP 503", true),
+            (
+                ProviderErrorKind::Unavailable,
+                "Network Error: connection reset",
+                true,
+            ),
+            (
+                ProviderErrorKind::BadResponse,
+                "response without data.call_control_id",
+                true,
+            ),
+            (ProviderErrorKind::BadResponse, "HTTP 422", false),
+            (
+                ProviderErrorKind::Unavailable,
+                "Connection Failed: refused",
+                false,
+            ),
+            (ProviderErrorKind::RateLimited, "HTTP 429", false),
+        ] {
+            let t = TestApp::new(db, &[]);
+            let carrier = Arc::new(FailingDial {
+                dials: std::sync::atomic::AtomicUsize::new(0),
+                kind,
+                message,
+            });
+            t.app
+                .extensions
+                .insert(Arc::new(Voice::live(carrier.clone())));
+            let (owner, call) = dialing_call(&t, None).await;
+            assert_eq!(call.state, CallState::Failed, "{message}");
+            let reason = call.failure_reason.clone().unwrap();
+            assert_eq!(
+                reason.contains("outcome unknown"),
+                unknown,
+                "{message}: {reason}"
+            );
+            assert!(reason.contains(message), "{reason}");
+            let mut tx = t.app.store.begin().await.unwrap();
+            let status = APPROVALS
+                .require(&mut *tx, call.approval_id)
+                .await
+                .unwrap()
+                .approval_status;
+            tx.commit().await.unwrap();
+            let want = if unknown {
+                ApprovalStatus::Executed
+            } else {
+                ApprovalStatus::Approved
+            };
+            assert_eq!(status, want, "{message}");
+            let mut tx = t.app.store.begin().await.unwrap();
+            let again = CallOrchestrator::new(&t.app)
+                .start(
+                    &mut *tx,
+                    StartCall {
+                        project_id: call.project_id,
+                        owner_id: owner,
+                        recipient: call.recipient.clone(),
+                        property_id: None,
+                        approval_id: Some(call.approval_id),
+                        intro_recording_reference: None,
+                        communication_id: None,
+                        simulated: false,
+                    },
+                )
+                .await;
+            drop(tx);
+            if unknown {
+                assert_eq!(
+                    again.unwrap_err().error_code(),
+                    "APPROVAL_REQUIRED",
+                    "{message}"
+                );
+                assert_eq!(
+                    carrier.dials.load(std::sync::atomic::Ordering::SeqCst),
+                    1,
+                    "{message}"
+                );
+            } else {
+                assert!(again.is_ok(), "{message}");
+                assert_eq!(
+                    carrier.dials.load(std::sync::atomic::Ordering::SeqCst),
+                    2,
+                    "{message}"
+                );
+            }
+        }
+    }
+);
+
+// Live outbound calls disabled: answering JOIN is refused before any carrier command (no
+// conference is created on the carrier), and nothing is stored.
+both_backends!(owner_leg_with_outbound_disabled_sends_nothing, |db| {
+    let (t, _) = app_with_key(db, &[]);
+    let first = telnyx_mock();
+    t.app.extensions.insert(Arc::new(Voice::live(Arc::new(
+        LiveTelnyxProvider::with_base_url("KEY", "conn1", true, &format!("{}/v2", first.base)),
+    ))));
+    let (owner, call) = dialing_call(&t, Some("+15555550142")).await;
+    let leg = call.provider_call_id.clone().unwrap();
+    let mine = cs(call.call_id, "counterparty");
+    for (i, (et, extra)) in [
+        ("call.answered", json!({})),
+        ("call.speak.ended", json!({})),
+        (
+            "call.transcription",
+            json!({"transcription_data": {"transcript": "Will you need a guarantor?", "is_final": true}}),
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut p = json!({"call_control_id": leg, "client_state": mine});
+        for (k, v) in extra.as_object().unwrap() {
+            p[k] = v.clone();
+        }
+        assert_eq!(deliver(&t, &format!("od{i}"), et, p).await, 204);
+    }
+    let pending = load(&t, call.call_id).await;
+    assert_eq!(pending.state, CallState::HandoffPending);
+    let second = telnyx_mock();
+    t.app.extensions.insert(Arc::new(Voice::live(Arc::new(
+        LiveTelnyxProvider::with_base_url("KEY", "conn1", false, &format!("{}/v2", second.base)),
+    ))));
+    let token = t.token_for(owner);
+    let hid = pending.handoff_request_id.unwrap();
+    let r = t
+        .post(
+            &format!(
+                "/api/v1/projects/{}/handoffs/{hid}/response",
+                call.project_id
+            ),
+            Some(&token),
+            &json!({"response": "ACCEPTED"}),
+        )
+        .await;
+    assert_eq!(r.status.as_u16(), 403, "{}", r.text);
+    assert_eq!(r.body["error_code"], "FORBIDDEN");
+    assert!(second.requests().is_empty(), "{:?}", second.requests());
+    let after = load(&t, call.call_id).await;
+    assert_eq!(after.state, CallState::HandoffPending);
+    assert_eq!(after.conference_id, None);
+});
+
+// A replayed event id whose handling has a visible effect (a broker answer) is processed once.
+both_backends!(a_replayed_transcription_is_processed_once, |db| {
+    let (t, _) = app_with_key(db, &[]);
+    let (_, call) = dialing_call(&t, None).await;
+    let leg = call.provider_call_id.clone().unwrap();
+    let mine = cs(call.call_id, "counterparty");
+    deliver(
+        &t,
+        "rp1",
+        "call.answered",
+        json!({"call_control_id": leg, "client_state": mine}),
+    )
+    .await;
+    deliver(
+        &t,
+        "rp2",
+        "call.speak.ended",
+        json!({"call_control_id": leg, "client_state": mine}),
+    )
+    .await;
+    let utter = json!({"call_control_id": leg,
+                       "transcription_data": {"transcript": "It's available December first.", "is_final": true}});
+    for _ in 0..3 {
+        assert_eq!(
+            deliver(&t, "rp3", "call.transcription", utter.clone()).await,
+            204
+        );
+    }
+    let c = load(&t, call.call_id).await;
+    let heard = c
+        .transcript
+        .iter()
+        .filter(|x| x.speaker == "counterparty")
+        .count();
+    assert_eq!(heard, 1);
+    assert_eq!(c.findings.len(), 1);
+    let rows = processed(&t).await;
+    assert_eq!(
+        rows.iter()
+            .filter(|r| matches!(r.get("provider_event_id"), Some(ss_server::store::SqlValue::Text(s)) if s == "rp3"))
+            .count(),
+        1
+    );
+});

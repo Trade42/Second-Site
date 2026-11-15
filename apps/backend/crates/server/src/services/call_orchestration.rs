@@ -118,6 +118,32 @@ pub fn is_terminal(s: CallState) -> bool {
     TERMINAL.contains(&s)
 }
 
+/// Whether a failed dial leaves open that the carrier placed the call: a timeout, a 5xx, a
+/// transport failure after the request went out, or a 2xx the client could not read. A refusal
+/// the carrier stated (4xx, 401/403, 404, 429), a connection that was never made, and the fixture
+/// provider's simulated failure are not; for those the approval stays APPROVED, as in Python.
+pub fn dial_may_have_been_placed(e: &ss_domain::integrations::base::ProviderError) -> bool {
+    use ss_domain::integrations::base::ProviderErrorKind as K;
+    const NOT_SENT: [&str; 10] = [
+        "Connection Failed",
+        "Dns Failed",
+        "Bad URL",
+        "Unknown Scheme",
+        "Malformed proxy",
+        "Proxy Connect",
+        "Provided proxy",
+        "Insecure request",
+        "simulated dial failure",
+        "retry policy allows no attempts",
+    ];
+    match e.kind {
+        K::Timeout => true,
+        K::BadResponse => !e.message.starts_with("HTTP "),
+        K::Unavailable => !NOT_SENT.iter().any(|p| e.message.starts_with(p)),
+        _ => false,
+    }
+}
+
 fn now() -> UtcDateTime {
     UtcDateTime::now()
 }
@@ -392,11 +418,26 @@ impl<'a> CallOrchestrator<'a> {
         let res = match dialed {
             Ok(r) => r,
             Err(TelephonyError::Provider(err)) => {
+                // REVIEW FIX (rust-server-4-review F1): when the carrier may have placed the call
+                // (no answer, a 5xx, an unreadable 2xx), the approval is spent and the record says
+                // the outcome is unknown, so a repeated start cannot dial the broker a second time.
+                let unknown = dial_may_have_been_placed(&err);
+                let reason = if unknown {
+                    format!(
+                        "dial outcome unknown, the call may have been placed: {}",
+                        err.message
+                    )
+                } else {
+                    err.message.clone()
+                };
                 let mut failed = call.transition(CallState::Failed)?;
-                failed.failure_reason = Some(err.message.clone());
+                failed.failure_reason = Some(reason.clone());
                 failed.ended_at = Some(now());
                 let failed = self.save(tx, failed).await?;
-                self.emit(tx, &failed, EventType::CallFailed, Some(&err.message), None)
+                if unknown {
+                    self.app.approvals().mark_executed(tx, approved).await?;
+                }
+                self.emit(tx, &failed, EventType::CallFailed, Some(&reason), None)
                     .await?;
                 return Ok(failed);
             }
@@ -1129,6 +1170,13 @@ impl<'a> CallOrchestrator<'a> {
                     )
                     .await;
             };
+            // REVIEW FIX (rust-server-4-review F2): with live outbound calls disabled the owner
+            // leg is refused before any carrier command (Python first creates the conference).
+            if self.telephony.mode() == "live" && !self.app.settings.allow_live_outbound_calls {
+                return Err(AppError::forbidden(
+                    "live outbound calls disabled (ALLOW_LIVE_OUTBOUND_CALLS=false)",
+                ));
+            }
             let mut call = call;
             let mut failure: Option<String> = None;
             if call.conference_id.is_none() {

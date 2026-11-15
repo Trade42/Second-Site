@@ -114,7 +114,9 @@ fn fork(t: &TestApp) -> TestApp {
 }
 
 async fn set_up(t: &TestApp, d: &Demo) -> Resp {
-    let r = t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({})).await;
+    let r = t
+        .post(&sandbox_path(&d.pid), Some(&d.tok), &json!({}))
+        .await;
     assert_eq!(r.status, StatusCode::CREATED, "{}", r.text);
     r
 }
@@ -228,18 +230,6 @@ async fn attempt(
         .into_iter()
         .find(|r| r.record_key == format!("{prop}:{item}"))
         .and_then(|r| r.payment)
-}
-
-/// Transactions the fixture bank holds for an account.
-fn fixture_transactions(t: &TestApp, account: &str) -> usize {
-    t.app
-        .nessie()
-        .bank()
-        .unwrap()
-        .list_account_transactions(account, 1000)
-        .unwrap()
-        .record
-        .len()
 }
 
 // ---- The stub that claims to be the Capital One sandbox -----------------------------------------
@@ -535,9 +525,8 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
     cases.push(("REJECTED".into(), v["approval_id"].clone()));
     let v = other_approval(&t, &a, fc, exact.clone(), Some("APPROVED")).await;
     edit_approval(&t, &v["approval_id"], |x| {
-        x.expires_at = ss_core::UtcDateTime::from_datetime(
-            chrono::Utc::now() - chrono::Duration::seconds(1),
-        )
+        x.expires_at =
+            ss_core::UtcDateTime::from_datetime(chrono::Utc::now() - chrono::Duration::seconds(1))
     })
     .await;
     cases.push(("APPROVED but expired".into(), v["approval_id"].clone()));
@@ -569,7 +558,10 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
     }
     // Another project of the same owner, and another owner's project (their own honest approvals).
     let v = approved(&t, &b, &b.hollywood, ITEM_DEPOSIT).await;
-    cases.push(("same owner's other project".into(), v["approval_id"].clone()));
+    cases.push((
+        "same owner's other project".into(),
+        v["approval_id"].clone(),
+    ));
     let v = approved(&t, &c, &c.hollywood, ITEM_DEPOSIT).await;
     cases.push(("another owner's project".into(), v["approval_id"].clone()));
     // Another plan item and another property of this project (honest, APPROVED).
@@ -594,12 +586,21 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
         .unwrap();
     let attempt_id = exact["attempt_id"].as_str().unwrap().to_owned();
     let tampers: Vec<(&str, Value)> = vec![
-        ("amount_minor", json!(exact["amount_minor"].as_i64().unwrap() + 1)),
-        ("amount_minor", json!(exact["amount_minor"].as_i64().unwrap() - 1)),
+        (
+            "amount_minor",
+            json!(exact["amount_minor"].as_i64().unwrap() + 1),
+        ),
+        (
+            "amount_minor",
+            json!(exact["amount_minor"].as_i64().unwrap() - 1),
+        ),
         ("amount_minor", json!(exact["amount_minor"].to_string())),
         ("account_id", json!(b_account)),
         ("merchant_id", json!(other_merchant)),
-        ("description", json!(format!("{} ", exact["description"].as_str().unwrap()))),
+        (
+            "description",
+            json!(format!("{} ", exact["description"].as_str().unwrap())),
+        ),
         ("attempt_id", json!("0123456789ab")),
         ("attempt_id", json!(attempt_id.to_uppercase())),
         ("simulation", json!(FIXTURE)),
@@ -629,7 +630,11 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
     for body in [json!({}), json!({"approval_id": null})] {
         let r = t.post(&path, Some(&a.tok), &body).await;
         assert_problem(&r, 422, "VALIDATION_ERROR");
-        eprintln!("REVIEW-GATE {:<44} {} VALIDATION_ERROR", body.to_string(), 422);
+        eprintln!(
+            "REVIEW-GATE {:<44} {} VALIDATION_ERROR",
+            body.to_string(),
+            422
+        );
     }
     cases.push(("unknown approval id".into(), json!(Uuid::new_v4())));
 
@@ -656,9 +661,17 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
             r.status,
             r.text
         );
-        assert_problem(&r, r.status.as_u16(), r.body["error_code"].as_str().unwrap());
+        assert_problem(
+            &r,
+            r.status.as_u16(),
+            r.body["error_code"].as_str().unwrap(),
+        );
     }
-    assert_eq!(money_posts(&srv).len(), 0, "a refused case reached the bank");
+    assert_eq!(
+        money_posts(&srv).len(),
+        0,
+        "a refused case reached the bank"
+    );
     assert!(attempt(&t, &a.pid, &prop, ITEM_DEPOSIT).await.is_none());
     let mut after = Vec::new();
     for (name, id) in &cases {
@@ -679,17 +692,17 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
     let body: Value = serde_json::from_slice(&sent[0].body).unwrap();
     assert_eq!(
         sent[0].path,
-        format!("/accounts/{}/purchases", exact["account_id"].as_str().unwrap())
+        format!(
+            "/accounts/{}/purchases",
+            exact["account_id"].as_str().unwrap()
+        )
     );
     assert_eq!(body["merchant_id"], exact["merchant_id"]);
     assert_eq!(body["amount_cents"], exact["amount_minor"]);
     assert_eq!(body["description"], exact["description"]);
-    assert!(body["description"]
-        .as_str()
-        .unwrap()
-        .starts_with(&format!(
-            "SIMULATION (Second Site plan item {ITEM_DEPOSIT}, attempt {attempt_id}): "
-        )));
+    assert!(body["description"].as_str().unwrap().starts_with(&format!(
+        "SIMULATION (Second Site plan item {ITEM_DEPOSIT}, attempt {attempt_id}): "
+    )));
 });
 
 // ---- 2. An approval made against one bank never executes against the other ----------------------
@@ -731,11 +744,7 @@ both_backends!(review_an_approval_is_bound_to_its_bank, |db| {
         r.status.as_u16(),
         r.body["error_code"]
     );
-    assert!(
-        [409, 404].contains(&r.status.as_u16()),
-        "{}",
-        r.text
-    );
+    assert!([409, 404].contains(&r.status.as_u16()), "{}", r.text);
     assert_eq!(money_posts(&srv2).len(), 0);
     assert_eq!(
         approval_row(&t2, &a2["approval_id"]).await.approval_status,
@@ -849,7 +858,9 @@ both_backends!(review_may_exist_is_durable_and_refusals_are_not, |db| {
     );
     assert_problem(&r, 502, "NESSIE_PAYMENT_MAY_EXIST");
     assert_eq!(
-        approval_row(&t, &first["approval_id"]).await.approval_status,
+        approval_row(&t, &first["approval_id"])
+            .await
+            .approval_status,
         ApprovalStatus::Executed
     );
 
@@ -939,7 +950,11 @@ both_backends!(review_a_request_dropped_during_the_bank_call, |db| {
         r.body["error_code"].as_str().unwrap_or_default(),
         money_posts(&srv).len()
     );
-    assert_eq!(money_posts(&srv).len(), 1, "a second payment for one approval");
+    assert_eq!(
+        money_posts(&srv).len(),
+        1,
+        "a second payment for one approval"
+    );
     assert_eq!(status, ApprovalStatus::Executed);
     assert_eq!(row.unwrap().attempt_status, "SENT");
 });
@@ -1019,7 +1034,9 @@ both_backends!(review_records_are_isolated, |db| {
     // Another project's property under this project's URL, both ways, on every property route.
     for (me, other) in [(&a, &b), (&b, &a), (&a, &c), (&c, &a)] {
         for what in ["plan", "affordability"] {
-            let r = t.get(&prop_path(&me.pid, &other.hollywood, what), Some(&me.tok)).await;
+            let r = t
+                .get(&prop_path(&me.pid, &other.hollywood, what), Some(&me.tok))
+                .await;
             assert_problem(&r, 404, "NOT_FOUND");
             assert_eq!(r.body["message"], "property not found");
         }
@@ -1081,9 +1098,18 @@ both_backends!(review_records_are_isolated, |db| {
         (Method::POST, sandbox_path(&a.pid)),
         (Method::GET, sandbox_path(&a.pid)),
         (Method::GET, prop_path(&a.pid, &a.hollywood, "plan")),
-        (Method::GET, prop_path(&a.pid, &a.hollywood, "affordability")),
-        (Method::POST, pay_path(&a.pid, &a.hollywood, ITEM_DEPOSIT, "approval")),
-        (Method::POST, pay_path(&a.pid, &a.hollywood, ITEM_DEPOSIT, "refresh")),
+        (
+            Method::GET,
+            prop_path(&a.pid, &a.hollywood, "affordability"),
+        ),
+        (
+            Method::POST,
+            pay_path(&a.pid, &a.hollywood, ITEM_DEPOSIT, "approval"),
+        ),
+        (
+            Method::POST,
+            pay_path(&a.pid, &a.hollywood, ITEM_DEPOSIT, "refresh"),
+        ),
     ] {
         let r = t.call(m, &path, Some(&ytok), None).await;
         assert_problem(&r, 404, "NOT_FOUND");
@@ -1116,14 +1142,21 @@ both_backends!(review_labels_unknown_rent_and_the_key, |db| {
         let prop = d.hollywood.clone();
         let mut answers = vec![
             t.get(&sandbox_path(&d.pid), Some(&d.tok)).await,
-            t.get(&prop_path(&d.pid, &prop, "affordability"), Some(&d.tok)).await,
+            t.get(&prop_path(&d.pid, &prop, "affordability"), Some(&d.tok))
+                .await,
             request_approval(&t, &d, &prop, ITEM_DEPOSIT).await,
         ];
         answers.push(set_up(&t, &d).await);
-        answers.push(t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({})).await);
+        answers.push(
+            t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({}))
+                .await,
+        );
         answers.push(t.get(&sandbox_path(&d.pid), Some(&d.tok)).await);
         answers.push(t.get(&prop_path(&d.pid, &prop, "plan"), Some(&d.tok)).await);
-        answers.push(t.get(&prop_path(&d.pid, &prop, "affordability"), Some(&d.tok)).await);
+        answers.push(
+            t.get(&prop_path(&d.pid, &prop, "affordability"), Some(&d.tok))
+                .await,
+        );
         let a = request_approval(&t, &d, &prop, ITEM_DEPOSIT).await;
         let deposit_id = a.body["approval"]["approval_id"].clone();
         answers.push(execute(&t, &d, &prop, ITEM_DEPOSIT, &deposit_id).await);
@@ -1131,18 +1164,32 @@ both_backends!(review_labels_unknown_rent_and_the_key, |db| {
         answers.push(a);
         let a2 = approved(&t, &d, &prop, ITEM_RENOVATION).await;
         let r = execute(&t, &d, &prop, ITEM_DEPOSIT, &deposit_id).await;
-        assert_eq!(r.body["record"]["outcome"], "SIMULATED_PENDING", "{}", r.text);
+        assert_eq!(
+            r.body["record"]["outcome"], "SIMULATED_PENDING",
+            "{}",
+            r.text
+        );
         assert!(!r.text.contains("SIMULATED_COMPLETED"));
         answers.push(r);
         answers.push(
-            t.call(Method::POST, &pay_path(&d.pid, &prop, ITEM_DEPOSIT, "refresh"), Some(&d.tok), None)
-                .await,
+            t.call(
+                Method::POST,
+                &pay_path(&d.pid, &prop, ITEM_DEPOSIT, "refresh"),
+                Some(&d.tok),
+                None,
+            )
+            .await,
         );
         answers.push(execute(&t, &d, &prop, ITEM_DEPOSIT, &a2["approval_id"]).await);
         answers.push(request_approval(&t, &d, &prop, ITEM_FIRST_MONTH).await);
         answers.push(
-            t.call(Method::POST, &pay_path(&d.pid, &prop, ITEM_RENOVATION, "refresh"), Some(&d.tok), None)
-                .await,
+            t.call(
+                Method::POST,
+                &pay_path(&d.pid, &prop, ITEM_RENOVATION, "refresh"),
+                Some(&d.tok),
+                None,
+            )
+            .await,
         );
         if sim == SANDBOX {
             ctl.mode(Mode::Status(503));
@@ -1155,7 +1202,10 @@ both_backends!(review_labels_unknown_rent_and_the_key, |db| {
         // Unknown rent: every MONTHLY line $0 and the scenario says so.
         let mut tx = t.app.store.begin().await.unwrap();
         for s in COST_SCENARIOS
-            .list(&mut *tx, Query::new().eq("property_id", prop.as_str()))
+            .list(
+                &mut *tx,
+                Query::new().eq("property_id", prop.parse::<Uuid>().unwrap()),
+            )
             .await
             .unwrap()
         {
@@ -1168,12 +1218,17 @@ both_backends!(review_labels_unknown_rent_and_the_key, |db| {
                 }
             }
             v["monthly_operating_cost"] = json!(0);
-            v["assumptions"].as_array_mut().unwrap().push(json!("Asking rent unknown"));
+            v["assumptions"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!("Asking rent unknown"));
             let s2 = CostScenario::from_json_value(v).unwrap();
             COST_SCENARIOS.upsert(&mut *tx, &s2).await.unwrap();
         }
         tx.commit().await.unwrap();
-        let r = t.get(&prop_path(&d.pid, &prop, "affordability"), Some(&d.tok)).await;
+        let r = t
+            .get(&prop_path(&d.pid, &prop, "affordability"), Some(&d.tok))
+            .await;
         eprintln!(
             "REVIEW-UNKNOWN-RENT {sim}: verdict {} / {}",
             r.body["report"]["verdict"], r.body["report"]["headline"]
@@ -1192,16 +1247,30 @@ both_backends!(review_labels_unknown_rent_and_the_key, |db| {
             texts.push(serde_json::to_string(&rec).unwrap());
         }
         let ev = t
-            .get(&format!("/api/v1/projects/{}/events?limit=500", d.pid), Some(&d.tok))
+            .get(
+                &format!("/api/v1/projects/{}/events?limit=500", d.pid),
+                Some(&d.tok),
+            )
             .await;
         texts.push(ev.text);
-        let ap = t.get(&format!("/api/v1/projects/{}/approvals", d.pid), Some(&d.tok)).await;
+        let ap = t
+            .get(
+                &format!("/api/v1/projects/{}/approvals", d.pid),
+                Some(&d.tok),
+            )
+            .await;
         texts.push(ap.text);
         texts.push(t.get("/ready", None).await.text);
     }
     for (i, text) in texts.iter().enumerate() {
-        assert!(!text.contains(CANARY_KEY), "the key leaked in answer {i}: {text}");
-        assert!(!text.contains("REVIEWCANARY"), "part of the key leaked in answer {i}");
+        assert!(
+            !text.contains(CANARY_KEY),
+            "the key leaked in answer {i}: {text}"
+        );
+        assert!(
+            !text.contains("REVIEWCANARY"),
+            "part of the key leaked in answer {i}"
+        );
     }
     for rq in srv.requests() {
         assert_eq!(
@@ -1291,7 +1360,10 @@ async fn review_pg_twenty_concurrent_executes_of_one_approval() {
         );
         *codes.entry(key).or_insert(0) += 1;
     }
-    eprintln!("REVIEW-PG-20 {codes:?}; bank POSTs {}", money_posts(&srv).len());
+    eprintln!(
+        "REVIEW-PG-20 {codes:?}; bank POSTs {}",
+        money_posts(&srv).len()
+    );
     assert_eq!(money_posts(&srv).len(), 1);
     assert_eq!(codes.get("200 -"), Some(&1));
     assert_eq!(
@@ -1317,7 +1389,10 @@ async fn review_pg_two_approvals_for_one_plan_item() {
     let other_attempt = "abcdef012345";
     let old = p["attempt_id"].as_str().unwrap().to_owned();
     p.insert("attempt_id".into(), json!(other_attempt));
-    let desc = p["description"].as_str().unwrap().replace(&old, other_attempt);
+    let desc = p["description"]
+        .as_str()
+        .unwrap()
+        .replace(&old, other_attempt);
     p.insert("description".into(), json!(desc));
     let second = other_approval(&t, &d, ActionType::FinancialCommitment, p, Some("APPROVED")).await;
     ctl.pay_delay_ms.store(400, Ordering::SeqCst);
@@ -1471,17 +1546,28 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
         ),
     ];
     for (name, sql, bind) in probes {
-        let q = sqlx::query_scalar::<_, Value>(&format!("SELECT to_jsonb(x) FROM ({sql}) x"));
-        let q = match bind {
-            Some(id) => q.bind(id),
-            None => q,
+        let out = match bind {
+            Some(id) => sqlx::query(&sql)
+                .bind(id)
+                .fetch_optional(&mut c)
+                .await
+                .map(|r| format!("acquired (row found: {})", r.is_some())),
+            None => sqlx::query_scalar::<_, bool>(&sql)
+                .fetch_one(&mut c)
+                .await
+                .map(|b| {
+                    if b {
+                        "free".to_owned()
+                    } else {
+                        "HELD".to_owned()
+                    }
+                }),
         };
-        let out = q.fetch_optional(&mut c).await;
         eprintln!(
             "REVIEW-PG-LOCKS during the bank call, {name}: {}",
             match out {
-                Ok(v) => format!("{v:?}"),
-                Err(e) => format!("refused: {e}"),
+                Ok(v) => v,
+                Err(e) => format!("HELD ({e})"),
             }
         );
     }
@@ -1509,16 +1595,22 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
             "layout generation",
             Method::POST,
             format!("/api/v1/projects/{}/layouts/generate", d.pid),
-            Some(json!({"property_id": d.alhambra, "room_requirements": [
-                {"room_type": "treatment", "count": 2, "min_area_sqm": 10, "min_width_m": 2.8, "needs_plumbing": true},
-                {"room_type": "reception", "count": 1, "min_area_sqm": 12, "min_width_m": 3}
+            Some(json!({"property_id": d.hollywood, "room_requirements": [
+                {"room_type": "treatment", "count": 3, "min_area_sqm": 10, "min_width_m": 2.8, "needs_plumbing": true},
+                {"room_type": "reception", "count": 1, "min_area_sqm": 12, "min_width_m": 3},
+                {"room_type": "storage", "count": 1, "min_area_sqm": 4, "min_width_m": 1.5}
             ], "candidate_count": 1})),
         ),
         (
             "approval decision",
             Method::POST,
-            format!("/api/v1/approvals/{}/decision", pending["approval_id"].as_str().unwrap()),
-            Some(json!({"decision": "REJECTED", "action_payload_hash": pending["action_payload_hash"]})),
+            format!(
+                "/api/v1/approvals/{}/decision",
+                pending["approval_id"].as_str().unwrap()
+            ),
+            Some(
+                json!({"decision": "REJECTED", "action_payload_hash": pending["action_payload_hash"]}),
+            ),
         ),
         (
             "approval request (renovation)",
@@ -1547,7 +1639,13 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
         set.spawn(async move {
             let s = Instant::now();
             let r = tt.call(m, &path, Some(&tok), body.as_ref()).await;
-            (name, r.status.as_u16(), r.text.chars().take(160).collect::<String>(), s.elapsed())
+            (
+                name,
+                r.status.as_u16(),
+                r.text.chars().take(160).collect::<String>()
+                    + r.body["task"]["error_code"].as_str().unwrap_or_default(),
+                s.elapsed(),
+            )
         });
     }
     let mut results = Vec::new();
@@ -1555,7 +1653,10 @@ async fn review_pg_a_slow_execute_alongside_the_projects_other_writers() {
         results.push(r.unwrap());
     }
     let (r, took) = slow.await.unwrap();
-    eprintln!("REVIEW-PG-OVERLAP execute: {} in {took:?}", r.status.as_u16());
+    eprintln!(
+        "REVIEW-PG-OVERLAP execute: {} in {took:?}",
+        r.status.as_u16()
+    );
     results.sort_by(|x, y| x.0.cmp(y.0));
     for (name, status, text, took) in &results {
         eprintln!("REVIEW-PG-OVERLAP {name}: {status} in {took:?} {text}");
@@ -1668,8 +1769,8 @@ fn review_dump_payloads_for_python_parity() {
                         status: "DRAFT".into(),
                     };
                     for with_bom in [false, true] {
-                        let plan =
-                            plan_move_in_payments(&sc, with_bom.then_some(&bom), sim, None).unwrap();
+                        let plan = plan_move_in_payments(&sc, with_bom.then_some(&bom), sim, None)
+                            .unwrap();
                         for p in &plan.payments {
                             let probe = plan
                                 .intent_for(&p.plan_item_id, &targets, "00000000")
@@ -1677,8 +1778,9 @@ fn review_dump_payloads_for_python_parity() {
                             let base = base_payload_hash(&probe.approval_payload());
                             for round in 0..3 {
                                 let attempt = attempt_id_for(&base, round);
-                                let intent =
-                                    plan.intent_for(&p.plan_item_id, &targets, &attempt).unwrap();
+                                let intent = plan
+                                    .intent_for(&p.plan_item_id, &targets, &attempt)
+                                    .unwrap();
                                 let payload = intent.approval_payload();
                                 rows.push(json!({
                                     "source": "golden",
@@ -1718,9 +1820,21 @@ async fn review_dump_stored_approvals_for_python_parity() {
             app_with_stub(&db, &srv, 5.0)
         };
         let d = demo(&t).await;
-        set_up(&t, &d).await;
+        let r = t
+            .post(
+                &sandbox_path(&d.pid),
+                Some(&d.tok),
+                &json!({"opening_balance_minor": 1_000_000_000i64}),
+            )
+            .await;
+        assert_eq!(r.status, StatusCode::CREATED, "{}", r.text);
         for prop in [d.hollywood.clone(), d.alhambra.clone()] {
-            for item in [ITEM_DEPOSIT, ITEM_RENOVATION, ITEM_FURNISHING, ITEM_OCCUPANCY_BILL] {
+            for item in [
+                ITEM_DEPOSIT,
+                ITEM_RENOVATION,
+                ITEM_FURNISHING,
+                ITEM_OCCUPANCY_BILL,
+            ] {
                 let a = approved(&t, &d, &prop, item).await;
                 let r = execute(&t, &d, &prop, item, &a["approval_id"]).await;
                 assert_eq!(r.status, StatusCode::OK, "{}", r.text);
@@ -1730,7 +1844,10 @@ async fn review_dump_stored_approvals_for_python_parity() {
             assert_eq!(r.status, StatusCode::OK, "{}", r.text);
         }
         let ap = t
-            .get(&format!("/api/v1/projects/{}/approvals", d.pid), Some(&d.tok))
+            .get(
+                &format!("/api/v1/projects/{}/approvals", d.pid),
+                Some(&d.tok),
+            )
             .await;
         for a in ap.body.as_array().unwrap() {
             rows.push(json!({"source": "route", "payload": a["action_payload"], "hash": a["action_payload_hash"]}));
