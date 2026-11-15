@@ -23,7 +23,7 @@ use crate::error::NessieError;
 use crate::models::{
     Account, AccountCreate, Bill, BillCreate, BillPaymentCreate, BillStatus, Customer,
     CustomerCreate, DepositCreate, Merchant, MerchantCreate, PurchaseCreate, Transaction,
-    TransactionStatus,
+    TransactionKind, TransactionStatus,
 };
 use crate::money::format_usd;
 use crate::{BankRecord, FixtureBank, LiveNessieBank, Simulation};
@@ -145,6 +145,8 @@ pub struct SimulatedPaymentRecord {
     pub property_id: Uuid,
     pub scenario_id: Uuid,
     pub plan_item_id: String,
+    /// The approved attempt id, also in the Nessie description.
+    pub attempt_id: String,
     /// `purchase`, `create_recurring_bill` or `pay_bill`.
     pub operation: &'static str,
     pub action_type: ApprovalAction,
@@ -187,13 +189,16 @@ pub enum AttemptOutcome {
     /// Nothing was sent (authorization or validation failure). The approval is unused.
     #[serde(rename = "NOT_SENT")]
     NotSent,
-    /// The bank refused it with a 4xx; Nessie refuses before a transaction exists, so nothing
-    /// was created. The approval is released in this process.
+    /// The bank refused it with 400, 401, 403, 404, 409, 422 or 429; Nessie refuses before a
+    /// transaction exists, so nothing was created. The approval is released in this process.
+    /// Any other 4xx is [`AttemptOutcome::MayExist`].
     #[serde(rename = "REFUSED")]
     Refused,
-    /// The request may have been carried out (timeout, transport failure, 5xx, or a success
-    /// answer this crate could not read). Nessie has no idempotency key: list the account's
-    /// transactions before trying again, and treat the approval as spent.
+    /// The request may have been carried out (timeout, transport failure, 5xx, a 4xx other than
+    /// the refusals above, a success answer this crate could not read, or one about another
+    /// object, amount, merchant, bill or payer than the approved one). Nessie has no idempotency
+    /// key: list the account's transactions before trying again, and treat the approval as
+    /// spent.
     #[serde(rename = "MAY_EXIST")]
     MayExist,
 }
@@ -283,7 +288,7 @@ pub(crate) fn prepare_call(intent: &PaymentIntent) -> Result<PreparedCall, Nessi
                 body,
             }
         }
-        PaymentOperation::PayBill { bill_id } => {
+        PaymentOperation::PayBill { bill_id, .. } => {
             let body = BillPaymentCreate {
                 amount_cents: Some(intent.amount_minor),
             };
@@ -387,6 +392,61 @@ fn transaction_note(sim: Simulation, outcome: SimulatedOutcome, tx: &Transaction
     }
 }
 
+/// `found == expected`, or a BAD_RESPONSE naming the field. A missing value is a mismatch.
+fn same(field: &str, found: Option<&str>, expected: &str) -> Result<(), NessieError> {
+    if found == Some(expected) {
+        Ok(())
+    } else {
+        Err(bad_response(format!(
+            "the bank answered about {field} {} where {expected} was approved",
+            found.map_or_else(|| "(none)".to_owned(), |f| format!("{f:?}"))
+        )))
+    }
+}
+
+/// B1: the transaction the bank answered with is the approved one (its kind, merchant or bill,
+/// and payer), not merely one with the same amount.
+fn answer_matches_transaction(tx: &Transaction, op: &PaymentOperation) -> Result<(), NessieError> {
+    let (kind, account) = match op {
+        PaymentOperation::Purchase {
+            account_id,
+            merchant_id,
+        } => {
+            same("merchant", tx.merchant_id.as_deref(), merchant_id)?;
+            (TransactionKind::Purchase, account_id)
+        }
+        PaymentOperation::PayBill {
+            account_id,
+            bill_id,
+        } => {
+            same("bill", tx.bill_id.as_deref(), bill_id)?;
+            (TransactionKind::BillPayment, account_id)
+        }
+        PaymentOperation::CreateRecurringBill { .. } => {
+            return Err(bad_response(
+                "the bank answered with a transaction for a bill creation".into(),
+            ))
+        }
+    };
+    same("kind", Some(tx.kind.as_str()), kind.as_str())?;
+    same("payer", tx.payer_id.as_deref(), account)
+}
+
+/// B1 for a created bill: the bill belongs to the approved account and names the approved payee.
+fn answer_matches_bill(bill: &Bill, op: &PaymentOperation) -> Result<(), NessieError> {
+    match op {
+        PaymentOperation::CreateRecurringBill {
+            account_id, payee, ..
+        } => {
+            same("account", bill.account_id.as_deref(), account_id)?;
+            same("payee", Some(bill.payee.as_str()), payee)
+        }
+        _ => Err(bad_response(
+            "the bank answered with a bill for a payment".into(),
+        )),
+    }
+}
+
 fn record_for(
     sim: Simulation,
     approval_id: Uuid,
@@ -401,6 +461,7 @@ fn record_for(
         property_id: intent.property_id,
         scenario_id: intent.scenario_id,
         plan_item_id: intent.plan_item_id.clone(),
+        attempt_id: intent.attempt_id.clone(),
         operation: intent.operation.name(),
         action_type: intent.action,
         moves_money: intent.operation.moves_money(),
@@ -413,14 +474,15 @@ fn record_for(
         note,
     };
     match (answer, &intent.operation) {
-        (CallAnswer::Transaction(tx), PaymentOperation::Purchase { .. })
-        | (CallAnswer::Transaction(tx), PaymentOperation::PayBill { .. }) => {
+        (CallAnswer::Transaction(tx), op @ PaymentOperation::Purchase { .. })
+        | (CallAnswer::Transaction(tx), op @ PaymentOperation::PayBill { .. }) => {
             if tx.amount_cents != intent.amount_minor {
                 return Err(bad_response(format!(
                     "the bank reported amount_cents {} for an approved amount of {}",
                     tx.amount_cents, intent.amount_minor
                 )));
             }
+            answer_matches_transaction(&tx, op)?;
             let outcome = SimulatedOutcome::from_transaction_status(&tx.status);
             let note = transaction_note(sim, outcome, &tx);
             let bill_id = tx.bill_id.clone();
@@ -442,6 +504,7 @@ fn record_for(
                     bill.payment_amount, intent.amount_minor
                 )));
             }
+            answer_matches_bill(&bill, &intent.operation)?;
             let (outcome, note) = match bill.status {
                 BillStatus::Unknown(ref s) => (
                     SimulatedOutcome::Unknown,

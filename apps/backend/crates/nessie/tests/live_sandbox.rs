@@ -155,6 +155,7 @@ fn live_sandbox_round_trip() {
         property_id: Uuid::new_v4(),
         scenario_id: Uuid::new_v4(),
         plan_item_id: "test:live_sandbox".into(),
+        attempt_id: "0123abcd4567".into(),
         action: ApprovalAction::Purchase,
         operation: PaymentOperation::Purchase {
             account_id: account.record.id.clone(),
@@ -162,7 +163,7 @@ fn live_sandbox_round_trip() {
         },
         amount_minor: 123,
         currency: "USD".into(),
-        description: "SIMULATION Second Site automated test purchase (delete me)".into(),
+        description: "SIMULATION (Second Site plan item test:live_sandbox, attempt 0123abcd4567): automated test purchase (delete me)".into(),
     };
     let auth = PaymentAuthorization::verify(&approved(&intent), intent.clone(), Utc::now())
         .expect("authorization");

@@ -607,6 +607,20 @@ pub fn table(name: &str) -> Option<&'static TableDef> {
     ALL_TABLES.iter().copied().find(|t| t.name == name)
 }
 
+// ---- Rust-owned tables (not alembic revisions) ---------------------------------------------------
+
+doc_table!(NESSIE_SIMULATION_RECORDS = "nessie_simulation_records" {
+    columns: [uuid("project_id"), varchar("kind", 32), varchar("record_key", 255), uuid_null("approval_id")],
+    uniques: [uq("uq_nessie_simulation_records_project_id", &["project_id", "kind", "record_key"])],
+    foreign_keys: [fk("fk_nessie_simulation_records_project_id_projects", "project_id", "projects", Cascade)],
+    indexes: [ix("ix_nessie_simulation_records_approval_id", &["approval_id"])],
+});
+
+/// Tables the Rust service owns and creates itself (`migrations/rust-owned/`, see
+/// `store::postgres::RUST_OWNED_MIGRATIONS`), outside alembic: alembic does not know them and
+/// `alembic_version` never changes for them. Not in [`ALL_TABLES`], which mirrors alembic head.
+pub static RUST_OWNED_TABLES: &[&TableDef] = &[&NESSIE_SIMULATION_RECORDS];
+
 #[cfg(test)]
 mod tests {
     use super::*;
