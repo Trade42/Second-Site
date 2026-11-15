@@ -82,7 +82,22 @@ both_backends!(health_and_ready, |db| {
     let names: Vec<&str> = providers
         .iter()
         .map(|p| p["provider"].as_str().unwrap())
+        .filter(|n| *n != "nessie") // asserted on its own below
         .collect();
+    // The Nessie sandbox entry: the fixture bank unless NESSIE_PROVIDER_MODE=live with a key.
+    let nessie: Vec<&Value> = providers
+        .iter()
+        .filter(|p| p["provider"] == "nessie")
+        .collect();
+    assert_eq!(nessie.len(), 1, "{}", r.text);
+    if std::env::var("NESSIE_PROVIDER_MODE").is_err() {
+        assert_eq!(
+            *nessie[0],
+            serde_json::to_value(ss_nessie::NessieBank::status(&ss_nessie::FixtureBank::new()))
+                .unwrap()
+        );
+        assert_eq!(nessie[0]["status"], "MOCK");
+    }
     assert_eq!(
         names,
         [
@@ -118,6 +133,7 @@ both_backends!(health_and_ready, |db| {
         providers[4..7]
             .iter()
             .chain(&providers[8..])
+            .filter(|p| p["provider"] != "nessie")
             .all(|p| p["status"] == "NOT_STARTED"),
         "{}",
         r.text

@@ -16,6 +16,8 @@ path = "src/main.rs"
 [dependencies]
 ss-core = { path = "../core" }
 ss-domain = { path = "../domain" }
+# Capital One Nessie sandbox (simulated payments, mock money only).
+ss-nessie = { path = "../nessie" }
 # Blocking HTTP client for the live provider adapters (the domain provider traits are
 # synchronous); calls run on tokio's blocking pool.
 ureq = { version = "2", default-features = false, features = ["tls"] }
@@ -42,6 +44,14 @@ sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
 rand = "0.8"
+# Asynchronous HTTP/1.1 client for forwarding to the Python service (services/forward.rs):
+# hyper's own client (already in the tree under axum), rustls with ring and webpki roots for
+# https; no proxy support, no default headers.
+hyper = { version = "1", default-features = false, features = ["client", "http1"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "http1", "tokio"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "webpki-tokio"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+http-body-util = "0.1"
 
 [dev-dependencies]
 jsonschema = { version = "0.61.2", default-features = false }

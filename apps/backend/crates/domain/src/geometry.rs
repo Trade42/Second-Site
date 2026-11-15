@@ -810,6 +810,131 @@ pub fn contains_with_tolerance(outer: &[Pt], inner: &[Pt], eps: f64) -> bool {
     any_extent && ring_area(&r) > 0.0
 }
 
+/// What one ring segment contributes to [`locate`]'s ray-crossing count for point `p`
+/// (the body of `locate`'s loop: the segment is skipped, puts `p` on the boundary, or is
+/// crossed by the ray from `p` towards +x).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RayStep {
+    Skip,
+    Boundary,
+    Cross,
+}
+
+/// One step of GEOS `RayCrossingCounter::countSegment`, exactly as [`locate`] does it. `locate`
+/// is the fold of these steps over the ring: `Boundary` when any segment gives `Boundary`,
+/// otherwise the parity of `Cross`. Each step depends only on `p` and its segment, so the fold
+/// is independent of segment order.
+pub(crate) fn ray_step(p: Pt, p1: Pt, p2: Pt) -> RayStep {
+    if p1.0 < p.0 && p2.0 < p.0 {
+        return RayStep::Skip;
+    }
+    if p == p2 {
+        return RayStep::Boundary;
+    }
+    if p1.1 == p.1 && p2.1 == p.1 {
+        let (lo, hi) = if p1.0 > p2.0 {
+            (p2.0, p1.0)
+        } else {
+            (p1.0, p2.0)
+        };
+        return if p.0 >= lo && p.0 <= hi {
+            RayStep::Boundary
+        } else {
+            RayStep::Skip
+        };
+    }
+    if (p1.1 > p.1 && p2.1 <= p.1) || (p2.1 > p.1 && p1.1 <= p.1) {
+        let mut orient = orientation(p1, p2, p);
+        if orient == 0 {
+            return RayStep::Boundary;
+        }
+        if p2.1 < p1.1 {
+            orient = -orient;
+        }
+        if orient == 1 {
+            return RayStep::Cross;
+        }
+    }
+    RayStep::Skip
+}
+
+/// [`contains_with_tolerance`]'s test for one closed `inner` ring, with the outer boundary given
+/// as the segments `near` that can affect it plus a `locate` for the whole outer ring.
+///
+/// Every term of `contains_with_tolerance` that involves an outer segment (crossing parameters,
+/// the `eps` bands, the endpoint distance) is a per-segment contribution that is empty for a
+/// segment farther than `eps` (plus rounding) from `inner`; the cuts are sorted and the bands
+/// are tested with `any`, so their order does not matter. When `near` holds every outer segment
+/// that comes that close and `locate` equals [`locate`] on the outer ring for the points this
+/// test asks about, the result is bit for bit `contains_with_tolerance(outer, inner, eps)` (the
+/// caller has already checked that the outer ring has at least 4 points). The statements below
+/// mirror `contains_with_tolerance` one for one; keep the two in step (the framing differential
+/// test compares them).
+pub(crate) fn covers_ring_near(
+    inner: &[Pt],
+    near: &[(Pt, Pt)],
+    locate: &mut dyn FnMut(Pt) -> Location,
+    eps: f64,
+) -> bool {
+    let r = closed_ring(inner);
+    if r.len() < 2 {
+        return false;
+    }
+    let mut any_extent = false;
+    for e in r.windows(2) {
+        let (p, q) = (e[0], e[1]);
+        let d = (q.0 - p.0, q.1 - p.1);
+        if d.0 == 0.0 && d.1 == 0.0 {
+            if locate(p) == Location::Exterior
+                && !near
+                    .iter()
+                    .any(|s| point_segment_distance(p, s.0, s.1) <= eps)
+            {
+                return false;
+            }
+            continue;
+        }
+        any_extent = true;
+        let mut cuts = vec![0.0, 1.0];
+        let mut bands: Vec<(f64, f64)> = Vec::new();
+        for s in near {
+            meeting_params(p, q, s.0, s.1, &mut cuts);
+            if let Some((t0, t1)) = stadium_interval(p, d, s.0, s.1, eps) {
+                if t1 >= 0.0 && t0 <= 1.0 {
+                    bands.push((t0, t1));
+                    cuts.push(t0.clamp(0.0, 1.0));
+                    cuts.push(t1.clamp(0.0, 1.0));
+                }
+            }
+        }
+        cuts.retain(|t| (0.0..=1.0).contains(t));
+        cuts.sort_by(f64::total_cmp);
+        for w in cuts.windows(2) {
+            if w[1] <= w[0] {
+                continue;
+            }
+            let t = (w[0] + w[1]) / 2.0;
+            if bands.iter().any(|(t0, t1)| *t0 <= t && t <= *t1) {
+                continue;
+            }
+            let m = (p.0 + t * d.0, p.1 + t * d.1);
+            if locate(m) == Location::Exterior {
+                return false;
+            }
+        }
+        for x in [p, q] {
+            if locate(x) == Location::Exterior
+                && !near
+                    .iter()
+                    .any(|s| point_segment_distance(x, s.0, s.1) <= eps)
+            {
+                return false;
+            }
+        }
+    }
+    any_extent && ring_area(&r) > 0.0
+}
+
 // ---- areas of intersections --------------------------------------------------------------------
 
 fn signed_ring_area(ring: &[Pt]) -> f64 {
