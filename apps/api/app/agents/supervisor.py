@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 from uuid import UUID
 
@@ -123,6 +124,82 @@ class DeterministicSupervisor:
         return ChatResponse(reply=reply, mode="deterministic", grounded_record_ids=self.ctx.touched_records)
 
 
+def _export_provider_key(settings: Settings) -> None:
+    """LangChain reads the provider key from the environment, not from Settings."""
+    key = settings.anthropic_api_key.get_secret_value() if settings.anthropic_api_key else ""
+    if key:
+        os.environ["ANTHROPIC_API_KEY"] = key
+
+
+def _message_text(content: Any) -> str:
+    """Plain text only. Drop thinking blocks and their signatures."""
+    if isinstance(content, str):
+        stripped = content.strip()
+        if stripped.startswith("[") and "signature" in stripped[:200]:
+            try:
+                return _message_text(json.loads(stripped))
+            except json.JSONDecodeError:
+                return ""
+        return stripped
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+                continue
+            if isinstance(block, dict):
+                kind = block.get("type") or ""
+                text = block.get("text") or ""
+            else:
+                kind = str(getattr(block, "type", "") or "")
+                text = str(getattr(block, "text", "") or "")
+            if kind in {"thinking", "redacted_thinking", "reasoning"} or "signature" in kind:
+                continue
+            if kind not in {"", "text"}:
+                continue
+            if text and not str(text).lstrip().startswith('[{"signature"'):
+                parts.append(str(text))
+        return "\n".join(part.strip() for part in parts if part and part.strip())
+    return ""
+
+
+def _owner_model_reply(ctx: ToolContext, message: str, settings: Settings, model: str) -> ChatResponse:
+    """One Claude call for an owner text. Facts come from the tools; the model only writes the reply."""
+    from langchain.chat_models import init_chat_model
+
+    tools = {t.name: t for t in build_tools(ctx)}
+    facts: list[str] = []
+    for name in ("get_project_state", "get_ranking"):
+        try:
+            facts.append(f"{name}: {tools[name].invoke({})}")
+        except Exception:
+            continue
+    chat = init_chat_model(model)
+    result = chat.invoke(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "You text the owner for Second Site. Write a short iMessage, a few sentences, no headers. "
+                    "Use only the facts below. Money fields in tool JSON are integer cents. Explanation strings "
+                    "are already in dollars. Old permits are history, not proof of spare power or water. A lower "
+                    "advertised rent can cost more over 36 months. Call yourself an assistant, never an AI. "
+                    "A text cannot approve spending.\n\nFacts:\n" + "\n".join(facts)
+                ),
+            },
+            {"role": "user", "content": message},
+        ]
+    )
+    reply = _message_text(result.content)
+    if not reply or reply.lstrip().startswith('[{"signature"'):
+        reply = "I had trouble phrasing that. Ask me once more."
+    return ChatResponse(
+        reply=reply,
+        mode="deep_agent",
+        grounded_record_ids=list(dict.fromkeys(ctx.touched_records)),
+    )
+
+
 def run_chat(
     ctx: ToolContext,
     message: str,
@@ -134,6 +211,9 @@ def run_chat(
     model = model or settings.supervisor_model
     if not model:
         return DeterministicSupervisor(ctx).chat(message)
+    _export_provider_key(settings)
+    if isinstance(model, str) and thread_id and str(thread_id).startswith("photon:"):
+        return _owner_model_reply(ctx, message, settings, model)
     if settings.agent_checkpointer == "memory":
         if _MEMORY_CHECKPOINTER is None:
             _MEMORY_CHECKPOINTER = build_checkpointer(settings)
@@ -144,9 +224,7 @@ def run_chat(
     cfg = {"configurable": {"thread_id": thread_id or f"project:{ctx.project_id}"}, "recursion_limit": 40}
     result = agent.invoke({"messages": [{"role": "user", "content": message}]}, config=cfg)
     last = next((m for m in reversed(result["messages"]) if isinstance(m, AIMessage)), None)
-    text = (
-        last.content if last and isinstance(last.content, str) else json.dumps(getattr(last, "content", ""))
-    )
+    text = _message_text(getattr(last, "content", ""))
     return ChatResponse(
         reply=text, mode="deep_agent", grounded_record_ids=list(dict.fromkeys(ctx.touched_records))
     )

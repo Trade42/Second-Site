@@ -116,6 +116,11 @@ def route_owner_message(db: Session, c, msg) -> tuple[str, str | None]:
             "command",
             f"Noted. I saved this design change: {change}. Layout edits still happen in the app.",
         )
+    # No chat model yet: answer common questions from the project's records.
+    if getattr(c.settings, "supervisor_model", "set") in (None, ""):
+        from app.domains.communications.canned import HELP, canned_reply
+
+        return "chat", canned_reply(db, project_id, text, web) or HELP
     ctx = ToolContext(db=db, c=c, project_id=project_id, owner_id=ch.owner_id)
     reply = run_chat(ctx, text, c.settings, thread_id=f"photon:{ch.owner_id}").reply
     return "chat", reply[:1500]
