@@ -43,8 +43,9 @@ from uuid import UUID
 from app.contracts import ChatResponse
 from app.core.config import ProviderMode, Settings
 from app.core.logging import get_logger
+from app.repositories import registry as repos
 
-from .backend_client import TOOL_ERROR_STATUS
+from .backend_client import TOOL_ERROR_STATUS, backend_client
 from .tools import ToolContext, build_tools
 
 log = get_logger(__name__)
@@ -59,6 +60,7 @@ TIMEOUT_S = 90
 TOP_PROPERTIES = 3
 MAX_EVIDENCE_PER_PROPERTY = 20
 MAX_FACTS_CHARS = 60_000
+MAX_CHECK_DETAIL_CHARS = 160
 # Past exchanges (owner message + reply) kept per thread, in this process only, and sent with the next message.
 HISTORY_TURNS = 4
 MAX_HISTORY_CHARS = 1_500
@@ -90,7 +92,14 @@ Rules, all binding:
   Outreach and purchases are requested and approved by the owner in the app.
 - Reply in plain text, briefly (at most about 200 words). No tables, no headings. Name a listing by its address
   and suite, as its "listing" field gives them, and say its rank when that helps. Never write an id, a database
-  key or a reference code such as E3: say the evidence's class and where it comes from instead."""
+  key or a reference code such as E3: say the evidence's class and where it comes from instead.
+  When the owner asks about a listing (does it fit, why was it suggested, is it good for them), start with why it
+  is ranked where it is: its rank and the reasons the facts give (the ranking's explanation, its ranking_basis
+  checks such as rent against the limit, its cost, its area against the need, its permit history), each with its
+  evidence class where the rules above ask for it. Only then say, in a sentence or two, what is not yet confirmed
+  and what would settle it (a tour, a question to the listing's broker, a measurement). Call such a point "not
+  yet confirmed" or "unknown": it is not a failure of the listing and it is never met. Do not open the reply
+  with what the facts do not establish."""
 
 ACTION_REPLY = (
     "I can't do that from chat: I can't contact anyone, place calls, send messages, buy anything or approve "
@@ -209,6 +218,34 @@ def _data_notice(settings: Settings) -> str:
     )
 
 
+def _ranking_basis(ctx: ToolContext) -> dict[str, dict[str, Any]]:
+    """Per property id, what the latest ranking measured: its scores, its penalty for unknowns and every hard check
+    (rent against the limit, upfront cash against the capital, a hard requirement) with the ranking's own detail
+    text. The ranking tool's view leaves these out, and without them the model cannot say why a listing is ranked
+    where it is. Read as the ranking tool reads it; a failed read leaves the basis out, it is never invented."""
+    try:
+        api = backend_client(ctx.c.settings, ctx.owner_id, ctx.backend_transport)
+        if api is not None:
+            rankings = api.list_rankings(ctx.project_id)
+        else:
+            rankings = repos.rankings.list(ctx.db, project_id=ctx.project_id)
+    except Exception:  # noqa: BLE001 - no basis in the facts then
+        return {}
+    if not rankings:
+        return {}
+    r = rankings[-1]
+    out: dict[str, dict[str, Any]] = {}
+    for pid, scores in r.normalized_scores.items():
+        out.setdefault(str(pid), {})["scores"] = scores
+    for pid, penalty in r.uncertainty_penalties.items():
+        out.setdefault(str(pid), {})["penalty_for_unknowns"] = penalty
+    for c in r.hard_constraint_results:
+        passed = {True: "YES", False: "NO"}.get(c.passed, "UNKNOWN")
+        check = {"check": c.constraint, "passed": passed, "detail": (c.detail or "")[:MAX_CHECK_DETAIL_CHARS]}
+        out.setdefault(str(c.property_id), {}).setdefault("checks", []).append(check)
+    return out
+
+
 def gather_facts(ctx: ToolContext) -> tuple[dict[str, Any], list[UUID]]:
     """Read-only facts for the prompt and the ids of the records they came from. Never runs the analysis."""
     tools = {t.name: t for t in build_tools(ctx)}
@@ -227,6 +264,7 @@ def gather_facts(ctx: ToolContext) -> tuple[dict[str, Any], list[UUID]]:
     if isinstance(ranking, dict) and isinstance(ranking.get("ranking_id"), str):
         ids.append(UUID(ranking["ranking_id"]))
     details = []
+    basis = _ranking_basis(ctx) if isinstance(ranked, list) and ranked else {}
     for r in (ranked if isinstance(ranked, list) else [])[:TOP_PROPERTIES]:
         if not isinstance(r, dict) or not isinstance(r.get("property_id"), str):
             continue
@@ -239,6 +277,7 @@ def gather_facts(ctx: ToolContext) -> tuple[dict[str, Any], list[UUID]]:
             {
                 "property_id": pid,
                 "rank": r.get("rank"),
+                "ranking_basis": basis.get(pid.lower()) or basis.get(pid),
                 "feasibility": _call(tools, "get_feasibility", {"property_id": pid}),
                 "evidence": evidence,
                 "evidence_check": _call(tools, "validate_evidence", {"property_id": pid}),
@@ -259,6 +298,13 @@ _UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F
 _UUID_RE = re.compile(_UUID)
 _ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth")
 UNRANKED_LISTING = "a listing that is not in the ranking"
+# The evidence validator's line for a listing of provider CoStar whose data_origin is not LIVE (validator.py:41).
+COSTAR_NOT_LIVE = "listing labeled CoStar but not retrieved live from CoStar"
+SNAPSHOT_NOTICE = (
+    "These listings are genuine CoStar records from the sponsor's data-kit snapshot, not a live query, so rent "
+    "and availability may have changed; say so once when you cite one: {names}. This is about the listings "
+    "only: permits are separate public records, not CoStar's."
+)
 
 
 def _is_id(value: object) -> bool:
@@ -303,10 +349,17 @@ def listing_labels(facts: dict[str, Any]) -> dict[str, str]:
     return labels
 
 
-def public_facts(facts: dict[str, Any]) -> dict[str, Any]:
+def public_facts(facts: dict[str, Any], kit_listings: bool = False) -> dict[str, Any]:
     """The facts as the model gets them: the same records, with no UUID anywhere. `property_id` becomes `listing`
     (see `listing_labels`), an evidence id becomes a reference local to this prompt (`ref`, `evidence_refs`: E1,
-    E2...), a map keyed by property id is keyed by the listing's name, and every other record id is left out."""
+    E2...), a map keyed by property id is keyed by the listing's name, and every other record id is left out.
+
+    `kit_listings` (the listing provider is the CoStar data kit, PROPERTY_PROVIDER_MODE=live): a listing for which
+    the validator raised COSTAR_NOT_LIVE is then a data-kit record. The validator raises that line only for provider
+    "costar"; the kit provider is the only code that writes that provider and it writes FIXTURE_REAL, while the
+    synthetic provider writes provider "fixture" and never gets the line. For each such listing the line is taken
+    out of its problems and `data_notice` says the same thing once, naming the listing. Without `kit_listings`
+    (fixture mode) nothing changes: the fixture notice and the line stay. Every other problem passes unchanged."""
     labels = listing_labels(facts)
     refs: dict[str, str] = {}
     unranked: dict[str, str] = {}
@@ -349,7 +402,21 @@ def public_facts(facts: dict[str, Any]) -> dict[str, Any]:
             return scrub_ids(_UUID_RE.sub(name, o))
         return o
 
-    return walk(facts)
+    out = walk(facts)
+    if not kit_listings or not isinstance(out.get("top_properties"), list):
+        return out
+    covered: list[str] = []
+    for d in out["top_properties"]:
+        check = d.get("evidence_check") if isinstance(d, dict) else None
+        problems = check.get("problems") if isinstance(check, dict) else None
+        if isinstance(problems, list) and COSTAR_NOT_LIVE in problems and isinstance(d.get("listing"), str):
+            check["problems"] = [p for p in problems if p != COSTAR_NOT_LIVE]
+            covered.append(d["listing"])
+    if covered:
+        notice = out.get("data_notice")
+        snapshot = SNAPSHOT_NOTICE.format(names="; ".join(covered))
+        out["data_notice"] = f"{notice} {snapshot}" if isinstance(notice, str) and notice else snapshot
+    return out
 
 
 _MARK = "\x00"  # stands for a removed id while the words around it are tidied
@@ -528,7 +595,9 @@ def codex_chat(ctx: ToolContext, message: str, model: str, thread_id: str) -> Ch
         )
     t0 = time.monotonic()
     raw_facts, ids = gather_facts(ctx)  # the raw facts and their record ids stay in this process
-    facts = public_facts(raw_facts)  # what the model gets: listings by address, no UUID
+    # What the model gets: listings by address, no UUID, a data-kit listing's origin said once in data_notice.
+    kit = ctx.c.settings.property_provider_mode == ProviderMode.LIVE
+    facts = public_facts(raw_facts, kit_listings=kit)
     history = _history(thread_id)
     prompt = build_prompt(facts, history, message)
     t1 = time.monotonic()
