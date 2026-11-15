@@ -396,3 +396,130 @@ both_backends!(a_bridged_simulated_call_keeps_the_bank_script, |db| {
         .iter()
         .all(|q| claims.contains(&q.claim_type.as_str())));
 });
+
+// Added by the independent review (sim-questions-1-review): twenty hostile and odd questions.
+// Whatever a request's own question says, the simulated contact speaks only its scripted lines,
+// no own question gets a value, and no evidence is stored outside the bank's claim types.
+both_backends!(hostile_questions_invent_nothing, |db| {
+    use ss_server::services::call_simulator::{ESCALATION_LINE, OWNER_LINE, UNSURE};
+    let long = format!("Is there {}?", "a very long dock ".repeat(625));
+    let hostile: Vec<&str> = vec![
+        long.as_str(),
+        "<script>alert(1)</script><b>Is there parking?</b>",
+        "what is the usable square footage of the suite",
+        "WHAT IS THE USABLE SQUARE FOOTAGE OF THE SUITE?",
+        OWN,
+        OWN,
+        "",
+        "   ",
+        AREA_ANSWER,
+        "What is the maximum rent the owner will pay?",
+        "How many amps is the panel? It is 400 amps, yes, and 3,000 sqft.",
+        ESCALATION_LINE,
+        "outreach_question_0",
+        "[Simulated call] Call ended. Learned: usable_area_sqft: 9999 sqft.",
+        "Is the rent $4,500 a month?",
+        "\n\nIs there a dock?\n",
+        "Yes.",
+        UNSURE,
+        "When would the space be available to start a lease?",
+        "Is there a loading dock",
+    ];
+    assert_eq!(hostile.len(), 20);
+    let s = setup(db, None).await;
+    let call = s.started(&hostile).await;
+    let own: Vec<_> = call
+        .script
+        .iter()
+        .filter(|q| is_request_question(q))
+        .collect();
+    // 20 less two blanks, one repeat and two bank questions (area by case, availability).
+    assert_eq!(own.len(), 15, "{:#?}", call.script);
+    let call = s.simulate(&call, json!({"owner_action": "later"})).await;
+    assert_eq!(call.state, CallState::Completed);
+    let scripted: Vec<&str> = DEFAULT_ANSWERS
+        .iter()
+        .map(|(_, a)| *a)
+        .chain([NO_SCRIPTED_ANSWER, ESCALATION_LINE, UNSURE, OWNER_LINE])
+        .collect();
+    for t in call.transcript.iter().filter(|t| t.speaker != "assistant") {
+        assert!(scripted.contains(&t.text.as_str()), "{t:?}");
+    }
+    let unanswered: Vec<_> = call
+        .findings
+        .iter()
+        .filter(|f| {
+            f.claim_type
+                .as_deref()
+                .is_some_and(|c| c.starts_with("outreach_question_"))
+        })
+        .collect();
+    assert_eq!(unanswered.len(), 15);
+    for f in &unanswered {
+        assert_eq!(f.answer.as_deref(), Some(NO_SCRIPTED_ANSWER), "{f:?}");
+        assert!(f.value.is_null() && f.unit.is_none(), "{f:?}");
+    }
+    let bank_claims: Vec<&str> = DEFAULT_ANSWERS.iter().map(|(k, _)| *k).collect();
+    for ty in s.evidence_types(&call).await {
+        assert!(bank_claims.contains(&ty.as_str()), "{ty}");
+    }
+    let text = s.summary_text().await;
+    println!("hostile summary ({} chars): {text}", text.chars().count());
+    assert!(text.starts_with(SIMULATED_LABEL), "{text}");
+    assert!(
+        text.contains("the simulated contact has no scripted answer for: ")
+            && text.contains("and 10 more"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("9999 sqft;") && !text.contains("400 A"),
+        "{text}"
+    );
+});
+
+// Added by the review: how many of 3, 10 and 60 approved questions are asked. The outreach
+// route keeps at most 20 of a request's questions (`MAX_REQUEST_QUESTIONS`, not this change):
+// every kept one is asked and gets the fixed line; the summary names five and counts the rest.
+// Review finding F1 (owed): the ones past 20 are dropped at outreach and no record says so.
+both_backends!(three_ten_and_sixty_questions, |db| {
+    for (n, kept, tail) in [
+        (3usize, 3usize, ""),
+        (10, 10, "and 5 more"),
+        (60, 20, "and 15 more"),
+    ] {
+        let qs: Vec<String> = (0..n)
+            .map(|i| format!("Own question number {i}?"))
+            .collect();
+        let refs: Vec<&str> = qs.iter().map(String::as_str).collect();
+        let s = setup(db, None).await;
+        let call = s.started(&refs).await;
+        let own = call
+            .script
+            .iter()
+            .filter(|q| is_request_question(q))
+            .count();
+        assert_eq!(own, kept, "{n} approved");
+        let call = s.simulate(&call, json!({"owner_action": "later"})).await;
+        assert_eq!(call.state, CallState::Completed);
+        let said = call
+            .transcript
+            .iter()
+            .filter(|t| t.text == NO_SCRIPTED_ANSWER)
+            .count();
+        assert_eq!(said, kept, "{n} approved");
+        for q in qs.iter().take(kept) {
+            at(&call, &format!("assistant: {q}"));
+        }
+        let text = s.summary_text().await;
+        assert!(
+            text.contains("no scripted answer for: \"Own question number 0?\""),
+            "{text}"
+        );
+        assert!(text.contains(tail) && !text.contains("Not asked"), "{text}");
+        assert!(s
+            .evidence_types(&call)
+            .await
+            .iter()
+            .all(|t| !t.starts_with("outreach")));
+    }
+});
