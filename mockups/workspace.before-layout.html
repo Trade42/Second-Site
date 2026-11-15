@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Second Site</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.css">
+<link rel="stylesheet" href="workspace.before-layout.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body data-stage="discover">
+
+<header class="bar">
+  <span class="mark">Second Site</span>
+  <nav class="stages" aria-label="Workspace">
+    <button type="button" data-go="discover">Search</button>
+    <button type="button" data-go="compare">Compare</button>
+    <button type="button" data-go="furnish">Furnish</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 1. Discover -->
+  <section class="stage" id="discover">
+    <div class="strip" id="strip"></div>
+    <div class="below">
+      <div class="mapbox">
+        <div id="map"></div>
+        <aside class="brief float" id="brief" aria-label="What you are looking for" hidden></aside>
+        <aside class="inspect float" id="inspect" hidden></aside>
+      </div>
+      <div class="chat-slot" data-slot="discover">
+<!-- One conversation, moved between stages -->
+<div class="chat" id="chat">
+  <div class="log" id="log" aria-live="polite"></div>
+  <div class="replies" id="replies"></div>
+  <form class="composer" id="composer" autocomplete="off">
+    <input id="say" type="text" placeholder="Describe what you need" aria-label="Message">
+    <button type="submit" aria-label="Send">
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+</div>
+</div>
+    </div>
+  </section>
+
+  <!-- 2. Compare -->
+  <section class="stage" id="compare" hidden>
+    <div class="side">
+      <div class="findings" id="findings"></div>
+      <div class="chat-slot" data-slot="compare"></div>
+    </div>
+    <div class="canvas">
+      <div class="finalists" id="finalists"></div>
+      <div class="viewer-slot" data-slot="compare">
+<!-- One property viewer, moved between stages -->
+<div class="viewer" id="viewer">
+  <div class="vstage">
+    <div class="layer" id="v-dollhouse" hidden>
+      <img class="poster" alt="">
+      <canvas></canvas>
+      <p class="vstate"></p>
+    </div>
+    <div class="layer" id="v-floorplan" hidden><div class="plan"><img alt="Floor plan"><div class="overlay"></div></div></div>
+    <div class="layer" id="v-aerial" hidden>
+      <img alt="Aerial view">
+      <div class="seg dirs">
+        <button type="button" data-dir="ortho">Top</button><button type="button" data-dir="oblique-n">N</button><button type="button" data-dir="oblique-e">E</button><button type="button" data-dir="oblique-s">S</button><button type="button" data-dir="oblique-w">W</button>
+      </div>
+    </div>
+    <div class="layer" id="v-map" hidden><div id="vmap"></div></div>
+    <div class="layer" id="v-photos" hidden><img alt=""><div class="thumbs"></div></div>
+    <p class="evidence" id="evidence" hidden></p>
+  </div>
+  <div class="vbar">
+    <div class="seg views" id="views"></div>
+    <div class="vextra" id="vextra"></div>
+  </div>
+</div>
+</div>
+    </div>
+  </section>
+
+  <!-- 3. Furnish -->
+  <section class="stage" id="furnish" hidden>
+    <div class="side">
+      <div class="market">
+        <div class="tabs">
+          <button type="button" data-tab="suggest" aria-selected="false">Suggestions</button>
+          <button type="button" data-tab="parts" aria-selected="false">Parts list <span id="parts-count"></span></button>
+        </div>
+        <div class="pane" id="pane"></div>
+      </div>
+      <div class="chat-slot" data-slot="furnish"></div>
+    </div>
+    <div class="canvas">
+      <div class="canvas-head" id="furnish-head"></div>
+      <div class="viewer-slot" data-slot="furnish"></div>
+    </div>
+  </section>
+</main>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"></script>
+<script type="module" src="workspace.before-layout.js"></script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jim's Peanut Butter</title>
+<style>
+  * { box-sizing:border-box; margin:0 }
+  html, body { height:100%; overflow:hidden; background:#fff; color:#111;
+    font:15px/1.4 -apple-system,"SF Pro Display",Inter,system-ui,sans-serif; -webkit-font-smoothing:antialiased }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block }
+  .title { position:fixed; left:40px; bottom:36px; pointer-events:none }
+  h1 { font-size:clamp(40px,7vw,104px); font-weight:650; letter-spacing:-.045em; line-height:.95 }
+  .title p { margin-top:12px; font-size:clamp(15px,1.4vw,19px); color:#6e6e73 }
+  .cap { position:fixed; pointer-events:none; background:#111; color:#fff; font-size:12px; border-radius:8px;
+    padding:4px 8px; transform:translate(12px,12px); opacity:0; transition:opacity .2s }
+  @media (max-width:600px) { .title { left:16px; bottom:24px } }
+</style>
+</head>
+<body>
+<canvas id="c" aria-hidden="true"></canvas>
+<div class="title"><h1>Jim's Peanut Butter</h1><p>Your next location, from search to opening.</p></div>
+<div class="cap" id="cap"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// Real Matterport scan meshes (50k OBJ, Model API) of the three demo suites. No UVs, so color comes from structure.
+const SPACES = [['mateo-109', '915 Mateo St · 109'], ['sixth-110b', '630 W 6th St · 110B'], ['beverly-720', '1125 S Beverly Dr · 720']];
+const C = { floor: new THREE.Color('#d6b089'), wall: new THREE.Color('#fbf9f5'), window: new THREE.Color('#9cc2e6'), mirror: new THREE.Color('#cdd3da') };
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+async function load(slug) {
+  const obj = await new OBJLoader().loadAsync(`assets/meshes/${slug}.obj`);
+  const parts = [];
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    const g = o.geometry.clone();
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const kind = /^window/.test(o.name) ? 'window' : /^mirror/.test(o.name) ? 'mirror' : null;
+    const n = g.attributes.normal, col = new Float32Array(n.count * 3);
+    for (let i = 0; i < n.count; i++) (kind ? C[kind] : n.getZ(i) > 0.7 ? C.floor : C.wall).toArray(col, i * 3);
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(k)) g.deleteAttribute(k);
+    parts.push(g);
+  });
+  const geo = mergeGeometries(parts);
+  geo.rotateX(-Math.PI / 2);                       // scans are Z-up
+  geo.computeBoundingBox();
+  const b = geo.boundingBox;
+  geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+// Lambert material whose saturation can fade from clay grey (0) to scan colors (1).
+function material() {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true }   // front faces only: ceilings and near walls cull away (dollhouse cutaway));
+  m.userData.sat = { value: 0 };
+  m.onBeforeCompile = s => {
+    s.uniforms.uSat = m.userData.sat;
+    s.fragmentShader = 'uniform float uSat;\n' + s.fragmentShader.replace('#include <color_fragment>',
+      '#include <color_fragment>\n float l = dot(diffuseColor.rgb, vec3(.299,.587,.114));\n diffuseColor.rgb = mix(vec3(l * .55 + .42), diffuseColor.rgb, uSat);');
+  };
+  m.customProgramCacheKey = () => 'sat';
+  return m;
+}
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#ffffff');
+scene.add(new THREE.HemisphereLight(0xffffff, 0xbfc0c6, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 2.0);
+sun.position.set(-40, 80, 25);
+scene.add(sun);
+
+// Isometric orthographic camera, zoomed out.
+const cam = new THREE.OrthographicCamera();
+cam.position.set(100, 100 * Math.SQRT1_2 * 1.15, 100);
+cam.lookAt(0, 0, 0);
+const VIEW = 110; // world metres visible vertically
+function resize() {
+  const w = innerWidth, h = innerHeight, a = w / h;
+  const v = VIEW * (a < 0.8 ? 0.75 : 1);
+  Object.assign(cam, { left: -v * a / 2, right: v * a / 2, top: v / 2, bottom: -v / 2, near: -1000, far: 1000 });
+  cam.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+addEventListener('resize', resize);
+resize();
+
+const geos = await Promise.all(SPACES.map(([s]) => load(s)));
+const COLS = 10, ROWS = 10, SX = 28, SZ = 25, W = COLS * SX;
+const field = [];
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+  const k = (c + r * 2) % 3;                       // neighbours never repeat in a row or column
+  const mesh = new THREE.Mesh(geos[k], material());
+  mesh.rotation.y = ((r * 7 + c * 3) % 4) * Math.PI / 2;
+  mesh.userData = { k, x0: c * SX + (r % 2) * SX / 2, z: (r - ROWS / 2) * SZ, target: 0 };
+  scene.add(mesh);
+  field.push(mesh);
+}
+
+// Hover: fade a dollhouse to color and name it.
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(), cap = document.getElementById('cap');
+let hovered = null, px = 0, py = 0, moved = false;
+addEventListener('pointermove', e => { px = e.clientX; py = e.clientY; moved = true; });
+addEventListener('pointerdown', e => { px = e.clientX; py = e.clientY; moved = true; });
+function pick() {
+  ptr.set(px / innerWidth * 2 - 1, -(py / innerHeight) * 2 + 1);
+  ray.setFromCamera(ptr, cam);
+  const hit = ray.intersectObjects(field, false)[0]?.object || null;
+  if (hit !== hovered) {
+    if (hovered) hovered.userData.target = 0;
+    hovered = hit;
+    if (hit) { hit.userData.target = 1; cap.textContent = SPACES[hit.userData.k][1]; }
+    cap.style.opacity = hit ? 1 : 0;
+    document.body.style.cursor = hit ? 'pointer' : '';
+  }
+  cap.style.left = px + 'px'; cap.style.top = py + 'px';
+}
+
+let t = 0, last = performance.now();
+renderer.setAnimationLoop(now => {
+  const dt = Math.min((now - last) / 1000, .05); last = now;
+  if (!still) t += dt * 1.6;                       // slow drift, metres per second
+  for (const m of field) {
+    const u = m.userData;
+    m.position.set(((u.x0 + t) % W) - W / 2, 0, u.z);
+    const s = m.material.userData.sat;
+    s.value += (u.target - s.value) * Math.min(1, dt * (still ? 60 : 8));
+  }
+  if (moved || hovered) { pick(); moved = false; }
+  renderer.render(scene, cam);
+});
+</script>
+</body>
+</html>

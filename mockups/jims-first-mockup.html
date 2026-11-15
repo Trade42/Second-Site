@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content"><title>jims peanut butter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@property --orbit{syntax:'<angle>';inherits:false;initial-value:0deg}
+*{box-sizing:border-box}
+html{background:#fafbf8;color:#252c23}body{margin:0}
+#jims{--paper:#fff;--ink:#252c23;--quiet:#7b8376;--line:#e3e7de;--soft:#eef1e9;width:min(1320px,calc(100% - clamp(40px,9vw,144px)));margin:0 auto;padding:28px 0 52px;font:14px/1.65 Inter,Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+#jims button,#jims input{font:inherit;color:inherit}#jims button{cursor:pointer}#jims button:focus-visible,#jims input:focus-visible{outline:2px solid #65765b;outline-offset:4px}
+#jims header{display:flex;align-items:center;justify-content:space-between;min-height:48px;margin-bottom:30px;gap:20px}
+#jims h1{font-size:21px;font-weight:500;letter-spacing:-.9px;margin:0}
+#jims .motion{border:0;background:transparent;font-size:11px;padding:10px 0 10px 14px;color:var(--quiet)}
+#jims .photos{container-type:inline-size;display:grid;grid-template-columns:1.08fr .96fr 1.04fr 1fr;gap:12px;align-items:start;padding:8px 0 26px;position:relative;z-index:2;transition:grid-template-columns .65s cubic-bezier(.2,.8,.2,1);animation:jims-float 48s linear infinite;transform:translate(calc(cos(var(--orbit))*.8px),calc(sin(var(--orbit))*.5px))}
+#jims .photo{height:232px;position:relative;border:0;border-radius:11px;padding:0;overflow:hidden;text-align:left;background:#e5e9df;box-shadow:0 4px 16px #26341b09;min-width:0;isolation:isolate;transition:box-shadow .55s}
+#jims .photo:nth-child(2){height:206px;top:14px}#jims .photo:nth-child(3){height:252px;top:-7px}#jims .photo:nth-child(4){height:218px;top:5px}
+#jims .photo img{position:absolute;left:50%;top:50%;width:calc((100cqw - 36px)*1.25/4.08);height:252px;max-width:none;object-fit:cover;display:block;transform:translate(-50%,-50%)}
+#jims .photo:after{content:'';position:absolute;inset:25% 0 0;background:linear-gradient(transparent,#101a10ce);z-index:0}
+#jims .overlay{position:absolute;bottom:18px;left:18px;right:14px;color:#fff;z-index:1;line-height:1.65;text-shadow:0 1px 6px #0003}
+#jims .overlay strong{font-size:15px;font-weight:500;letter-spacing:-.35px;display:block;margin-bottom:3px}#jims .overlay small{font-size:11px;display:block;color:#ffffffeb}
+#jims .photos:has(.photo:nth-child(1):is(:hover,:focus-visible)){grid-template-columns:1.25fr .94fr .96fr .93fr}
+#jims .photos:has(.photo:nth-child(2):is(:hover,:focus-visible)){grid-template-columns:.96fr 1.25fr .95fr .92fr}
+#jims .photos:has(.photo:nth-child(3):is(:hover,:focus-visible)){grid-template-columns:.96fr .94fr 1.25fr .93fr}
+#jims .photos:has(.photo:nth-child(4):is(:hover,:focus-visible)){grid-template-columns:.96fr .94fr .93fr 1.25fr}
+#jims .photo:hover,#jims .photo:focus-visible{box-shadow:0 10px 28px #25351b18}
+#jims[data-paused=true] .photos{animation-play-state:paused}
+@keyframes jims-float{from{--orbit:0deg}to{--orbit:360deg}}
+#jims .lower{display:grid;grid-template-columns:1.08fr 1fr;gap:clamp(32px,4.5vw,72px);margin-top:0}
+#jims .location{min-width:0;padding-top:8px}
+#jims .requirements{display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-height:34px;margin-bottom:18px}
+#jims .requirement{border:1px solid var(--line);background:#ffffff8c;border-radius:7px;padding:5px 11px;font-size:11px;white-space:nowrap}
+#jims .map{height:310px;position:relative;overflow:hidden;border-radius:12px;background:var(--soft);border:1px solid #dfe5d9}
+#jims .basemap,#jims .aerial{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}
+#jims .basemap{filter:saturate(.45);opacity:.88}#jims .aerial{object-fit:cover;display:none}#jims .map[data-mode=aerial] .aerial{display:block}#jims .map[data-mode=aerial] .pins{display:none}
+#jims .maptools{position:absolute;top:16px;left:16px;display:flex;gap:3px;padding:4px;background:#fffffff2;border:1px solid #ffffffba;border-radius:9px;box-shadow:0 2px 10px #1e301516}
+#jims .maptools button{border:0;background:transparent;padding:6px 12px;font-size:11px;border-radius:5px;min-height:30px}#jims .maptools button[aria-pressed=true]{background:var(--soft)}
+#jims .pin{position:absolute;transform:translate(-75%,-100%);border:1px solid #d8dfd0;border-radius:20px;background:white;padding:6px 10px;font-size:11px;font-weight:500;white-space:nowrap;box-shadow:0 2px 8px #1c2a1920;transition:background .2s}
+#jims .pin[aria-pressed=true]{background:#3b4e32;color:#fff;border-color:#3b4e32}
+#jims .attribution{position:absolute;bottom:5px;right:6px;font-size:8px;background:#ffffffd9;padding:1px 4px;color:#646e5c}#jims .attribution a{color:inherit}
+#jims .selection{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:19px 2px 0}
+#jims .selection strong{font-size:14px;font-weight:500;letter-spacing:-.2px}#jims .selection small{display:block;font-size:11px;color:var(--quiet);margin-top:4px}
+#jims .save{border:1px solid var(--line);border-radius:7px;padding:8px 18px;background:#fff;font-size:12px;flex-shrink:0;transition:background .2s}#jims .save:hover{background:var(--soft)}
+#jims .chat{min-width:0;display:flex;flex-direction:column;min-height:430px;padding:29px 0 0;position:relative;mask-image:linear-gradient(to bottom,transparent,black 66px);-webkit-mask-image:linear-gradient(to bottom,transparent,black 66px)}
+#jims .messages{display:flex;flex-direction:column;gap:26px}
+#jims .message{font-size:14px;max-width:96%;line-height:1.8}
+#jims .earlier{color:var(--quiet);font-size:12px}
+#jims .user{padding:16px 19px;background:#eaf0e3;border:1px solid #e3e9dc;border-radius:13px 13px 3px 13px;align-self:flex-end;max-width:94%}
+#jims .question{font-size:20px;letter-spacing:-.6px;margin:0 0 3px;font-weight:400;line-height:1.5;max-width:340px}
+#jims .quick{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 30px}
+#jims .quick button{border:1px solid var(--line);border-radius:7px;background:#fff;font-size:11px;padding:9px 13px;transition:background .2s,border-color .2s}#jims .quick button:hover{background:var(--soft);border-color:#bdc9b2}
+#jims form{display:flex;align-items:center;gap:12px;border:1px solid #dce3d4;border-radius:12px;padding:10px 10px 10px 18px;box-shadow:0 4px 20px #2b352007;margin-top:auto;background:#fff;min-height:60px}
+#jims input{border:0;background:transparent;min-width:0;width:100%;font-size:12px;padding:7px 0}#jims input::placeholder{color:#919b88}
+#jims .send{border:0;background:#405537;color:#fff;padding:10px 17px;border-radius:7px;font-size:12px;transition:background .2s}#jims .send:hover{background:#30442a}
+@media(min-width:1500px){#jims{padding-top:36px}#jims header{margin-bottom:42px}#jims .map{height:350px}#jims .chat{min-height:470px}}
+@media(max-width:950px) and (min-width:561px){#jims .photo{height:202px}#jims .photo:nth-child(2){height:176px}#jims .photo:nth-child(3){height:222px}#jims .photo:nth-child(4){height:188px}#jims .photo img{height:222px}#jims .overlay{left:12px;bottom:13px;right:8px}#jims .overlay strong{font-size:12px}#jims .overlay small{font-size:9px}#jims .lower{gap:28px}#jims .question{font-size:18px}#jims .selection small{font-size:10px}#jims .map{height:310px}}
+@media(max-width:560px){#jims{padding:20px 0 32px}#jims header{margin-bottom:22px;min-height:36px}#jims h1{font-size:19px}#jims .motion{font-size:10px}#jims .photos,#jims .photos:has(.photo:is(:hover,:focus-visible)){grid-template-columns:1fr 1fr;gap:12px;padding:7px 0 22px}#jims .photo,#jims .photo:nth-child(n){height:184px;top:0}#jims .photo img{width:calc((100cqw - 12px)/2);height:184px}#jims .overlay{left:12px;bottom:13px;right:8px}#jims .overlay strong{font-size:12px}#jims .overlay small{font-size:9px}#jims .lower{grid-template-columns:1fr;gap:24px}#jims .location{padding-top:2px}#jims .requirements{margin-bottom:15px}#jims .map{height:268px}#jims .chat{padding-top:25px;min-height:386px}#jims .message{font-size:14px}#jims .question{font-size:20px}#jims input{font-size:16px}#jims .selection{gap:12px}#jims .selection small{font-size:10px}#jims .save{padding:8px 13px}#jims .quick button,#jims .save,#jims .maptools button{min-height:40px}}
+@media(prefers-reduced-motion:reduce){#jims .photos{animation:none;transform:none}#jims *{transition:none!important}}
+
+#jims .photos{animation:none;transform:none;transition:grid-template-columns 220ms cubic-bezier(.23,1,.32,1)}
+#jims nav{display:flex;gap:20px;font-size:12px}#jims nav a{color:var(--quiet);text-decoration:none}
+#jims .messages{max-height:280px;overflow:auto;overscroll-behavior:contain;padding-bottom:20px}
+#jims .chat{mask-image:linear-gradient(transparent,black 28px);-webkit-mask-image:linear-gradient(transparent,black 28px)}
+#jims .dismiss{border:0;background:none;font-size:12px;padding:10px}#jims .prototype-note{font-size:11px;color:var(--quiet);margin-top:18px}
+#jims button,#jims a{touch-action:manipulation}#jims button:active{filter:brightness(.95)}
+@media(hover:none){#jims .photos:has(.photo:hover){grid-template-columns:1.08fr .96fr 1.04fr 1fr}}
+@media(max-width:560px){#jims header{flex-wrap:wrap;gap:8px}#jims .photos:has(.photo:hover){grid-template-columns:1fr 1fr}#jims .selection{flex-wrap:wrap}#jims form{position:sticky;bottom:12px}#jims .chat{min-height:420px}}
+@media(min-width:761px){#jims{padding-top:20px;padding-bottom:20px}#jims header{margin-bottom:18px}#jims .lower{height:calc(100dvh - 390px);min-height:240px}#jims .chat{min-height:0;height:100%;padding-top:20px}#jims .messages{flex:1;min-height:0}#jims .quick{margin:12px 0}#jims .map{height:calc(100% - 100px);min-height:150px}#jims .prototype-note{margin-top:12px}}
+#jims .requirement{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+#jims .photos:has(.photo:focus-visible){transition:none}
+</style></head><body>
+<main id="jims" aria-label="Business expansion workspace">
+<header><h1>jims peanut butter</h1><nav><a href="jims-compare-wireframe.html">Compare spaces</a><a href="jims-furnish-wireframe.html">Furnish</a></nav><button class="motion" hidden type="button">Pause motion</button></header>
+<section class="photos" aria-label="Property photos"></section>
+<div class="lower">
+<section class="location" aria-label="Locations and requirements">
+<div class="requirements"><span class="requirement">Facial studio</span><span class="requirement">Los Angeles</span><span class="requirement">3 rooms</span></div>
+<div class="map" data-mode="map" aria-label="Los Angeles candidate locations">
+<img class="basemap" src="jims-assets/los-angeles-map.png" alt="Street map of Los Angeles with the three matched property locations">
+<img class="aerial" src="assets/mateo-109/vexcel-ortho.jpg" alt="Vexcel aerial imagery for the selected property">
+<div class="pins"></div>
+<div class="maptools"><button type="button" data-mode="map" aria-pressed="true">Map</button><button type="button" data-mode="aerial" aria-pressed="false">Aerial</button></div>
+<span class="attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></span>
+</div>
+<div class="selection"><div><strong id="selected-address">915 Mateo St</strong><small id="selected-facts">Suite 109</small></div><button class="save" type="button" aria-pressed="false">Save</button></div>
+</section>
+<section class="chat" aria-label="Business conversation">
+<div class="messages" aria-live="polite"><div class="message earlier">What are you opening, and where?</div><div class="message user">A second facial studio in LA. I’ll need three treatment rooms.</div><div class="message"><h2 class="question">What’s your budget to get the new location open?</h2></div></div>
+<div class="quick"><button type="button">Under $100k</button><button type="button">$100–200k</button><button type="button">$200k+</button></div>
+<form><input aria-label="Your business requirements" placeholder="Tell me about your business…" autocomplete="off"><button class="send" type="submit">Send</button></form>
+</section>
+</div>
+<p class="prototype-note">Local search demo. Listing terms are snapshots; availability is unverified.</p></main>
+<script>
+const listings=[{"id": "mateo-109", "address": "915 Mateo St", "suite": "109", "rent": 2211, "sqft": 1128, "photo": "assets/mateo-109/costar-01.jpg", "aerial": "assets/mateo-109/vexcel-ortho.jpg", "x": 92.521092740742, "y": 50.214302303811564, "interior": false, "lease": "ModifiedGross"}, {"id": "sixth-110b", "address": "630 W 6th St", "suite": "110B", "rent": 4048, "sqft": 1310, "photo": "assets/sixth-110b/costar-01.jpg", "aerial": "assets/sixth-110b/vexcel-ortho.jpg", "x": 83.53481007407404, "y": 38.403768510795544, "interior": false, "lease": "TripleNet"}, {"id": "beverly-720", "address": "1125 S Beverly Dr", "suite": "720", "rent": 5215, "sqft": 1490, "photo": "assets/beverly-720/costar-01.jpg", "aerial": "assets/beverly-720/vexcel-ortho.jpg", "x": 30.251045925926217, "y": 33.05799214178933, "interior": false, "lease": "FullService"}, {"id": "mateo-109", "address": "915 Mateo St", "suite": "109", "rent": 2211, "sqft": 1128, "photo": "assets/mateo-109/matterport-01.jpg", "aerial": "assets/mateo-109/vexcel-ortho.jpg", "x": 92.521092740742, "y": 50.214302303811564, "interior": true, "lease": "ModifiedGross"}];
+const root=document.getElementById('jims');
+const find=s=>root.querySelector(s);
+const money=n=>'$'+n.toLocaleString('en-US');
+let active=listings[0].id;
+const saved=new Set();
+listings.forEach(p=>{
+ const b=document.createElement('button');b.type='button';b.className='photo';b.setAttribute('aria-label',p.address+(p.interior?' interior':' exterior'));b.dataset.id=p.id;
+ const img=document.createElement('img');img.src=p.photo;img.alt=p.address+(p.interior?' Matterport interior':' CoStar listing photo');b.append(img);
+ const text=document.createElement('span');text.className='overlay';
+ const name=document.createElement('strong');name.textContent=p.address;text.append(name);
+ const facts=document.createElement('small');facts.textContent=money(p.rent)+'/mo  |  '+p.sqft.toLocaleString()+' SF';text.append(facts);
+ const suite=document.createElement('small');suite.textContent='Suite '+p.suite+(p.interior?' / interior':'');text.append(suite);b.append(text);
+ b.title='CoStar kit asking terms, not live availability. '+p.lease+' lease. '+(p.interior?'Matterport interior view of the same Mateo listing.':'');
+ b.addEventListener('click',()=>select(p.id));find('.photos').append(b);
+});
+const unique=listings.filter((p,i,a)=>a.findIndex(q=>q.id===p.id)===i);
+unique.forEach(p=>{const b=document.createElement('button');b.type='button';b.className='pin';b.style.left=p.x+'%';b.style.top=p.y+'%';b.textContent=money(p.rent);b.dataset.id=p.id;b.setAttribute('aria-label',p.address+' '+money(p.rent)+' per month');b.onclick=()=>select(p.id);find('.pins').append(b)});
+function select(id){active=id;const p=listings.find(p=>p.id===id);find('#selected-address').textContent=p.address;find('#selected-facts').textContent='Suite '+p.suite+' / '+p.sqft.toLocaleString()+' SF / '+money(p.rent)+' asking per month';find('.aerial').src=p.aerial;root.querySelectorAll('.pin').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.id===id)));find('.save').textContent=saved.has(id)?'Saved':'Save';find('.save').setAttribute('aria-pressed',String(saved.has(id)))}
+find('.save').onclick=()=>{saved.has(active)?saved.delete(active):saved.add(active);select(active)};
+root.querySelectorAll('[data-mode]').forEach(b=>{if(b.tagName!=='BUTTON')return;b.onclick=()=>{find('.map').dataset.mode=b.dataset.mode;root.querySelectorAll('.maptools button').forEach(t=>t.setAttribute('aria-pressed',String(t===b)));find('.attribution').textContent=b.dataset.mode==='aerial'?'Vexcel / selected property':'OpenStreetMap contributors'}});
+find('.motion').onclick=()=>{const paused=root.dataset.paused!=='true';root.dataset.paused=String(paused);find('.motion').textContent=paused?'Resume motion':'Pause motion'};
+// shortcut: local conversation preview only; connect project chat and real search before launch.
+function answer(text){if(!text.trim())return;const m=document.createElement('div');m.className='message user';m.textContent=text;find('.messages').append(m);find('input').value='';find('.quick').replaceChildren();const reply=document.createElement('div');reply.className='message';reply.textContent='What monthly rent would you be comfortable with?';find('.messages').append(reply);if(!find('[data-budget]')){const c=document.createElement('span');c.className='requirement';c.dataset.budget='true';c.textContent=text.length>26?'Budget noted':text;find('.requirements').append(c)}}
+find('form').onsubmit=e=>{e.preventDefault();answer(find('input').value)};
+root.querySelectorAll('.quick button').forEach(b=>b.onclick=()=>answer(b.textContent));
+select(active);
+
+find('.requirements').replaceChildren();
+find('.messages').innerHTML='<div class="message"><h2 class="question">What are you opening?</h2><p>Tell me about the business and where you’d like to be.</p></div>';
+find('.quick').innerHTML='<button type="button">Try a facial studio example</button>';
+find('.quick button').onclick=()=>answer('A facial studio in Los Angeles, with three treatment rooms.');
+const dismissed=new Set();
+let rentLimit=Infinity;
+const dismiss=document.createElement('button');dismiss.className='dismiss';dismiss.textContent='Dismiss';find('.selection').append(dismiss);
+function filterCandidates(limit=rentLimit){rentLimit=limit;root.querySelectorAll('.photo,.pin').forEach(b=>{const p=listings.find(p=>p.id===b.dataset.id);b.hidden=dismissed.has(p.id)||p.rent>limit});const available=unique.filter(p=>!dismissed.has(p.id)&&p.rent<=limit);find('.save').disabled=!available.length;dismiss.disabled=!available.length;if(available.length){select(available[0].id)}else{find('#selected-address').textContent='No matching spaces';find('#selected-facts').textContent='Try a higher monthly rent or adjust your requirements.';find('.maptools [data-mode=map]').click()}}
+dismiss.onclick=()=>{dismissed.add(active);filterCandidates();};
+answer=function(text){if(!text.trim())return;const m=document.createElement('div');m.className='message user';m.textContent=text;find('.messages').append(m);find('input').value='';find('.quick').replaceChildren();const c=document.createElement('span');c.className='requirement';c.textContent=text;find('.requirements').append(c);const rent=text.match(/(?:under|below|max)\s*\$?([\d,]+)/i);const reply=document.createElement('div');reply.className='message';if(rent){filterCandidates(Number(rent[1].replaceAll(',','')));reply.textContent='The demo now shows snapshots within that monthly rent. You can save a space or compare the finalists.'}else{reply.textContent='What monthly rent would work? Try “under $4,500” to narrow this local sample.'}find('.messages').append(reply);find('.messages').scrollTop=find('.messages').scrollHeight;};
+</script></body></html>

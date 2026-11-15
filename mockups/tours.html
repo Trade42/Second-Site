@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script>// The Matterport SDK key only allows localhost, so move 127.0.0.1 over before anything loads.
+if (location.hostname === "127.0.0.1") location.replace(location.href.replace("//127.0.0.1", "//localhost"));</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tours</title>
+<style>
+  :root { --fill:#f2f2f7; --text:#1c1c1e; --muted:#6e6e73; --blue:#007aff; }
+  * { box-sizing:border-box; }
+  html, body { height:100%; margin:0; }
+  body { background:#fff; color:var(--text); overflow:hidden; padding:8px;
+    font:14px/1.25 -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", Inter, "Segoe UI", system-ui, sans-serif; }
+  main { position:relative; height:100%; border-radius:14px; overflow:hidden; background:var(--fill); outline:none; }
+  iframe { display:block; width:100%; height:100%; border:0; background:var(--fill); transition:transform .7s cubic-bezier(.2,.7,.2,1); }
+  main.aerial iframe { transform:scale(.96); }
+  #air { position:absolute; inset:0; background:var(--fill); transition:opacity .6s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
+  #air.off { opacity:0; transform:scale(1.08); pointer-events:none; }
+  #globe { position:absolute; inset:0; }
+  #still { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:1; transition:opacity .4s ease; will-change:transform; }
+  #still.off { opacity:0; }
+  #air::after { content:"© Vexcel Imaging"; position:absolute; left:12px; bottom:10px; z-index:2; font-size:11px; color:rgba(255,255,255,.85); text-shadow:0 1px 2px rgba(0,0,0,.4); }
+  .cesium-viewer-bottom, .cesium-widget-credits { display:none !important; }
+  .float { position:absolute; top:12px; left:12px; right:12px; display:flex; flex-direction:column; align-items:flex-start; gap:8px; pointer-events:none; }
+  .float > * { pointer-events:auto; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; max-width:100%; pointer-events:none; }
+  .bar > * { pointer-events:auto; }
+  .glass { background:rgba(242,242,247,.9); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); box-shadow:0 2px 10px rgba(0,0,0,.12); }
+  .seg { display:flex; gap:2px; padding:3px; border-radius:12px; max-width:100%; }
+  .seg button { flex:1 1 0; padding:7px 12px; border:0; border-radius:9px; background:none; color:var(--text); font:inherit; font-weight:500; cursor:pointer; white-space:nowrap; }
+  .seg button[aria-pressed=true] { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.18); font-weight:600; }
+  #fly { padding:10px 14px; border:0; border-radius:12px; color:var(--blue); font:inherit; font-weight:600; cursor:pointer; white-space:nowrap; }
+  #open { padding:6px 12px; border-radius:10px; color:var(--muted); font-size:12.5px; text-decoration:none; }
+  #open:hover { color:var(--blue); }
+  #status { position:absolute; right:12px; bottom:12px; padding:5px 10px; border-radius:9px; color:var(--muted); font-size:12px; pointer-events:none; transition:opacity .3s ease; }
+  #status:empty { opacity:0; }
+  #debug { position:absolute; right:12px; top:12px; max-width:calc(100% - 24px); max-height:60%; overflow:auto; margin:0; padding:8px 10px; border-radius:10px;
+    font:11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:var(--text); white-space:pre; }
+  @media (max-width:520px) {
+    body { padding:6px; }
+    .float { top:8px; left:8px; right:8px; }
+    .seg button { padding:7px 8px; font-size:12px; }
+    #fly { padding:8px 12px; font-size:12.5px; }
+    #debug { top:auto; bottom:44px; right:8px; }
+  }
+  @media (prefers-reduced-motion: reduce) { iframe, #air, #still { transition:none; } }
+</style>
+</head>
+<body>
+<main id="main" tabindex="-1">
+  <iframe id="v" allow="fullscreen; xr-spatial-tracking; gyroscope; accelerometer" allowfullscreen title="Matterport tour"></iframe>
+  <div id="air" class="off"><div id="globe"></div><img id="still" class="off" alt=""></div>
+  <div class="float">
+    <div class="bar">
+      <div class="seg glass" id="seg" role="group" aria-label="Tour"></div>
+      <button id="fly" class="glass" type="button" aria-keyshortcuts="Space">Fly out</button>
+    </div>
+    <a id="open" class="glass" target="_blank" rel="noopener">Open in new tab</a>
+  </div>
+  <div id="status" class="glass" role="status"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const PARAMS = "&play=1&qs=1&brand=0&help=0&dh=1";
+const url = id => "https://my.matterport.com/show/?m=" + id;
+const CES = "https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/";
+const MPSDK = "https://cdn.jsdelivr.net/npm/@matterport/sdk@1.6.2/dist/index.esm.js";
+const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const DEBUG = new URLSearchParams(location.search).has("debug");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const timeout = (p, ms) => Promise.race([p, sleep(ms).then(() => { throw new Error("timeout " + ms + " ms"); })]);
+const until = async (ok, ms) => { const t0 = performance.now(); while (!ok() && performance.now() - t0 < ms) await sleep(100); };
+
+// ?debug=1: every gate is logged with ms since page start and ms since the last key/button press.
+let pressT = null;
+const log = [];
+function mark(label) {
+  const t = Math.round(performance.now());
+  log.push(`${String(t).padStart(6)} ms  ${pressT == null ? "" : ("+" + (t - pressT)).padStart(6) + "  "}${label}`);
+  if (DEBUG) { $("debug").textContent = log.join("\n"); $("debug").scrollTop = 1e6; }
+}
+if (DEBUG) $("main").insertAdjacentHTML("beforeend", '<pre id="debug" class="glass"></pre>');
+mark("script start");
+
+// Camera: fixed heading/pitch per place; only the distance along the view ray changes (log space).
+const D = Math.PI / 180, FAR = 4500, NEAR = 180, PITCH = -40, DEFAULT_ROOF = 30;
+const HEADING = { kzjwhdhvo5S: 20, kvEQYM7yddK: 36, bpVgQkuWMDJ: 15 }; // degrees; downtown grid runs ~36°
+// Critically damped spring on s (0 = far, 1 = near). K=4.5 → s hits 0.97 in ~2.5 s, settles ~3.3 s.
+const K = 4.5, C = 2 * Math.sqrt(K), HANDOFF_AT = 0.97, HANDOFF_MAX_WAIT = 1500;
+
+let tours = [], places = {}, cur = 0, sdkKey = "";
+let s = 1, v = 0, target = 1, moving = false, tourShown = true, ground = DEFAULT_ROOF, lastT = performance.now();
+let viewer, warmTok = 0, sampling = 0, nearSince = -Infinity /* page opens on the tour */, firstFrame = false, tourLoaded, sdkP, handoff = null;
+const tilesets = new Map();
+const place = () => tours.length ? places[tours[cur].id] : null;
+
+// ---- tour iframe + Showcase SDK (background; never blocks the flight) ----
+function loadTour(t) {
+  const f = $("v");
+  if (f.dataset.m === t.id) return;
+  f.dataset.m = t.id; sdkP = null;
+  tourLoaded = new Promise(r => f.addEventListener("load", () => (mark("tour iframe loaded"), r()), { once: true }));
+  f.src = url(t.id) + PARAMS + (sdkKey ? "&applicationKey=" + encodeURIComponent(sdkKey) : "");
+  prepTour();
+}
+const sdk = () => sdkP ??= import(MPSDK).then(m => m.setupSdk(sdkKey, { iframe: $("v"), space: $("v").dataset.m }))
+  .then(mp => {
+    mark("sdk connected");
+    mp.Camera.pose.subscribe(() => refocusSoon(400)); // see focus notes below
+    if (handoff === "iframe") setTimeout(prepTour); // connected after the 4 s budget: switch to dollhouse now
+    return mp;
+  });
+
+async function dollhouse() { // resolves "dollhouse", or "iframe" (plain tour) on any failure; bounded
+  await tourLoaded;
+  if (!sdkKey) return "iframe";
+  try {
+    const mp = await timeout(sdk(), 4000); // one connect attempt; a stalled one is not retried
+    await timeout(mp.App.state.waitUntil(st => st.phase === mp.App.Phase.PLAYING), 8000);
+    await timeout(mp.Mode.moveTo(mp.Mode.Mode.DOLLHOUSE, { transition: mp.Mode.TransitionType.INSTANT }), 4000);
+    mark("dollhouse on");
+    return "dollhouse";
+  } catch (e) { mark("tour without SDK: " + String(e.message || e).replace(/\w{20,}@/, "")); return "iframe"; }
+}
+function prepTour() {
+  const m = $("v").dataset.m; handoff = null;
+  dollhouse().then(h => { if ($("v").dataset.m === m) handoff = h; });
+}
+
+// ---- aerial: CesiumJS 1.120 + Vexcel 3D Tiles / ortho via the /vexcel proxy ----
+const tileXY = (lat, lon, z = 13) => { const n = 2 ** z;
+  return [Math.floor((lon + 180) / 360 * n), Math.floor((1 - Math.asinh(Math.tan(lat * D)) / Math.PI) / 2 * n)]; };
+
+let cesiumP;
+const ensureCesium = () => cesiumP ??= new Promise((res, rej) => {
+  mark("cesium.js requested");
+  window.CESIUM_BASE_URL = CES;
+  const l = document.createElement("link"); l.rel = "stylesheet"; l.href = CES + "Widgets/widgets.css"; document.head.append(l);
+  const sc = document.createElement("script"); sc.src = CES + "Cesium.js"; sc.onload = res; sc.onerror = rej; document.head.append(sc);
+}).then(() => {
+  mark("cesium.js loaded");
+  const Cz = Cesium;
+  viewer = new Cz.Viewer("globe", { baseLayer: false, animation: false, timeline: false, baseLayerPicker: false, geocoder: false,
+    homeButton: false, sceneModePicker: false, navigationHelpButton: false, fullscreenButton: false, infoBox: false,
+    selectionIndicator: false, msaaSamples: 4, requestRenderMode: true, maximumRenderTimeChange: Infinity });
+  const sc = viewer.scene;
+  sc.globe.baseColor = Cz.Color.fromCssColorString("#e5e5ea");
+  sc.globe.tileCacheSize = 1000; // keep ortho tiles warm for the way back out
+  sc.screenSpaceCameraController.enableInputs = false;
+  // Ortho only inside the z13 block around our places (Vexcel 403/404s outside it). A layer `rectangle`
+  // would be cleaner but crashes Cesium 1.120 (fixed upstream much later), so out-of-range tiles get a blank.
+  const ortho = new Cz.UrlTemplateImageryProvider({ maximumLevel: 19,
+    url: "vexcel/ortho/tile?layer=urban&zoom={z}&tile-x={x}&tile-y={y}&image-format=jpeg" });
+  const get = ortho.requestImage.bind(ortho), blank = document.createElement("canvas"); blank.width = blank.height = 1;
+  const inBlock = (x, y, z) => { // compare at z13: tile x 1399..1407, y 3268..3273
+    const tile = n => z >= 13 ? n >> (z - 13) : n, edge = n => z >= 13 ? n : n >> (13 - z);
+    return tile(x) >= edge(1399) && tile(x) <= edge(1407) && tile(y) >= edge(3268) && tile(y) <= edge(3273); };
+  ortho.requestImage = (x, y, z, req) => inBlock(x, y, z) ? get(x, y, z, req) : Promise.resolve(blank);
+  sc.imageryLayers.addImageryProvider(ortho);
+  mark("viewer ready");
+}).catch(e => { mark("cesium failed: " + e); throw e; });
+
+let tileLoads = 0;
+function addTiles(p) { // 3x3 z13 tilesets around the place, each loaded once; streams in, nothing awaits it
+  if (p.sets) return p.sets;
+  const [x, y] = tileXY(p.lat, p.lon), mine = [];
+  for (const dx of [-1, 0, 1]) for (const dy of [-1, 0, 1]) {
+    const k = `${x + dx}/${y + dy}`;
+    if (!tilesets.has(k)) tilesets.set(k, Cesium.Cesium3DTileset.fromUrl(
+      `vexcel/3d/tileset?layer=3d-cities&zoom=13&tile-x=${x + dx}&tile-y=${y + dy}`,
+      { maximumScreenSpaceError: 12, cullRequestsWhileMoving: false }).then(ts => {
+        // Vexcel's tileset.json has top-level geometricError 0, which makes Cesium skip traversal entirely.
+        ts._geometricError ||= ts.root.geometricError; // ponytail: private field; patch the JSON in the proxy if Cesium renames it
+        ts.tileLoad.addEventListener(() => { if (!tileLoads++) mark("first 3D tile"); });
+        return viewer.scene.primitives.add(ts);
+      }).catch(e => mark(`tileset ${k} failed: ${e}`)));
+    mine.push(tilesets.get(k));
+  }
+  return p.sets = Promise.all(mine).then(a => (mark(`tilesets ${a.filter(Boolean).length}/9 (${p.slug})`), p.loaded = a.filter(Boolean)));
+}
+// The place is "visible in 3D" once its tiles for the current view are in, or enough new tiles arrived.
+function check3D(p) {
+  if (p.shown || !viewer || !p.loaded) return !!p.shown;
+  if (p.loaded.every(ts => ts.tilesLoaded) || tileLoads - (p.loadsAt ?? 0) >= 8) { p.shown = true; mark(`3D visible (${p.slug})`); }
+  return !!p.shown;
+}
+
+function sampleRoof(p) { // background; the camera eases from DEFAULT_ROOF to this when it lands
+  return p.roofP ??= (async () => {
+    await ensureCesium(); await addTiles(p);
+    sampling++; // sampleHeightMostDetailed only progresses on rendered frames, so tick keeps rendering meanwhile
+    try {
+      const [c] = await timeout(viewer.scene.sampleHeightMostDetailed([Cesium.Cartographic.fromDegrees(p.lon, p.lat)]), 10000);
+      if (c.height === undefined) throw new Error("no 3D hit");
+      p.ground = c.height; mark(`roof ${p.slug} = ${p.ground.toFixed(1)} m`);
+    } catch (e) { p.roofP = null; mark(`roof ${p.slug}: ${e.message}, keeping ${DEFAULT_ROOF} m, retry next flight`); }
+    sampling--;
+  })();
+}
+
+const dist = k => Math.exp(Math.log(FAR) + (Math.log(NEAR) - Math.log(FAR)) * k);
+function setCam(p, k) {
+  viewer.camera.lookAt(Cesium.Cartesian3.fromDegrees(p.lon, p.lat, ground),
+    new Cesium.HeadingPitchRange((HEADING[tours[cur].id] ?? 25) * D, PITCH * D, dist(k)));
+  viewer.scene.requestRender();
+}
+
+// One rAF loop from page load: spring, camera, stand-in photo, layer cross-fades, status line.
+function tick() {
+  requestAnimationFrame(tick);
+  const now = performance.now(), dt = Math.min((now - lastT) / 1000, 0.05); lastT = now;
+  const p = place(); if (!p) return;
+  if (moving) {
+    if (RM) { s = target; v = 0; }
+    else for (let n = Math.ceil(dt / 0.004), h = dt / n, i = 0; i < n; i++) { v += (K * (target - s) - C * v) * h; s += v * h; }
+    if (Math.abs(target - s) < 2e-3 && Math.abs(v) < 2e-3) { s = target; v = 0; moving = false; }
+    if (!firstFrame) { firstFrame = true; mark("first motion frame"); }
+  }
+  ground += ((p.ground ?? ground) - ground) * (1 - Math.exp(-4 * dt));
+  if (viewer && moving) setCam(p, s);
+  else if (viewer && sampling) viewer.scene.requestRender();
+  const live = check3D(p);
+  $("still").classList.toggle("off", live || tourShown);
+  if (!live) $("still").style.transform = `scale(${Math.exp(Math.log(1.6) * s).toFixed(4)})`; // same spring, CSS zoom
+  sync(now);
+  const st = [!tourShown && !live && "Loading 3D city…", target === 1 && !handoff && "Connecting tour…"].filter(Boolean).join("  ·  ");
+  if ($("status").textContent !== st) $("status").textContent = st;
+}
+requestAnimationFrame(tick);
+
+// Visible layer follows the camera: tour at s ≥ 0.97 (waits ≤ 1.5 s for the dollhouse switch), aerial at once on the way out.
+function sync(now) {
+  nearSince = target === 1 && s >= HANDOFF_AT ? nearSince ?? now : null;
+  const want = target === 1 && (tourShown || (nearSince != null && (!!handoff || now - nearSince > HANDOFF_MAX_WAIT)));
+  if (want === tourShown) return;
+  tourShown = want; mark(want ? "hand-off → tour" + (handoff ? ` (${handoff})` : " (dollhouse not ready)") : "aerial shown");
+  $("main").classList.toggle("aerial", !want);
+  $("air").classList.toggle("off", want);
+}
+
+function fly(to) { // Space / Escape / button: starts moving this frame. Mid-flight it keeps s and v → smooth reversal.
+  if (to === target) return;
+  pressT = Math.round(performance.now()); mark(to ? "press: fly in" : "press: fly out");
+  target = to; ++warmTok; firstFrame = false; moving = true;
+  $("fly").textContent = to ? "Fly out" : "Fly in";
+  const p = place(); p.loadsAt ??= tileLoads;
+  ensureCesium().then(() => { addTiles(p); sampleRoof(p); }).catch(() => {});
+  if (to === 0) setTimeout(() => !tourShown && prepTour(), 700); // re-arm dollhouse behind the aerial
+}
+
+async function warmPath(p) { // background: pre-request tile levels along the ray so the first fly-out never pops
+  const tok = ++warmTok;
+  await ensureCesium(); await addTiles(p); sampleRoof(p);
+  for (const k of [1, 0.75, 0.5, 0.25, 0, 1]) {
+    if (tok !== warmTok || moving || !tourShown) return;
+    setCam(p, k); await until(() => p.loaded.every(ts => ts.tilesLoaded) && viewer.scene.globe.tilesLoaded, 3000);
+  }
+  if (tok === warmTok) mark(`warm path done (${p.slug})`);
+}
+
+function select(i, user) {
+  cur = (i + tours.length) % tours.length;
+  const t = tours[cur], p = place();
+  loadTour(t);
+  $("still").src = `assets/${p.slug}/vexcel-oblique-n.jpg`; // stand-in while 3D streams; heading ≈ north-ish
+  $("open").href = url(t.id);
+  [...$("seg").children].forEach((b, j) => b.setAttribute("aria-pressed", j === cur));
+  history.replaceState(null, "", location.search + "#" + t.id);
+  if (!user) return void warmPath(p);
+  // Switching place restarts the fly-in from far out, immediately; tiles and roof height stream in during it.
+  ++warmTok; target = 0; s = 0; v = 0; ground = p.ground ?? DEFAULT_ROOF; p.loadsAt ??= tileLoads;
+  fly(1);
+}
+
+// Keys. The Showcase SDK has no key events and the cross-origin iframe swallows keys once clicked, so focus is
+// handed back to <main> once the tour camera has been still for a moment (mouse input in the tour is unaffected).
+let refocusTimer;
+const refocus = () => $("main").focus({ preventScroll: true });
+function refocusSoon(ms) {
+  clearTimeout(refocusTimer);
+  refocusTimer = setTimeout(() => document.activeElement === $("v") && refocus(), ms);
+}
+addEventListener("blur", () => refocusSoon(600));
+addEventListener("keydown", e => {
+  if (!tours.length) return;
+  if (e.code === "Space") { e.preventDefault(); if (!e.repeat) fly(target ? 0 : 1); }
+  else if (e.key === "Escape") fly(0);
+  else if (e.key === "ArrowRight") select(cur + 1, true);
+  else if (e.key === "ArrowLeft") select(cur - 1, true);
+});
+$("fly").onclick = () => { if (tours.length) fly(target ? 0 : 1); refocus(); };
+
+ensureCesium().catch(() => {}); // start the 5 MB download right away
+Promise.all([
+  fetch("assets/tours.json").then(r => r.json()),
+  fetch("assets/places.json").then(r => r.json()),
+  fetch("config.json").then(r => r.ok ? r.json() : {}).catch(() => ({})),
+]).then(([d, pl, cfg]) => {
+  mark("tours + places + config loaded" + (cfg.matterportSdkKey ? "" : " (no SDK key: plain tour)"));
+  tours = d; sdkKey = cfg.matterportSdkKey || "";
+  for (const x of pl) places[x.matterport_model_id] = { lat: x.lat, lon: x.lon, slug: x.slug };
+  $("seg").replaceChildren(...tours.map((t, i) => {
+    const b = document.createElement("button");
+    b.textContent = t.address; b.title = t.address + " #" + t.suite;
+    b.onclick = () => { select(i, true); refocus(); };
+    return b;
+  }));
+  select(Math.max(0, tours.findIndex(t => t.id === location.hash.slice(1))));
+  refocus();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Second Site</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#fff; --ink2:rgba(255,255,255,.78); --mute:rgba(255,255,255,.58);
+    --glass:rgba(255,255,255,.12); --glass-hi:rgba(255,255,255,.2); --blur:22px;
+    --ok:#9be3b4; --work:#ffd08a; --unknown:rgba(255,255,255,.55);
+    --r:18px; --serif:"Instrument Serif",Georgia,serif;
+    --sans:Inter,-apple-system,"SF Pro Text",system-ui,sans-serif;
+    --ease:cubic-bezier(.65,0,.35,1);
+  }
+  * { box-sizing:border-box; margin:0; padding:0 }
+  html, body { height:100%; overflow:hidden; background:#262a5e; color:var(--ink); font:15px/1.4 var(--sans); -webkit-font-smoothing:antialiased }
+  button { font:inherit; color:inherit; border:0; background:none; cursor:pointer }
+  #bg { position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0 }
+  .grain { position:fixed; inset:0; z-index:0; pointer-events:none; mix-blend-mode:overlay; opacity:var(--grain,.5);
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 1.6 -.3'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>") }
+  .glass { background:var(--glass); backdrop-filter:blur(var(--blur)) saturate(1.3); -webkit-backdrop-filter:blur(var(--blur)) saturate(1.3); border-radius:var(--r) }
+
+  .app { position:relative; z-index:1; height:100vh; display:grid; gap:20px; padding:24px 32px 28px;
+    grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); grid-template-rows:auto auto minmax(0,1fr) 196px;
+    grid-template-areas:"brand brand" "strip strip" "stage info" "chat stats" }
+  .app > * { min-width:0 }
+  .brand { grid-area:brand; display:flex; align-items:center; justify-content:space-between }
+  .logo { font-size:20px; font-weight:500; letter-spacing:-.01em }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end }
+  .chip { padding:5px 12px; border-radius:999px; font-size:13px; background:var(--glass); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); transition:opacity .4s }
+  .chip.inferred { opacity:.6 }
+  .chip.enter { animation:pop .5s var(--ease) }
+  @keyframes pop { from { opacity:0; transform:translateY(-6px) } }
+
+  /* ranked spaces across the top */
+  .strip { grid-area:strip; display:flex; gap:16px; overflow-x:auto; scrollbar-width:none; padding:4px 2px 8px; margin:-4px -2px -8px }
+  .strip::-webkit-scrollbar { display:none }
+  .card { position:relative; flex:0 0 clamp(210px,20vw,280px); text-align:left; transition:transform .5s var(--ease), opacity .4s, filter .4s }
+  .card .img { position:relative; aspect-ratio:16/9; border-radius:var(--r); overflow:hidden; background:var(--glass) }
+  .card img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .6s var(--ease), filter .4s }
+  .card:hover { transform:translateY(-4px) }
+  .card:hover img { transform:scale(1.05) }
+  .card:not(.sel) { opacity:.82 }
+  .card.sel .img { box-shadow:0 18px 40px rgba(20,16,60,.35) }
+  .rank { position:absolute; left:12px; top:10px; font:30px/1 var(--serif); text-shadow:0 2px 12px rgba(0,0,0,.35) }
+  .move { position:absolute; right:10px; top:10px; font-size:12px; font-weight:600; padding:3px 8px; border-radius:999px; background:rgba(0,0,0,.28); backdrop-filter:blur(8px) }
+  .card .meta { padding:10px 2px 0; display:grid; gap:1px }
+  .card .addr { font-weight:500 }
+  .card .num { font:24px/1.1 var(--serif) }
+  .card .num small { font:13px var(--sans); color:var(--mute) }
+  .card .why { font-size:12.5px; color:var(--mute) }
+  .card.out img { filter:grayscale(1) brightness(.7) }
+  .card.out .num { color:var(--mute) }
+  .card .num .struck { text-decoration:line-through; text-decoration-thickness:1px }
+  .card .reason { font-size:12.5px; color:var(--work) }
+
+  /* visual stage */
+  .stage { grid-area:stage; position:relative; min-height:0; display:flex; flex-direction:column; gap:12px }
+  .view { position:relative; flex:1; min-height:0; border-radius:var(--r); overflow:hidden }
+  .layer { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; will-change:transform,opacity,filter }
+  .layer img { display:block; width:100%; height:100%; object-fit:cover; border-radius:var(--r) }
+  .layer.float img { object-fit:contain; border-radius:0; padding:2% 4%; filter:drop-shadow(0 30px 40px rgba(15,12,50,.45)) }
+  .layer.kb img { animation:kb 16s ease-in-out infinite alternate }
+  @keyframes kb { from { transform:scale(1) } to { transform:scale(1.07) translate(-1%,-1%) } }
+  .tabs { display:flex; gap:4px; padding:4px; align-self:flex-start }
+  .tabs button { padding:7px 14px; border-radius:12px; font-size:13px; color:var(--ink2); transition:background .25s, color .25s }
+  .tabs button:hover { color:#fff }
+  .tabs button.on { background:var(--glass-hi); color:#fff }
+  .tabs a { padding:7px 12px; font-size:13px; color:var(--mute); text-decoration:none }
+  .tabs a:hover { color:#fff }
+  .src { position:absolute; left:14px; bottom:12px; font-size:12px; color:#fff; padding:3px 9px; border-radius:8px; background:rgba(0,0,0,.28); backdrop-filter:blur(8px); z-index:2 }
+
+  /* actionable info */
+  .info { grid-area:info; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:12px; scrollbar-width:none }
+  .info h2 { font:clamp(28px,2.6vw,40px)/1 var(--serif); letter-spacing:-.01em; font-weight:400 }
+  .info .sub { color:var(--mute); margin-top:4px }
+  .checks { display:grid; gap:2px; padding:6px }
+  .check { display:grid; grid-template-columns:10px auto minmax(0,1fr) auto; gap:12px; align-items:baseline; padding:8px 10px; border-radius:12px; transition:background .25s }
+  .check:hover { background:rgba(255,255,255,.08) }
+  .check.flash { animation:flash 1.6s var(--ease) }
+  @keyframes flash { 30% { background:rgba(255,255,255,.2) } }
+  .dot { width:8px; height:8px; border-radius:50%; align-self:center }
+  .ok .dot { background:var(--ok) } .work .dot { background:var(--work) } .unknown .dot { background:transparent; box-shadow:inset 0 0 0 1.5px var(--unknown) }
+  .check b { font-weight:500 }
+  .check .d { color:var(--mute); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .check .s { font-size:11.5px; color:var(--mute); white-space:nowrap }
+  .next { display:flex; align-items:center; gap:12px; padding:12px 12px 12px 16px }
+  .next p { flex:1; color:var(--ink2) }
+  .next button { padding:8px 14px; border-radius:12px; background:#fff; color:#262a5e; font-weight:500; white-space:nowrap; transition:transform .2s }
+  .next button:hover { transform:scale(1.04) }
+  .next button.done { background:var(--glass-hi); color:#fff }
+
+  /* big numbers, bottom right */
+  .stats { grid-area:stats; display:flex; gap:clamp(20px,3vw,48px); justify-content:flex-end; align-items:flex-end }
+  .stat .v { font:clamp(44px,5vw,76px)/.95 var(--serif); letter-spacing:-.02em; transition:opacity .3s }
+  .stat .l { margin-top:8px; font-size:13px; color:var(--mute) }
+  .stat.over .v { color:#ffc2b5 }
+
+  /* assistant, bottom left */
+  .chat { grid-area:chat; display:flex; flex-direction:column; justify-content:flex-end; gap:10px; max-width:600px; min-height:0 }
+  .you { color:var(--mute); font-size:14px }
+  .says { font:clamp(20px,1.7vw,24px)/1.28 var(--serif); min-height:2.56em; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
+  .says .caret { display:inline-block; width:.5em; height:.9em; margin-left:2px; background:#fff; opacity:.7; vertical-align:-.1em; animation:blink 1s steps(2) infinite }
+  @keyframes blink { 50% { opacity:0 } }
+  form { display:flex; align-items:center; gap:8px; padding:5px 5px 5px 18px; border-radius:22px }
+  input { flex:1; min-width:0; border:0; outline:0; background:transparent; font:inherit; color:#fff }
+  input::placeholder { color:var(--mute) }
+  .send { width:38px; height:38px; border-radius:50%; background:#fff; color:#262a5e; font-size:17px; flex:none; transition:transform .2s }
+  .send:hover { transform:scale(1.06) }
+
+  /* tweaks */
+  .tw-btn { position:fixed; left:160px; top:24px; z-index:5; font-size:12px; color:var(--mute); padding:6px 10px; border-radius:10px }
+  .tw-btn:hover { color:#fff; background:var(--glass) }
+  .tweaks { position:fixed; left:32px; top:60px; z-index:5; width:280px; padding:14px; display:grid; gap:10px; font-size:12.5px; max-height:80vh; overflow:auto; background:rgba(20,20,40,.55) }
+  .tweaks[hidden] { display:none }
+  .tweaks .row { display:grid; grid-template-columns:96px 1fr 40px; align-items:center; gap:8px }
+  .tweaks .cols { display:flex; gap:6px; flex-wrap:wrap }
+  .tweaks input[type=color] { width:34px; height:28px; border:0; padding:0; background:none; border-radius:8px; cursor:pointer }
+  .tweaks .presets { display:flex; gap:6px; flex-wrap:wrap }
+  .tweaks .presets button { padding:5px 9px; border-radius:8px; background:var(--glass) }
+  .tweaks output { color:var(--mute); text-align:right }
+
+  @media (max-width:1000px) {
+    html, body { overflow:auto }
+    .app { height:auto; grid-template-columns:1fr; grid-template-rows:none; grid-template-areas:"brand" "strip" "stage" "stats" "info" "chat"; padding:18px 16px 190px }
+    .stage { height:62vw; min-height:260px }
+    .tabs { max-width:100%; overflow-x:auto; scrollbar-width:none }
+    .tabs button, .tabs a { white-space:nowrap }
+    .stats { justify-content:flex-start }
+    .chat { position:fixed; left:12px; right:12px; bottom:12px; z-index:3; max-width:none; padding:12px; border-radius:22px;
+      background:rgba(30,30,70,.35); backdrop-filter:blur(var(--blur)); -webkit-backdrop-filter:blur(var(--blur)) }
+    .chat .you { display:none }
+    .chat .says { font-size:17px; min-height:0; -webkit-line-clamp:2 }
+    .brand { flex-wrap:wrap; gap:10px }
+    .chips { justify-content:flex-start }
+  }
+  @media (prefers-reduced-motion:reduce) { .layer.kb img { animation:none } }
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+<div class="app">
+  <header class="brand">
+    <div class="logo">Second Site</div>
+    <div class="chips" id="chips"></div>
+  </header>
+  <section class="strip" id="strip" aria-label="Ranked spaces"></section>
+
+  <section class="stage">
+    <div class="tabs glass" id="tabs">
+      <button data-v="aerial">Aerial</button>
+      <button data-v="dollhouse">Dollhouse</button>
+      <button data-v="plan">Plan</button>
+      <button data-v="inside">Inside</button>
+      <a href="tours.html" id="tour">3D tour ↗</a>
+    </div>
+    <div class="view" id="view"><span class="src" id="src"></span></div>
+  </section>
+
+  <section class="info" id="info"></section>
+  <section class="stats" id="stats"></section>
+
+  <section class="chat">
+    <div class="you" id="you"></div>
+    <div class="says" id="says"></div>
+    <form id="form" class="glass" autocomplete="off">
+      <input id="input" aria-label="Message">
+      <button class="send" aria-label="Send">↑</button>
+    </form>
+  </section>
+</div>
+
+<button class="tw-btn" id="twBtn">Tweaks</button>
+<div class="tweaks glass" id="tweaks" hidden></div>
+
+<script>
+/* ------------------------------------------------------------------ data
+   Listing facts: CoStar data kit snapshot (asking terms). Images: CoStar, Matterport, Vexcel (mockups/assets).
+   Cost / time ranges are illustrative estimates for this mockup, not finance-engine output. */
+const BUDGET = 180;
+const P = {
+  'mateo-109': {
+    addr:'915 Mateo St · 109', area:'Arts District · 1,128 SF · open shell', rent:'$2.2k', sf:'1,128',
+    hero:'matterport-03.jpg', aerial:'vexcel-oblique-s.jpg',
+    inside:['matterport-03.jpg','matterport-04.jpg','matterport-05.jpg','matterport-01.jpg','matterport-02.jpg'],
+    cost:[146,181], time:'4–5 mo', why:'Open shell: every wall and sink is new',
+    checks:[
+      ['work','3 treatment rooms','Open shell, about 38 m of new walls','Matterport plan'],
+      ['work','Plumbing','One restroom; new lines to each room','Matterport photos'],
+      ['unknown','Electrical capacity','Panel size not documented','Not found'],
+      ['ok','Parking and loading','Gated lot and loading dock','CoStar photos']],
+    next:['Get a plumbing estimate before shortlisting.','Request quote']
+  },
+  'sixth-110b': {
+    addr:'630 W 6th St · 110B', area:'Downtown · 1,310 SF · former restaurant', rent:'$4.0k', sf:'1,310',
+    hero:'matterport-03.jpg', aerial:'vexcel-oblique-n.jpg',
+    inside:['matterport-03.jpg','matterport-02.jpg','matterport-04.jpg','matterport-05.jpg'],
+    cost:[200,230], time:'5–6 mo', why:'Kitchen tear-out plus key money',
+    checks:[
+      ['work','Key money','$75,000 due at signing','CoStar listing notes'],
+      ['work','Kitchen removal','Hood and cook line to demolish','Matterport photos'],
+      ['ok','Plumbing','Kitchen and restroom lines exist','Matterport photos'],
+      ['unknown','Exhaust and grease removal','Scope not documented','Not found']],
+    next:['Out of budget. Kept for comparison.', null]
+  },
+  'beverly-720': {
+    addr:'1125 S Beverly Dr · 720', area:'Medical tower · 1,490 SF · built-out suite', rent:'$5.2k', sf:'1,490',
+    hero:'matterport-01.jpg', aerial:'vexcel-oblique-e.jpg',
+    inside:['matterport-01.jpg','matterport-04.jpg','matterport-02.jpg','matterport-05.jpg','matterport-03.jpg'],
+    cost:[72,87], time:'6–8 wk', why:'Rooms and sinks already built',
+    checks:[
+      ['ok','3 treatment rooms fit','6 enclosed rooms on the scan','Matterport plan'],
+      ['ok','Sinks in rooms','Sink cabinets visible in scan photos','Matterport photos'],
+      ['unknown','Electrical capacity','Sub-panel amps not documented','Not found'],
+      ['work','Permitted use','Listed as medical office; confirm facial studio use','CoStar listing']],
+    next:['Ask the broker about the sub-panel and permitted use.','Ask broker']
+  }
+};
+
+const S = {
+  step:0, sel:'mateo-109', view:'aerial',
+  order:['mateo-109','sixth-110b','beverly-720'], prev:null,
+  out:{}, tags:{},
+  chips:[['Los Angeles']],
+  you:'', says:'Tell me what you are opening and I will rank these by what they would really cost to open.'
+};
+const SCRIPT = [
+  { you:'Second facial studio. 3 treatment rooms, $180k all in, open by March.',
+    chips:[['Facial studio'],['3 treatment rooms'],['$180k all in'],['Open by March']],
+    order:['beverly-720','mateo-109','sixth-110b'], sel:'beverly-720',
+    out:{'sixth-110b':'Out: $75k key money puts it over budget'},
+    says:'Beverly moves to first. Highest rent, but the rooms and sinks are already built, so it costs about $80k less to open than Mateo. 6th St is out: the key money alone breaks the budget.' },
+  { you:'I would rather avoid plumbing work.',
+    chips:[['Less plumbing work',1]],
+    tags:{'mateo-109':'Needs new plumbing to every room'},
+    flash:'beverly-720',
+    says:'Then Mateo is a stretch: every treatment room needs new supply and drain lines. Beverly has sinks in place. One unknown left there, the electrical sub-panel. Want me to ask the broker?' }
+];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const img = (slug, f) => `assets/${slug}/${f}`;
+
+/* ------------------------------------------------------------------ gradient (WebGL) */
+const T = {
+  colors:['#232859','#4554a3','#c65a4e','#b4628a','#8db1b6','#d2b8a8'],
+  idle:.035, active:.24, warp:1.3, scale:.9, grain:.5, mouse:.18, glass:.12, blur:22, res:.33
+};
+const PRESETS = {
+  Reference:{ colors:['#232859','#4554a3','#c65a4e','#b4628a','#8db1b6','#d2b8a8'] },
+  Dusk:{ colors:['#1d1b3a','#3b3f8f','#e0745a','#c9578f','#6e8fb8','#f1c9a0'] },
+  Sea:{ colors:['#0f2b3d','#1f5f8b','#4fb3a9','#8a7fd1','#bfe3d8','#f0d9b5'] },
+  Mono:{ colors:['#1c1c22','#3a3a46','#77727a','#5a5866','#a8a6b0','#d6d3cf'] }
+};
+try { Object.assign(T, JSON.parse(localStorage.getItem('ss-tweaks') || '{}')); } catch (e) {}
+
+const gl = $('bg').getContext('webgl', { antialias:false, premultipliedAlpha:false });
+const VS = 'attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }';
+const FS = `precision highp float;
+uniform vec2 uRes; uniform float uTime; uniform vec2 uMouse; uniform float uMouseAmt, uWarp, uScale, uGrain;
+uniform vec3 c0,c1,c2,c3,c4,c5;
+float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+float n(vec2 p){ vec2 i=floor(p), f=fract(p); vec2 u=f*f*(3.-2.*f);
+  return mix(mix(h(i),h(i+vec2(1,0)),u.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x), u.y); }
+float fbm(vec2 p){ float v=0., a=.5; mat2 m=mat2(1.6,1.2,-1.2,1.6); for(int i=0;i<3;i++){ v+=a*n(p); p=m*p; a*=.5; } return v; }
+void main(){
+  vec2 uv = gl_FragCoord.xy / uRes;
+  vec2 p = vec2(uv.x * uRes.x / uRes.y, uv.y) * uScale;
+  vec2 m = (uMouse - .5) * uMouseAmt;
+  float t = uTime;
+  // domain-warped noise only nudges a fixed composition (coral low-left, glow top, sand right, navy core)
+  vec2 q = vec2(fbm(p + vec2(0., t*.5) + m), fbm(p + vec2(5.2,1.3) - t*.35));
+  vec2 r = vec2(fbm(p + uWarp*q + vec2(1.7,9.2) + t*.25), fbm(p + uWarp*q + vec2(8.3,2.8) - t*.2 - m));
+  float f = fbm(p + uWarp*r);
+  vec2 w = uv + (r - .5) * .35;                                    // warped screen position
+  float coral = (1.-w.y)*1.05 + (.4-w.x)*.6;
+  float glow  = 1. - length((w - vec2(.58 + m.x*.3, .98))*vec2(1.5, 2.4));
+  float sand  = w.x*1.1 + (1.-w.y)*.2 - .55;
+  float core  = 1. - length((w - vec2(.55, .55))*vec2(.95, 1.15));
+  vec3 col = mix(c1, c0, smoothstep(.25, .7, f));                 // indigo / navy field
+  col = mix(col, c0, smoothstep(.05, .6, core) * .9);             // deep navy core
+  col = mix(col, c4, smoothstep(.15, .75, glow) * .85);            // pale teal glow, top centre
+  col = mix(col, c5, smoothstep(.15, .7, sand) * .85);             // sand / lilac, right
+  col = mix(col, c3, smoothstep(.5, .85, coral) * .85);            // rose transition
+  col = mix(col, c2, smoothstep(.75, 1.15, coral));                  // coral, bottom left
+  col += (h(gl_FragCoord.xy + fract(t*17.)) - .5) * uGrain;
+  gl_FragColor = vec4(col, 1.);
+}`;
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s)); return s; }
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const U = n => gl.getUniformLocation(prog, n);
+const hex = c => [1,3,5].map(i => parseInt(c.slice(i, i+2), 16) / 255);
+function size() { const k = T.res; /* soft field: render small, CSS scales it */ $('bg').width = innerWidth * k; $('bg').height = innerHeight * k; gl.viewport(0, 0, $('bg').width, $('bg').height); }
+addEventListener('resize', size); size();
+
+let gTime = 7, speed = T.idle, generating = false;
+const mouse = { x:.5, y:.5, tx:.5, ty:.5 };
+addEventListener('pointermove', e => { mouse.tx = e.clientX / innerWidth; mouse.ty = 1 - e.clientY / innerHeight; });
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let last = performance.now();
+(function frame(now) {
+  const dt = Math.min((now - last) / 1000, .05); last = now;
+  speed += ((generating ? T.active : T.idle) - speed) * Math.min(1, dt * 2.5);
+  if (!still) gTime += dt * speed;
+  mouse.x += (mouse.tx - mouse.x) * Math.min(1, dt * 1.5); mouse.y += (mouse.ty - mouse.y) * Math.min(1, dt * 1.5);
+  gl.uniform2f(U('uRes'), $('bg').width, $('bg').height);
+  gl.uniform1f(U('uTime'), gTime); gl.uniform2f(U('uMouse'), mouse.x, mouse.y);
+  gl.uniform1f(U('uMouseAmt'), T.mouse); gl.uniform1f(U('uWarp'), T.warp); gl.uniform1f(U('uScale'), T.scale); gl.uniform1f(U('uGrain'), 0.);
+  T.colors.forEach((c, i) => gl.uniform3fv(U('c' + i), hex(c)));
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  requestAnimationFrame(frame);
+})(last);
+
+/* ------------------------------------------------------------------ stage: aerial / dollhouse / plan / inside */
+const VIEWS = {
+  aerial:    { depth:0, src:'Vexcel aerial', kind:'kb',    file:s => img(s, P[s].aerial) },
+  dollhouse: { depth:1, src:'Matterport 3D', kind:'float', file:s => `assets/dollhouses/${s}.png` },
+  plan:      { depth:1, src:'Matterport plan', kind:'float', rise:true, file:s => img(s, 'matterport-floorplan-02.png') },
+  inside:    { depth:2, src:'Matterport', kind:'kb',       file:s => img(s, P[s].inside[0]) }
+};
+let layer = null, insideTimer = null, insideIdx = 0;
+function addLayer(src, kind) {
+  const el = document.createElement('div');
+  el.className = 'layer ' + kind;
+  el.innerHTML = `<img src="${src}" alt="">`;
+  $('view').appendChild(el);
+  return el;
+}
+function show(view, slug = S.sel, force) {
+  const from = S.view, V = VIEWS[view], F = VIEWS[from];
+  if (view === from && !force && layer) return;
+  S.view = view;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+  $('src').textContent = V.src;
+  clearInterval(insideTimer);
+  const next = addLayer(V.file(slug), V.kind);
+  const old = layer; layer = next;
+  const dur = still ? 1 : 950, opt = { duration:dur, easing:'cubic-bezier(.65,0,.35,1)', fill:'forwards' };
+  let outK, inK;
+  if (force && from === view) {                       // same view, new place: soft crossfade
+    outK = [{ opacity:1 }, { opacity:0 }]; inK = [{ opacity:0, transform:'scale(1.03)' }, { opacity:1, transform:'scale(1)' }];
+  } else if (V.rise || F.rise) {                      // camera rises to (or drops from) the plan
+    const up = V.rise ? 1 : -1;
+    outK = [{ opacity:1, transform:'none', filter:'blur(0)' }, { opacity:0, transform:`translateY(${18*up}%) scale(${up > 0 ? .9 : 1.12})`, filter:'blur(6px)' }];
+    inK = [{ opacity:0, transform:`translateY(${-14*up}%) scale(${up > 0 ? 1.1 : .9})`, filter:'blur(6px)' }, { opacity:1, transform:'none', filter:'blur(0)' }];
+  } else {                                            // fly in (deeper) or out
+    const dir = V.depth >= F.depth ? 1 : -1;
+    outK = [{ opacity:1, transform:'scale(1)', filter:'blur(0)' }, { opacity:0, transform:`scale(${dir > 0 ? 1.7 : .7})`, filter:'blur(8px)' }];
+    inK = [{ opacity:0, transform:`scale(${dir > 0 ? .75 : 1.5})`, filter:'blur(8px)' }, { opacity:1, transform:'scale(1)', filter:'blur(0)' }];
+  }
+  if (old) old.animate(outK, opt).finished.then(() => old.remove());
+  next.animate(inK, opt);
+  if (view === 'inside') {                            // drift through the scan photos
+    insideIdx = 0;
+    insideTimer = setInterval(() => {
+      insideIdx = (insideIdx + 1) % P[S.sel].inside.length;
+      const prev = layer, el = addLayer(img(S.sel, P[S.sel].inside[insideIdx]), 'kb');
+      layer = el;
+      el.animate([{ opacity:0, transform:'scale(1.04)' }, { opacity:1, transform:'scale(1)' }], { duration:1400, easing:'ease-in-out', fill:'forwards' });
+      prev.animate([{ opacity:1 }, { opacity:0 }], { duration:1400, fill:'forwards' }).finished.then(() => prev.remove());
+    }, 3600);
+  }
+}
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) show(b.dataset.v); });
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const v = { 1:'aerial', 2:'dollhouse', 3:'plan', 4:'inside' }[e.key]; if (v) show(v);
+});
+
+/* ------------------------------------------------------------------ render */
+const live = () => S.order.filter(s => !S.out[s]);
+function renderChips() {
+  $('chips').innerHTML = S.chips.map(([t, inf, fresh]) =>
+    `<span class="chip${inf ? ' inferred' : ''}${fresh ? ' enter' : ''}" title="${inf ? 'Inferred' : 'You said this'}">${esc(t)}</span>`).join('');
+  S.chips.forEach(c => c[2] = 0);
+}
+function cardHTML(slug) {
+  const p = P[slug], out = S.out[slug], priced = S.step > 0;
+  const rank = out ? '' : live().indexOf(slug) + 1;
+  let move = '';
+  if (S.prev && !out) { const d = S.prev.indexOf(slug) + 1 - rank; if (d) move = `<span class="move">${d > 0 ? '↑' : '↓'}${Math.abs(d)}</span>`; }
+  const price = `$${p.cost[0]}–${p.cost[1]}k`;
+  const num = priced ? `<span class="${out ? 'struck' : ''}">${price}</span> <small>est. to open</small>` : `${p.rent} <small>/mo asking</small>`;
+  const why = out ? `<span class="reason">${esc(out)}</span>` : S.tags[slug] ? `<span class="reason">${esc(S.tags[slug])}</span>` : priced ? `<span class="why">${esc(p.why)}</span>` : `<span class="why">${esc(p.area)}</span>`;
+  return `<div class="img"><img src="${img(slug, p.hero)}" alt="${esc(p.addr)}"><span class="rank">${rank}</span>${move}</div>
+    <div class="meta"><span class="addr">${esc(p.addr)}</span><span class="num">${num}</span>${why}</div>`;
+}
+function renderStrip() {
+  const strip = $('strip'), before = {};
+  strip.querySelectorAll('.card').forEach(el => before[el.dataset.slug] = el.getBoundingClientRect().left);
+  const ordered = [...live(), ...S.order.filter(s => S.out[s])];
+  ordered.forEach(slug => {
+    let el = strip.querySelector(`[data-slug="${slug}"]`);
+    if (!el) { el = document.createElement('button'); el.className = 'card'; el.dataset.slug = slug; }
+    el.innerHTML = cardHTML(slug);
+    el.classList.toggle('sel', slug === S.sel); el.classList.toggle('out', !!S.out[slug]);
+    strip.appendChild(el);
+  });
+  strip.querySelectorAll('.card').forEach(el => {             // FLIP reorder
+    const b = before[el.dataset.slug]; if (b == null) return;
+    const dx = b - el.getBoundingClientRect().left; if (!dx) return;
+    el.animate([{ transform:`translateX(${dx}px)` }, { transform:'none' }], { duration:still ? 1 : 800, easing:'cubic-bezier(.65,0,.35,1)' });
+  });
+}
+function renderInfo() {
+  const p = P[S.sel], [txt, btn] = p.next;
+  $('info').innerHTML = `
+    <div><h2>${esc(p.addr)}</h2><div class="sub">${esc(p.area)} · ${p.rent}/mo asking</div></div>
+    <div class="checks glass">${p.checks.map(([st, l, d, s]) =>
+      `<div class="check ${st}"><span class="dot" title="${st === 'ok' ? 'Meets requirement' : st === 'work' ? 'May require work' : 'Unknown'}"></span><b>${esc(l)}</b><span class="d">${esc(d)}</span><span class="s">${esc(s)}</span></div>`).join('')}</div>
+    ${S.step > 0 ? `<div class="next glass"><p>${esc(txt)}</p>${btn ? `<button id="act">${esc(btn)}</button>` : ''}</div>` : ''}`;
+  const act = $('act');
+  if (act) act.onclick = () => { act.textContent = 'Waiting for your approval'; act.classList.add('done'); };
+}
+function renderStats() {
+  const p = P[S.sel], priced = S.step > 0;
+  const stats = priced
+    ? [[`$${p.cost[0]}–${p.cost[1]}k`, `est. to open · of $${BUDGET}k`, p.cost[0] > BUDGET], [p.time, 'est. to open the doors'], [p.rent, 'asking rent / mo']]
+    : [[p.rent, 'asking rent / mo'], [p.sf, 'square feet'], ...(() => { const u = P[S.sel].checks.filter(c => c[0] === 'unknown').length; return [[String(u), u === 1 ? 'unknown to check' : 'unknowns to check']]; })()];
+  $('stats').innerHTML = stats.map(([v, l, over]) => `<div class="stat${over ? ' over' : ''}"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('');
+}
+function select(slug) {
+  if (slug === S.sel) return;
+  S.sel = slug;
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', c.dataset.slug === slug));
+  renderInfo(); renderStats(); show(S.view, slug, true);
+}
+$('strip').addEventListener('click', e => { const c = e.target.closest('.card'); if (c) select(c.dataset.slug); });
+
+/* ------------------------------------------------------------------ assistant (scripted for the mockup) */
+function stream(text, done) {
+  generating = true;
+  let i = 0;
+  const tick = () => {
+    i = Math.min(text.length, i + 2);
+    $('says').innerHTML = esc(text.slice(0, i)) + (i < text.length ? '<span class="caret"></span>' : '');
+    if (i < text.length) setTimeout(tick, 28); else { generating = false; done && done(); }
+  };
+  tick();
+}
+function send(text) {
+  const step = SCRIPT[S.step];
+  $('you').textContent = text;
+  $('input').value = '';
+  if (!step) { stream('Noted. I will fold that into the next pass.'); return; }
+  generating = true;
+  $('says').innerHTML = '<span class="caret"></span>';
+  setTimeout(() => {
+    S.step++;
+    if (step.chips) S.chips.push(...step.chips.map(c => [c[0], c[1], 1]));
+    if (step.order) { S.prev = live(); S.order = step.order; }
+    if (step.out) Object.assign(S.out, step.out);
+    if (step.tags) Object.assign(S.tags, step.tags);
+    renderChips(); renderStrip();
+    if (step.sel && step.sel !== S.sel) select(step.sel); else { renderInfo(); renderStats(); }
+    if (step.flash) document.querySelectorAll('.check.unknown').forEach(el => el.classList.add('flash'));
+    stream(step.says, () => { $('input').placeholder = 'Ask anything'; $('input').value = SCRIPT[S.step] ? SCRIPT[S.step].you : ''; });
+  }, 700);
+}
+$('form').addEventListener('submit', e => { e.preventDefault(); const t = $('input').value.trim(); if (t) send(t); });
+
+/* ------------------------------------------------------------------ tweaks */
+function applyGlass() {
+  document.documentElement.style.setProperty('--glass', `rgba(255,255,255,${T.glass})`);
+  document.documentElement.style.setProperty('--glass-hi', `rgba(255,255,255,${Math.min(.5, T.glass + .08)})`);
+  document.documentElement.style.setProperty('--blur', T.blur + 'px');
+  document.documentElement.style.setProperty('--grain', T.grain);
+}
+function save() { try { localStorage.setItem('ss-tweaks', JSON.stringify(T)); } catch (e) {} }
+const SL = [['idle','Idle speed',0,.2,.005],['active','Typing speed',0,.8,.01],['warp','Warp',0,4,.05],['scale','Scale',.4,3,.05],
+  ['grain','Grain',0,1,.02],['mouse','Mouse pull',0,.6,.01],['glass','Glass',0,.4,.01],['blur','Blur',0,40,1]];
+function renderTweaks() {
+  $('tweaks').innerHTML = `
+    <div class="presets">${Object.keys(PRESETS).map(k => `<button data-p="${k}">${k}</button>`).join('')}</div>
+    <div class="cols">${T.colors.map((c, i) => `<input type="color" data-c="${i}" value="${c}" title="Color ${i + 1}">`).join('')}</div>
+    ${SL.map(([k, l, a, b, st]) => `<label class="row"><span>${l}</span><input type="range" data-k="${k}" min="${a}" max="${b}" step="${st}" value="${T[k]}"><output>${T[k]}</output></label>`).join('')}
+    <div class="presets"><button data-a="gen">Preview typing</button><button data-a="reset">Reset</button></div>`;
+}
+$('tweaks').addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.c) T.colors[+t.dataset.c] = t.value;
+  if (t.dataset.k) { T[t.dataset.k] = +t.value; t.nextElementSibling.textContent = t.value; }
+  applyGlass(); save();
+});
+$('tweaks').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.p) { T.colors = [...PRESETS[b.dataset.p].colors]; renderTweaks(); save(); }
+  if (b.dataset.a === 'gen') { generating = true; setTimeout(() => generating = false, 3000); }
+  if (b.dataset.a === 'reset') { try { localStorage.removeItem('ss-tweaks'); } catch (e) {} location.reload(); }
+});
+$('twBtn').onclick = () => { $('tweaks').hidden = !$('tweaks').hidden; if (!$('tweaks').hidden) renderTweaks(); };
+
+/* ------------------------------------------------------------------ boot */
+applyGlass();
+renderChips(); renderStrip(); renderInfo(); renderStats();
+$('says').textContent = S.says;
+$('input').value = SCRIPT[0].you;
+show('aerial', S.sel, true);
+</script>
+</body>
+</html>
