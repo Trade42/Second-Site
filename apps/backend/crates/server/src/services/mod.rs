@@ -20,3 +20,4 @@ pub mod notifier;
 pub mod permits;
 pub mod tasks;
 pub mod voice_bridge;
+pub mod voice_session_config;

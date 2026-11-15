@@ -727,7 +727,7 @@ async fn run_inner(
                                     // speak freely after it, so the call ends here.
                                     let cut = st.cancelled.contains(&id)
                                         || matches!(status.as_deref(), Some("cancelled" | "failed" | "incomplete"));
-                                    if false && cut {
+                                    if cut {
                                         break EndReason::Error { kind: "opening_line_not_spoken".into() };
                                     }
                                     st.phase = Phase::Live;
