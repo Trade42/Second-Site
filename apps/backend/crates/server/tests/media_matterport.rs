@@ -519,6 +519,12 @@ both_backends!(the_guard_refuses_without_a_provider_request, |db| {
         format!("{MODEL}/photo/-1.jpg"),
         format!("{MODEL}/photo/1.png"),
         format!("{MODEL}/photo/99999.jpg"),
+        // Not a file of the contract (review addition).
+        format!("{MODEL}/MESH.OBJ"),
+        format!("{MODEL}/mesh.obj/"),
+        format!("{MODEL}/photo/1.jpg/x"),
+        format!("{MODEL}/textures.zip"),
+        "..%2F..%2Fetc/textures.zip".to_owned(),
     ] {
         let g = get(&e.t, &p).await;
         g.problem(404, "MEDIA_NOT_FOUND");
@@ -590,6 +596,19 @@ both_backends!(an_oversize_file_is_refused, |db| {
     let g = get(&e.t, &format!("{MODEL}/photo/2.jpg")).await;
     assert_eq!(g.status, StatusCode::OK);
     assert_eq!(g.body, photo_bytes(2));
+
+    // Review addition: a body larger than the shared client's 64 MB buffer gets the same answer,
+    // because the limit is applied while reading (the size never reaches the generic cap).
+    let (server, _s) = mock(Script {
+        big_photo: Some(64 * 1024 * 1024 + 1),
+        ..Script::default()
+    });
+    let e = env(db, Some(&server.base), true).await;
+    let g = get(&e.t, &format!("{MODEL}/photo/1.jpg")).await;
+    assert_eq!(
+        g.json()["message"],
+        "interior media unavailable (BAD_RESPONSE): the file is larger than the 8 MB limit"
+    );
 });
 
 both_backends!(two_first_requests_download_once, |db| {

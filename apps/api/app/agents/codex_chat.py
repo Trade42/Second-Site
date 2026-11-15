@@ -28,6 +28,7 @@ import signal
 import subprocess
 import tempfile
 import threading
+import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,8 +57,17 @@ MAX_FACTS_CHARS = 60_000
 # Past exchanges (owner message + reply) kept per thread, in this process only, and sent with the next message.
 HISTORY_TURNS = 4
 MAX_HISTORY_CHARS = 1_500
-# The CLI's own features that would let the model run commands or open pages; all switched off.
-DISABLED_FEATURES = ("shell_tool", "unified_exec", "browser_use", "computer_use", "in_app_browser")
+# The CLI's own features that would let the model run commands, open pages or read or make images; all switched off.
+# The CLI rejects an unknown feature name, so a renamed feature fails every message loudly instead of staying on.
+DISABLED_FEATURES = (
+    "shell_tool",
+    "unified_exec",
+    "browser_use",
+    "computer_use",
+    "in_app_browser",
+    "view_image",
+    "image_generation",
+)
 # Only these variables reach the CLI. HOME/CODEX_HOME locate its sign-in; nothing from the app's settings.
 ENV_PASSTHROUGH = ("PATH", "HOME", "CODEX_HOME", "LANG", "LC_ALL")
 
@@ -238,7 +248,7 @@ def gather_facts(ctx: ToolContext) -> tuple[dict[str, Any], list[UUID]]:
 
 
 def build_prompt(facts: dict[str, Any], history: list[tuple[str, str]], message: str) -> str:
-    parts = [SYSTEM_RULES, "", "FACTS (JSON):", json.dumps(facts, default=str, indent=1), ""]
+    parts = [SYSTEM_RULES, "", "FACTS (JSON):", json.dumps(facts, default=str, separators=(",", ":")), ""]
     if history:
         parts.append("RECENT CONVERSATION (oldest first):")
         for owner, reply in history:
@@ -253,6 +263,7 @@ def command(executable: str, spec: CodexSpec, workdir: str, out_file: str) -> li
     argv = [executable, "exec", "-m", spec.model]
     if spec.effort:
         argv += ["-c", f'model_reasoning_effort="{spec.effort}"']
+    argv += ["-c", 'web_search="disabled"']  # the CLI rejects an unknown value, so this setting is checked
     argv += ["-s", "read-only", "-C", workdir, "--skip-git-repo-check", "--ephemeral"]
     argv += ["--ignore-user-config", "--ignore-rules", "--color", "never"]
     for feature in DISABLED_FEATURES:
@@ -340,16 +351,38 @@ def codex_chat(ctx: ToolContext, message: str, model: str, thread_id: str) -> Ch
         return ChatResponse(
             reply=ACTION_REPLY.format(web=ctx.c.settings.public_web_url), mode="deterministic:action_request"
         )
+    t0 = time.monotonic()
     facts, ids = gather_facts(ctx)
-    prompt = build_prompt(facts, _history(thread_id), message)
+    history = _history(thread_id)
+    prompt = build_prompt(facts, history, message)
+    t1 = time.monotonic()
+    reply = ""
     try:
         reply = run_codex(spec, prompt)
     except CodexUnavailable as exc:
         log.warning("codex chat unavailable: kind=%s exit_code=%s", exc.kind, exc.exit_code)
+        _log_timing(spec, t0, t1, prompt, facts, history, reply)
         return ChatResponse(
             reply=UNAVAILABLE_REPLY.format(why=exc.why),
             mode=f"codex_cli_unavailable:{spec.label}",
             grounded_record_ids=[],
         )
+    _log_timing(spec, t0, t1, prompt, facts, history, reply)
     _remember(thread_id, message, reply)
     return ChatResponse(reply=reply, mode=f"codex_cli:{spec.label}", grounded_record_ids=ids)
+
+
+def _log_timing(
+    spec: CodexSpec, t0: float, t1: float, prompt: str, facts: dict[str, Any], history: list, reply: str
+):
+    """Numbers and the mode label only: never the prompt, facts, message, reply, CLI output or an id."""
+    log.info(
+        "codex chat timing: facts_s=%.2f cli_s=%.2f prompt_chars=%d facts_chars=%d history_turns=%d reply_chars=%d mode=%s",
+        t1 - t0,
+        time.monotonic() - t1,
+        len(prompt),
+        len(json.dumps(facts, default=str, separators=(",", ":"))),
+        len(history),
+        len(reply),
+        spec.label,
+    )

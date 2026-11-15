@@ -96,14 +96,40 @@ def test_command_line_is_exact():
     argv = cc.command("/usr/bin/codex", cc.CodexSpec("gpt-6.1-terra", "low"), "/tmp/w", "/tmp/o.txt")
     assert argv == [
         "/usr/bin/codex", "exec", "-m", "gpt-6.1-terra", "-c", 'model_reasoning_effort="low"',
+        "-c", 'web_search="disabled"',
         "-s", "read-only", "-C", "/tmp/w", "--skip-git-repo-check", "--ephemeral",
         "--ignore-user-config", "--ignore-rules", "--color", "never",
         "--disable", "shell_tool", "--disable", "unified_exec", "--disable", "browser_use",
         "--disable", "computer_use", "--disable", "in_app_browser",
+        "--disable", "view_image", "--disable", "image_generation",
         "-o", "/tmp/o.txt", "-",
     ]  # fmt: skip
     no_effort = cc.command("codex", cc.CodexSpec("m", None), "/w", "/o")
-    assert "-c" not in no_effort
+    assert "model_reasoning_effort" not in " ".join(no_effort)
+    assert (
+        no_effort[no_effort.index("-c") + 1] == 'web_search="disabled"'
+    )  # web search is off with or without effort
+
+
+# ---- the prompt (assistant-speed-1: compact facts, same rules) ------------------------------------------------
+RULES_SHA256 = "a1e4a30aa33bb7f17f74917c3473e162fff424b262c06a083c8287e209dbc2dd"  # SYSTEM_RULES as reviewed
+
+
+def test_prompt_keeps_the_rules_and_every_fact_in_compact_json():
+    import hashlib
+
+    assert hashlib.sha256(cc.SYSTEM_RULES.encode()).hexdigest() == RULES_SHA256
+    facts = {"data_notice": "fixture", "money_unit": "integer US cents", "ranking": {"ranked": [{"rank": 1}]},
+             "top_properties": [{"property_id": "p1", "evidence": [{"id": "e1", "class": "UNKNOWN"}]}]}  # fmt: skip
+    prompt = cc.build_prompt(facts, [("q1", "a1")], "Which ranks first?")
+    lines = prompt.split("\n")
+    assert prompt.startswith(cc.SYSTEM_RULES + "\n\nFACTS (JSON):\n")
+    facts_line = lines[lines.index("FACTS (JSON):") + 1]
+    assert json.loads(facts_line) == facts  # every field kept, nothing dropped
+    assert facts_line == json.dumps(facts, separators=(",", ":"))  # one line, no indentation or spaces
+    # The fixed parts come first and the changing message last.
+    assert prompt.index("FACTS") < prompt.index("RECENT CONVERSATION") < prompt.index("OWNER'S MESSAGE")
+    assert prompt.endswith("OWNER'S MESSAGE:\nWhich ranks first?\n\nWrite the assistant's reply.")
 
 
 # ---- a reply from the model -------------------------------------------------------------------------------
@@ -305,3 +331,28 @@ def test_long_reply_is_cut_and_action_claim_gets_the_notice(tmp_path, monkeypatc
     )
     reply = cc.run_codex(cc.parse_spec(MODEL), "q")
     assert reply.startswith("Done: I called the broker.") and reply.endswith(cc.NO_ACTION_NOTICE)
+
+
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_timing_line_has_numbers_only(ranked_ctx, container, tmp_path, monkeypatch, caplog, exit_code):
+    """Orchestrator-requested timing log (assistant-speed-1 review): numbers and the mode label, no text or id."""
+    bin_dir, _ = _fake_cli(tmp_path, exit_code=exit_code)
+    _use(monkeypatch, bin_dir)
+    caplog.set_level(logging.INFO)
+    message = "Which space ranks first, zebra-probe?"
+    run_chat(ranked_ctx, message, container.settings, model=MODEL)
+    recs = [r.getMessage() for r in caplog.records if r.getMessage().startswith("codex chat timing:")]
+    assert len(recs) == 1
+    line = recs[0]
+    for field in (
+        "facts_s=",
+        "cli_s=",
+        "prompt_chars=",
+        "facts_chars=",
+        "history_turns=0",
+        "mode=gpt-6.1-terra:low",
+    ):
+        assert field in line
+    assert ("reply_chars=0" in line) == (exit_code != 0)
+    assert "zebra-probe" not in line and "Which space" not in line and CANNED not in line
+    assert str(ranked_ctx.project_id) not in line

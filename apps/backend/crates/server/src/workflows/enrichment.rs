@@ -62,7 +62,10 @@ fn warn(msg: &str, err: &dyn std::fmt::Display) {
 
 /// The Matterport model ids `enrich_interior` asks the provider for (at most [`MAX_MODELS`]), or
 /// `None` when the listing is left as it is (no Matterport asset, or the provider is not live).
-fn interior_ids(prop: &PropertyDigitalProfile, matterport: &dyn MatterportProvider) -> Option<Vec<String>> {
+fn interior_ids(
+    prop: &PropertyDigitalProfile,
+    matterport: &dyn MatterportProvider,
+) -> Option<Vec<String>> {
     let ids: Vec<String> = prop
         .interior_assets
         .iter()

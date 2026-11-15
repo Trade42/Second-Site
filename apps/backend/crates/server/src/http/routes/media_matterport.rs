@@ -38,7 +38,7 @@ use crate::app::AppState;
 use crate::error::{AppError, AppResult};
 use crate::http::extract::PathParams;
 use crate::integrations::blocking;
-use crate::integrations::matterport::{safe_id, ModelMedia};
+use crate::integrations::matterport::{safe_id, ModelMedia, MEDIA_TOO_LARGE};
 use crate::integrations::MatterportProvider;
 use crate::store::repo::PROPERTIES;
 use crate::store::Query;
@@ -65,6 +65,14 @@ pub fn router() -> Router<AppState> {
         .route(&format!("{base}/image.jpg"), get(image))
         .route(&format!("{base}/floorplan.png"), get(floorplan))
         .route(&format!("{base}/photo/{{file}}"), get(photo))
+        .route(&format!("{base}/{{*rest}}"), get(no_such_file))
+}
+
+/// Any other file under a scan: 404 `MEDIA_NOT_FOUND` before any lookup (not the router's bare 404).
+async fn no_such_file() -> AppResult<Response> {
+    Err(media_not_found(
+        "no such interior media file: manifest.json, mesh.obj, photo/{n}.jpg, image.jpg or floorplan.png",
+    ))
 }
 
 fn media_not_found(msg: impl Into<String>) -> AppError {
@@ -277,23 +285,33 @@ fn fetch(mp: &dyn MatterportProvider, id: &str, item: Item, path: &Path) -> AppR
     let media = links(mp, id, false)?;
     let not_offered = || media_not_found(format!("this scan has no {}", item.what()));
     let url = item.link(&media).ok_or_else(not_offered)?;
-    let data = match mp.download_media(&url) {
-        Ok(d) => d,
-        Err(e) if link_expired(&e) => {
-            let media = links(mp, id, true)?;
-            let url = item.link(&media).ok_or_else(not_offered)?;
-            mp.download_media(&url)
-                .map_err(|e| provider_unavailable(&e))?
-        }
-        Err(e) => return Err(provider_unavailable(&e)),
-    };
-    if data.len() > item.limit() {
-        return Err(AppError::bad_request(format!(
+    let oversize = || {
+        AppError::bad_request(format!(
             "interior media unavailable (BAD_RESPONSE): the file is larger than the {} MB limit",
             item.limit() / (1024 * 1024)
         ))
         .code("PROVIDER_UNAVAILABLE")
-        .with_retryable(false));
+        .with_retryable(false)
+    };
+    let failed = |e: &ProviderError| {
+        if e.message == MEDIA_TOO_LARGE {
+            oversize()
+        } else {
+            provider_unavailable(e)
+        }
+    };
+    let data = match mp.download_media(&url, item.limit()) {
+        Ok(d) => d,
+        Err(e) if link_expired(&e) => {
+            let media = links(mp, id, true)?;
+            let url = item.link(&media).ok_or_else(not_offered)?;
+            mp.download_media(&url, item.limit())
+                .map_err(|e| failed(&e))?
+        }
+        Err(e) => return Err(failed(&e)),
+    };
+    if data.len() > item.limit() {
+        return Err(oversize());
     }
     write_atomic(path, &data).map_err(|e| io_error(&e))?;
     Ok(data)

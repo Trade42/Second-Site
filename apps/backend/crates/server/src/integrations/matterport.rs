@@ -95,8 +95,9 @@ pub trait MatterportProvider: Send + Sync {
     ) -> Result<Option<ModelMedia>, ProviderError> {
         Err(media_off())
     }
-    /// One signed link's bytes, fetched with **no** credentials.
-    fn download_media(&self, _url: &str) -> Result<Vec<u8>, ProviderError> {
+    /// One signed link's bytes, fetched with **no** credentials; more than `limit` bytes is a
+    /// [`MEDIA_TOO_LARGE`] error, found while reading.
+    fn download_media(&self, _url: &str, _limit: usize) -> Result<Vec<u8>, ProviderError> {
         Err(media_off())
     }
 }
@@ -110,6 +111,57 @@ fn media_off() -> ProviderError {
 }
 
 // ---- interior media (a deliberate addition, not a port) -----------------------------------------
+
+/// The message of a download that is over its limit (a `Content-Length` over it, or more bytes).
+pub const MEDIA_TOO_LARGE: &str = "the file is larger than the limit";
+
+/// One GET that never reads more than `limit + 1` bytes. Errors carry only a kind, never the URL.
+fn download_capped(agent: &ureq::Agent, url: &str, limit: usize) -> Result<Vec<u8>, ProviderError> {
+    use std::io::{ErrorKind as Io, Read};
+    let fail = |kind| ProviderError::new(PROVIDER, kind, "the download failed");
+    let too_large =
+        || ProviderError::new(PROVIDER, ProviderErrorKind::BadResponse, MEDIA_TOO_LARGE);
+    let timed_out = |e: Option<&std::io::Error>| {
+        e.is_some_and(|e| matches!(e.kind(), Io::TimedOut | Io::WouldBlock))
+    };
+    let resp = match agent.get(url).call() {
+        Ok(r) if (200..300).contains(&r.status()) => r,
+        Ok(r) | Err(ureq::Error::Status(_, r)) => {
+            return Err(fail(ss_domain::integrations::base::kind_for_http_status(
+                r.status(),
+            )))
+        }
+        Err(ureq::Error::Transport(t)) => {
+            let io = std::error::Error::source(&t).and_then(|s| s.downcast_ref::<std::io::Error>());
+            return Err(fail(if timed_out(io) {
+                ProviderErrorKind::Timeout
+            } else {
+                ProviderErrorKind::Unavailable
+            }));
+        }
+    };
+    let declared = resp
+        .header("content-length")
+        .and_then(|v| v.trim().parse::<u64>().ok());
+    if declared.is_some_and(|n| n > limit as u64) {
+        return Err(too_large());
+    }
+    let mut body = Vec::new();
+    resp.into_reader()
+        .take(limit as u64 + 1)
+        .read_to_end(&mut body)
+        .map_err(|e| {
+            fail(if timed_out(Some(&e)) {
+                ProviderErrorKind::Timeout
+            } else {
+                ProviderErrorKind::Unavailable
+            })
+        })?;
+    if body.len() > limit {
+        return Err(too_large());
+    }
+    Ok(body)
+}
 
 /// The one query behind the interior media route: the model name, the model still, the mesh
 /// entries, the 2D photos at the `web` resolution and the floor plans. Nothing else is asked for.
@@ -339,6 +391,8 @@ pub struct LiveMatterportProvider {
     /// Signed-link downloads: same retry policy, **no** headers (the links are signed; our
     /// credentials never go to the CDN host).
     cdn: HttpClient,
+    /// The agent behind [`download_capped`]: the policy's timeout, no redirects, no headers.
+    cdn_agent: ureq::Agent,
     /// [`MatterportProvider::model_media`] answers, for at most [`MEDIA_LINK_TTL`].
     media_cache: Mutex<HashMap<String, (std::time::Instant, Option<ModelMedia>)>>,
 }
@@ -387,6 +441,19 @@ impl LiveMatterportProvider {
             geometry_cache: Mutex::new(HashMap::new()),
             not_found: Mutex::new(HashSet::new()),
             cdn: HttpClient::new(PROVIDER, policy, Vec::new()),
+            cdn_agent: {
+                let t = if policy.timeout_s.is_finite() && policy.timeout_s > 0.0 {
+                    std::time::Duration::from_secs_f64(policy.timeout_s)
+                } else {
+                    std::time::Duration::from_secs(20)
+                };
+                ureq::AgentBuilder::new()
+                    .timeout_connect(t)
+                    .timeout_read(t)
+                    .timeout_write(t)
+                    .redirects(0)
+                    .build()
+            },
             media_cache: Mutex::new(HashMap::new()),
         }
     }
@@ -587,10 +654,9 @@ impl MatterportProvider for LiveMatterportProvider {
         Ok(media)
     }
 
-    fn download_media(&self, url: &str) -> Result<Vec<u8>, ProviderError> {
+    fn download_media(&self, url: &str, limit: usize) -> Result<Vec<u8>, ProviderError> {
         self.cdn
-            .with_retries(|| self.cdn.get_once(url, &[]))
-            .map(|r| r.body)
+            .with_retries(|| download_capped(&self.cdn_agent, url, limit))
     }
 
     fn model_not_found(&self, asset_id: &str) -> bool {
