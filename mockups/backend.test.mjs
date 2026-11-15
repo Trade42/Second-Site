@@ -330,7 +330,7 @@ const SYN_PLACES = () => [
   { slug: 'syn-building', matterport_model_id: 'SYNSCAN0002', images: [{ file: 'syn-building/costar-01.jpg', source: 'costar', kind: 'photo' }] },
 ];
 const SCRIPTED = 'SCRIPTED-DEMO-TEXT';
-async function livePage(places) {
+async function livePage(places, extra = {}) {
   const notes = [], real = globalThis.fetch;
   // The page's scripted tables keyed by the slug, as workspace.js has them before bind() (shape only).
   const ctx = { POOL: [{ id: 'syn-suite-a', src: 'syn-suite-a' }], P: { 'syn-suite-a': { id: 'syn-suite-a', rent: 999999 } }, CAT: [{ id: 'bed', name: SCRIPTED, price: 2450 }], C: {}, FIRST: ['syn-suite-a'], FILL: [], pins: {}, a() {}, note: h => notes.push(h), esc: B.html, selectSpace() {},
@@ -338,7 +338,7 @@ async function livePage(places) {
     SPACE_NOTES: { 'syn-suite-a': { description: SCRIPTED, pros: [SCRIPTED], cons: [SCRIPTED] } } };
   const S = { stage: 'discover', step: 5, req: { business: 'Facial studio', rent: null, rooms: 3 }, slots: [], saved: [], open: null, finalist: null, chosen: null, placed: [] };
   globalThis.fetch = strictFetch; routes.length = 0; bodies.length = 0;
-  try { B.bind({ ...ctx, S: () => S, map: () => null }); B.useLocalPlaces(places); await B.search(S); } finally { globalThis.fetch = real; }
+  try { B.bind({ ...ctx, S: () => S, map: () => null, ...extra }); B.useLocalPlaces(places); await B.search(S); } finally { globalThis.fetch = real; }
   return { ctx, S, notes };
 }
 // What workspace.js prints for a listing: card (252-255), finalist (348), hover (746-752), compare cost (343).
@@ -426,6 +426,180 @@ await t('local copies: building-only scan, fixture listing, demo scan, other uni
   B.useLocalPlaces(null);
 });
 
+// web-link-4: the interior of a live listing (Matterport tour, then the backend's media route). The scan
+// ids are the synthetic records' invented SYNSCAN000N; the manifests below are hand-written in the
+// contract's shape (no real answer copied).
+const media = [];
+let MEDIA = {}; // asset id -> manifest JSON, or a status number, or 'network'
+function mediaFetch(url, opts) {
+  const u = new URL(url), m = u.pathname.match(/^\/api\/v1\/media\/matterport\/([^/]+)\/(.+)$/);
+  if (!m) return strictFetch.call(this, url, opts);
+  media.push(`${m[1]} ${m[2]}`);
+  const a = MEDIA[m[1]];
+  if (a === 'network') return Promise.reject(new TypeError('Failed to fetch'));
+  if (typeof a === 'object' && m[2] === 'manifest.json') return Promise.resolve({ ok: true, status: 200, json: async () => a });
+  const status = typeof a === 'number' ? a : 404;
+  return Promise.resolve({ ok: false, status, json: async () => ({ error_code: status === 400 ? 'PROVIDER_UNAVAILABLE' : 'MEDIA_NOT_FOUND', message: 'stub' }) });
+}
+const manifestOf = (id, { mesh = true, photos = 3, image = true } = {}) => ({ asset_id: id, provider: 'matterport', data_origin: 'LIVE', name: 'Synthetic scan', mesh: { available: mesh, format: 'obj', resolution: '50k', units: 'm', up_axis: 'z' }, photos: { count: photos }, image: { available: image }, floorplan: { available: true, resolution_px_per_m: 100, origin: { x: -1, y: 2 }, width_px: 800, height_px: 600 }, retrieved_at: '2026-11-15T00:00:00Z' });
+// A few DOM calls, enough for viewer() and bind()'s two extra elements.
+function fakeDocument() {
+  const el = tag => ({ tagName: tag.toUpperCase(), id: '', className: '', hidden: false, textContent: '', dataset: {}, style: {}, attrs: {}, children: [], parent: null, alt: '',
+    setAttribute(k, v) { this.attrs[k] = v; }, append(...c) { for (const x of c) { x.parent = this; this.children.push(x); } },
+    remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); this.parent = null; },
+    all() { return this.children.flatMap(c => [c, ...c.all()]); },
+    querySelector(s) { return this.all().find(c => (s.startsWith('.') ? c.className.split(' ').includes(s.slice(1)) : c.tagName === s.toUpperCase())) || null; } });
+  const root = el('body'), viewer = el('div'), stage = el('div'), photos = el('div'), img = el('img');
+  viewer.id = 'viewer'; stage.className = 'vstage'; photos.id = 'v-photos'; photos.className = 'layer';
+  root.append(viewer); viewer.append(stage); stage.append(photos); photos.append(img);
+  return { createElement: el, getElementById: id => root.all().find(c => c.id === id) || null,
+    querySelector: s => (s === '#viewer .vstage' ? stage : s === '#v-photos > img' ? img : null), root };
+}
+const iframes = doc => doc.root.all().filter(c => c.tagName === 'IFRAME');
+await t('interior: suite scan and building scan wording, none without a LIVE Matterport scan', () => {
+  const s = B.interiorOf(k1), b = B.interiorOf(k2);
+  assert.deepEqual([s.asset_id, s.scope], ['SYNSCAN0001', 'suite']);
+  assert.equal(s.tour_text, '3D tour of this suite · Matterport tour (live)');
+  assert.equal(s.mesh_text, '3D scan of this suite · Matterport scan (live, fetched by the backend)');
+  assert.equal(b.scope, 'building');
+  assert.equal(b.tour_text, '3D tour of another space in this building: Lobby and common areas · Matterport tour (live)');
+  assert.equal(b.photo_text, 'Interior still of another space in this building: Lobby and common areas · Matterport scan (live, fetched by the backend)');
+  for (const x of [b.tour_text, b.mesh_text, b.photo_text]) assert.doesNotMatch(x, /this suite/);
+  assert.equal(KP[k1.property_id].live.interior.scope, 'suite'); assert.deepEqual(B.views(KP[k1.property_id]), ['tour']);
+  // The suite's own scan wins over a building scan listed first; another unit's measured scan is a building scan.
+  const bscan = { ...k2.interior_assets[0], asset_id: 'SYNSCAN0009' };
+  assert.equal(B.interiorOf({ ...k1, interior_assets: [bscan, k1.interior_assets[0]] }).asset_id, 'SYNSCAN0001');
+  assert.equal(B.interiorOf({ ...k1, interior_assets: [{ ...k1.interior_assets[0], matches_listing_unit: false }] }).scope, 'building');
+  // Two building scans: the first in the backend's order, named.
+  assert.equal(B.interiorOf({ ...k2, interior_assets: [bscan, k2.interior_assets[0]] }).asset_id, 'SYNSCAN0009');
+  assert.match(B.interiorOf({ ...k2, interior_assets: [{ ...bscan, label: null }] }).tour_text, /another space in this building: no label given/);
+  for (const r of [k3, hw.record, { ...k1, interior_assets: [{ ...k1.interior_assets[0], data_origin: 'FIXTURE_SYNTHETIC' }] }, { ...k1, interior_assets: [{ ...k1.interior_assets[0], provider: 'vexcel' }] }]) assert.equal(B.interiorOf(r), null);
+  assert.deepEqual(B.views(KP[k3.property_id]), []); assert.deepEqual(B.views(B.poolEntry(hw.record)), []);
+  assert.equal(KP[k3.property_id].live.scan_text, 'No 3D scan');
+  assert.equal(B.viewName('tour'), '3D tour');
+});
+await t('tour URL: strict id check; a bad id gives no tour at all', () => {
+  assert.equal(B.tourUrl('SYNSCAN0001'), 'https://my.matterport.com/show/?m=SYNSCAN0001&play=1&qs=1&brand=0&help=0&dh=1');
+  for (const bad of ['SYNSCAN001', 'SYNSCAN00001', 'SYNSCAN000"', 'SYN/CAN0001', 'SYNSCAN0001&x=1', '', null, undefined, 12345678901]) assert.equal(B.tourUrl(bad), null, String(bad));
+  assert.equal(B.interiorOf({ ...k1, interior_assets: [{ ...k1.interior_assets[0], asset_id: 'SYN"><x>01' }] }), null);
+});
+await t('media: no request before a viewer opens; one manifest request per scan; 404 and network errors are silent', async () => {
+  const { ctx, S, notes } = await livePage(null), real = globalThis.fetch;
+  globalThis.fetch = mediaFetch; media.length = 0; B.forgetManifests();
+  MEDIA = { SYNSCAN0001: 404, SYNSCAN0002: 'network' };
+  try {
+    assert.equal(media.length, 0, 'the search itself asks for no media');
+    const p1 = ctx.P[k1.property_id], p2 = ctx.P[k2.property_id], p3 = ctx.P[hw.record.property_id]; // the fixture listing: no LIVE scan
+    const photos1 = [...ctx.D[p1.src].photos];
+    S.stage = 'compare'; S.finalist = p1.id; S.view = 'dollhouse';
+    for (let i = 0; i < 5; i++) { B.viewer('dollhouse', p1, ctx.D[p1.src]); B.viewer('photos', p1, ctx.D[p1.src]); await B.dollhouse(p1); }
+    for (let i = 0; i < 3; i++) { B.viewer('tour', p2, ctx.D[p2.src]); await B.dollhouse(p2); }
+    B.viewer('dollhouse', p3, ctx.D[p3.src]); await B.dollhouse(p3);
+    await new Promise(r => setTimeout(r, 0));
+    assert.deepEqual(media.sort(), ['SYNSCAN0001 manifest.json', 'SYNSCAN0002 manifest.json']);
+    const d1 = await B.dollhouse(p1);
+    assert.deepEqual([d1.mesh, d1.poster, d1.blocks], [null, null, false]); assert.match(d1.text, /^No 3D model from the backend for this scan\. The 3D tour view shows the Matterport tour \(live\)\.$/);
+    assert.deepEqual(ctx.D[p1.src].photos, photos1, 'a 404 adds no photo');
+    assert.equal((await B.dollhouse(p3)).text, 'No 3D scan');
+    assert.deepEqual(notes.filter(n => /fail|error|404|unavailable/i.test(n)), [], notes.join(' | '));
+    assert.equal(media.length, 2, 'still one request per scan');
+  } finally { globalThis.fetch = real; }
+});
+await t('media: mesh unavailable -> no mesh, stills after the CoStar photo; mesh available -> backend mesh, no blocks', async () => {
+  let renders = 0; // renderViewer is passed by workspace.js (its bind call); counted here
+  const { ctx, S } = await livePage(null, { renderViewer: () => renders++ }), real = globalThis.fetch;
+  globalThis.fetch = mediaFetch; media.length = 0; B.forgetManifests();
+  MEDIA = { SYNSCAN0001: manifestOf('SYNSCAN0001', { mesh: false, photos: 2 }), SYNSCAN0002: manifestOf('SYNSCAN0002', { photos: 1 }) };
+  try {
+    const p1 = ctx.P[k1.property_id], p2 = ctx.P[k2.property_id];
+    S.stage = 'compare'; S.finalist = p1.id; S.view = 'photos'; S.photo = 1;
+    B.viewer('photos', p1, ctx.D[p1.src]); await new Promise(r => setTimeout(r, 0));
+    assert.deepEqual(ctx.D[p1.src].photos, ['listing-photo', 'mp-live-photo-1', 'mp-live-photo-2', 'aerial-vexcel']);
+    assert.equal(B.asset(p1.src, 'mp-live-photo-2'), 'http://localhost:8000/api/v1/media/matterport/SYNSCAN0001/photo/2.jpg');
+    assert.equal(B.asset(p1.src, p1.photo), k1.commercial_listing.photo_urls[0], 'the card keeps the CoStar photo');
+    assert.equal(B.photoCaption(p1, 'mp-live-photo-1'), 'Interior still of this suite · Matterport scan (live, fetched by the backend)');
+    assert.equal(B.photoCaption(p1, 'listing-photo'), 'CoStar photo');
+    assert.equal(B.photoCaption(p2, 'mp-live-photo-1'), 'Interior still of another space in this building: Lobby and common areas · Matterport scan (live, fetched by the backend)');
+    assert.equal(renders, 1, 'the Photos view is painted again once the stills are known');
+    const d1 = await B.dollhouse(p1); assert.equal(d1.mesh, null);
+    const d2 = await B.dollhouse(p2);
+    assert.deepEqual(d2, { key: 'matterport:SYNSCAN0002', mesh: 'http://localhost:8000/api/v1/media/matterport/SYNSCAN0002/mesh.obj', poster: null, caption: '3D scan of another space in this building: Lobby and common areas · Matterport scan (live, fetched by the backend)', blocks: false });
+    // The suite's own scan, mesh available: the scan's still as poster; still no furniture blocks.
+    B.forgetManifests(); MEDIA.SYNSCAN0001 = manifestOf('SYNSCAN0001');
+    const d1b = await B.dollhouse(p1);
+    assert.deepEqual([d1b.mesh, d1b.poster, d1b.blocks, d1b.caption], ['http://localhost:8000/api/v1/media/matterport/SYNSCAN0001/mesh.obj', 'http://localhost:8000/api/v1/media/matterport/SYNSCAN0001/image.jpg', false, '3D scan of this suite · Matterport scan (live, fetched by the backend)']);
+    // A manifest for another id or another origin is not used.
+    B.forgetManifests(); MEDIA.SYNSCAN0001 = { ...manifestOf('SYNSCAN0001'), asset_id: 'SYNSCAN0009' }; assert.equal(await B.manifest('SYNSCAN0001'), null);
+    B.forgetManifests(); MEDIA.SYNSCAN0001 = { ...manifestOf('SYNSCAN0001'), data_origin: 'FIXTURE_SYNTHETIC' }; assert.equal(await B.manifest('SYNSCAN0001'), null);
+    assert.equal(await B.manifest('../../x'), null);
+  } finally { globalThis.fetch = real; }
+});
+await t('tour iframe: made only when the tour view opens, one at a time, removed on another view or listing', async () => {
+  const realDoc = globalThis.document, doc = fakeDocument(); globalThis.document = doc;
+  try {
+    const { ctx, S } = await livePage(null); // bind() adds the tour layer and the photo caption
+    const layer = doc.getElementById('v-tour');
+    assert.ok(layer && layer.className === 'layer' && layer.hidden === true, 'a hidden layer the page shows like its own');
+    assert.equal(iframes(doc).length, 0, 'no iframe before the tour view opens');
+    const p1 = ctx.P[k1.property_id], p2 = ctx.P[k2.property_id], p3 = ctx.P[hw.record.property_id];
+    B.viewer('dollhouse', p1, ctx.D[p1.src]); assert.equal(iframes(doc).length, 0);
+    B.viewer('tour', p1, ctx.D[p1.src]);
+    const [f] = iframes(doc);
+    assert.equal(f.src, B.tourUrl('SYNSCAN0001')); assert.equal(f.attrs.allow, 'fullscreen; xr-spatial-tracking'); assert.equal(f.attrs.referrerpolicy, 'no-referrer');
+    assert.equal(layer.querySelector('.live-caption').textContent, '3D tour of this suite · Matterport tour (live)');
+    B.viewer('tour', p1, ctx.D[p1.src]); assert.equal(iframes(doc)[0], f, 'the same view again keeps the tour');
+    B.viewer('tour', p2, ctx.D[p2.src]);
+    assert.equal(iframes(doc).length, 1); assert.equal(iframes(doc)[0].src, B.tourUrl('SYNSCAN0002'));
+    assert.equal(layer.querySelector('.live-caption').textContent, '3D tour of another space in this building: Lobby and common areas · Matterport tour (live)');
+    B.viewer('photos', p2, ctx.D[p2.src]); assert.equal(iframes(doc).length, 0, 'another view removes it');
+    assert.equal(layer.querySelector('.live-caption').textContent, '');
+    B.viewer('tour', p3, ctx.D[p3.src]); assert.equal(iframes(doc).length, 0, 'no scan, no tour');
+    S.photo = 0; B.viewer('photos', p1, ctx.D[p1.src]);
+    const cap = doc.getElementById('v-photos').querySelector('.live-caption');
+    assert.equal(cap.textContent, 'CoStar photo'); assert.equal(cap.hidden, false);
+    B.viewer('dollhouse', p1, ctx.D[p1.src]); assert.equal(cap.hidden, true);
+  } finally { if (realDoc === undefined) delete globalThis.document; else globalThis.document = realDoc; }
+});
+await t('a matched local suite (web-link-3) keeps its saved copies; its tour is offered; no media request', async () => {
+  const { ctx } = await livePage(SYN_PLACES()), real = globalThis.fetch;
+  globalThis.fetch = mediaFetch; media.length = 0; B.forgetManifests(); MEDIA = {};
+  try {
+    const p = ctx.P['syn-suite-a'], before = [...ctx.D[p.src].photos];
+    B.viewer('photos', p, ctx.D[p.src]); B.viewer('dollhouse', p, ctx.D[p.src]);
+    assert.deepEqual(await B.dollhouse(p), { key: 'syn-suite-a', mesh: 'assets/meshes/syn-suite-a.obj', poster: 'assets/dollhouses/syn-suite-a.png', caption: '3D scan of this suite · Matterport (saved copy)', blocks: true });
+    await new Promise(r => setTimeout(r, 0));
+    assert.deepEqual(media, []); assert.deepEqual(ctx.D[p.src].photos, before);
+    assert.equal(B.photoCaption(p, 'matterport-01.jpg'), 'Matterport still (saved copy)');
+    assert.deepEqual(B.views(p), ['tour']); assert.equal(p.live.interior.scope, 'suite');
+    assert.equal(B.asset(p.src, 'mp-live-photo-1').startsWith('data:'), true, 'no backend still for a saved-copy suite');
+  } finally { globalThis.fetch = real; }
+});
+await t('without ?live=1 none of this runs: every new workspace.js line is behind LIVE', () => {
+  assert.equal(B.config('').live, false);
+  const src = readFileSync(new URL('./workspace.js', import.meta.url), 'utf8');
+  assert.match(src, /^const LIVE = new URLSearchParams\(location\.search\)\.get\('live'\) === '1' \? await import\('\.\/backend\.js'\) : null;/m);
+  const uses = src.split('\n').flatMap((l, i) => [...l.matchAll(/LIVE(\?\.|\.| &&| \?)/g)].map(m => [i + 1, m[1], l.trim()]));
+  for (const [n, how, l] of uses) assert.ok(how !== '.' || /if \(LIVE\)|LIVE && |LIVE \? /.test(l), `line ${n} uses LIVE unguarded: ${l}`);
+  // The paint3D local: null without LIVE, so key = src, the same paths, the blocks and an empty state as before.
+  assert.match(src, /const L = LIVE && \(box\.dataset\.state = 'loading', state\.textContent = 'Loading model', poster\.removeAttribute\('src'\), await LIVE\.dollhouse\(p\)\), key = L\?\.key \?\? src;/);
+  for (const s of ['L?.mesh ?? `assets/meshes/${src}.obj`', "L?.blocks !== false", "L?.caption || ''", 'if (L && !L.mesh)', 'if (L && !L.poster)']) assert.ok(src.includes(s), s);
+});
+
+await t('dollhouse: while a live listing is asked for its model, the previous listing\'s model, poster and caption are not shown', async () => {
+  const src = readFileSync(new URL('./workspace.js', import.meta.url), 'utf8'), body = src.slice(src.indexOf('async function paint3D'), src.indexOf('\nlet vmap'));
+  const run = (LIVE) => {
+    const poster = { src: 'http://x/assets/dollhouses/old.png', removeAttribute(k) { if (k === 'src') this.src = ''; } }, state = { textContent: '3D scan of this suite · Matterport (saved copy)' };
+    const box = { dataset: { state: 'ready' } }, $ = (s) => (s === '#v-dollhouse' ? box : s === '.poster' ? poster : state);
+    const paint3D = new Function('$', 'LIVE', `let want3D, T = null; const init3D = () => new Promise(() => {}), S = { stage: 'compare' }; ${body}; return paint3D;`)($, LIVE);
+    paint3D({ src: 'next' }, {}); return { state: box.dataset.state, text: state.textContent, poster: poster.src };
+  };
+  let answer; const pending = { dollhouse: () => new Promise(r => { answer = r; }) };
+  assert.deepEqual(run(pending), { state: 'loading', text: 'Loading model', poster: '' }, 'live, before the answer');
+  answer(null);
+  // Without ?live=1 the first synchronous step is the old one: the poster path, then "Loading model".
+  assert.deepEqual(run(null), { state: 'loading', text: 'Loading model', poster: 'assets/dollhouses/next.png' });
+});
+
 /* ----------------------------------------------------------------- (b) */
 const URL_ = process.env.BACKEND_URL, ORIGIN = process.env.MOCKUP_ORIGIN || 'http://localhost:8090';
 if (!URL_) console.log('SKIPPED (b) end to end: BACKEND_URL is not set');
@@ -489,6 +663,19 @@ else {
     }
     console.log(`      matched ${urls.length ? new Set(urls.map(u => u.split('/')[u.startsWith('assets/dollhouses') || u.startsWith('assets/meshes') ? 2 : 1].replace(/\.(png|obj)$/, ''))).size : 0} of ${index.size} local suites`);
     if (process.env.LOCAL_URLS_OUT) (await import('node:fs')).writeFileSync(process.env.LOCAL_URLS_OUT, [...new Set(urls)].join('\n') + '\n');
+  });
+  await t('interior: the chosen scan per listing, the tour URL, and the media route as the page asks for it (at most 2 scans)', async () => {
+    const pool = results.map(r => B.poolEntry(r.rec, be.api)), its = pool.map(p => p.live.interior);
+    const n = k => its.filter(x => x?.scope === k).length;
+    console.log(`      of ${pool.length}: suite scan ${n('suite')}, building scan only ${n('building')}, no scan ${its.filter(x => !x).length}`);
+    for (const [i, it] of its.entries()) if (it) { assert.ok(B.tourUrl(it.asset_id)); if (it.scope === 'building') assert.match(it.tour_text, /^3D tour of another space in this building: /); else assert.equal(it.tour_text, '3D tour of this suite · Matterport tour (live)'); }
+    for (const it of [its.find(x => x?.scope === 'suite'), its.find(x => x?.scope === 'building')].filter(Boolean)) {
+      for (const f of ['manifest.json', 'mesh.obj', 'photo/1.jpg']) {
+        const r = await fetch(`${be.api}/api/v1/media/matterport/${it.asset_id}/${f}`, { headers: { Origin: ORIGIN } }); // as the page: no token
+        const body = await r.text(); let code = null; try { code = JSON.parse(body).error_code ?? null; } catch { /* not JSON */ }
+        console.log(`      ${it.scope} scan: GET …/${f} -> ${r.status} ${r.headers.get('content-type') || ''} ${code || ''} allow-origin ${r.headers.get('access-control-allow-origin')}`);
+      }
+    }
   });
   await t('images: the listing photo link or the Vexcel aerial route (no token) for each listing', async () => {
     const pool = results.map(r => B.poolEntry(r.rec, be.api));

@@ -584,13 +584,16 @@ function frame3D() {
 async function paint3D(p, d) {
   const box = $('#v-dollhouse'), poster = $('.poster', box), state = $('.vstate', box), src = p.src;
   want3D = src;
-  if (!poster.src.endsWith(`dollhouses/${src}.png`)) poster.src = `assets/dollhouses/${src}.png`;
-  if (!T?.cache[src]) { box.dataset.state = 'loading'; state.textContent = 'Loading model'; }
+  const L = LIVE && (box.dataset.state = 'loading', state.textContent = 'Loading model', poster.removeAttribute('src'), await LIVE.dollhouse(p)), key = L?.key ?? src; // live: saved copy, backend mesh or none (backend.js); the previous model stays hidden meanwhile
+  if (want3D !== src) return;
+  if (L && !L.poster) poster.removeAttribute('src'); else if (!poster.src.endsWith(L?.poster ?? `dollhouses/${src}.png`)) poster.src = L?.poster ?? `assets/dollhouses/${src}.png`;
+  if (L && !L.mesh) { box.dataset.state = 'error'; state.textContent = L.text; return; }
+  if (!T?.cache[key]) { box.dataset.state = 'loading'; state.textContent = 'Loading model'; }
   try {
     if (!T) await init3D();
-    let obj = T.cache[src];
+    let obj = T.cache[key];
     if (!obj) {
-      obj = await T.loader.loadAsync(`assets/meshes/${src}.obj`);
+      obj = await T.loader.loadAsync(L?.mesh ?? `assets/meshes/${src}.obj`);
       const bounds = new T.THREE.Box3().setFromObject(obj), upperStart = bounds.min.z + (bounds.max.z - bounds.min.z) * .55;
       // These OBJ scans have no textures: retain the study's floor/glass colors, softened toward gray.
       const gray = new T.THREE.Color('#C8C7C2'), floor = new T.THREE.Color('#D6B089').lerp(gray, .4), glass = new T.THREE.Color('#9CC2E6').lerp(gray, .4), mirror = new T.THREE.Color('#CDD3DA').lerp(gray, .4);
@@ -601,18 +604,18 @@ async function paint3D(p, d) {
         m.geometry.setAttribute('color', new T.THREE.BufferAttribute(colors, 3)); m.material = T.shell;
       } });
       obj.rotation.x = -Math.PI / 2; // scans are Z-up
-      T.cache[src] = obj;
+      T.cache[key] = obj;
     }
     if (want3D !== src) return; // a newer selection won
     if (T.cur !== obj) { if (T.cur) T.scene.remove(T.cur); T.scene.add(obj); T.cur = obj; frame3D(); }
     T.blocks.clear();
-    if (S.stage === 'furnish') pieces(d).forEach(q => {
+    if (S.stage === 'furnish' && L?.blocks !== false) pieces(d).forEach(q => {
       const hgt = C[q.it.c].h * .3048, mesh = new T.THREE.Mesh(new T.THREE.BoxGeometry(q.w / 100, hgt, q.h / 100), S.sel === q.key ? T.mats.on : T.mats[q.it.st]);
       mesh.position.set(d.plan.mesh[0] + (q.cx - d.plan.ink[0]) / 100, hgt / 2 + .02, -(d.plan.mesh[1] - (q.cy - d.plan.ink[1]) / 100));
       mesh.userData.key = q.key; T.blocks.add(mesh);
     });
     box.dataset.state = 'ready';
-    state.textContent = '';
+    state.textContent = L?.caption || '';
   } catch { box.dataset.state = 'error'; state.textContent = '3D model unavailable'; }
 }
 
@@ -628,9 +631,9 @@ function paintMapView(p) {
 }
 function renderViewer() {
   const furnish = S.stage === 'furnish', p = P[furnish ? S.chosen : S.finalist]; if (!p || S.stage === 'discover') return;
-  const d = D[p.src], views = furnish ? ['floorplan', 'dollhouse', 'photos'] : ['dollhouse', 'floorplan', 'aerial', 'map', 'photos'];
+  const d = D[p.src], views = (furnish ? ['floorplan', 'dollhouse', 'photos'] : ['dollhouse', 'floorplan', 'aerial', 'map', 'photos']).concat(LIVE ? LIVE.views(p) : []);
   if (!views.includes(S.view)) S.view = views[0];
-  $('#views').innerHTML = views.map(v => `<button type="button" data-view="${v}" aria-pressed="${v === S.view}">${VIEW[v]}</button>`).join('');
+  $('#views').innerHTML = views.map(v => `<button type="button" data-view="${v}" aria-pressed="${v === S.view}">${VIEW[v] || LIVE?.viewName(v)}</button>`).join('');
   $$('#viewer .layer').forEach(l => { l.hidden = l.id !== 'v-' + S.view; });
   const hue = p.hue ? `hue-rotate(${p.hue}deg)` : '';
   if (S.view === 'dollhouse') paint3D(p, d);
@@ -642,6 +645,7 @@ function renderViewer() {
     const img = $('#v-photos > img'); img.src = asset(p.src, d.photos[S.photo]); img.style.filter = hue; img.alt = `${p.address}, photo ${S.photo + 1}`;
     $('.thumbs').innerHTML = d.photos.map((f, i) => `<button type="button" data-photo="${i}" aria-pressed="${i === S.photo}" aria-label="Photo ${i + 1}"><img src="${asset(p.src, f)}" alt="" style="filter:${hue || 'none'}"></button>`).join('');
   }
+  LIVE?.viewer(S.view, p, d); // live: the tour iframe and the captions (backend.js)
   const issue = !furnish && d.issues.find(i => i.id === S.issue), ev = $('#evidence');
   ev.hidden = !(issue?.show && issue.show.view === S.view && (issue.show.photo == null || issue.show.photo === S.photo));
   if (!ev.hidden) ev.textContent = issue.show.note;
@@ -838,7 +842,7 @@ async function seed(to) {
   history.replaceState(null, '', location.pathname); // a reload keeps what you did next
 }
 
-LIVE?.bind({ POOL, P, D, CAT, C, FIRST, FILL, SPACE_NOTES, pins, S: () => S, map: () => map, a, note, esc, selectSpace });
+LIVE?.bind({ POOL, P, D, CAT, C, FIRST, FILL, SPACE_NOTES, pins, S: () => S, map: () => map, a, note, esc, selectSpace, renderViewer });
 const start = location.hash.slice(1); // #reset clears saved state
 if (['searched', 'compare', 'furnish', 'reset'].includes(start)) S = fresh();
 if (start === 'reset') history.replaceState(null, '', location.pathname);

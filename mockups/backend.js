@@ -154,9 +154,132 @@ export function poolEntry(rec, api = '') {
       property_id: id, fixture, source: source.kind, source_label: source.label, provider: cl.provider, data_origin: cl.data_origin,
       disclaimer: cl.disclaimer || null, listing_id: cl.provider_listing_id, unit: unit || null, source_record_date: cl.source_record_date || null,
       photo_url: img.photo, photo_caption: img.photoCaption, aerial: img.aerial, images: img.files,
-      scan: scans.suite, scans: scans.all, scan_text: scans.text,
+      scan: scans.suite, scans: scans.all, scan_text: scans.text, interior: interiorOf(rec),
     },
   };
+}
+/* ------------------------- the interior of a live listing: Matterport tour and backend media (web-link-4) */
+
+// A Matterport model id as the show page takes it. Nothing else goes into a tour or media URL.
+const MP_ID = /^[A-Za-z0-9]{11}$/;
+// The scan the viewer shows: the suite's own (measured geometry, not marked as another unit's), else the
+// first other scan in the backend's order, which is another space in the same building. LIVE Matterport
+// scans of a listing that is not demo data only; anything else gives no interior ("No 3D scan").
+export function interiorOf(rec) {
+  if (listingSource(rec.commercial_listing || {}).kind === 'synthetic') return null;
+  const all = (rec.interior_assets || []).filter(a => a && a.provider === 'matterport' && a.data_origin === 'LIVE' && typeof a.asset_id === 'string' && MP_ID.test(a.asset_id));
+  const own = all.find(a => a.has_measured_geometry === true && a.matches_listing_unit !== false), a = own || all[0];
+  if (!a) return null;
+  const label = clip(plain(a.label).replace(/\s+/g, ' ').trim(), 60);
+  const space = own ? 'this suite' : `another space in this building: ${label || 'no label given'}`;
+  return {
+    asset_id: a.asset_id, label: label || null, scope: own ? 'suite' : 'building',
+    tour_text: `3D tour of ${space} · Matterport tour (live)`,
+    mesh_text: `3D scan of ${space} · Matterport scan (live, fetched by the backend)`,
+    photo_text: `Interior still of ${space} · Matterport scan (live, fetched by the backend)`,
+  };
+}
+export const tourUrl = id => (typeof id === 'string' && MP_ID.test(id) ? `https://my.matterport.com/show/?m=${id}&play=1&qs=1&brand=0&help=0&dh=1` : null);
+const mediaUrl = (id, file) => `${backend?.api ?? config().api}/api/v1/media/matterport/${id}/${file}`;
+const MEDIA_PHOTO = /^mp-live-photo-(\d{1,2})$/;
+// One manifest request per scan for the page's lifetime; a 404, an error answer or a network error is
+// cached as null ("no interior from the backend") and is never reported.
+const manifests = new Map();
+export function manifest(id) {
+  if (typeof id !== 'string' || !MP_ID.test(id)) return Promise.resolve(null);
+  if (!manifests.has(id)) manifests.set(id, (async () => {
+    try {
+      const r = await globalThis.fetch(mediaUrl(id, 'manifest.json'));
+      if (!r.ok) return null;
+      const m = await r.json();
+      return m && m.asset_id === id && m.provider === 'matterport' && m.data_origin === 'LIVE' ? m : null;
+    } catch { return null; }
+  })());
+  return manifests.get(id);
+}
+export function forgetManifests() { manifests.clear(); } // tests only
+const photoCount = m => (Number.isInteger(m?.photos?.count) && m.photos.count > 0 ? Math.min(m.photos.count, 12) : 0);
+// The extra viewer view a live listing gets, and its button label.
+export const views = p => (p?.live?.interior ? ['tour'] : []);
+export const viewName = v => (v === 'tour' ? '3D tour' : v);
+// What paint3D (workspace.js) loads for a live listing: the saved copy of a matched suite (web-link-3,
+// unchanged, blocks as before), else the backend's mesh of the chosen scan (no furniture blocks: the
+// layout plan is in the backend geometry's frame, whose fit to the mesh nobody has checked), else no mesh.
+export async function dollhouse(p) {
+  const L = p?.live;
+  if (!L) return null;
+  if (L.local) return { key: p.src, mesh: `assets/meshes/${p.src}.obj`, poster: `assets/dollhouses/${p.src}.png`, caption: '3D scan of this suite · Matterport (saved copy)', blocks: true };
+  const it = L.interior;
+  if (!it) return { key: p.src, mesh: null, poster: null, text: 'No 3D scan', blocks: false };
+  const m = await manifest(it.asset_id);
+  if (!m?.mesh?.available) return { key: p.src, mesh: null, poster: null, text: 'No 3D model from the backend for this scan. The 3D tour view shows the Matterport tour (live).', blocks: false };
+  // The scan's own still as the poster for the suite's scan only (it shows with no caption while loading).
+  return { key: 'matterport:' + it.asset_id, mesh: mediaUrl(it.asset_id, 'mesh.obj'), poster: it.scope === 'suite' && m.image?.available ? mediaUrl(it.asset_id, 'image.jpg') : null, caption: it.mesh_text, blocks: false };
+}
+// The caption of one entry of the Photos view (null: none needed, the neutral image says it).
+export function photoCaption(p, f) {
+  const L = p?.live;
+  if (!L) return null;
+  if (L.local?.captions[f]) return L.local.captions[f];
+  if (MEDIA_PHOTO.test(f) && L.interior) return L.interior.photo_text;
+  if (f === 'listing-photo') return L.photo_caption;
+  if (f === 'aerial-vexcel') return L.aerial?.caption ?? null;
+  return null;
+}
+// Once the viewer is opened for a listing with a chosen scan and no saved copy: its manifest, then its
+// stills after the listing's own CoStar photo. Nothing is requested before.
+function mediaPhotos(p, d) {
+  const it = p.live?.interior;
+  if (!it || p.live.local || !d || d.mediaFor === it.asset_id) return;
+  d.mediaFor = it.asset_id;
+  manifest(it.asset_id).then(m => {
+    const n = photoCount(m);
+    if (!n || page?.D[p.src] !== d) return;
+    const names = Array.from({ length: n }, (_, i) => `mp-live-photo-${i + 1}`);
+    const own = d.photos.filter(f => f !== 'none'), at = own.indexOf('listing-photo') + 1;
+    d.photos = [...own.slice(0, at), ...names, ...own.slice(at)];
+    const S = page.S(), shown = page.P[S.stage === 'furnish' ? S.chosen : S.finalist];
+    if (shown === p && S.view === 'photos') page.renderViewer?.();
+  });
+}
+// Called by workspace.js at the end of renderViewer(): the tour iframe (created only while the tour view
+// of a listing is open, one at a time, removed otherwise) and the captions of the tour and the photos.
+export function viewer(view, p, d) {
+  if (view === 'tour' || view === 'photos' || view === 'dollhouse') mediaPhotos(p, d);
+  const doc = globalThis.document, layer = doc?.getElementById('v-tour');
+  if (!layer) return;
+  const it = p?.live?.interior, url = view === 'tour' && it ? tourUrl(it.asset_id) : null;
+  const holder = layer.querySelector('.live-tour'), old = holder.querySelector('iframe');
+  if (old && old.dataset.src !== url) old.remove();
+  if (url && !holder.querySelector('iframe')) {
+    const f = doc.createElement('iframe');
+    f.dataset.src = url; f.src = url; f.title = it.tour_text;
+    f.setAttribute('allow', 'fullscreen; xr-spatial-tracking'); f.setAttribute('allowfullscreen', ''); f.setAttribute('referrerpolicy', 'no-referrer');
+    f.style.cssText = 'display:block;width:100%;height:100%;border:0';
+    holder.append(f);
+  }
+  layer.querySelector('.live-caption').textContent = url ? it.tour_text : '';
+  const cap = doc.getElementById('v-photos')?.querySelector('.live-caption');
+  if (cap) {
+    const text = view === 'photos' && d ? photoCaption(p, d.photos[clampIndex(page?.S().photo, d.photos.length)]) : null;
+    cap.textContent = text || ''; cap.hidden = !text;
+    const img = doc.querySelector('#v-photos > img');
+    if (text && img) img.alt = `${p.address}: ${text}`;
+  }
+}
+const clampIndex = (i, n) => Math.max(0, Math.min(n - 1, Number.isInteger(i) ? i : 0));
+// The viewer's extra elements, made once by bind() in a browser: the tour layer (its caption above the
+// tour, not over it) and a caption over the Photos view.
+function viewerElements() {
+  const doc = globalThis.document, stage = doc?.querySelector('#viewer .vstage');
+  if (!stage || doc.getElementById('v-tour')) return;
+  const layer = doc.createElement('div'); layer.className = 'layer'; layer.id = 'v-tour'; layer.hidden = true;
+  const col = doc.createElement('div'); col.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column';
+  const cap = doc.createElement('p'); cap.className = 'live-caption'; cap.style.cssText = 'margin:0;padding:8px 12px;font-size:13.5px';
+  const holder = doc.createElement('div'); holder.className = 'live-tour'; holder.style.cssText = 'position:relative;flex:1;min-height:0';
+  col.append(cap, holder); layer.append(col); stage.append(layer);
+  const pc = doc.createElement('p'); pc.className = 'evidence live-caption'; pc.hidden = true;
+  doc.getElementById('v-photos')?.append(pc);
 }
 // Two listings with the same short address (one building, two suites): add the unit so the page's
 // chat lines ("<short> needs about …") say which one.
@@ -485,6 +608,8 @@ export function asset(src, f, P = page?.P) {
   const p = P?.[src.startsWith('live-') ? src.slice(5) : src], L = p?.live;
   if (!L && !src.startsWith('live-')) return undefined;
   if (L?.local?.captions[f]) return `assets/${L.local.slug}/${f}`; // a saved copy from this suite's own scan or listing
+  const still = MEDIA_PHOTO.exec(f);
+  if (still && L?.interior && !L.local) return mediaUrl(L.interior.asset_id, `photo/${+still[1]}.jpg`); // the backend's still of the chosen scan
   if (L && f === 'listing-photo' && L.photo_url) return L.photo_url;
   if (L && (f === 'aerial-vexcel' || /vexcel/.test(f)) && L.aerial) return L.aerial.url; // the ortho image for every direction
   return NEUTRAL(/floorplan/.test(f) ? 'No floor plan image' : /vexcel/.test(f) ? 'No aerial image' : 'No photo',
@@ -500,6 +625,7 @@ export function bind(ctx) {
   for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
   for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
   const S = ctx.S(); S.slots = [null, null, null, null];
+  viewerElements();
 }
 const markers = {};
 function addPin(p) {
