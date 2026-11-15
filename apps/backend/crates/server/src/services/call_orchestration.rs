@@ -90,8 +90,6 @@ pub const TERMINAL: [CallState; 4] = [
 /// Python's dial fallback when `TELNYX_FROM_NUMBER` is unset.
 pub const DEFAULT_FROM: &str = "+10000000000";
 pub const ACTOR: &str = "voice-handoff";
-/// The label every owner text about a simulated call starts with (Python's summary prefix).
-pub const SIMULATED_LABEL: &str = "[Simulated call] ";
 
 /// `_JOIN_TOKENS`: reference -> join token, process-local and never stored or put in an event
 /// (Python keeps the same dict; nothing reads the token back yet). Bounded here.
@@ -982,7 +980,7 @@ impl<'a> CallOrchestrator<'a> {
         let text = format!(
             "{}{summary}",
             if call.simulated {
-                SIMULATED_LABEL
+                "[Simulated call] "
             } else {
                 ""
             }
@@ -1085,26 +1083,12 @@ impl<'a> CallOrchestrator<'a> {
             )
             .await?;
         // The text carries no token: JOIN only makes us call the owner's own registered number.
-        // A simulated call (fixture voice) has nobody on the line and JOIN dials nobody, so its
-        // text says so, with the summary's label (AGENTS.md section 5). Deliberately differs
-        // from Python's `request_handoff`, which sends the real-call wording for both; a real
-        // call's text is unchanged byte for byte.
-        let text = if call.simulated {
-            format!(
-                "{SIMULATED_LABEL}In this simulated call with {}, the assistant would hand you \
-                 this question: \"{question}\" Nobody is on the line and nobody will call you. \
-                 Reply JOIN or LATER to see what the assistant would do, or open {}/activity",
-                get_default(&call.recipient, "name", "the broker"),
-                self.app.settings.public_web_url
-            )
-        } else {
-            format!(
-                "Your assistant needs you on a call with {}: \"{question}\" Reply JOIN and I'll \
-                 call you to connect, or LATER and I'll say you'll follow up. Or open {}/activity",
-                get_default(&call.recipient, "name", "the broker"),
-                self.app.settings.public_web_url
-            )
-        };
+        let text = format!(
+            "Your assistant needs you on a call with {}: \"{question}\" Reply JOIN and I'll call you \
+             to connect, or LATER and I'll say you'll follow up. Or open {}/activity",
+            get_default(&call.recipient, "name", "the broker"),
+            self.app.settings.public_web_url
+        );
         self.notify_owner(
             &call,
             text,
