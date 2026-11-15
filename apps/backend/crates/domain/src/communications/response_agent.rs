@@ -691,9 +691,18 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
     // Runs of digit tokens / digit words joined by single separators: (first, last, digits,
     // whether the run is spoken digit words only).
     let mut runs: Vec<(usize, usize, usize, bool)> = Vec::new();
+    // A run is digits, spoken digit words, or spoken pairs ("eleven", "twenty": two digits each;
+    // a digit word right after a tens word adds none, "twenty one" is two digits). "hundred",
+    // "thousand" and "million" end a run.
+    let lw = |k: usize| text[toks[k].0..toks[k].1].to_lowercase();
+    let in_run = |k: usize| {
+        matches!(toks[k].2, 0 | 1)
+            || (toks[k].2 == 2 && !matches!(lw(k).as_str(), "hundred" | "thousand" | "million"))
+    };
+    let tens = |k: usize| toks[k].2 == 2 && spoken_value(&lw(k)).is_some_and(|v| v >= 20);
     let mut k = 0;
     while k < toks.len() {
-        if !matches!(toks[k].2, 0 | 1) {
+        if !in_run(k) {
             k += 1;
             continue;
         }
@@ -702,15 +711,18 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
         let mut last = k;
         let mut j = k;
         let mut spoken = true;
-        while j < toks.len() && matches!(toks[j].2, 0 | 1) {
-            digits += if toks[j].2 == 0 {
-                spoken = false;
-                toks[j].1 - toks[j].0
-            } else {
-                1
+        while j < toks.len() && in_run(j) {
+            digits += match toks[j].2 {
+                0 => {
+                    spoken = false;
+                    toks[j].1 - toks[j].0
+                }
+                2 => 2,
+                _ if j >= start + 2 && tens(j - 2) => 0,
+                _ => 1,
             };
             last = j;
-            if j + 2 < toks.len() && toks[j + 1].2 == 4 && matches!(toks[j + 2].2, 0 | 1) {
+            if j + 2 < toks.len() && toks[j + 1].2 == 4 && in_run(j + 2) {
                 j += 2;
             } else {
                 break;
@@ -734,9 +746,43 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
     // runs with 9 or more digits together are redacted and hold the call.
     let mut split = false;
     if runs.iter().all(|r| r.2 < 9) {
+        // A date anywhere in the utterance ("3/1/2027") gives its years a date meaning.
+        let dated = runs.iter().any(|r| date_shaped(text, &toks, r.0, r.1));
+        let mut strength: Vec<u8> = runs
+            .iter()
+            .map(|r| explained_run(text, &toks, r.0, r.1, r.3, dated))
+            .collect();
+        // A list ("Units 101 and 102", "1,200 and 1,350 feet", "Suites 101, 102 or 103"): runs
+        // joined only by separators, "and", "or", "to", "through" share a place word before the
+        // first or a unit after the last. A year explained by its cue word alone does not spread.
+        let joined = |a: usize, b: usize| {
+            let (x, y) = (runs[a].1 + 1, runs[b].0);
+            y > x
+                && y - x <= 6
+                && (x..y).all(|k| match toks[k].2 {
+                    4 => &text[toks[k].0..toks[k].1] != ".",
+                    3 => matches!(
+                        lw(k).as_str(),
+                        "and" | "or" | "to" | "through" | "thru" | "plus"
+                    ),
+                    _ => false,
+                })
+        };
+        for a in 1..runs.len() {
+            if strength[a - 1] == 2 && strength[a] < 2 && joined(a - 1, a) {
+                strength[a] = 2;
+            }
+        }
+        for a in (1..runs.len()).rev() {
+            if strength[a] == 2 && strength[a - 1] < 2 && joined(a - 1, a) {
+                strength[a - 1] = 2;
+            }
+        }
         let parts: Vec<&(usize, usize, usize, bool)> = runs
             .iter()
-            .filter(|r| !(r.3 && r.1 == r.0) && !explained_run(text, &toks, r.0, r.1, r.3))
+            .zip(&strength)
+            .filter(|(r, s)| !(r.3 && r.1 == r.0) && **s == 0)
+            .map(|(r, _)| r)
             .collect();
         if parts.len() >= 2 && parts.iter().map(|r| r.2).sum::<usize>() >= 9 {
             split = true;
@@ -949,36 +995,162 @@ const STREET_WORDS: [&str; 18] = [
     "ct",
     "highway",
 ];
-/// Words before a number that make it a suite, unit or lot number.
-const PLACE_WORDS: [&str; 11] = [
+/// Words before a number that make it a suite, unit or lot number (singular and plural).
+const PLACE_WORDS: [&str; 28] = [
     "suite",
+    "suites",
     "ste",
     "unit",
+    "units",
     "apt",
+    "apts",
     "apartment",
+    "apartments",
     "floor",
+    "floors",
     "room",
+    "rooms",
     "building",
+    "buildings",
     "bldg",
     "lot",
+    "lots",
     "space",
+    "spaces",
+    "office",
+    "offices",
+    "bay",
+    "bays",
+    "dock",
+    "docks",
+    "stall",
+    "stalls",
+];
+/// Words in the four words before a year that give it a date or period meaning.
+const YEAR_CUES: [&str; 40] = [
+    "in",
+    "since",
+    "built",
+    "renovated",
+    "remodeled",
+    "updated",
+    "through",
+    "thru",
+    "until",
+    "till",
+    "from",
+    "to",
+    "of",
+    "by",
+    "for",
+    "year",
+    "lease",
+    "leased",
+    "term",
+    "expires",
+    "expiring",
+    "expiration",
+    "ends",
+    "ending",
+    "start",
+    "starting",
+    "starts",
+    "begins",
+    "beginning",
+    "signed",
+    "opened",
+    "around",
+    "circa",
+    "before",
+    "after",
+    "early",
+    "late",
+    "mid",
+    "renew",
+    "renewal",
 ];
 
-/// Whether the digit run `s..=e` of [`redact`]'s tokens is money, a measurement or a count, a
-/// suite or street number, a date or a year (so it is not part of a number given in parts).
+/// Whether the run `s..=e` is a written date: m/d, m/d/y (or with `-`), or y-m-d.
+fn date_shaped(text: &str, toks: &[(usize, usize, u8)], s: usize, e: usize) -> bool {
+    let groups: Vec<&str> = (s..=e)
+        .step_by(2)
+        .map(|k| &text[toks[k].0..toks[k].1])
+        .collect();
+    let seps: Vec<&str> = (s + 1..e)
+        .step_by(2)
+        .map(|k| &text[toks[k].0..toks[k].1])
+        .collect();
+    if !(2..=3).contains(&groups.len())
+        || (s..=e).step_by(2).any(|k| toks[k].2 != 0)
+        || !(seps.iter().all(|x| *x == "/") || seps.iter().all(|x| *x == "-"))
+    {
+        return false;
+    }
+    let v = |g: &str| g.parse::<u32>().unwrap_or(0);
+    let md = |m: &str, d: &str| {
+        m.len() <= 2 && d.len() <= 2 && (1..=12).contains(&v(m)) && (1..=31).contains(&v(d))
+    };
+    match groups.as_slice() {
+        [m, d] => md(m, d),
+        [m, d, y] if md(m, d) && matches!(y.len(), 2 | 4) => true,
+        [y, m, d] => y.len() == 4 && md(m, d),
+        _ => false,
+    }
+}
+
+/// Whether the run `s..=e` of [`redact`]'s tokens is money, a measurement or a count, a suite or
+/// street number, a date or a year (so it is not part of a number given in parts): 0 no, 1 a
+/// year by its cue word only, 2 otherwise. A year (19xx/20xx written, or spoken "nineteen
+/// eighty five", "twenty twenty seven") is explained only when one of the four words before it
+/// is a month or a [`YEAR_CUES`] word, or the utterance holds a written date (`dated`); its
+/// shape alone explains nothing.
 fn explained_run(
     text: &str,
     toks: &[(usize, usize, u8)],
     s: usize,
     e: usize,
     spoken: bool,
-) -> bool {
+    dated: bool,
+) -> u8 {
     let lw = |k: usize| text[toks[k].0..toks[k].1].to_lowercase();
-    // The year shape: one group of four digits, 1900 to 2099.
-    if !spoken && s == e {
+    if date_shaped(text, toks, s, e) {
+        return 2;
+    }
+    let year_shape = if spoken {
+        matches!(lw(s).as_str(), "nineteen" | "twenty")
+            && (s..=e)
+                .step_by(2)
+                .map(|k| match toks[k].2 {
+                    2 => 2,
+                    1 if k >= s + 2 && toks[k - 2].2 == 2 && lw(k - 2).ends_with('y') => 0,
+                    _ => 1,
+                })
+                .sum::<usize>()
+                == 4
+    } else {
         let t = &text[toks[s].0..toks[s].1];
-        if t.len() == 4 && (t.starts_with("19") || t.starts_with("20")) {
-            return true;
+        s == e && t.len() == 4 && (t.starts_with("19") || t.starts_with("20"))
+    };
+    if year_shape {
+        let mut cue = dated;
+        let mut k = s;
+        let mut words = 0;
+        while !cue && k > 0 && words < 4 {
+            k -= 1;
+            match toks[k].2 {
+                4 if &text[toks[k].0..toks[k].1] == "." => break,
+                4 => {}
+                5 => break,
+                3 => {
+                    let w = lw(k);
+                    cue = YEAR_CUES.contains(&w.as_str()) || MONTHS.contains(&w.as_str());
+                    words += 1;
+                }
+                _ => words += 1,
+            }
+        }
+        if cue {
+            return 1;
         }
     }
     // Before: `$`, `#`, a place word or a month name (separators skipped).
@@ -993,7 +1165,7 @@ fn explained_run(
             || (toks[k].2 == 3
                 && (PLACE_WORDS.contains(&w.as_str()) || MONTHS.contains(&w.as_str())))
         {
-            return true;
+            return 2;
         }
     }
     // After: the next three words.
@@ -1004,7 +1176,7 @@ fn explained_run(
             4 => {}
             5 => {
                 if &text[toks[k].0..toks[k].1] == "%" && after.is_empty() {
-                    return true;
+                    return 2;
                 }
                 break;
             }
@@ -1014,15 +1186,21 @@ fn explained_run(
     }
     let first = after.first().map(String::as_str).unwrap_or("");
     let second = after.get(1).map(String::as_str).unwrap_or("");
-    UNIT_WORDS.contains(&first)
+    let explained = UNIT_WORDS.contains(&first)
         || ORDINAL_WORDS.contains(&first)
         || MONTHS.contains(&first)
-        || (matches!(first, "a" | "an" | "per" | "each")
+        || first == "each"
+        || (matches!(first, "a" | "an" | "per")
             && matches!(
                 second,
                 "month" | "year" | "square" | "sq" | "foot" | "mo" | "yr"
             ))
-        || after.iter().any(|w| STREET_WORDS.contains(&w.as_str()))
+        || after.iter().any(|w| STREET_WORDS.contains(&w.as_str()));
+    if explained {
+        2
+    } else {
+        0
+    }
 }
 
 // ---- Lexer ------------------------------------------------------------------------------------

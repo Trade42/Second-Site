@@ -297,6 +297,7 @@ fn geometry_and_procurement_contracts_conform_to_schemas() {
         estimated_construction_cost: Some(1_000_000),
         created_from_revision_request: None,
         approval_status: ss_domain::contracts::geometry::DesignApprovalStatus::Proposed,
+        floor_estimate: None,
     };
     dv.validate().unwrap();
     let bom = generate_bom(&dv).unwrap();

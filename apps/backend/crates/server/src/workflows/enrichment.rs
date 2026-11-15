@@ -101,10 +101,10 @@ pub const MATTERPORT_BATCH: usize = 20;
 /// ids, at most `bound` of them at once (the adapter would make the same requests one after
 /// the other), instead of one call per listing. The answers are merged in request order; the
 /// first failed request in that order is the failure, as the adapter's own loop reports it
-/// (the requests after it are still made, their answers dropped). Each listing gets exactly what its own call
-/// would have given: only the summaries of the ids it would have asked for (its first
-/// [`MAX_MODELS`] Matterport assets), and, when the one call fails, the failure its own call
-/// would have recorded. A `BAD_RESPONSE` or `NOT_FOUND` failure (which one listing's ids alone
+/// (the requests after it are still made, their answers dropped). Each listing gets exactly
+/// what its own call would have given: only the summaries of the ids it would have asked for
+/// (its first [`MAX_MODELS`] Matterport assets), and, when the calls fail, the failure its own
+/// call would have recorded. A `BAD_RESPONSE` or `NOT_FOUND` failure (which one listing's ids alone
 /// can cause: a malformed id, a bad entry) falls back to one call per listing, so only that
 /// listing records it. Any other failure (auth, timeout, outage, rate limit) marks every listing
 /// "not retrieved" at once, as each per-listing call would have. The per-listing calls of the

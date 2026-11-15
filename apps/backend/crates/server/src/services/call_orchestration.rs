@@ -54,13 +54,13 @@ use chrono::{Duration, Utc};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use ss_core::{DataOrigin, EvidenceClassification, UtcDateTime};
+use ss_domain::communications::response_agent::{
+    self as agent, CallContext, ConversationState, Say, Utterance,
+};
 use ss_domain::communications::{build_script, call_payload, describe, detect_escalation, extract};
 use ss_domain::contracts::{
     CallSession, CallState, CommunicationState, HandoffReason, HandoffStatus, OwnerHandoffRequest,
     ParticipantState, SourceEvidence, StructuredFinding, TranscriptTurn,
-};
-use ss_domain::communications::response_agent::{
-    self as agent, CallContext, ConversationState, Say, Utterance,
 };
 use ss_domain::integrations::telnyx::{
     client_state, decode_client_state_json, StreamOptions, TelephonyError, TelephonyProvider,
@@ -1744,7 +1744,10 @@ pub fn stream_url(public_base_url: &str, bridge_id: &str, token: &str) -> String
 pub enum BridgeInput {
     Counterparty(String),
     Assistant(String),
-    Tool { name: String, arguments: Value },
+    Tool {
+        name: String,
+        arguments: Value,
+    },
     /// The bridge ended by itself (`EndReason::as_str`).
     Ended(String),
     /// The recording's playback did not end within its bound.
@@ -1758,7 +1761,8 @@ pub async fn bridge_input(app: &Arc<App>, call_id: Uuid, input: BridgeInput) -> 
     let mut orch = CallOrchestrator::new(app);
     let out = orch.on_bridge_input(&mut *tx, call_id, input).await?;
     tx.commit().await?;
-    app.owner_notify().dispatch(app.clone(), orch.take_notices());
+    app.owner_notify()
+        .dispatch(app.clone(), orch.take_notices());
     Ok(out)
 }
 
@@ -1838,9 +1842,13 @@ impl CallOrchestrator<'_> {
                 if expected.is_none() || got != expected {
                     return Ok(Some(call.clone()));
                 }
-                let status = p.get("status").and_then(Value::as_str).unwrap_or("completed");
+                let status = p
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .unwrap_or("completed");
                 if status != "completed" {
-                    let why = format!("the recorded introduction did not play to its end ({status})");
+                    let why =
+                        format!("the recorded introduction did not play to its end ({status})");
                     return self.fail_politely(tx, call.clone(), &why).await.map(Some);
                 }
                 self.begin_bridge(tx, call.clone()).await.map(Some)
@@ -1867,7 +1875,10 @@ impl CallOrchestrator<'_> {
     ) -> AppResult<CallSession> {
         let vcs = self.app.voice_calls();
         vcs.map().insert(call.call_id, VoiceCall::new());
-        let Some(reference) = call.intro_recording_reference.clone().filter(|r| !r.is_empty())
+        let Some(reference) = call
+            .intro_recording_reference
+            .clone()
+            .filter(|r| !r.is_empty())
         else {
             // No recording (optional): the bridge's opening line is the first thing heard.
             return self.begin_bridge(tx, call).await;
@@ -1892,10 +1903,15 @@ impl CallOrchestrator<'_> {
             return self.begin_bridge(tx, call).await;
         };
         let Some(leg) = call.provider_call_id.clone() else {
-            return self.fail_politely(tx, call, "the call has no carrier leg").await;
+            return self
+                .fail_politely(tx, call, "the call has no carrier leg")
+                .await;
         };
-        let token =
-            crate::security::sign_media_key(self.app.settings.auth_secret.expose(), &reference, 900);
+        let token = crate::security::sign_media_key(
+            self.app.settings.auth_secret.expose(),
+            &reference,
+            900,
+        );
         let url = format!(
             "{}/api/v1/media/public/{token}",
             self.app.settings.public_base_url
@@ -1941,7 +1957,9 @@ impl CallOrchestrator<'_> {
             return Ok(call); // one bridge per call
         }
         let (Some(launcher), Some(leg)) = (vcs.launcher(), call.provider_call_id.clone()) else {
-            return self.fail_politely(tx, call, "the voice bridge is unavailable").await;
+            return self
+                .fail_politely(tx, call, "the voice bridge is unavailable")
+                .await;
         };
         let call = call.transition(CallState::Active)?;
         let mut call = self.save(tx, call).await?;
@@ -2035,7 +2053,8 @@ impl CallOrchestrator<'_> {
         let vcs = self.app.voice_calls();
         vcs.detach(call.call_id);
         let mut call = call;
-        call.transcript.push(turn("system", format!("[{why}; ending the call]")));
+        call.transcript
+            .push(turn("system", format!("[{why}; ending the call]")));
         let call = self.save(tx, call).await?;
         let call = self.say(tx, call, APOLOGY_LINE).await?;
         if let Some(leg) = call.provider_call_id.clone() {

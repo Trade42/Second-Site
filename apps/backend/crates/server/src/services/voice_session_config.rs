@@ -93,8 +93,8 @@ pub fn instructions(
     s.push_str(&format!(
         "You are an AI assistant making a phone call on behalf of {owner}, who is looking for a \
          second business location. You are automated; if asked, say you are an AI assistant.\n\
-         The call has already opened with the owner's recorded introduction and your \
-         identification; do not repeat them.\n\n"
+         The call has already opened with your identification (after the owner's recorded \
+         introduction, when there is one); do not repeat it.\n\n"
     ));
     s.push_str("## The client (you may mention only this)\n");
     if business_lines.is_empty() {
@@ -193,7 +193,10 @@ pub async fn build(
                     "{}: {}{}",
                     e.observation_type,
                     ss_domain::py::value_str(&e.extracted_value),
-                    e.unit.as_deref().map(|u| format!(" {u}")).unwrap_or_default()
+                    e.unit
+                        .as_deref()
+                        .map(|u| format!(" {u}"))
+                        .unwrap_or_default()
                 ),
                 classification: e.evidence_classification,
             });

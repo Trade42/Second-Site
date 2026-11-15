@@ -213,7 +213,11 @@ impl MatterportProvider for MeteredMatterport {
     fn media_enabled(&self) -> bool {
         self.0.media_enabled()
     }
-    fn model_media(&self, asset_id: &str, fresh: bool) -> Result<Option<ModelMedia>, ProviderError> {
+    fn model_media(
+        &self,
+        asset_id: &str,
+        fresh: bool,
+    ) -> Result<Option<ModelMedia>, ProviderError> {
         self.0.model_media(asset_id, fresh)
     }
     fn download_media(&self, url: &str, limit: usize) -> Result<Vec<u8>, ProviderError> {
@@ -418,7 +422,15 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
         let mut timing = SearchTiming::default();
         let providers = self.search_providers();
         let (saved, _) = self
-            .search_inner(tx, project_id, req, correlation_id, &providers, &mut timing, false)
+            .search_inner(
+                tx,
+                project_id,
+                req,
+                correlation_id,
+                &providers,
+                &mut timing,
+                false,
+            )
             .await?;
         Ok(saved)
     }
@@ -488,11 +500,9 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
         let mut known: Vec<Option<Option<PropertyDigitalProfile>>> = Vec::new();
         for (i, p) in best.iter().enumerate() {
             let address = p.property_identity.normalized_address.as_str();
-            if best[..i]
-                .iter()
-                .zip(&known)
-                .any(|(q, k)| matches!(k, Some(None)) && q.property_identity.normalized_address == address)
-            {
+            if best[..i].iter().zip(&known).any(|(q, k)| {
+                matches!(k, Some(None)) && q.property_identity.normalized_address == address
+            }) {
                 known.push(None);
                 continue;
             }
@@ -926,7 +936,15 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
         };
         let mut timing = SearchTiming::default();
         let (props, job) = self
-            .search_inner(tx, project_id, req, correlation_id, &providers, &mut timing, true)
+            .search_inner(
+                tx,
+                project_id,
+                req,
+                correlation_id,
+                &providers,
+                &mut timing,
+                true,
+            )
             .await?;
         if props.is_empty() {
             return Err(AppError::conflict("no candidate properties found").code("NO_CANDIDATES"));
@@ -964,9 +982,13 @@ impl<'a> PropertyAnalysisWorkflow<'a> {
                 timing.permit_refetches += 1;
                 answer = match &timeout {
                     Some(e) => Err((e.clone(), false)),
-                    None => permits::fetch(providers.permits.clone(), &p.property_identity, p.project_id)
-                        .await?
-                        .map_err(|e| (e, true)),
+                    None => permits::fetch(
+                        providers.permits.clone(),
+                        &p.property_identity,
+                        p.project_id,
+                    )
+                    .await?
+                    .map_err(|e| (e, true)),
                 };
                 timing.permits_refetch += started.elapsed();
             }

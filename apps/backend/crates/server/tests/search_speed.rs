@@ -8,9 +8,9 @@
 
 mod common;
 
+use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -22,8 +22,8 @@ use ss_domain::integrations::costar::{CoStarProvider, FixtureCoStarProvider, Raw
 use ss_server::integrations::{
     Integrations, LiveLaPermitProvider, LiveMatterportProvider, LiveVexcelProvider,
 };
-use ss_server::workflows::property_analysis::{SearchConcurrency, PROVIDER_CONCURRENCY};
-use ss_server::workflows::property_analysis::SearchTimingSink; // SINK
+use ss_server::workflows::property_analysis::SearchTimingSink;
+use ss_server::workflows::property_analysis::{SearchConcurrency, PROVIDER_CONCURRENCY}; // SINK
 
 use common::*;
 
@@ -401,7 +401,12 @@ fn props_view(props: &Value, ids: &[Value]) -> Vec<Value> {
         .iter()
         .map(|p| (p["property_id"].as_str().unwrap(), p))
         .collect();
-    assert_eq!(by_id.len(), ids.len(), "one stored property per result id");
+    let unique: std::collections::HashSet<&str> = ids.iter().filter_map(Value::as_str).collect();
+    assert_eq!(
+        by_id.len(),
+        unique.len(),
+        "one stored property per result id"
+    );
     ids.iter()
         .map(|id| by_id[id.as_str().unwrap()])
         .map(|p| {
@@ -646,7 +651,11 @@ both_backends!(realistic_latencies_timing_line, |db| {
     server.reset();
     let (outcome, took) = run_search(&t, &tok, &server, PROVIDER_CONCURRENCY).await;
     assert_eq!(outcome.properties.len(), LISTINGS);
-    assert!(server.max_per_provider() <= PROVIDER_CONCURRENCY, "{}", server.spans());
+    assert!(
+        server.max_per_provider() <= PROVIDER_CONCURRENCY,
+        "{}",
+        server.spans()
+    );
     eprintln!(
         "search_speed realistic: {} requests in {took:?}; {}",
         server.total.load(Ordering::SeqCst),
@@ -656,9 +665,12 @@ both_backends!(realistic_latencies_timing_line, |db| {
     assert_eq!(lines.len(), 1, "{lines:?}"); // SINK
     let line = &lines[0]; // SINK
     eprintln!("search timing {line}"); // SINK
-    // Numbers and phase names only. // SINK
+                                       // Numbers and phase names only. // SINK
     let text = line.to_string(); // SINK
-    assert!(!text.contains("ALHAMBRA") && !text.contains("http"), "{text}"); // SINK
+    assert!(
+        !text.contains("ALHAMBRA") && !text.contains("http"),
+        "{text}"
+    ); // SINK
     assert_eq!(line["calls"]["matterport"]["calls"], 3, "{text}"); // SINK
     assert_eq!(line["calls"]["permits"]["calls"], LISTINGS, "{text}"); // SINK
     assert_eq!(line["counts"]["pool"], POOL, "{text}"); // SINK
@@ -695,7 +707,8 @@ both_backends!(repeated_search_uses_stored_identities, |db| {
     assert_eq!(outcomes[0], outcomes[1]);
     let lines = sink.0.lock().unwrap().clone(); // SINK
     assert_eq!(lines.len(), 4); // SINK
-    for line in &lines { // SINK
+    for line in &lines {
+        // SINK
         assert_eq!(line["counts"]["permit_refetches"], 0, "{line}"); // SINK
     } // SINK
     assert_eq!(lines[3]["counts"]["new"], 0, "{}", lines[3]); // SINK
