@@ -9,7 +9,7 @@ const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const asset = (src, f) => `assets/${src}/${f}`;
 const ICON = {
-  save: '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 2.5h8v11L8 10.6 4 13.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+  save: '<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="m8 1.5 2 4.1 4.5.65-3.25 3.17.77 4.48L8 11.78l-4.02 2.12.77-4.48L1.5 6.25 6 5.6Z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/></svg>',
   x: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
 };
 
