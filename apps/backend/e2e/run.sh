@@ -196,6 +196,7 @@ COMMON=(
   "HOME=$RUN/home"
   "LANG=C.UTF-8"
   "APP_ENV=test"
+  "APP_VERSION=0.1.0+e2e.${SCHEMA#e2e_}"   # this run's own, so a health answer from another process is not taken
   "LOG_LEVEL=INFO"
   "AUTH_SECRET=$AUTH_SECRET"
   "ALLOW_DEV_TOKENS=true"
@@ -265,7 +266,7 @@ say "started rust service (pid $RS_PID) and python app (pid $PY_PID)"
 wait_health() { # name url pid log seconds
   local name="$1" url="$2" pid="$3" log="$4" secs="$5" i
   for i in $(seq 1 $((secs * 10))); do
-    if curl -sf --noproxy '*' -o /dev/null --max-time 1 "$url/health"; then
+    if curl -sf --noproxy '*' --max-time 1 "$url/health" 2>/dev/null | grep -qF "+e2e.${SCHEMA#e2e_}"; then
       say "$name healthy after ~$((i / 10)).$((i % 10)) s"
       return 0
     fi
@@ -276,7 +277,7 @@ wait_health() { # name url pid log seconds
     fi
     sleep 0.1
   done
-  say "$name not healthy after $secs s"
+  say "$name not healthy after $secs s (an answer without this run's APP_VERSION means another process has the port)"
   return 1
 }
 wait_health "rust service" "$RS_URL" "$RS_PID" "$RUN/rust.log" 30 || fatal "rust service did not start"

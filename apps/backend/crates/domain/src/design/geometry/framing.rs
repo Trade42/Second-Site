@@ -199,26 +199,38 @@ pub const INNER_RECTANGLE_CELL: f64 = 0.2;
 /// Largest grid [`largest_inner_rectangle`] scans (cells).
 pub const MAX_GRID_CELLS: usize = 1_000_000;
 
-/// Work bound of [`largest_inner_rectangle`], in the work units of [`FrameWork::units`]. The
-/// scan's work is counted exactly before any cell is tested; an outline whose count exceeds
-/// this gets no rectangle (and [`frame_for_solver_checked`] says why).
-pub const MAX_FRAME_WORK: u64 = 4_000_000;
+/// Work bound of [`largest_inner_rectangle`], in the work units of [`FrameWork::units`]: about
+/// 0.8 s of the workspace's debug profile or 0.2 s of a release build on the development
+/// machine, 20 % under the framing budget (1 s and 0.25 s). The scan's work is counted exactly
+/// before any cell is tested; an outline whose count exceeds this gets no rectangle (and
+/// [`frame_for_solver_checked`] says why). The weights below are the measured cost of each kind
+/// of work (rust-domain-6): one unit is about a nanosecond of the debug profile (ss-domain at
+/// opt-level 1) or a quarter of a nanosecond of a release build, whichever is slower for that
+/// kind of work, taken from the most expensive outline family measured for it.
+pub const MAX_FRAME_WORK: u64 = 800_000_000;
 
-/// Work units per boundary segment (preparing and sorting the segments).
-pub const FRAME_WORK_PER_SEGMENT: u64 = 1;
-/// Work units per grid cell (every cell is visited once).
-pub const FRAME_WORK_PER_CELL: u64 = 1;
-/// Work units per segment per grid row it reaches (the per-row preparation).
-pub const FRAME_WORK_PER_SEGMENT_ROW: u64 = 1;
-/// Work units per step of [`FrameWork::segment_row_steps`].
-pub const FRAME_WORK_PER_SEGMENT_ROW_STEP: u64 = 1;
-/// Work units per cell near the boundary (each runs the exact tolerance test).
-pub const FRAME_WORK_PER_NEAR_CELL: u64 = 1;
-/// Work units per segment near a near cell.
-pub const FRAME_WORK_PER_NEAR_SEGMENT: u64 = 1;
-/// Work units per pair of segments near the same near cell (the exact test of a cell with k
-/// segments near it costs about k squared).
-pub const FRAME_WORK_PER_NEAR_PAIR: u64 = 1;
+/// Work units per boundary segment: building, sorting and placing the segments (measured on
+/// floors with up to a million vertices: 217 ns in release, 591 ns in the debug profile).
+pub const FRAME_WORK_PER_SEGMENT: u64 = 900;
+/// Work units per grid cell: every cell is visited and fed to the histogram (12 ns, 59 ns).
+pub const FRAME_WORK_PER_CELL: u64 = 60;
+/// Work units per segment per grid row it reaches: the per-row preparation (31 ns in release
+/// plus [`FRAME_WORK_PER_SEGMENT_ROW_STEP`] per step).
+pub const FRAME_WORK_PER_SEGMENT_ROW: u64 = 130;
+/// Work units per step of [`FrameWork::segment_row_steps`]: the per-row sorts, binary searches
+/// and Fenwick updates (3 ns in release, 12.5 ns in the debug profile).
+pub const FRAME_WORK_PER_SEGMENT_ROW_STEP: u64 = 13;
+/// Work units per cell near the boundary: each runs the exact tolerance test (290 ns, 982 ns).
+pub const FRAME_WORK_PER_NEAR_CELL: u64 = 1200;
+/// Work units per segment near a near cell: its crossings, tolerance bands and ray steps
+/// (181 ns, 688 ns).
+pub const FRAME_WORK_PER_NEAR_SEGMENT: u64 = 750;
+/// Work units per pair of segments near the same cell (`k` squared for a cell with `k`
+/// segments near it): the exact test locates up to one point per crossing against every near
+/// segment. Measured on hairline slits narrower than the tolerance, the most expensive case
+/// found (8.6 ns in release, 45 ns in the debug profile; a wall split into collinear pieces
+/// costs 0.8 ns in release).
+pub const FRAME_WORK_PER_NEAR_PAIR: u64 = 45;
 
 /// Tolerance of the containment test (Python's `poly.buffer(1e-6)`).
 const INNER_RECTANGLE_EPS: f64 = 1e-6;

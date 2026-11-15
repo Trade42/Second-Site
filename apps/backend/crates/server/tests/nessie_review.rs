@@ -585,6 +585,13 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
         .clone()
         .unwrap();
     let attempt_id = exact["attempt_id"].as_str().unwrap().to_owned();
+    // nessie-3: an attempt id of digits only (about 1 run in 280) has no upper case, so the
+    // "upper case" tamper would be the exact payload; then one digit becomes an upper-case letter.
+    let upper = if attempt_id.chars().any(|c| c.is_ascii_alphabetic()) {
+        attempt_id.to_uppercase()
+    } else {
+        format!("{}A", &attempt_id[..attempt_id.len() - 1])
+    };
     let tampers: Vec<(&str, Value)> = vec![
         (
             "amount_minor",
@@ -602,7 +609,7 @@ both_backends!(review_gate_refuses_every_wrong_approval, |db| {
             json!(format!("{} ", exact["description"].as_str().unwrap())),
         ),
         ("attempt_id", json!("0123456789ab")),
-        ("attempt_id", json!(attempt_id.to_uppercase())),
+        ("attempt_id", json!(upper)),
         ("simulation", json!(FIXTURE)),
         ("scenario_id", json!(Uuid::new_v4())),
         ("property_id", json!(a.alhambra)),
