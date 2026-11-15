@@ -185,6 +185,18 @@ RS_URL="http://127.0.0.1:$RS_PORT"
 PY_URL="http://127.0.0.1:$PY_PORT"
 AUTH_SECRET="e2e-$("$PY" -I -c 'import secrets; print(secrets.token_hex(24))')"
 PHOTON_SECRET="whsec_$("$PY" -I -c 'import base64, secrets; print(base64.b64encode(secrets.token_bytes(32)).decode())')"
+# A throwaway Ed25519 key pair for the Telnyx webhook (check K05): the Rust service gets the public half as
+# TELNYX_PUBLIC_KEY (fixture voice mode, so nothing else changes), the driver signs with the private half. Never a
+# real Telnyx key; the private half goes to the driver's environment only, never to a kept file (H01 checks).
+read -r TELNYX_PRIV TELNYX_PUB < <("$PY" -I -c '
+import base64
+from cryptography.hazmat.primitives import serialization as s
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+k = Ed25519PrivateKey.generate()
+b64 = lambda b: base64.b64encode(b).decode()
+print(b64(k.private_bytes(s.Encoding.Raw, s.PrivateFormat.Raw, s.NoEncryption())),
+      b64(k.public_key().public_bytes(s.Encoding.Raw, s.PublicFormat.Raw)))')
+[ -n "${TELNYX_PUB:-}" ] || fatal "could not generate the test Telnyx key pair (cryptography in $PY)"
 
 # One DATABASE_URL value for both processes: E2E_PG_URL with the SQLAlchemy `+psycopg` suffix (Rust strips it),
 # `options` pinning search_path to the private schema for libpq (psycopg) and sqlx alike, and application_name,
@@ -221,7 +233,7 @@ COMMON=(
 )
 PY_ENV=("${COMMON[@]}" "BACKEND_API_URL=$RS_URL" "OBJECT_STORAGE_LOCAL_DIR=$RUN/objects-python")
 RS_ENV=("${COMMON[@]}" "HOST=127.0.0.1" "PORT=$RS_PORT" "PYTHON_SERVICE_URL=$PY_URL" "STORE_BACKEND=postgres"
-  "FIXTURES_DIR=$REPO/fixtures" "OBJECT_STORAGE_LOCAL_DIR=$RUN/objects-rust")
+  "FIXTURES_DIR=$REPO/fixtures" "OBJECT_STORAGE_LOCAL_DIR=$RUN/objects-rust" "TELNYX_PUBLIC_KEY=$TELNYX_PUB")
 ALEMBIC_ENV=("${COMMON[@]}" "PYTHONPATH=$REPO/apps/api")
 
 # The environment of each process, with secret-shaped values masked (for the report).
@@ -311,7 +323,7 @@ DRV_ENV=(
   "PATH=/usr/bin:/bin" "HOME=$RUN/home" "LANG=C.UTF-8"
   "E2E_REPO=$REPO" "E2E_RUST_URL=$RS_URL" "E2E_PY_URL=$PY_URL"
   "E2E_RUST_LOG=$RUN/rust.log" "E2E_PY_LOG=$RUN/python.log"
-  "E2E_AUTH_SECRET=$AUTH_SECRET" "E2E_PHOTON_SECRET=$PHOTON_SECRET"
+  "E2E_AUTH_SECRET=$AUTH_SECRET" "E2E_PHOTON_SECRET=$PHOTON_SECRET" "E2E_TELNYX_TEST_KEY=$TELNYX_PRIV"
   "E2E_RESULTS=$RUN/results.json" "E2E_SCHEMA=$SCHEMA" "E2E_DATABASE_URL=$DATABASE_URL"
 )
 say "driver: $DRIVER"
