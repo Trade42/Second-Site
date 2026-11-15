@@ -727,7 +727,7 @@ export function bind(ctx) {
   for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
   for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
   const S = ctx.S(); S.slots = [null, null, null, null];
-  viewerElements(); waitStyle();
+  viewerElements(); waitStyle(); voiceElements();
 }
 const markers = {};
 function addPin(p) {
@@ -757,7 +757,7 @@ async function searchNow(S, fromSend = false) {
   backend.lastRooms = Number.isInteger(S.req.rooms) ? { treatment: S.req.rooms, reception: 1, storage: 1 } : null;
   let results;
   const end = waiting('search', { composer: fromSend });
-  try { results = await backend.search(S.req); end(true); } catch (e) { end(); page.note(page.esc(`Live search failed: ${e.message}`)); return; } finally { end(); }
+  try { results = await backend.search(S.req); end(true); } catch (e) { end(); page.note(page.esc(`Live search failed: ${e.message}`)); return; } finally { end(); voiceRefresh(); }
   const { POOL, P, D, FILL, SPACE_NOTES } = page, index = await localPlaces();
   // A slug is used only when exactly one listing of this result has that suite scan.
   const hits = results.map(r => localMatch(r.rec, index)), uses = s => hits.filter(h => h?.slug === s).length;
@@ -819,4 +819,260 @@ export function turn(stage, text, S, steps) {
       page.a(`${page.esc(out.reply).replace(/\n/g, '<br>')}<br><small>${out.mode === 'deterministic' ? 'Deterministic engine, no model configured' : 'Assistant'} · from the backend</small>`);
     } catch (e) { end(); page.note(page.esc(chatFailure(e))); } finally { end(); }
   })();
+}
+
+/* --------------------------------------------- voice: talk to the assistant (web-link-6) */
+
+// One spoken conversation with the assistant through xAI's realtime voice, grounded in this project's
+// records by the backend (POST …/voice/session), with no tools: it cannot act. The page holds the
+// short-lived secret for one WebSocket open and drops it. Live mode only (bind() makes the control).
+// Event names and fields: xAI's realtime reference (orchestrator/reports/voice-1.md and voice-2.md).
+export const VOICE = {
+  talk: 'Talk to the assistant', stop: 'Stop',
+  speaker: 'Voice assistant (automated)', owner: 'You (spoken)',
+  consent: 'Starting a voice conversation sends this project’s records to xAI, and your microphone’s audio goes to xAI while the conversation is open.',
+  noProject: 'Voice is not connected until the search has created a project.',
+  listening: 'Listening. Speak when you are ready; the assistant answers when you pause.',
+  disclosing: 'The assistant is saying what it is. Your microphone is not sent until it has finished.',
+  capMs: 5 * 60 * 1000, hiddenMs: 30 * 1000, rate: 24000, chunk: 2400, // 100 ms of 24 kHz PCM16 per append
+};
+export const VOICE_END = {
+  stop: 'Voice conversation ended: you stopped it. The microphone is off.',
+  closed: 'Voice conversation ended: the connection to xAI closed. The microphone is off.',
+  error: 'Voice conversation ended: the connection to xAI failed. The microphone is off.',
+  expired: 'Voice conversation not started: its one-time key expired before the connection opened. The microphone is off; try again.',
+  hidden: 'Voice conversation ended: the page was hidden for 30 seconds. The microphone is off.',
+  cap: 'Voice conversation ended at its five-minute limit (xAI charges for voice by the minute). The microphone is off; start a new one if you need more.',
+  provider: m => `Voice conversation ended: xAI ended it (${m}). The microphone is off.`,
+  undisclosed: 'Voice conversation ended: the assistant did not finish saying what it is, so your microphone was never sent. The microphone is off; try again.',
+  noMic: 'This browser gives the page no microphone, so no voice conversation was started.',
+  denied: 'The microphone was not allowed, so no voice conversation was started.',
+  micFailed: n => `The microphone could not be opened (${n}), so no voice conversation was started.`,
+  noAudio: 'This browser cannot play the assistant’s voice here (no Web Audio), so no voice conversation was started.',
+  bad: 'Voice conversation not started: the backend’s answer was incomplete. Nothing was sent to xAI.',
+};
+WAIT_TEXT.voice = { verb: 'Connecting…', what: 'Asking the backend for a voice session, then connecting to xAI. The assistant first says what it is.', earlier: 'connections', composer: 'Waiting for the voice connection…' };
+took.voice = [];
+// A failed POST …/voice/session in plain words (one note; a retry is offered only when retryable).
+export function voiceFailure(e) {
+  const m = typeof e?.data?.message === 'string' ? e.data.message : '';
+  if (e?.status === 404) return 'Voice is not available on this backend yet (it has no voice route). Nothing was sent to xAI.';
+  if (e?.status === 503) return `Voice is not available: ${m || 'the backend has no voice provider configured'}. Nothing was sent to xAI.`;
+  if (e?.status === 502) return `Voice is not available right now: ${m || 'the backend could not get a session from xAI'}. ${e?.data?.retryable === true ? 'You can try again.' : 'Trying again will not help until this is fixed.'}`;
+  if (e?.status === 0) return `Voice is not available: ${e.message}`;
+  return `Voice is not available: the backend answered ${e?.status ?? 'with an error'}${m ? ` (${m})` : ''}. Nothing was sent to xAI.`;
+}
+let venv = {};
+export function useVoiceEnv(e) { venv = e || {}; } // tests only: WebSocket, mediaDevices, AudioContext, AudioWorkletNode
+const V = k => venv[k] ?? (k === 'mediaDevices' ? globalThis.navigator?.mediaDevices : k === 'AudioContext' ? (globalThis.AudioContext || globalThis.webkitAudioContext) : globalThis[k]);
+const later = (fn, ms) => (clock.after ? clock.after(fn, ms) : setTimeout(fn, ms));
+const cancel = id => (clock.cancel ? clock.cancel(id) : clearTimeout(id));
+let voice = null, voiceRan = false, vui = null;
+export const voiceActive = () => !!voice; // tests only
+const VOICE_STYLE = `.live-voice { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--ink2); }
+.live-voice-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.live-voice-btn { font: inherit; font-weight: 500; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+.live-voice-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.live-voice-btn:disabled { opacity: .5; cursor: not-allowed; }
+.live-voice p { margin: 0; }
+.live-voice-banner { background: var(--tint); border-radius: 10px; padding: 8px 12px; }
+.live-voice-banner b { color: var(--ink); }
+.live-voice-turn { max-width: 92%; line-height: 1.5; overflow-wrap: anywhere; }
+.live-voice-turn.me { align-self: flex-end; color: var(--accent-ink); background: var(--accent-soft); padding: 8px 13px; border-radius: 13px 13px 4px 13px; }
+.live-voice-who { display: block; font-size: 12px; color: var(--ink3); }
+.live-voice-turn p { margin: 0; }
+.live-voice-claim { font-size: 13px; color: var(--ink3); }`;
+const mk = (tag, cls, text) => { const e = globalThis.document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+// The control under the composer, made once by bind() (only in live mode, only where the page has #chat).
+function voiceElements() {
+  const doc = globalThis.document, chat = doc?.getElementById?.('chat');
+  if (!chat || doc.getElementById('live-voice')) return;
+  const box = mk('div', 'live-voice'); box.id = 'live-voice';
+  const row = mk('div', 'live-voice-row'), btn = mk('button', 'live-voice-btn', VOICE.talk);
+  btn.type = 'button'; btn.setAttribute('aria-pressed', 'false'); btn.onclick = () => voiceToggle();
+  const reason = mk('span', 'live-voice-reason');
+  row.append(btn, reason);
+  const consent = mk('p', 'live-voice-consent', VOICE.consent);
+  const banner = mk('div', 'live-voice-banner'); banner.hidden = true;
+  const head = mk('p'), title = mk('b', null, VOICE.speaker); head.append(title);
+  const label = mk('p', 'live-voice-label'), disclosure = mk('p', 'live-voice-disclosure'), data = mk('p', 'live-voice-data'), status = mk('p', 'live-voice-status');
+  banner.append(head, label, disclosure, data, status);
+  const note = mk('p', 'live-voice-note'); note.setAttribute('role', 'status'); note.hidden = true;
+  box.append(row, consent, banner, note); chat.append(box);
+  const at = doc.head || doc.documentElement;
+  if (at && !doc.getElementById('live-voice-style')) { const s = mk('style'); s.id = 'live-voice-style'; s.textContent = VOICE_STYLE; at.append(s); }
+  vui = { box, btn, reason, consent, banner, label, disclosure, data, status, note };
+  voiceRefresh();
+}
+// The button and its reason while no conversation runs.
+function voiceRefresh() {
+  if (!vui || voice) return;
+  const ok = !!backend?.project;
+  vui.btn.textContent = VOICE.talk; vui.btn.setAttribute('aria-pressed', 'false'); vui.btn.disabled = !ok;
+  vui.reason.textContent = ok ? '' : VOICE.noProject;
+  vui.consent.hidden = voiceRan;
+}
+function voiceNote(text) { if (!vui) return; vui.note.textContent = text; vui.note.hidden = !text; }
+export function voiceToggle() { return voice ? voiceEnd(voice, VOICE_END.stop) : voiceStart(); }
+// Everything one conversation holds goes; safe to call again when something arrives late.
+function release(s) {
+  for (const id of s.timers) cancel(id); s.timers.length = 0;
+  if (s.onVis) { globalThis.document?.removeEventListener?.('visibilitychange', s.onVis); s.onVis = null; }
+  if (s.ws) { const ws = s.ws; s.ws = null; ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null; try { ws.close(); } catch { /* already closed */ } }
+  if (s.stream) { for (const t of s.stream.getTracks()) t.stop(); s.stream = null; }
+  flush(s);
+  for (const n of [s.micSrc, s.micNode]) { try { n?.disconnect(); } catch { /* gone */ } }
+  if (s.micNode?.port) s.micNode.port.onmessage = null;
+  if (s.micNode) s.micNode.onaudioprocess = null;
+  s.micSrc = s.micNode = null;
+  if (s.ctx) { const c = s.ctx; s.ctx = null; try { c.close(); } catch { /* closed */ } }
+}
+function voiceEnd(s, text) {
+  if (!s || s.ended) return;
+  s.ended = true; release(s); s.endWait?.();
+  if (voice === s) voice = null;
+  if (vui) { vui.banner.hidden = true; for (const k of ['label', 'disclosure', 'data', 'status']) vui[k].textContent = ''; }
+  voiceRefresh(); voiceNote(text);
+}
+async function voiceStart() {
+  if (voice || !vui) return;
+  if (!backend?.project) { voiceNote(VOICE.noProject); return; }
+  const s = voice = { ended: false, timers: [], ws: null, stream: null, ctx: null, playAt: 0, sources: [], firstDone: false, heard: false, entries: new Map(), pend: [], pos: 0 };
+  voiceNote('');
+  vui.btn.textContent = VOICE.stop; vui.btn.setAttribute('aria-pressed', 'true'); vui.btn.disabled = false; vui.reason.textContent = '';
+  vui.banner.hidden = false; vui.status.textContent = '';
+  s.endWait = waiting('voice');
+  s.timers.push(later(() => voiceEnd(s, VOICE_END.cap), VOICE.capMs));
+  // The audio context is made inside the click, before any await, so that autoplay rules allow it.
+  const AC = V('AudioContext');
+  if (!AC) return voiceEnd(s, VOICE_END.noAudio);
+  try { s.ctx = new AC({ sampleRate: VOICE.rate }); } catch { try { s.ctx = new AC(); } catch { return voiceEnd(s, VOICE_END.noAudio); } }
+  try { s.ctx.resume?.()?.catch?.(() => {}); } catch { /* resumed later by the browser */ }
+  const md = V('mediaDevices');
+  if (!md?.getUserMedia) return voiceEnd(s, VOICE_END.noMic);
+  try { s.stream = await md.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false }); } catch (e) {
+    return voiceEnd(s, e?.name === 'NotAllowedError' || e?.name === 'SecurityError' ? VOICE_END.denied : VOICE_END.micFailed(e?.name || 'error'));
+  }
+  if (s.ended) return release(s); // stopped while the browser asked: the late stream is stopped too
+  let out;
+  try { out = await backend.req('POST', backend.p('/voice/session'), { mode: 'assistant' }); } catch (e) { return voiceEnd(s, voiceFailure(e)); }
+  if (s.ended) return;
+  let claim = null;
+  try { claim = new RegExp(out.claim_pattern, 'i'); } catch { claim = null; }
+  let url = null;
+  try { url = new URL(out.websocket_url); } catch { url = null; }
+  if (!out || url?.protocol !== 'wss:' || typeof out.client_secret !== 'string' || !out.client_secret || !out.session_update || !out.disclosure_event || !claim || typeof out.disclosure !== 'string' || typeof out.label !== 'string') return voiceEnd(s, VOICE_END.bad);
+  vui.label.textContent = out.label; vui.disclosure.textContent = out.disclosure;
+  vui.data.textContent = typeof out.data_notice === 'string' ? out.data_notice : '';
+  vui.status.textContent = VOICE.disclosing;
+  Object.assign(s, { claim, notice: String(out.no_action_notice || '') });
+  const left = Date.parse(out.expires_at) - Date.now();
+  if (!(left > 0)) return voiceEnd(s, VOICE_END.expired);
+  const first = [JSON.stringify(out.session_update), JSON.stringify(out.disclosure_event)];
+  const WS = V('WebSocket');
+  try { s.ws = new WS(out.websocket_url, ['xai-client-secret.' + out.client_secret]); } catch { return voiceEnd(s, VOICE_END.error); } finally { out.client_secret = null; out = null; } // the secret is used once and dropped
+  const openBy = later(() => { if (!s.opened) voiceEnd(s, VOICE_END.expired); }, left);
+  s.timers.push(openBy);
+  s.ws.onopen = () => { s.opened = true; voiceRan = true; for (const m of first) s.ws.send(m); };
+  s.ws.onmessage = ev => { try { onVoiceEvent(s, ev.data); } catch { voiceEnd(s, VOICE_END.error); } }; // a fault here never leaves the mic open
+  s.ws.onclose = () => voiceEnd(s, VOICE_END.closed);
+  s.ws.onerror = () => voiceEnd(s, VOICE_END.error);
+  s.onVis = () => {
+    if (globalThis.document?.visibilityState === 'hidden') { if (!s.hiddenTimer) { s.hiddenTimer = later(() => voiceEnd(s, VOICE_END.hidden), VOICE.hiddenMs); s.timers.push(s.hiddenTimer); } }
+    else if (s.hiddenTimer) { cancel(s.hiddenTimer); s.timers.splice(s.timers.indexOf(s.hiddenTimer), 1); s.hiddenTimer = null; }
+  };
+  globalThis.document?.addEventListener?.('visibilitychange', s.onVis);
+}
+function onVoiceEvent(s, raw) {
+  if (s.ended) return;
+  let e; try { e = JSON.parse(raw); } catch { return; }
+  switch (e?.type) {
+    case 'response.output_audio.delta': if (typeof e.delta === 'string') play(s, e.delta); break;
+    case 'response.output_audio_transcript.delta': entry(s, 'a', e.item_id, (entryText(s, 'a', e.item_id) || '') + String(e.delta ?? ''), false); break;
+    case 'response.output_audio_transcript.done': entry(s, 'a', e.item_id, typeof e.transcript === 'string' ? e.transcript : entryText(s, 'a', e.item_id) || '', true); break;
+    case 'conversation.item.input_audio_transcription.updated': entry(s, 'u', e.item_id, String(e.transcript ?? ''), false); break;
+    case 'conversation.item.input_audio_transcription.completed': entry(s, 'u', e.item_id, String(e.transcript ?? ''), true); break;
+    case 'input_audio_buffer.speech_started': if (s.firstDone) flush(s); break; // the owner speaks: the queued answer stops
+    case 'response.done':
+      if (!s.firstDone && e.response?.status && e.response.status !== 'completed') { voiceEnd(s, VOICE_END.undisclosed); break; } // cancelled or incomplete: the disclosure was not spoken whole
+      if (!s.firstDone) { s.firstDone = true; if (vui) vui.status.textContent = VOICE.listening; startMic(s); }
+      break;
+    case 'error': {
+      const k = e.error?.type, m = String(e.error?.message || k || 'no reason given');
+      if (k === 'timeout' || k === 'max_duration') voiceEnd(s, VOICE_END.provider(m)); else voiceNote(`xAI reported a problem: ${m}`);
+      break;
+    }
+    default: break;
+  }
+}
+// The log entries of this conversation (page elements of this file; they do not survive a reload).
+const entryText = (s, who, id) => s.entries.get(who + ':' + id)?.text.textContent;
+function entry(s, who, id, text, done) {
+  const log = logEl(); if (!log) return;
+  const key = who + ':' + id;
+  let x = s.entries.get(key);
+  if (!x) {
+    const box = mk('div', 'live-voice-turn' + (who === 'u' ? ' me' : '')), name = mk('span', 'live-voice-who', who === 'u' ? VOICE.owner : VOICE.speaker), p = mk('p', 'live-voice-text');
+    box.append(name, p); x = { box, text: p, done: false }; s.entries.set(key, x);
+    const wait = log.children ? [...log.children].find(c => c.className === 'live-wait') : null;
+    if (wait) log.insertBefore ? log.insertBefore(box, wait) : log.append(box); else log.append(box);
+  }
+  if (x.done) return;
+  x.text.textContent = text;
+  if (done) {
+    x.done = true;
+    if (who === 'a' && s.claim && s.claim.test(text) && s.notice) x.box.append(mk('p', 'live-voice-claim', s.notice));
+  }
+  keepInView(log);
+}
+// Playback: one context, PCM16 LE mono 24 kHz buffers scheduled back to back.
+function play(s, b64) {
+  const c = s.ctx; if (!c) return;
+  let bin; try { bin = atob(b64); } catch { return; }
+  const n = bin.length >> 1; if (!n) return;
+  const buf = c.createBuffer(1, n, VOICE.rate), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v >= 0x8000) v -= 0x10000; ch[i] = v / 32768; }
+  const src = c.createBufferSource(); src.buffer = buf; src.connect(c.destination);
+  const at = Math.max(s.playAt, c.currentTime + 0.03); src.start(at); s.playAt = at + n / VOICE.rate;
+  s.sources.push(src); src.onended = () => { const i = s.sources.indexOf(src); if (i >= 0) s.sources.splice(i, 1); };
+  if (!s.heard) { s.heard = true; s.endWait?.(true); }
+}
+function flush(s) {
+  for (const src of s.sources.splice(0)) { try { src.onended = null; src.stop(); src.disconnect(); } catch { /* not started */ } }
+  s.playAt = 0;
+}
+// Capture: the context's own rate, resampled (linear) to 24 kHz, 100 ms per append, after the disclosure.
+const WORKLET = `class C extends AudioWorkletProcessor { process(i) { const x = i[0] && i[0][0]; if (x) this.port.postMessage(x.slice(0)); return true; } } registerProcessor('ss-mic-capture', C);`;
+async function startMic(s) {
+  const c = s.ctx; if (!c || !s.stream) return;
+  try {
+    s.micSrc = c.createMediaStreamSource(s.stream);
+    const AWN = V('AudioWorkletNode');
+    if (c.audioWorklet && AWN) {
+      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' }));
+      try { await c.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+      if (s.ended) return release(s);
+      s.micNode = new AWN(c, 'ss-mic-capture'); s.micNode.port.onmessage = ev => feed(s, ev.data);
+    } else { // no worklet: the older processor node (deprecated, still in Chrome and Safari)
+      s.micNode = c.createScriptProcessor(2048, 1, 1); s.micNode.onaudioprocess = ev => feed(s, ev.inputBuffer.getChannelData(0).slice(0));
+    }
+    s.micSrc.connect(s.micNode); s.micNode.connect(c.destination); // its output is silence; connected so it runs
+  } catch (e) { voiceEnd(s, VOICE_END.micFailed(e?.name || 'audio capture error')); }
+}
+function feed(s, x) {
+  if (s.ended || !s.firstDone || !s.ws || !x?.length) return;
+  const step = (s.ctx?.sampleRate || VOICE.rate) / VOICE.rate;
+  // s.pos: the next output sample's position in the input stream, relative to x[0]; s.last: the previous chunk's last sample.
+  let p = s.pos;
+  for (; p < x.length; p += step) {
+    const i = Math.floor(p), f = p - i, a = i < 0 ? (s.last ?? 0) : x[i], b = i + 1 < x.length ? x[i + 1] : x[i];
+    s.pend.push(i < 0 ? a + (x[0] - a) * (p + 1) : a + (b - a) * f);
+  }
+  s.pos = p - x.length; s.last = x[x.length - 1];
+  while (s.pend.length >= VOICE.chunk) {
+    const part = s.pend.splice(0, VOICE.chunk);
+    let bin = '';
+    for (const v of part) { const q = Math.max(-1, Math.min(1, v)), n = q < 0 ? Math.round(q * 32768) : Math.round(q * 32767), u = n & 0xffff; bin += String.fromCharCode(u & 0xff, u >> 8); }
+    try { s.ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: btoa(bin) })); } catch { /* the close handler ends it */ }
+  }
 }

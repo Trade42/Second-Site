@@ -758,8 +758,194 @@ await t('waiting: the layout line does not claim the suite\'s own geometry or es
 await t('without ?live=1 nothing of the waiting sequence exists: no page file names it, and only bind() and the live calls create it', () => {
   for (const f of ['workspace.js', 'workspace.css', 'workspace.html']) assert.doesNotMatch(readFileSync(new URL('./' + f, import.meta.url), 'utf8'), /live-wait|waiting\(|Waiting for the/, f);
   const mine = readFileSync(new URL('./backend.js', import.meta.url), 'utf8');
-  assert.deepEqual([...mine.matchAll(/\b(waitStyle|waiting)\(/g)].length, 6, 'definitions + bind + search + layout + chat');
+  assert.deepEqual([...mine.matchAll(/\b(waitStyle|waiting)\(/g)].length, 7, 'definitions + bind + search + layout + chat + voice');
 });
+
+/* ------------------------------------- (a) voice: talk to the assistant (web-link-6) */
+// Fakes: WebSocket, navigator.mediaDevices, AudioContext and AudioWorkletNode, and one-shot timers on the
+// test clock. Nothing here reaches xAI. The answer below is made up; the claim pattern is codex_chat's.
+const CLAIM = "\\bI(?:'ve| have| just)?\\s+(?:called|phoned|rang|dialed|e-?mailed|texted|messaged|contacted|reached out|got in touch|let|told|informed|sent|submitted|put in|placed|booked|reserved|scheduled|bought|purchased|paid|wired|ordered|approved|signed|accepted|locked|confirmed|made an offer)\\b";
+const SECRET = 'TESTSECRET-0000-not-a-real-key';
+const vresp = (over = {}) => ({ mode: 'assistant', provider: 'xai', websocket_url: 'wss://voice.example.invalid/v1/realtime?model=test', client_secret: SECRET, expires_at: new Date(Date.now() + 120000).toISOString(),
+  session_update: { type: 'session.update', session: { instructions: 'test facts', voice: 'eve', turn_detection: { type: 'server_vad' }, tools: [] } },
+  disclosure: 'This is the test voice assistant. It is automated, not a person.', disclosure_event: { type: 'conversation.item.create', item: { type: 'force_message', role: 'assistant', interruptible: false, content: [{ type: 'output_text', text: 'disclosure' }] } },
+  label: 'Voice assistant: automated (test label).', no_action_notice: '(Note: this assistant cannot act. Nothing was sent.)', claim_pattern: CLAIM, data_notice: 'Test data notice: fixture data.', grounded_record_ids: [], ...over });
+const pcm = n => Buffer.from(new Int16Array(Array.from({ length: n }, (_, i) => (i % 2 ? 1000 : -1000))).buffer).toString('base64');
+const timers = new Map(); let tid = 0;
+const fire = ms => { now += ms; for (const [id, x] of [...timers]) if (x.at <= now && timers.has(id)) { timers.delete(id); x.fn(); } };
+async function voiceRig({ mic = 'ok', micGate = null, answer = () => ({ status: 200, body: vresp() }) } = {}) {
+  const order = [], sockets = [], tracks = [], ctxs = [], nodes = [], starts = [], stops = [], posts = [];
+  class WS { constructor(url, protos) { order.push('socket'); Object.assign(this, { url, protos, sent: [], closed: false }); sockets.push(this); } send(m) { this.sent.push(JSON.parse(m)); } close() { this.closed = true; } emit(o) { this.onmessage?.({ data: JSON.stringify(o) }); } }
+  const mediaDevices = { getUserMedia: async c => { order.push('mic'); mediaDevices.asked = c; if (micGate) await micGate; if (mic !== 'ok') throw Object.assign(new Error('no'), { name: mic }); const t = { readyState: 'live', stop() { this.readyState = 'ended'; } }; tracks.push(t); return { getTracks: () => [t] }; } };
+  class AC { constructor(o) { Object.assign(this, { opts: o, sampleRate: 48000, currentTime: 0, destination: {}, closed: false, audioWorklet: { addModule: async () => {} } }); ctxs.push(this); }
+    resume() { return Promise.resolve(); } close() { this.closed = true; return Promise.resolve(); }
+    createBuffer(c, n, r) { const d = new Float32Array(n); return { duration: n / r, rate: r, getChannelData: () => d }; }
+    createBufferSource() { return { connect() {}, disconnect() {}, start(t) { starts.push(t); }, stop() { stops.push(1); } }; }
+    createMediaStreamSource() { return { connect() {}, disconnect() {} }; } }
+  class AWN { constructor(c, name) { this.name = name; this.port = {}; nodes.push(this); } connect() {} disconnect() { this.off = true; } }
+  B.useVoiceEnv({ WebSocket: WS, mediaDevices, AudioContext: AC, AudioWorkletNode: AWN });
+  B.useClock({ after: (fn, ms) => { const id = ++tid; timers.set(id, { fn, at: now + ms }); return id; }, cancel: id => timers.delete(id) });
+  const pg = await waitPage(); const { doc } = pg;
+  const chat = doc.createElement('div'); chat.id = 'chat'; doc.root.children[1].append(chat); // body
+  const listeners = {}; Object.assign(doc, { visibilityState: 'visible', addEventListener: (k, f) => { listeners[k] = f; }, removeEventListener: (k, f) => { if (listeners[k] === f) delete listeners[k]; } });
+  B.bind({ ...pg.ctx, S: () => pg.S, map: () => null }); // again, now that the page has #chat
+  current = (u, o) => { const path = new URL(u).pathname; if (path.endsWith('/voice/session')) { order.push('post'); posts.push(JSON.parse(o.body)); const a = answer(); return Promise.resolve({ ok: a.status === 200, status: a.status, text: async () => JSON.stringify(a.body) }); } return strictFetch(u, o); };
+  const el = cls => doc.root.all().find(c => c.className === cls);
+  const ui = { box: () => doc.getElementById('live-voice'), btn: () => el('live-voice-btn'), note: () => el('live-voice-note'), banner: () => el('live-voice-banner'), consent: () => el('live-voice-consent'), turns: () => doc.log.children.filter(c => /live-voice-turn/.test(c.className)) };
+  const click = async () => { const p = ui.btn().onclick(); await tick(); await tick(); await tick(); return p; };
+  return { ...pg, mediaDevices, order, sockets, tracks, ctxs, nodes, starts, stops, posts, listeners, ui, click, ws: () => sockets.at(-1) };
+}
+const settled = r => { // every way of stopping leaves this
+  assert.equal(B.voiceActive(), false, 'no session'); assert.ok(r.sockets.every(s => s.closed), 'socket closed'); assert.ok(r.tracks.every(t => t.readyState === 'ended'), 'mic tracks stopped');
+  assert.ok(r.ctxs.every(c => c.closed), 'audio context closed'); assert.equal(timers.size, 0, 'no timer'); assert.equal(ticks.size, 0, 'no waiting timer');
+  assert.equal(r.ui.btn().textContent, B.VOICE.talk); assert.equal(r.ui.btn().attrs['aria-pressed'], 'false'); assert.equal(r.ui.banner().hidden, true);
+};
+const notesOf = r => [r.ui.note()].filter(n => !n.hidden).map(n => n.textContent);
+const opened = async r => { await r.click(); r.ws().onopen(); };
+await t('voice: before a project the button is disabled with a reason; the consent sentence shows before the first session', () => withDoc(async () => {
+  const r = await voiceRig(); B.forgetWaits();
+  // A fresh Backend has no project until the search: bind() made a new one.
+  assert.equal(r.ui.btn().disabled, true); assert.equal(textOf(r.ui.box()).includes(B.VOICE.noProject), true);
+  assert.equal(r.ui.consent().textContent, B.VOICE.consent); assert.equal(r.ui.consent().hidden, false);
+  assert.match(B.VOICE.consent, /project’s records to xAI/); assert.match(B.VOICE.consent, /microphone’s audio goes to xAI while the conversation is open/);
+  await B.search(r.S); assert.equal(r.ui.btn().disabled, false, 'enabled once the search created the project'); assert.equal(r.ui.btn().textContent, 'Talk to the assistant');
+  assert.equal(r.doc.head.children.filter(c => c.id === 'live-voice-style').length, 1, 'one scoped <style>');
+}));
+await t('voice: order is microphone, POST {mode:assistant}, socket with the secret subprotocol, session_update, disclosure_event; never response.create', () => withDoc(async () => {
+  const r = await voiceRig(); await B.search(r.S);
+  await r.click();
+  assert.deepEqual(r.order, ['mic', 'post', 'socket']); assert.deepEqual(r.posts, [{ mode: 'assistant' }]);
+  assert.deepEqual(r.mediaDevices.asked, { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false }, 'audio only, echo cancellation and noise suppression');
+  const ws = r.ws(); assert.equal(ws.url, vresp().websocket_url); assert.deepEqual(ws.protos, ['xai-client-secret.' + SECRET]);
+  assert.equal(ws.sent.length, 0, 'nothing before open'); ws.onopen();
+  assert.deepEqual(ws.sent, [vresp().session_update, vresp().disclosure_event]);
+  assert.equal(B.voiceActive(), true); assert.equal(r.ui.btn().textContent, 'Stop'); assert.equal(r.ui.btn().attrs['aria-pressed'], 'true');
+  // label, disclosure and data notice are on screen while it runs; "Connecting…" waits for the first sound
+  assert.equal(r.ui.banner().hidden, false); const b = textOf(r.ui.banner());
+  for (const s of [vresp().label, vresp().disclosure, vresp().data_notice, 'Voice assistant (automated)']) assert.ok(b.includes(s), s);
+  assert.equal(boxes(r.doc).length, 1); assert.ok(textOf(boxes(r.doc)[0]).includes('Connecting…'));
+  ws.emit({ type: 'response.output_audio.delta', delta: pcm(2400) }); assert.equal(boxes(r.doc).length, 0, 'waiting ends at the first sound');
+  ws.emit({ type: 'response.done', response: { status: 'completed' } }); await tick(); await tick();
+  for (const m of ws.sent) assert.notEqual(m.type, 'response.create');
+  B.voiceToggle(); settled(r);
+}));
+await t('voice: no microphone frame before the first response.done, 100 ms frames after', () => withDoc(async () => {
+  const r = await voiceRig(); await B.search(r.S);
+  await opened(r); const ws = r.ws();
+  assert.equal(r.nodes.length, 0, 'no capture node during the disclosure');
+  ws.emit({ type: 'input_audio_buffer.speech_started' }); assert.equal(r.stops.length, 0, 'the disclosure is not interrupted');
+  ws.emit({ type: 'response.done' }); await tick(); await tick();
+  assert.equal(r.nodes.length, 1); assert.equal(r.nodes[0].name, 'ss-mic-capture');
+  r.nodes[0].port.onmessage({ data: new Float32Array(4800).fill(0.5) }); // 100 ms at the context's 48 kHz
+  const appends = ws.sent.filter(m => m.type === 'input_audio_buffer.append');
+  assert.equal(appends.length, 1); const bytes = Buffer.from(appends[0].audio, 'base64');
+  assert.equal(bytes.length, 4800, '2400 samples of PCM16 = 100 ms at 24 kHz'); assert.equal(bytes.readInt16LE(0), Math.round(0.5 * 32767));
+  r.nodes[0].port.onmessage({ data: new Float32Array(2400) }); assert.equal(ws.sent.filter(m => m.type === 'input_audio_buffer.append').length, 1, 'half a frame waits');
+  B.voiceToggle(); settled(r); assert.equal(r.nodes[0].off, true, 'capture node disconnected');
+  r.nodes[0].port.onmessage?.({ data: new Float32Array(4800) }); assert.equal(ws.sent.filter(m => m.type === 'input_audio_buffer.append').length, 1, 'nothing after stop');
+}));
+await t('voice: deltas are scheduled back to back at 24 kHz and the queue is cleared when the owner starts speaking', () => withDoc(async () => {
+  const r = await voiceRig(); await B.search(r.S); await opened(r); const ws = r.ws();
+  assert.deepEqual(r.ctxs[0].opts, { sampleRate: 24000 });
+  for (let i = 0; i < 3; i++) ws.emit({ type: 'response.output_audio.delta', delta: pcm(2400) });
+  assert.deepEqual(r.starts.map(x => +x.toFixed(3)), [0.03, 0.13, 0.23]);
+  ws.emit({ type: 'response.done' }); await tick();
+  ws.emit({ type: 'response.output_audio.delta', delta: pcm(2400) }); ws.emit({ type: 'input_audio_buffer.speech_started', item_id: 'u1' });
+  assert.equal(r.stops.length, 4, 'every queued buffer stopped');
+  ws.emit({ type: 'response.output_audio.delta', delta: pcm(2400) }); assert.equal(+r.starts.at(-1).toFixed(3), 0.03, 'the next answer starts fresh');
+  B.voiceToggle(); settled(r);
+}));
+await t('voice: transcripts are text with the two speaker marks; the claim notice only under a matching assistant turn', () => withDoc(async () => {
+  const r = await voiceRig(); await B.search(r.S); await opened(r); const ws = r.ws();
+  ws.emit({ type: 'response.output_audio_transcript.delta', item_id: 'a1', delta: 'I have ' });
+  ws.emit({ type: 'response.output_audio_transcript.delta', item_id: 'a1', delta: 'emailed' });
+  assert.equal(r.ui.turns().length, 1, 'one pending entry'); assert.equal(textOf(r.ui.turns()[0]).includes('I have emailed'), true);
+  ws.emit({ type: 'response.output_audio_transcript.done', item_id: 'a1', transcript: 'I have emailed the broker.' });
+  ws.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u1', transcript: '<img src=x onerror=alert(1)> call him' });
+  ws.emit({ type: 'response.output_audio_transcript.done', item_id: 'a2', transcript: "I can't place calls, so nothing was done." });
+  const [a1, u1, a2] = r.ui.turns();
+  assert.equal(a1.children[0].textContent, 'Voice assistant (automated)'); assert.equal(u1.children[0].textContent, 'You (spoken)'); assert.match(u1.className, /\bme\b/);
+  assert.equal(u1.children[1].textContent, '<img src=x onerror=alert(1)> call him', 'as text');
+  assert.equal(a1.children.at(-1).textContent, vresp().no_action_notice); assert.equal(a1.children.at(-1).className, 'live-voice-claim');
+  assert.equal(a2.children.length, 2, 'no notice under a refusal');
+  assert.ok(!readFileSync(new URL('./backend.js', import.meta.url), 'utf8').split('/* --------------------------------------------- voice')[1].includes('innerHTML'), 'no innerHTML in the voice code');
+  B.voiceToggle(); settled(r);
+  assert.equal(r.ui.turns().length, 3, 'the entries stay in the log after the end (not saved across a reload)');
+  assert.equal(r.ui.consent().hidden, true, 'the consent sentence is not repeated after a session has run');
+}));
+for (const [name, how, note] of [
+  ['the Stop button', r => r.ui.btn().onclick(), B.VOICE_END.stop],
+  ['a second click (stops, never starts another)', async r => { await r.ui.btn().onclick(); assert.equal(r.sockets.length, 1); }, B.VOICE_END.stop],
+  ['the socket closing', r => r.ws().onclose(), B.VOICE_END.closed],
+  ['a socket error', r => r.ws().onerror(), B.VOICE_END.error],
+  ['the page hidden for 30 s', r => { r.doc.visibilityState = 'hidden'; r.listeners.visibilitychange(); fire(29000); assert.equal(B.voiceActive(), true); fire(1000); }, B.VOICE_END.hidden],
+  ['the five-minute cap', r => { fire(5 * 60 * 1000); }, B.VOICE_END.cap],
+  ['xAI ending it (max_duration)', r => r.ws().emit({ type: 'error', error: { type: 'max_duration', message: 'too long' } }), B.VOICE_END.provider('too long')],
+  ['an error thrown inside a message handler (review)', r => { r.ctxs[0].createBuffer = () => { throw new Error('boom'); }; r.ws().emit({ type: 'response.output_audio.delta', delta: pcm(240) }); }, B.VOICE_END.error],
+]) await t(`voice: stopping by ${name} closes the socket, stops the mic, the audio and every timer, resets the button`, () => withDoc(async () => {
+  const r = await voiceRig(); await B.search(r.S); await opened(r); r.ws().emit({ type: 'response.done' }); await tick(); await tick();
+  r.ws().emit({ type: 'response.output_audio.delta', delta: pcm(240) });
+  await how(r); settled(r); assert.deepEqual(notesOf(r), [note]); assert.equal(r.stops.length >= 1, true, 'queued audio stopped');
+}));
+await t('voice: Stop pressed while the browser asks for the microphone: no POST, and the stream granted later is stopped at once', () => withDoc(async () => {
+  let grant; const r = await voiceRig({ micGate: new Promise(g => { grant = g; }) }); await B.search(r.S);
+  const p = r.ui.btn().onclick(); await tick(); assert.equal(B.voiceActive(), true); assert.equal(r.ui.btn().textContent, 'Stop');
+  r.ui.btn().onclick(); grant(); await p; await tick();
+  assert.equal(r.tracks.length, 1); settled(r); assert.equal(r.posts.length, 0); assert.equal(r.sockets.length, 0); assert.deepEqual(notesOf(r), [B.VOICE_END.stop]);
+}));
+await t('voice (review): a first response.done that is cancelled or incomplete ends it; the microphone never sends', () => withDoc(async () => {
+  for (const status of ['cancelled', 'incomplete']) {
+    const r = await voiceRig(); await B.search(r.S); await opened(r); const ws = r.ws();
+    ws.emit({ type: 'response.done', response: { status } }); await tick(); await tick();
+    assert.equal(r.nodes.length, 0, 'no capture node'); assert.ok(ws.sent.every(m => m.type !== 'input_audio_buffer.append'));
+    settled(r); assert.deepEqual(notesOf(r), [B.VOICE_END.undisclosed]);
+  }
+}));
+await t('voice (review): a session started while the previous one is still ending runs alone; the old late stream is stopped', () => withDoc(async () => {
+  let grant; const r = await voiceRig({ micGate: new Promise(g => { grant = g; }) }); await B.search(r.S);
+  const p1 = r.ui.btn().onclick(); await tick(); r.ui.btn().onclick(); const p2 = r.ui.btn().onclick(); await tick();
+  assert.equal(B.voiceActive(), true); grant(); await p1; await p2; await tick(); await tick();
+  assert.equal(r.tracks.length, 2); assert.equal(r.tracks[0].readyState, 'ended', 'the first stream is stopped'); assert.equal(r.tracks[1].readyState, 'live');
+  assert.equal(r.posts.length, 1, 'one POST'); assert.equal(r.sockets.length, 1, 'one socket'); assert.equal(r.ui.btn().textContent, 'Stop');
+  B.voiceToggle(); settled(r);
+}));
+await t('voice: a hidden page that comes back in time keeps the conversation', () => withDoc(async () => {
+  const r = await voiceRig(); await B.search(r.S); await opened(r);
+  r.doc.visibilityState = 'hidden'; r.listeners.visibilitychange(); fire(10000); r.doc.visibilityState = 'visible'; r.listeners.visibilitychange(); fire(60000);
+  assert.equal(B.voiceActive(), true); B.voiceToggle(); settled(r); assert.equal(r.listeners.visibilitychange, undefined, 'listener removed');
+}));
+await t('voice: the secret expiring before the socket opened ends it; an already expired one opens no socket', () => withDoc(async () => {
+  let r = await voiceRig({ answer: () => ({ status: 200, body: vresp({ expires_at: new Date(Date.now() + 2000).toISOString() }) }) }); await B.search(r.S);
+  await r.click(); assert.equal(r.sockets.length, 1); fire(2500); settled(r); assert.deepEqual(notesOf(r), [B.VOICE_END.expired]);
+  r = await voiceRig({ answer: () => ({ status: 200, body: vresp({ expires_at: new Date(Date.now() - 1000).toISOString() }) }) }); await B.search(r.S);
+  await r.click(); assert.equal(r.sockets.length, 0); settled(r); assert.deepEqual(notesOf(r), [B.VOICE_END.expired]);
+}));
+for (const [name, opts, re] of [
+  ['microphone refused', { mic: 'NotAllowedError' }, /^The microphone was not allowed, so no voice conversation was started\.$/],
+  ['no voice route (404)', { answer: () => ({ status: 404, body: { error_code: 'NOT_FOUND', message: 'Not Found' } }) }, /^Voice is not available on this backend yet \(it has no voice route\)\. Nothing was sent to xAI\.$/],
+  ['502, retryable', { answer: () => ({ status: 502, body: { error_code: 'PROVIDER_UNAVAILABLE', message: 'xAI timed out', retryable: true } }) }, /^Voice is not available right now: xAI timed out\. You can try again\.$/],
+  ['502, not retryable', { answer: () => ({ status: 502, body: { error_code: 'PROVIDER_UNAVAILABLE', message: 'xAI refused the key', retryable: false } }) }, /Trying again will not help/],
+  ['503, not configured', { answer: () => ({ status: 503, body: { error_code: 'VOICE_NOT_CONFIGURED', message: 'Voice is not configured' } }) }, /^Voice is not available: Voice is not configured\. Nothing was sent to xAI\.$/],
+  ['an incomplete answer (ws:// url)', { answer: () => ({ status: 200, body: vresp({ websocket_url: 'ws://voice.example.invalid/' }) }) }, /incomplete/],
+]) await t(`voice: ${name} gives one note, no socket, no open microphone`, () => withDoc(async () => {
+  const r = await voiceRig(opts); await B.search(r.S); await r.click();
+  assert.equal(r.sockets.length, 0); settled(r); const n = notesOf(r); assert.equal(n.length, 1); assert.match(n[0], re);
+  if (opts.mic) assert.equal(r.posts.length, 0, 'no POST after a refusal');
+}));
+await t('voice: the secret is in no element, attribute, note or localStorage, before, during or after', () => withDoc(async () => {
+  const r = await voiceRig(); await B.search(r.S); await opened(r); r.ws().emit({ type: 'error', error: { type: 'invalid_event', message: 'bad' } });
+  const scan = () => { for (const n of r.doc.root.all()) { assert.ok(!String(n.textContent).includes(SECRET)); for (const v of Object.values(n.attrs)) assert.ok(!String(v).includes(SECRET)); assert.ok(!JSON.stringify(n.dataset || {}).includes(SECRET)); } };
+  scan(); assert.ok(r.notes.every(n => !n.includes(SECRET)));
+  try { for (let i = 0; i < (globalThis.localStorage?.length || 0); i++) assert.ok(!String(localStorage.getItem(localStorage.key(i))).includes(SECRET)); } catch (e) { if (e instanceof assert.AssertionError) throw e; }
+  assert.ok(!readFileSync(new URL('./backend.js', import.meta.url), 'utf8').split('/* --------------------------------------------- voice')[1].match(/localStorage|sessionStorage|console\./), 'the voice code stores and logs nothing');
+  B.voiceToggle(); scan(); settled(r);
+}));
+await t('voice: without ?live=1 none of it exists (no page file names it; only bind() makes it, and only where #chat exists)', () => {
+  for (const f of ['workspace.js', 'workspace.css', 'workspace.html']) assert.doesNotMatch(readFileSync(new URL('./' + f, import.meta.url), 'utf8'), /live-voice|voice\/session|Talk to the assistant/, f);
+  const mine = readFileSync(new URL('./backend.js', import.meta.url), 'utf8');
+  assert.equal([...mine.matchAll(/\bvoiceElements\(/g)].length, 2, 'defined once, called once by bind()');
+});
+B.useVoiceEnv(null);
 
 /* ----------------------------------------------------------------- (b) */
 const URL_ = process.env.BACKEND_URL, ORIGIN = process.env.MOCKUP_ORIGIN || 'http://localhost:8090';
@@ -871,6 +1057,15 @@ else {
   });
   await t('chat through the Rust origin (forwarded to Python)', async () => {
     try { const out = await be.chat('rank the properties'); console.log(`      mode ${out.mode}: ${out.reply.split('\n')[0]}`); assert.ok(out.reply); } catch (e) { console.log('      ' + B.chatFailure(e)); throw e; }
+  });
+  // Voice: a probe with an invalid mode cannot mint (the route validates the body first): 404 means no route.
+  // Only then is the page's own request sent, which also answers 404; with the route present nothing is sent.
+  await t('voice: the route on this backend; never a mint from this test', async () => {
+    let probe; try { await be.req('POST', be.p('/voice/session'), { mode: 'not-a-mode' }); probe = 200; } catch (e) { probe = e.status; }
+    console.log(`      probe with an invalid mode -> ${probe}`);
+    if (probe !== 404) { console.log('      the voice route exists here: the assistant request is not sent (it would mint an xAI secret)'); return; }
+    try { await be.req('POST', be.p('/voice/session'), { mode: 'assistant' }); assert.fail('answered 2xx after a 404 probe'); }
+    catch (e) { if (e instanceof assert.AssertionError) throw e; console.log(`      POST {mode:assistant} -> ${e.status}; the page's note: ${B.voiceFailure(e)}`); assert.equal(e.status, 404); }
   });
   await t('owner texts: the communications list route answers', async () => {
     const list = await be.communications(); console.log(`      ${list.length} communications, ${B.ownerTextNotes(list).length} owner design-change texts`); assert.ok(Array.isArray(list));
