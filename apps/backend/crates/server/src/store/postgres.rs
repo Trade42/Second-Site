@@ -533,12 +533,6 @@ impl PgTx {
             .ok_or_else(|| StoreError::Decode("INSERT returned no row".into()))
     }
 
-    /// `lock`: `FOR NO KEY UPDATE`, the lock an `UPDATE` that changes no key column takes anyway
-    /// (rust-server-7). It excludes every other locker and updater of the row, exactly as
-    /// `FOR UPDATE` did, but not the `FOR KEY SHARE` lock that inserting a child row takes on its
-    /// parent through the foreign key. With `FOR UPDATE`, a transaction holding the project row
-    /// and waiting for the project's event lock (or an approval row) deadlocked against one that
-    /// held that lock and then inserted an event (or any other child row) of the project.
     async fn get_inner(
         &mut self,
         t: &'static TableDef,
@@ -549,7 +543,7 @@ impl PgTx {
             "SELECT {} FROM {} WHERE id = $1{}",
             t.column_list(),
             t.name,
-            if lock { " FOR NO KEY UPDATE" } else { "" }
+            if lock { " FOR UPDATE" } else { "" }
         );
         let mut stmt = Stmt::new(sql);
         stmt.add(t, "id", id)?;
