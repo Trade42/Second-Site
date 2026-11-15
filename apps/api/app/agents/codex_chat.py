@@ -15,6 +15,11 @@ Design:
 - Failure is said: a missing CLI, no sign-in, a timeout, a non-zero exit or an empty answer gives a reply that says
   the assistant's model could not be reached (mode `codex_cli_unavailable:...`). No fallback to another mode,
   no exception, and no CLI output in the reply or the log (only the failure kind and exit code are logged).
+- No internal id reaches a person. The prompt gets `public_facts`: every listing is named by its address and suite
+  (from the ranking's own explanation text), evidence by a prompt-local reference (E1, E2...), and every other
+  record id is dropped. The record ids the route returns (`grounded_record_ids`) come from the raw facts, which stay
+  in this process. As a second line of defence `scrub_ids` removes any UUID from the model's reply before the
+  reply is stored or returned.
 Privacy: the facts and the recent turns are sent to OpenAI through the owner's subscription; nothing else is.
 """
 
@@ -83,8 +88,9 @@ Rules, all binding:
 - If data_notice says the data is fixture (demo) data, say so whenever you cite a listing, permit or price.
 - You cannot contact anyone, place calls, send messages, buy anything or approve anything. Never say that you did.
   Outreach and purchases are requested and approved by the owner in the app.
-- Cite property ids, ranking ids or evidence ids from the facts for the claims you make.
-- Reply in plain text, briefly (at most about 200 words). No tables, no headings."""
+- Reply in plain text, briefly (at most about 200 words). No tables, no headings. Name a listing by its address
+  and suite, as its "listing" field gives them, and say its rank when that helps. Never write an id, a database
+  key or a reference code such as E3: say the evidence's class and where it comes from instead."""
 
 ACTION_REPLY = (
     "I can't do that from chat: I can't contact anyone, place calls, send messages, buy anything or approve "
@@ -247,6 +253,152 @@ def gather_facts(ctx: ToolContext) -> tuple[dict[str, Any], list[UUID]]:
     return facts, list(dict.fromkeys(ids))
 
 
+# ---- no internal id in the prompt or the reply ------------------------------------------------------------------
+_UUID = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+_UUID_RE = re.compile(_UUID)
+_ORDINALS = ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth")
+UNRANKED_LISTING = "a listing that is not in the ranking"
+
+
+def _is_id(value: object) -> bool:
+    return isinstance(value, str) and _UUID_RE.fullmatch(value) is not None
+
+
+def listing_labels(facts: dict[str, Any]) -> dict[str, str]:
+    """Property id -> the name a person knows it by: its address and suite, as the ranking's explanation starts
+    with them ("<ADDRESS, SUITE>: ..."). Listings that share an address are told apart by their place in the
+    ranking ("the first listing at ..."); a listing without an address is "the listing ranked N". This map stays
+    in the process: it is how a name in the prompt ties back to a record."""
+    ranking = facts.get("ranking")
+    ranked = ranking.get("ranked") if isinstance(ranking, dict) else None
+    explanations = ranking.get("explanations") if isinstance(ranking, dict) else None
+    named: list[tuple[str, Any, str]] = []
+    for r in ranked if isinstance(ranked, list) else []:
+        if not isinstance(r, dict) or not _is_id(r.get("property_id")):
+            continue
+        pid = r["property_id"].lower()
+        text = explanations.get(r["property_id"]) if isinstance(explanations, dict) else None
+        address = text.partition(":")[0].strip() if isinstance(text, str) and ":" in text else ""
+        if _UUID_RE.search(address) or len(address) > 120:
+            address = ""
+        named.append((pid, r.get("rank"), address))
+    count: dict[str, int] = {}
+    for _pid, _rank, address in named:
+        count[address] = count.get(address, 0) + 1
+    seen: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for position, (pid, rank, address) in enumerate(named, start=1):
+        if not address:
+            label = f"the listing ranked {rank if isinstance(rank, int) else position}"
+        elif count[address] == 1:
+            label = address
+        else:
+            n = seen[address] = seen.get(address, 0) + 1
+            nth = _ORDINALS[n - 1] if n <= len(_ORDINALS) else f"number {n}"
+            label = f"the {nth} listing at {address}"
+        while label in labels.values():  # never two listings under one name
+            label += " (another)"
+        labels[pid] = label
+    return labels
+
+
+def public_facts(facts: dict[str, Any]) -> dict[str, Any]:
+    """The facts as the model gets them: the same records, with no UUID anywhere. `property_id` becomes `listing`
+    (see `listing_labels`), an evidence id becomes a reference local to this prompt (`ref`, `evidence_refs`: E1,
+    E2...), a map keyed by property id is keyed by the listing's name, and every other record id is left out."""
+    labels = listing_labels(facts)
+    refs: dict[str, str] = {}
+
+    def ref(evidence_id: str) -> str:
+        return refs.setdefault(evidence_id.lower(), f"E{len(refs) + 1}")
+
+    def name(m: re.Match[str]) -> str:
+        return labels.get(m.group().lower(), m.group())
+
+    def walk(o: Any) -> Any:
+        if isinstance(o, dict):
+            out: dict[str, Any] = {}
+            for k, v in o.items():
+                key = str(k)
+                if _is_id(key):  # a map keyed by property id
+                    key = labels.get(key.lower(), "")
+                    if key:
+                        out[key] = walk(v)
+                elif key.endswith("property_id") and _is_id(v):  # property_id, selected_property_id
+                    out[key[: -len("property_id")] + "listing"] = labels.get(v.lower(), UNRANKED_LISTING)
+                elif key in ("id", "evidence_id") and _is_id(v):
+                    out["ref"] = ref(v)
+                elif key == "evidence_ids" and isinstance(v, list):
+                    out["evidence_refs"] = [ref(x) for x in v if _is_id(x)]
+                elif _is_id(v) or (isinstance(v, list) and v and all(_is_id(x) for x in v)):
+                    continue  # any other record id (project, owner, ranking, scenario...): not for the prompt
+                else:
+                    out[key] = walk(v)
+            return out
+        if isinstance(o, list):
+            return [walk(x) for x in o if not _is_id(x)]
+        if isinstance(o, str) and _UUID_RE.search(o):
+            return scrub_ids(_UUID_RE.sub(name, o))
+        return o
+
+    return walk(facts)
+
+
+_MARK = "\x00"  # stands for a removed id while the words around it are tidied
+_SHORT_ID = r"(?<![0-9A-Za-z-])[0-9a-fA-F]{8}-(?:…|\.\.\.)"  # an id cut short: "c96c80ae-…"
+_ID_RE = re.compile(rf"{_UUID}|{_SHORT_ID}")
+_URL_WITH_ID_RE = re.compile(
+    rf"(?:https?://|www\.)[^\s<>()\[\]]*?{_UUID}[^\s<>()\[\]]*?(?=[.,;:!?]*(?:[\s<>()\[\]]|$))", re.IGNORECASE
+)
+_ID_LIST_RE = re.compile(rf"{_MARK}(?:\s*(?:[,;/&]|\band\b|\bor\b)?\s*{_MARK})+")
+# The words that only introduce an id: "(see) (the) property", "ranking id:", "id =", "evidence ids".
+_ID_LABEL_RE = re.compile(
+    r"(?P<kept>(?:\b(?:with|under|in|from|see|per|by|via|for)\s+)?(?:\b(?:the|its|their|this|that)\s+)?"
+    r"(?:\b(?:property|properties|ranking|rankings|evidence|project|listing|record|approval|scenario|source))?)"
+    rf"(?P<glue>[\s_-]*(?:(?:ids?|uuids?|keys?)\b)?\s*(?:[:=#]|\bis\b|\bare\b)?\s*){_MARK}",
+    re.IGNORECASE,
+)
+_NOUN_END_RE = re.compile(
+    r"(?:property|ranking|evidence|project|listing|record|approval|scenario)$", re.IGNORECASE
+)
+
+
+def _label(m: re.Match[str]) -> str:
+    """ "Property <id> ranks first" keeps its noun ("Property ranks first"); "(property <id>)", "id: <id>" do not."""
+    rest = m.string[m.end() :].lstrip(" \t")
+    plain_glue = not re.search(r"[:=#]|\bids?\b|\bis\b|\bare\b", m.group("glue"), re.IGNORECASE)
+    if plain_glue and _NOUN_END_RE.search(m.group("kept")) and rest[:1].isalnum():
+        return m.group("kept") + " " + _MARK
+    return _MARK
+
+
+def _gap(m: re.Match[str]) -> str:
+    before = m.string[m.start() - 1] if m.start() else ""
+    after = m.string[m.end()] if m.end() < len(m.string) else ""
+    return "" if before in ("", "\n", "(", "[", "{") or after in ("", "\n", *".,;:!?)]}") else " "
+
+
+def scrub_ids(text: str) -> str:
+    """Remove every internal id (a UUID in any case, a UUID cut short, a URL that carries one) from a reply, with
+    the words, brackets and separators that only carried it. A reply without an id is returned unchanged, byte for
+    byte; a reply that was nothing but ids comes back empty (the caller then says the model gave no answer)."""
+    if not _ID_RE.search(text):
+        return text
+    t = text.replace(_MARK, "")
+    t = _URL_WITH_ID_RE.sub(_MARK, t)
+    t = _ID_RE.sub(_MARK, t)
+    t = _ID_LIST_RE.sub(_MARK, t)
+    t = _ID_LABEL_RE.sub(_label, t)
+    t = _ID_LIST_RE.sub(_MARK, t)
+    t = re.sub(rf"[ \t]*[(\[{{]\s*{_MARK}\s*[)\]}}]", "", t)  # brackets that held only ids
+    t = re.sub(rf"(?m)^[ \t]*(?:[-*•][ \t]*)?{_MARK}[ \t]*[.,;]?[ \t]*(?:\n|\Z)", "", t)  # a line of only ids
+    t = re.sub(rf"(?<=[.!?])[ \t]*{_MARK}[ \t]*[.!?;,]+", "", t)  # a sentence of only ids
+    t = re.sub(rf"\s*[,;:–—-]\s*{_MARK}(?=\s*(?:[.!?)\]}}]|\n|\Z))", "", t)  # "..., <id>." and "(...; <id>)"
+    t = re.sub(rf"{_MARK}\s*[,;:]\s*", "", t)  # "(<id>; ...)"
+    t = re.sub(rf"[ \t]*{_MARK}[ \t]*", _gap, t).strip()
+    return t if re.search(r"[0-9A-Za-z]", t) else ""
+
+
 def build_prompt(facts: dict[str, Any], history: list[tuple[str, str]], message: str) -> str:
     parts = [SYSTEM_RULES, "", "FACTS (JSON):", json.dumps(facts, default=str, separators=(",", ":")), ""]
     if history:
@@ -320,6 +472,7 @@ def run_codex(spec: CodexSpec, prompt: str, timeout_s: float | None = None) -> s
                 "exit", f"the Codex CLI stopped with exit code {proc.returncode}", proc.returncode
             )
         answer = out_file.read_text(encoding="utf-8", errors="replace").strip() if out_file.exists() else ""
+    answer = scrub_ids(answer)  # before the reply is stored, returned or cut: no internal id reaches a person
     if not answer:
         raise CodexUnavailable("empty", "the model returned an empty answer")
     if len(answer) > MAX_REPLY_CHARS:
@@ -352,7 +505,8 @@ def codex_chat(ctx: ToolContext, message: str, model: str, thread_id: str) -> Ch
             reply=ACTION_REPLY.format(web=ctx.c.settings.public_web_url), mode="deterministic:action_request"
         )
     t0 = time.monotonic()
-    facts, ids = gather_facts(ctx)
+    raw_facts, ids = gather_facts(ctx)  # the raw facts and their record ids stay in this process
+    facts = public_facts(raw_facts)  # what the model gets: listings by address, no UUID
     history = _history(thread_id)
     prompt = build_prompt(facts, history, message)
     t1 = time.monotonic()

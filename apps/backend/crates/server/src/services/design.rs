@@ -154,8 +154,8 @@ pub fn assumed_site(
     listing_id: &str,
     area_sqm: f64,
 ) -> Result<SiteGeometry, String> {
-    // `!(a >= min)` also refuses NaN.
-    if !(area_sqm >= MIN_LISTED_AREA_SQM && area_sqm <= MAX_LISTED_AREA_SQM) {
+    // NaN and the infinities are outside the range too.
+    if !(MIN_LISTED_AREA_SQM..=MAX_LISTED_AREA_SQM).contains(&area_sqm) {
         return Err(format!(
             "this listing has no 3D scan of its own suite and its stated area ({area_sqm} m2) \
              cannot be a suite's floor (a stated area must be at least {MIN_LISTED_AREA_SQM:.0} \

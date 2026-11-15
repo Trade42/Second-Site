@@ -196,7 +196,11 @@ both_backends!(a_listing_without_a_scan_gets_a_labelled_sketch, |db| {
         geometry_ids.push(l["geometry_id"].as_str().unwrap().to_owned());
     }
     geometry_ids.dedup();
-    assert_eq!(geometry_ids.len(), 1, "one assumed floor for the generation");
+    assert_eq!(
+        geometry_ids.len(),
+        1,
+        "one assumed floor for the generation"
+    );
 
     // The site as the existing route serves it.
     let g = geometry(&t, &d, &geometry_ids[0]).await;
@@ -204,7 +208,10 @@ both_backends!(a_listing_without_a_scan_gets_a_labelled_sketch, |db| {
     assert_eq!(g["data_origin"], "DERIVED", "{g}");
     assert_eq!(g["scale_verified"], false, "{g}");
     assert_eq!(g["source_id"], ALHAMBRA_LISTING, "{g}");
-    assert_eq!(g["coordinate_reference"], ASSUMED_COORDINATE_REFERENCE, "{g}");
+    assert_eq!(
+        g["coordinate_reference"], ASSUMED_COORDINATE_REFERENCE,
+        "{g}"
+    );
     assert_eq!(g["fixed_walls"], json!([]));
     assert_eq!(g["fixed_obstacles"], json!([]));
     assert_eq!(g["windows"], json!([]));
@@ -214,7 +221,10 @@ both_backends!(a_listing_without_a_scan_gets_a_labelled_sketch, |db| {
     let site = SiteGeometry::from_json_value(g.clone()).unwrap();
     let (w, h) = (site.floor_boundary[1].0, site.floor_boundary[2].1);
     assert!((w * h - ALHAMBRA_AREA).abs() < 1e-6, "{w} x {h}");
-    assert!((w - (ALHAMBRA_AREA / 1.5).sqrt()).abs() <= 0.005, "{w} x {h}");
+    assert!(
+        (w - (ALHAMBRA_AREA / 1.5).sqrt()).abs() <= 0.005,
+        "{w} x {h}"
+    );
     let door = &site.entrances[0];
     assert_eq!(door.start.1, 0.0);
     assert!(((door.start.0 + door.end.0) / 2.0 - w / 2.0).abs() < 1e-9);
@@ -341,31 +351,43 @@ both_backends!(an_absurd_area_is_refused, |db| {
     assert!(stored_geometries(&t, &d.alhambra).await.is_empty());
 });
 
-both_backends!(a_huge_program_on_a_small_listed_area_fails_saying_assumed, |db| {
-    let t = TestApp::new(db, &[]);
-    let d = demo(&t).await;
-    edit_property(&t, &d, &d.alhambra, |p| {
-        p.commercial_listing.as_mut().unwrap().available_area_sqm = Some(40.0)
-    })
-    .await;
-    let rooms = json!([{"room_type": "treatment", "count": 12, "min_area_sqm": 12, "min_width_m": 2.8, "needs_plumbing": true}]);
-    let task = generate(&t, &d, &d.alhambra, rooms).await;
-    assert_eq!(task["status"], "FAILED", "{task}");
-    assert_eq!(task["error_code"], "LayoutInfeasibleError", "{task}");
-    let msg = task["error_message"].as_str().unwrap();
-    assert!(
-        msg.starts_with("No layout fits the assumed floor: ")
-            && msg.contains("stated 40 m2 (not measured)")
-            && msg.ends_with("No layout was stored."),
-        "{msg}"
-    );
-    assert!(layouts(&t, &d).await.is_empty());
-});
+both_backends!(
+    a_huge_program_on_a_small_listed_area_fails_saying_assumed,
+    |db| {
+        let t = TestApp::new(db, &[]);
+        let d = demo(&t).await;
+        edit_property(&t, &d, &d.alhambra, |p| {
+            p.commercial_listing.as_mut().unwrap().available_area_sqm = Some(40.0)
+        })
+        .await;
+        let rooms = json!([{"room_type": "treatment", "count": 12, "min_area_sqm": 12, "min_width_m": 2.8, "needs_plumbing": true}]);
+        let task = generate(&t, &d, &d.alhambra, rooms).await;
+        assert_eq!(task["status"], "FAILED", "{task}");
+        assert_eq!(task["error_code"], "LayoutInfeasibleError", "{task}");
+        let msg = task["error_message"].as_str().unwrap();
+        assert!(
+            msg.starts_with("No layout fits the assumed floor: ")
+                && msg.contains("stated 40 m2 (not measured)")
+                && msg.ends_with("No layout was stored."),
+            "{msg}"
+        );
+        assert!(layouts(&t, &d).await.is_empty());
+    }
+);
 
 #[test]
 fn non_finite_zero_negative_and_absurd_areas_are_refused() {
     let id = Uuid::new_v4();
-    for a in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 0.0, -5.0, 0.5, 1e12, 10_000.001] {
+    for a in [
+        f64::NAN,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        0.0,
+        -5.0,
+        0.5,
+        1e12,
+        10_000.001,
+    ] {
         let e = assumed_site(id, "l-1", a).unwrap_err();
         assert!(e.contains("cannot be a suite's floor"), "{a}: {e}");
     }

@@ -15,13 +15,17 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use indexmap::IndexMap;
 use serde_json::{json, Value};
-use ss_domain::contracts::{PropertySearchRequest, ProviderStatusEntry};
-use ss_domain::integrations::base::{ProviderError, RetryPolicy};
+use ss_core::Contract;
+use ss_domain::contracts::{PropertyDigitalProfile, PropertySearchRequest, ProviderStatusEntry};
+use ss_domain::integrations::base::{ProviderError, ProviderErrorKind, RetryPolicy};
 use ss_domain::integrations::costar::{CoStarProvider, FixtureCoStarProvider, RawListing};
 use ss_server::integrations::{
     Integrations, LiveLaPermitProvider, LiveMatterportProvider, LiveVexcelProvider,
 };
+use ss_server::integrations::matterport::{MatterportProvider, ModelSummary};
+use ss_server::workflows::enrichment::enrich_interior_pool;
 use ss_server::workflows::property_analysis::SearchTimingSink;
 use ss_server::workflows::property_analysis::{SearchConcurrency, PROVIDER_CONCURRENCY}; // SINK
 
@@ -247,7 +251,30 @@ fn serve(
 fn answer(target: &str, body: &[u8]) -> Value {
     let path = target.split('?').next().unwrap_or("");
     if path.contains("/resource/") {
-        return json!([]);
+        // One issued permit per dataset at the queried address; its number names the house and
+        // the dataset, so a permit attached to another property shows.
+        let query = percent_decode(target.split('?').nth(1).unwrap_or(""));
+        let re = regex::Regex::new(r"like '(\d+) ([^%']+)%'").unwrap();
+        let Some(c) = re.captures(&query) else {
+            return json!([]);
+        };
+        let house: usize = c[1].parse().unwrap_or(0);
+        let ds = path.rsplit('/').next().unwrap_or("");
+        let ds = ds.trim_end_matches(".json");
+        return json!([{
+            "permit_nbr": format!("P{house}X{ds}"),
+            "primary_address": format!("{} {} AVE", &c[1], &c[2]),
+            "zip_code": "90032",
+            "apn": format!("52200310{:02}", house.saturating_sub(5000)),
+            "permit_group": "Electrical",
+            "permit_type": "Electrical",
+            "permit_sub_type": "Commercial",
+            "submitted_date": "2023-09-26T00:00:00.000",
+            "issue_date": "2023-11-02T00:00:00.000",
+            "status_desc": "Issued",
+            "status_date": "2023-11-02T00:00:00.000",
+            "work_desc": "Furnish and install two new duct detectors.",
+        }]);
     }
     if path.ends_with("/property/extract") {
         return json!({"type": "FeatureCollection", "features": []});
@@ -287,6 +314,8 @@ struct ManyListings {
     dup: bool,
     /// The first listing's model id is malformed (the Matterport adapter refuses it).
     bad_first: bool,
+    /// The same addresses in another form: other parcel ids and coordinates.
+    alt: bool,
 }
 
 impl CoStarProvider for ManyListings {
@@ -305,10 +334,14 @@ impl CoStarProvider for ManyListings {
                     json!(format!("{house} E Alhambra Ave")),
                 );
                 r.address.insert("unit_or_suite".into(), json!("100"));
+                let (parcel, lat) = if self.alt {
+                    (format!("52200399{i:02}"), 34.09)
+                } else {
+                    (format!("52200310{i:02}"), 34.07)
+                };
+                r.address.insert("parcel_id".into(), json!(parcel));
                 r.address
-                    .insert("parcel_id".into(), json!(format!("52200310{i:02}")));
-                r.address
-                    .insert("latitude".into(), json!(34.07 + i as f64 * 0.001));
+                    .insert("latitude".into(), json!(lat + i as f64 * 0.001));
                 r.address
                     .insert("longitude".into(), json!(-118.16 - i as f64 * 0.001));
                 let mut asset = serde_json::Map::new();
@@ -331,10 +364,17 @@ impl CoStarProvider for ManyListings {
 }
 
 fn install(t: &TestApp, server: &SlowServer) {
-    install_listings(t, server, false, POOL, false);
+    install_listings(t, server, false, POOL, false, false);
 }
 
-fn install_listings(t: &TestApp, server: &SlowServer, bad_first: bool, pool: usize, dup: bool) {
+fn install_listings(
+    t: &TestApp,
+    server: &SlowServer,
+    bad_first: bool,
+    pool: usize,
+    dup: bool,
+    alt: bool,
+) {
     let policy = RetryPolicy {
         attempts: 1,
         backoff_s: 0.0,
@@ -361,6 +401,7 @@ fn install_listings(t: &TestApp, server: &SlowServer, bad_first: bool, pool: usi
             pool,
             dup,
             bad_first,
+            alt,
         }),
         permits: Arc::new(LiveLaPermitProvider::with_policy(
             &server.base,
@@ -390,6 +431,29 @@ struct Outcome {
     properties: Vec<Value>,
     task: Value,
     events: Vec<String>,
+}
+
+/// `%XX` and `+` of a query string, decoded.
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = (b[i] == b'%')
+            .then(|| s.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok()))
+            .flatten();
+        match hex {
+            Some(v) => {
+                out.push(v);
+                i += 3;
+            }
+            None => {
+                out.push(if b[i] == b'+' { b' ' } else { b[i] });
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// The stored properties in the search's own order (`ids`, the task result's `property_ids`;
@@ -445,6 +509,25 @@ fn props_view(props: &Value, ids: &[Value]) -> Vec<Value> {
                 .iter()
                 .map(|a| json!([a["provider"], a["asset_id"], a["captured_at"]]))
                 .collect();
+            // The permits, without their fresh ids and the mock's port: the match (made against
+            // the identity the fetch used) and whether the record is this property's own.
+            let permits: Vec<Value> = p["permit_records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|r| {
+                    json!([
+                        r["permit_number"],
+                        r["source_dataset"],
+                        r["match_status"],
+                        r["match_explanation"],
+                        r["parcel_id"],
+                        r["normalized_address"],
+                        r["property_id"] == p["property_id"]
+                            && r["matched_property_identity"] == p["property_id"],
+                    ])
+                })
+                .collect();
             json!({
                 "address": p["property_identity"]["normalized_address"],
                 "manifest": manifest,
@@ -452,7 +535,7 @@ fn props_view(props: &Value, ids: &[Value]) -> Vec<Value> {
                 "interior": interior,
                 "exterior": exterior,
                 "observations": p["building_observations"].as_array().unwrap().len(),
-                "permits": p["permit_records"],
+                "permits": permits,
                 "assessments": p["infrastructure_assessments"].as_array().unwrap().iter()
                     .map(|a| json!([a["requirement_id"], a["status"]])).collect::<Vec<_>>(),
             })
@@ -603,7 +686,7 @@ both_backends!(one_bad_matterport_id_costs_only_its_listing, |db| {
     let t = TestApp::new(db, &[]);
     let (tok, _) = t.dev_token().await;
     let server = SlowServer::start();
-    install_listings(&t, &server, true, LISTINGS, false);
+    install_listings(&t, &server, true, LISTINGS, false, false);
     let pid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
         .as_str()
         .unwrap()
@@ -637,6 +720,13 @@ both_backends!(one_bad_matterport_id_costs_only_its_listing, |db| {
         .collect();
     assert_eq!(lost.len(), 1, "{lost:?}");
     assert!(lost[0].starts_with("5000 "), "{lost:?}");
+    // The per-listing fallback after the refused batch is under the bound too.
+    assert!(
+        server.max_per_provider() <= PROVIDER_CONCURRENCY,
+        "{}",
+        server.spans()
+    );
+    assert!(server.spans().contains("matterport: 19 requests"), "{}", server.spans());
 });
 
 // Not an assertion of speed: the search with unequal, realistic provider latencies
@@ -687,7 +777,7 @@ both_backends!(repeated_search_uses_stored_identities, |db| {
     t.app.extensions.insert(sink.clone()); // SINK
     let mut outcomes = Vec::new();
     for bound in [1, PROVIDER_CONCURRENCY] {
-        install_listings(&t, &server, false, LISTINGS, true);
+        install_listings(&t, &server, false, LISTINGS, true, false);
         let pid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
             .as_str()
             .unwrap()
@@ -713,3 +803,207 @@ both_backends!(repeated_search_uses_stored_identities, |db| {
     } // SINK
     assert_eq!(lines[3]["counts"]["new"], 0, "{}", lines[3]); // SINK
 });
+
+// ---- added by the review of search-speed-2 ------------------------------------------------------
+
+/// The permit numbers of one property of an [`Outcome`] name its own house, and there are some.
+fn assert_own_permits(p: &Value) {
+    let address = p["address"].as_str().unwrap();
+    let house = address.split(' ').next().unwrap();
+    let text = p["permits"].to_string();
+    let re = regex::Regex::new(r"P(\d+)X").unwrap();
+    let houses: Vec<&str> = re
+        .captures_iter(&text)
+        .map(|c| c.get(1).unwrap().as_str())
+        .collect();
+    assert!(!houses.is_empty(), "{address}: no permit attached: {text}");
+    assert!(!text.contains("false"), "{address}: another property's permit: {text}");
+    assert!(text.contains("parcel APN agrees"), "{address}: {text}");
+    assert!(houses.iter().all(|h| *h == house), "{address}: {houses:?}");
+}
+
+// A second search finds every address already stored in the project in another form (other
+// parcel ids and coordinates; the second listing repeats the first one's address). The permit
+// fetches, started before the results are stored, must be the ones of the stored identities:
+// every property carries its own permits only, nothing is fetched twice, and the outcome does
+// not depend on the bound or on whether the permit fetches end before, during or after the
+// exterior phase.
+both_backends!(stored_address_in_another_form_keeps_its_permits, |db| {
+    let t = TestApp::new(db, &[]);
+    let (tok, _) = t.dev_token().await;
+    let sink = Arc::new(SearchTimingSink::default());
+    t.app.extensions.insert(sink.clone());
+    let ms = Duration::from_millis;
+    let mut outcomes = Vec::new();
+    for (bound, permits, vexcel) in [
+        (1, ms(10), ms(10)),
+        (PROVIDER_CONCURRENCY, ms(5), ms(150)),
+        (PROVIDER_CONCURRENCY, ms(100), ms(100)),
+        (PROVIDER_CONCURRENCY, ms(150), ms(5)),
+    ] {
+        let server = SlowServer::with_delays(Delays {
+            permits,
+            vexcel,
+            matterport: ms(5),
+        });
+        install_listings(&t, &server, false, LISTINGS, true, false);
+        let pid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let (first, _) = search_in(&t, &tok, bound, &pid, LISTINGS).await;
+        install_listings(&t, &server, false, LISTINGS, true, true);
+        server.reset();
+        let (again, _) = search_in(&t, &tok, bound, &pid, LISTINGS).await;
+        assert!(server.max_per_provider() <= bound, "{}", server.spans());
+        assert!(
+            server.spans().contains("permits: 40 requests"),
+            "{}",
+            server.spans()
+        );
+        for p in first.properties.iter().chain(&again.properties) {
+            assert_own_permits(p);
+        }
+        outcomes.push((first, again));
+    }
+    for o in &outcomes[1..] {
+        assert_eq!(&outcomes[0], o);
+    }
+    let lines = sink.0.lock().unwrap().clone();
+    assert_eq!(lines.len(), 8);
+    for (i, line) in lines.iter().enumerate() {
+        assert_eq!(line["counts"]["permit_refetches"], 0, "{line}");
+        assert_eq!(line["counts"]["permit_skipped"], 0, "{line}");
+        if i % 2 == 1 {
+            assert_eq!(line["counts"]["new"], 0, "{line}");
+        }
+    }
+});
+
+/// A Matterport provider that answers as the live adapter does (one request per 20 ids, one
+/// after the other inside one call), later batches sooner than earlier ones; the request that
+/// holds `fail.0` fails with `fail.1`.
+struct BatchMp {
+    fail: Option<(String, ProviderErrorKind)>,
+    in_flight: AtomicUsize,
+    max: AtomicUsize,
+    requests: AtomicUsize,
+}
+
+impl BatchMp {
+    fn new(fail: Option<(&str, ProviderErrorKind)>) -> BatchMp {
+        BatchMp {
+            fail: fail.map(|(id, k)| (id.to_owned(), k)),
+            in_flight: AtomicUsize::new(0),
+            max: AtomicUsize::new(0),
+            requests: AtomicUsize::new(0),
+        }
+    }
+}
+
+impl MatterportProvider for BatchMp {
+    fn mode(&self) -> &str {
+        "live"
+    }
+    fn get_floor_geometry(&self, _asset_id: &str) -> Result<Option<Value>, ProviderError> {
+        Ok(None)
+    }
+    fn model_summaries(
+        &self,
+        ids: &[String],
+    ) -> Result<IndexMap<String, ModelSummary>, ProviderError> {
+        let mut out = IndexMap::new();
+        for chunk in ids.chunks(20) {
+            let now = self.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
+            self.max.fetch_max(now, Ordering::SeqCst);
+            self.requests.fetch_add(1, Ordering::SeqCst);
+            let n: u64 = chunk[0][1..].parse().unwrap();
+            std::thread::sleep(Duration::from_millis(2 + (50 - n) / 2));
+            self.in_flight.fetch_sub(1, Ordering::SeqCst);
+            if let Some((bad, kind)) = &self.fail {
+                if chunk.contains(bad) {
+                    return Err(ProviderError::new("matterport", *kind, "scripted failure"));
+                }
+            }
+            for id in chunk {
+                out.insert(
+                    id.clone(),
+                    ModelSummary {
+                        name: Some("Suite 106".to_owned()),
+                        area_sqm: Some(105.0),
+                        floor_count: 1,
+                    },
+                );
+            }
+        }
+        Ok(out)
+    }
+    fn status(&self) -> ProviderStatusEntry {
+        unreachable!("not used")
+    }
+}
+
+/// 50 listings of suite 106, each with one Matterport model `m00`..`m49`.
+fn batch_pool() -> Vec<PropertyDigitalProfile> {
+    let input = golden("enrichment.json")["interior"][0]["input"].clone();
+    (0..POOL)
+        .map(|i| {
+            let mut v = input.clone();
+            let mut asset = v["interior_assets"][0].clone();
+            asset["asset_id"] = json!(format!("m{i:02}"));
+            v["interior_assets"] = json!([asset]);
+            PropertyDigitalProfile::from_json_value(v).unwrap()
+        })
+        .collect()
+}
+
+/// What the interior enrichment left on each listing: lost (the failure text) or the scan match.
+fn batch_view(pool: &[PropertyDigitalProfile]) -> Vec<Value> {
+    pool.iter()
+        .map(|p| {
+            let v = serde_json::to_value(p).unwrap();
+            json!([v["missing_information"], v["interior_assets"]])
+        })
+        .collect()
+}
+
+// One of the three concurrent Matterport requests fails, with each error kind and in each
+// position, while the later requests answer before the earlier ones: bound 8 gives what bound 1
+// gives, an outage-shaped failure costs every listing its scans, a failure one id can cause
+// costs only the listing with that id, and never more than the bound is in flight (the
+// per-listing fallback included).
+#[test]
+fn one_failed_matterport_batch_of_three() {
+    use ProviderErrorKind::{BadResponse, NotFound, RateLimited, Timeout};
+    let lost = |v: &Value| v[0].to_string().contains("Matterport scans not retrieved");
+    let ok = BatchMp::new(None);
+    let all = batch_view(&enrich_interior_pool(batch_pool(), &ok, PROVIDER_CONCURRENCY));
+    assert_eq!(ok.requests.load(Ordering::SeqCst), 3);
+    assert_eq!(ok.max.load(Ordering::SeqCst), 3);
+    assert!(all.iter().all(|v| !lost(v) && v[1][0]["matches_listing_unit"] == true));
+    for kind in [Timeout, RateLimited, BadResponse, NotFound] {
+        for (batch, bad) in ["m05", "m25", "m45"].into_iter().enumerate() {
+            let one = BatchMp::new(Some((bad, kind)));
+            let sequential = batch_view(&enrich_interior_pool(batch_pool(), &one, 1));
+            assert_eq!(one.max.load(Ordering::SeqCst), 1);
+            let eight = BatchMp::new(Some((bad, kind)));
+            let concurrent =
+                batch_view(&enrich_interior_pool(batch_pool(), &eight, PROVIDER_CONCURRENCY));
+            assert_eq!(concurrent, sequential, "{kind} in batch {batch}");
+            assert!(eight.max.load(Ordering::SeqCst) <= PROVIDER_CONCURRENCY);
+            let lost_at: Vec<usize> = (0..POOL).filter(|i| lost(&concurrent[*i])).collect();
+            if matches!(kind, BadResponse | NotFound) {
+                let index: usize = bad[1..].parse().unwrap();
+                assert_eq!(lost_at, vec![index], "{kind} in batch {batch}");
+                assert_eq!(eight.requests.load(Ordering::SeqCst), 3 + POOL);
+                for (i, v) in concurrent.iter().enumerate() {
+                    assert!(i == index || *v == all[i], "{kind}: listing {i}");
+                }
+            } else {
+                assert_eq!(lost_at.len(), POOL, "{kind} in batch {batch}");
+                assert_eq!(eight.requests.load(Ordering::SeqCst), 3);
+                assert!(concurrent[0][0].to_string().contains(&kind.to_string()));
+            }
+        }
+    }
+}

@@ -112,13 +112,16 @@ def test_command_line_is_exact():
 
 
 # ---- the prompt (assistant-speed-1: compact facts, same rules) ------------------------------------------------
-RULES_SHA256 = "a1e4a30aa33bb7f17f74917c3473e162fff424b262c06a083c8287e209dbc2dd"  # SYSTEM_RULES as reviewed
+# SYSTEM_RULES as reviewed, but for its last rule (assistant-ids-1): "Cite property ids..." is gone and the
+# form rule now says to name a listing by its address and never to write an id.
+RULES_SHA256 = "8dfc9eed6dad14355de5504d734255698955d997ace8659149a6b72d4283aff6"
 
 
 def test_prompt_keeps_the_rules_and_every_fact_in_compact_json():
     import hashlib
 
     assert hashlib.sha256(cc.SYSTEM_RULES.encode()).hexdigest() == RULES_SHA256
+    assert "Cite property ids" not in cc.SYSTEM_RULES and "Never write an id" in cc.SYSTEM_RULES
     facts = {"data_notice": "fixture", "money_unit": "integer US cents", "ranking": {"ranked": [{"rank": 1}]},
              "top_properties": [{"property_id": "p1", "evidence": [{"id": "e1", "class": "UNKNOWN"}]}]}  # fmt: skip
     prompt = cc.build_prompt(facts, [("q1", "a1")], "Which ranks first?")
@@ -157,7 +160,10 @@ def test_one_cli_call_with_facts_and_no_secret(ranked_ctx, container, tmp_path, 
     ranking = repos.rankings.list(ranked_ctx.db, project_id=ranked_ctx.project_id)[-1]
     first = ranking.ranked_properties[0].property_id
     assert "Answer only from the FACTS" in stdin and "fixture (demo) data" in stdin
-    assert str(ranking.ranking_id) in stdin and str(first) in stdin
+    # No internal id in the prompt: the listing goes by its address; the record ids come back beside the reply.
+    assert not cc._UUID_RE.search(stdin)
+    address = ranking.explanations[str(first)].partition(":")[0]
+    assert address and f'"listing":"{address}"' in stdin
     assert stdin.rstrip().endswith("Write the assistant's reply.")
     settings = container.settings
     for secret in (settings.auth_secret.get_secret_value(), settings.database_url, "probe-value-never-sent"):
@@ -356,3 +362,184 @@ def test_timing_line_has_numbers_only(ranked_ctx, container, tmp_path, monkeypat
     assert ("reply_chars=0" in line) == (exit_code != 0)
     assert "zebra-probe" not in line and "Which space" not in line and CANNED not in line
     assert str(ranked_ctx.project_id) not in line
+
+
+# ---- no internal id reaches a person (assistant-ids-1) ---------------------------------------------------------
+P1, P2, P3, P4 = (f"{n}{n}{n}{n}{n}{n}{n}{n}-0000-4000-8000-00000000000{n}" for n in "1234")
+RK, EV1, EV2, OTHER = (f"{c}{c}{c}{c}{c}{c}{c}{c}-AAAA-4AAA-8AAA-AAAAAAAAAAAA".lower() for c in "abcd")
+
+
+def _synthetic_facts():
+    return {
+        "data_notice": "fixture",
+        "project_state": {
+            "project": {"project_id": OTHER, "owner_id": OTHER, "project_name": "Studio two"},
+            "selected_property_id": P2,
+        },
+        "ranking": {
+            "ranking_id": RK,
+            "ranked": [
+                {"rank": i, "property_id": p, "total_score": 0.5} for i, p in enumerate((P1, P2, P3, P4), 1)
+            ],
+            "explanations": {
+                P1: "12 EXAMPLE ST, 100: expected opening cost $1.00.",
+                P2: "12 EXAMPLE ST: expected opening cost $2.00.",
+                P3: f"12 EXAMPLE ST: Lower rent than {P1}.",
+            },
+        },
+        "cost_scenarios": [{"property_id": P2, "monthly": 100}, {"property_id": OTHER, "monthly": 5}],
+        "top_properties": [
+            {
+                "property_id": P1,
+                "rank": 1,
+                "feasibility": [
+                    {"requirement": "electrical", "status": "UNKNOWN", "evidence_ids": [EV2, EV1]}
+                ],
+                "evidence": [{"id": EV1, "class": "HISTORICAL", "source": "permit 18041-90000-12345"}],
+                "evidence_check": {"problems": []},
+            }
+        ],
+    }
+
+
+def test_public_facts_name_listings_by_address_and_carry_no_id():
+    raw = _synthetic_facts()
+    labels = cc.listing_labels(raw)
+    # Suite tells two listings of one building apart; two with the same address go by their place in the ranking;
+    # a listing whose address is not known goes by its rank.
+    assert labels == {
+        P1: "12 EXAMPLE ST, 100",
+        P2: "the first listing at 12 EXAMPLE ST",
+        P3: "the second listing at 12 EXAMPLE ST",
+        P4: "the listing ranked 4",
+    }
+    assert len(set(labels.values())) == 4
+    facts = cc.public_facts(raw)
+    text = json.dumps(facts)
+    assert not cc._UUID_RE.search(text)
+    assert raw == _synthetic_facts()  # the raw facts (and their ids) are not changed
+    assert [r["listing"] for r in facts["ranking"]["ranked"]] == list(labels.values())
+    assert [r["rank"] for r in facts["ranking"]["ranked"]] == [1, 2, 3, 4]
+    assert "ranking_id" not in facts["ranking"]
+    assert facts["project_state"] == {
+        "project": {"project_name": "Studio two"},
+        "selected_listing": labels[P2],
+    }
+    assert set(facts["ranking"]["explanations"]) == set(list(labels.values())[:3])
+    assert (
+        facts["ranking"]["explanations"][labels[P3]] == "12 EXAMPLE ST: Lower rent than 12 EXAMPLE ST, 100."
+    )
+    assert facts["cost_scenarios"] == [
+        {"listing": labels[P2], "monthly": 100},
+        {"listing": cc.UNRANKED_LISTING, "monthly": 5},
+    ]
+    top = facts["top_properties"][0]
+    assert top["listing"] == "12 EXAMPLE ST, 100" and top["rank"] == 1
+    # Evidence keeps its link to the assessment by a reference local to the prompt; everything else is kept as is.
+    assert top["feasibility"] == [
+        {"requirement": "electrical", "status": "UNKNOWN", "evidence_refs": ["E1", "E2"]}
+    ]
+    assert top["evidence"] == [{"ref": "E2", "class": "HISTORICAL", "source": "permit 18041-90000-12345"}]
+    assert top["evidence_check"] == {"problems": []} and facts["data_notice"] == "fixture"
+
+
+U1, U2 = "c96c80ae-1111-4222-8333-444455556666", "B6F0456F-AAAA-4BBB-8CCC-DDDDEEEEFFFF"
+UNTOUCHED = "No id here:  two spaces, () brackets, permit 18041-90000-12345, 2026-11-15, deadbeef-cafe."
+
+
+@pytest.mark.parametrize(
+    ("reply", "clean"),
+    [
+        # 1 the reply of the demo sweep: a parenthetical that only carried ids
+        (
+            f"The top listing is 5757 W Century Blvd (property {U1}; ranking {U2}).",
+            "The top listing is 5757 W Century Blvd.",
+        ),
+        # 2 a clause that only carried an id
+        (
+            f"The first listing is 122 E 7th St, Suite 1207, id: {U1}.",
+            "The first listing is 122 E 7th St, Suite 1207.",
+        ),
+        # 3 upper case
+        (f"It ranks first (ranking {U2}).", "It ranks first."),
+        # 4 inside a URL: the link goes with it
+        (
+            f"You can see it in the app (https://app.example/properties/{U1}/layout?x=1).",
+            "You can see it in the app.",
+        ),
+        # 5 nothing but an id
+        (U1, ""),
+        (f"property_id={U1}", ""),
+        # 6 in the middle of a sentence: the noun stays, the id goes
+        (f"Property {U1} ranks first on cost.", "Property ranks first on cost."),
+        # 7 a list of ids in square brackets
+        (
+            f"The electrical service is unknown [evidence {U1}, {U1} and {U2}].",
+            "The electrical service is unknown.",
+        ),
+        # 8 brackets that hold other words too
+        (f"This is demo data (fixture; property {U1}).", "This is demo data (fixture)."),
+        # 9 a line, a bullet and a sentence of their own
+        (f"Line one.\nProperty ID: {U1}\nLine three.", "Line one.\nLine three."),
+        (f"- 5757 W Century Blvd\n- Ranking id: {U2}", "- 5757 W Century Blvd"),
+        (
+            f"The top listing is 5757 W Century Blvd. Its property id is {U1}.",
+            "The top listing is 5757 W Century Blvd.",
+        ),
+        # 10 an id cut short, as a model may print it
+        (
+            "5757 W Century Blvd (property c96c80ae-…; ranking b6f0456f-...) ranks first.",
+            "5757 W Century Blvd ranks first.",
+        ),
+        # and a reply without an id is not touched at all
+        (UNTOUCHED, UNTOUCHED),
+    ],
+)
+def test_scrub_ids(reply, clean):
+    out = cc.scrub_ids(reply)
+    assert out == clean
+    assert not cc._ID_RE.search(out) and "  " not in out.replace(UNTOUCHED, "")
+    for leftover in ("()", "[]", "( ", " )", " .", " ,", "property.", "property)", "id:", ".."):
+        assert leftover not in out.replace(UNTOUCHED, "")
+    assert cc.scrub_ids(out) == out
+
+
+def test_reply_is_scrubbed_before_it_is_stored_or_returned(ranked_ctx, container, tmp_path, monkeypatch):
+    bin_dir, record = _fake_cli(
+        tmp_path, answer=f"The top listing is 12 Example St (property {U1}; ranking {U2})."
+    )
+    _use(monkeypatch, bin_dir)
+    res = run_chat(ranked_ctx, "Which space ranks first?", container.settings, model=MODEL, thread_id="ids")
+    assert res.reply == "The top listing is 12 Example St."  # still says which listing it is about
+    assert res.mode == "codex_cli:gpt-6.1-terra:low" and ranked_ctx.project_id in res.grounded_record_ids
+    run_chat(ranked_ctx, "And the second?", container.settings, model=MODEL, thread_id="ids")
+    stdin = json.loads(record.read_text())["stdin"]
+    assert "Assistant: The top listing is 12 Example St." in stdin and not cc._UUID_RE.search(stdin)
+
+
+def test_reply_that_is_only_an_id_is_an_empty_answer(ranked_ctx, container, tmp_path, monkeypatch):
+    bin_dir, _ = _fake_cli(tmp_path, answer=f"(property {U1})")
+    _use(monkeypatch, bin_dir)
+    res = run_chat(ranked_ctx, "Which space ranks first?", container.settings, model=MODEL)
+    assert "the model returned an empty answer" in res.reply and U1 not in res.reply
+    assert res.mode == "codex_cli_unavailable:gpt-6.1-terra:low" and res.grounded_record_ids == []
+
+
+def test_public_facts_are_smaller_and_complete_for_the_fixture_project(ranked_ctx):
+    raw, ids = cc.gather_facts(ranked_ctx)
+    facts = cc.public_facts(raw)
+    before, after = (len(json.dumps(f, default=str, separators=(",", ":"))) for f in (raw, facts))
+    assert after < before and not cc._UUID_RE.search(json.dumps(facts, default=str))
+    labels = cc.listing_labels(raw)
+    ranked = raw["ranking"]["ranked"]
+    assert len(labels) == len(ranked) == len(set(labels.values())) and all(labels.values())
+    # The record ids the route returns still come from the raw facts.
+    assert {UUID(p["property_id"]) for p in raw["top_properties"]} <= set(ids)
+    assert [p["listing"] for p in facts["top_properties"]] == [labels[r["property_id"]] for r in ranked[:3]]
+    # Nothing but ids was dropped: every other key of every top property is still there.
+    for pub, src in zip(facts["top_properties"], raw["top_properties"], strict=True):
+        assert set(pub) == (set(src) - {"property_id"}) | {"listing"}
+        assert len(pub["evidence"]) == len(src["evidence"]) and len(pub["feasibility"]) == len(
+            src["feasibility"]
+        )
+    print(f"FACTS_CHARS before={before} after={after}")

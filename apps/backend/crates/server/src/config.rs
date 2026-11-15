@@ -162,6 +162,9 @@ pub struct Settings {
     // SAFETY
     pub allow_live_outbound_calls: bool,
     pub allow_live_purchases: bool,
+    /// `PUBLIC_PATH_GUARD` (default false): a request that came through a tunnel reaches only the
+    /// carrier's routes; every other path is 404 (`http::public_path_guard`).
+    pub public_path_guard: bool,
     // RUST-ONLY ADDITIONS
     pub store_backend: StoreBackend,
     pub host: String,
@@ -716,6 +719,7 @@ impl Settings {
             object_storage_local_dir: s.string("OBJECT_STORAGE_LOCAL_DIR", "./.data/objects"),
             allow_live_outbound_calls: s.boolean("ALLOW_LIVE_OUTBOUND_CALLS", false)?,
             allow_live_purchases: s.boolean("ALLOW_LIVE_PURCHASES", false)?,
+            public_path_guard: s.boolean("PUBLIC_PATH_GUARD", false)?,
             store_backend,
             host: s.string("HOST", "0.0.0.0"),
             port,

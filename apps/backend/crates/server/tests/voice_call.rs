@@ -421,7 +421,7 @@ both_backends!(intro_failures_end_politely, |db| {
         .iter()
         .any(|t| t.text.contains("did not end within its bound")));
 
-    // Revoked between approval and answer: hung up without a word.
+    // Revoked between approval and answer: not played, the call goes on (owner, 07:16Z).
     let v = setup(db, &[]);
     let (owner2, pid, recipient, approval_id) = approved(&v).await;
     record_intro(&v, owner2).await;

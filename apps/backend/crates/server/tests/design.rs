@@ -96,6 +96,23 @@ async fn demo(t: &TestApp) -> Demo {
     }
 }
 
+/// Remove the Alhambra listing's stated area (it has no scan), so that it has no floor at all.
+async fn clear_listed_area(t: &TestApp, d: &Demo) {
+    let mut tx = t.app.store.begin().await.unwrap();
+    let mut prop = PROPERTIES
+        .require_in_project(
+            &mut *tx,
+            uuid(&json!(d.alhambra)),
+            uuid(&json!(d.pid)),
+            "property not found",
+        )
+        .await
+        .unwrap();
+    prop.commercial_listing.as_mut().unwrap().available_area_sqm = None;
+    PROPERTIES.upsert(&mut *tx, &prop).await.unwrap();
+    tx.commit().await.unwrap();
+}
+
 fn base(pid: &str) -> String {
     format!("/api/v1/projects/{pid}/layouts")
 }
@@ -400,16 +417,7 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
     let (tok, pid) = (d.tok.as_str(), d.pid.as_str());
     // No scan and no stated area (with an area the listing gets a sketch on an assumed floor:
     // `tests/design_estimate.rs`).
-    {
-        let mut tx = t.app.store.begin().await.unwrap();
-        let mut prop = PROPERTIES
-            .require_in_project(&mut *tx, uuid(&json!(d.alhambra)), uuid(&json!(pid)), "x")
-            .await
-            .unwrap();
-        prop.commercial_listing.as_mut().unwrap().available_area_sqm = None;
-        PROPERTIES.upsert(&mut *tx, &prop).await.unwrap();
-        tx.commit().await.unwrap();
-    }
+    clear_listed_area(&t, &d).await;
     let r = generate(
         &t,
         tok,
@@ -1535,6 +1543,8 @@ async fn locks_and_open_transactions(schema: &str) -> (i64, i64) {
 both_backends!(a_slow_geometry_fetch_holds_nothing, |db| {
     let t = TestApp::new(db, &[]);
     let d = demo(&t).await;
+    // Alhambra has no scan; without a stated area its generation fails at once.
+    clear_listed_area(&t, &d).await;
     let gate = gate_geometry_fetches(&t);
     let first = spawn_generate(
         &t,
@@ -1553,7 +1563,7 @@ both_backends!(a_slow_geometry_fetch_holds_nothing, |db| {
         );
     }
     // Other writers of the same project do not wait for it: a profile update, an analysis and
-    // a generation on another property (a sketch on its listed area, nothing to fetch). Before the fix each of them waited
+    // a generation that fails at once (no measured geometry). Before the fix each of them waited
     // for the whole fetch and solve (the project's event lock on PostgreSQL, the store's lock in
     // memory).
     let quick = Duration::from_secs(10);
@@ -1599,8 +1609,7 @@ both_backends!(a_slow_geometry_fetch_holds_nothing, |db| {
     )
     .await
     .expect("another generation waited for the layout's geometry fetch");
-    // A sketch on the listing's stated area (no scan of the suite): it fetches nothing either.
-    assert_eq!(other.body["task"]["status"], "COMPLETED", "{}", other.text);
+    assert_eq!(other.body["task"]["status"], "FAILED", "{}", other.text);
     assert!(!first.is_finished());
 
     gate.open();
