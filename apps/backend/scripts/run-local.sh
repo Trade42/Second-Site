@@ -104,6 +104,7 @@ if [[ -z $bin ]]; then
   [[ -n $bin ]] || die "cargo did not report the second-site-backend executable"
 fi
 [[ -f $bin && -x $bin ]] || die "$bin is not an executable file"
+bin="$(cd "$(dirname "$bin")" && pwd)/$(basename "$bin")"   # the service runs in $workdir
 
 say "binary:    $bin"
 if [[ $store == memory ]]; then

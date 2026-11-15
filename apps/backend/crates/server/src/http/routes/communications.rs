@@ -148,7 +148,16 @@ async fn outreach(
     let project_id = params.uuid("project_id")?;
     let (out, notices) = crate::in_tx!(app, |tx| {
         let (project_id, owner_id) = owned(&app, tx, project_id, user).await?;
-        let req: OutreachRequest = parse_body(decoded)?;
+        let mut req: OutreachRequest = parse_body(decoded)?;
+        // The JSON value above holds object keys sorted; Python's dict keeps the body's order,
+        // which the approval key (`str(recipient)`) shows. Read the recipient again from the raw
+        // body, in document order (a repeated key keeps its first position and its last value,
+        // as in Python).
+        if let Ok(ordered) = serde_json::from_slice::<OutreachRequest>(&body) {
+            if ordered.recipient == req.recipient {
+                req.recipient = ordered.recipient;
+            }
+        }
         lock_project(tx, project_id).await?;
         // Python accepted any property id, even one of another project.
         property_in_project(tx, project_id, req.property_id).await?;

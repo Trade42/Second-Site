@@ -315,6 +315,9 @@ def a02() -> str:
     checks = r.body.get("checks", {})
     expect(r.body.get("status") == "ready" and checks.get("database") == "ok", "ready, database ok", r.show())
     providers = {p.get("provider"): p.get("status") for p in r.body.get("providers", [])}
+    link = next((p for p in r.body.get("providers", []) if p.get("provider") == "python_service"), None)
+    if link is not None:  # the forwarder's entry; run.sh waited for it to turn LIVE
+        expect(link.get("status") == "LIVE", "python_service LIVE (the python app is up)", link)
     put("A02", rust_ready=r.body)
     # For the report: where the two services' /ready disagree about the same provider (not a check by itself).
     p = py("GET", "/ready")
@@ -707,8 +710,22 @@ def c09() -> str:
     pid2 = r.body["project"]["project_id"]
     s = py("POST", proj(pid2, "/properties/search"), token=tok, body={"city": "Los Angeles", "state": "CA"})
     expect(s.status == 202 and s.body["task"]["status"] == "COMPLETED", "202 COMPLETED search", s.show())
+    # Python answers before it commits (get_db commits in the dependency teardown, after the response; see
+    # C12). Wait until rust sees the completed task, so C10/C11 compare committed rows, and say how long it took.
+    t0, polls, seen_by_rust = time.monotonic(), 0, None
+    while time.monotonic() - t0 < 5:
+        polls += 1
+        t = rs("GET", proj(pid2, f"/tasks/{s.body['task']['task_id']}"), token=tok)
+        if t.status == 200 and t.body.get("status") == "COMPLETED":
+            seen_by_rust = time.monotonic() - t0
+            break
+        time.sleep(0.02)
+    expect(seen_by_rust is not None, "rust to see python's completed search task within 5 s", t.show())
     put("C09", pid2=pid2, search_task2=s.body["task"]["task_id"])
-    return f"project {pid2}, search task COMPLETED (python)"
+    return (
+        f"project {pid2}, search task COMPLETED (python); visible to rust on poll {polls} "
+        f"({seen_by_rust * 1000:.0f} ms after python answered)"
+    )
 
 
 @check("C10", "rust reads the project python wrote")
@@ -738,6 +755,45 @@ def c11() -> str:
             " | ".join(failures) + (" || ok: " + ", ".join(out) if out else ""),
         )
     return ", ".join(out)
+
+
+@check("C12", "read-after-write across the services: a write python answered is visible to rust at once")
+def c12() -> str:
+    """Python's get_db commits after the response is sent (FastAPI runs yield-dependency teardown after
+    `await response(...)`), so a client can read through rust before python's commit. Rust commits before it
+    answers. Measured both ways with project creation and an immediate GET on the other service."""
+    (tok,) = need("rs_token")
+    n = 30
+    stale_py_to_rs, stale_rs_to_py, stale_py_to_py, examples = 0, 0, 0, []
+    for i in range(n):
+        body = {"project_name": f"E2E race {RUN} {i}", "market": {"city": "Los Angeles", "state": "CA"}}
+        w = py("POST", "/api/v1/projects", token=tok, body=body)
+        status_is(w, 201)
+        r = rs("GET", proj(w.body["project"]["project_id"]), token=tok)
+        if r.status != 200:
+            stale_py_to_rs += 1
+            if len(examples) < 2:
+                examples.append(r.show(140))
+        w = rs("POST", "/api/v1/projects", token=tok, body=body)
+        status_is(w, 201)
+        r = py("GET", proj(w.body["project"]["project_id"]), token=tok)
+        if r.status != 200:
+            stale_rs_to_py += 1
+        w = py("POST", "/api/v1/projects", token=tok, body=body)  # baseline: python alone, no link involved
+        status_is(w, 201)
+        if py("GET", proj(w.body["project"]["project_id"]), token=tok).status != 200:
+            stale_py_to_py += 1
+    expect(
+        stale_py_to_rs == 0 and stale_rs_to_py == 0,
+        "every project created through one service readable through the other immediately",
+        f"python-created then rust GET: {stale_py_to_rs}/{n} not found; rust-created then python GET: "
+        f"{stale_rs_to_py}/{n} not found; baseline python-created then python GET: {stale_py_to_py}/{n} not found; "
+        f"e.g. {examples}",
+    )
+    return (
+        f"0/{n} stale reads in each direction (baseline python->python {stale_py_to_py}/{n}); the window is "
+        "timing-dependent, so a PASS here does not prove it closed"
+    )
 
 
 # =================================================================================================================
@@ -1412,14 +1468,19 @@ def g01() -> str:
         S["g01_absent"] = r.show(200)
         raise Skip(f"rust has no outreach route (not native, not forwarded): {r.show(200)}")
     out = check_outreach_answer("G01", r, pid, owner)
+    # Rust calls python's owner notify after it has answered (after the commit), so wait for its log line.
+    key = f"approval-notify:{r.body['approval']['approval_id']}"
+    notes: list[str] = []
+    for _ in range(50):
+        notes = [
+            ln for ln in RUST_LOG.read_bytes()[off_rs:].decode(errors="replace").splitlines() if key in ln
+        ]
+        if notes:
+            break
+        time.sleep(0.1)
     py_reqs = requests_since(PY_LOG, off_py)
     how = "forwarded to python" if count(py_reqs, "POST", proj(pid, "/outreach")) else "native in rust"
     notified = count(py_reqs, "POST", "/internal/v1/owner/notify")
-    notes = [
-        ln
-        for ln in RUST_LOG.read_bytes()[off_rs:].decode(errors="replace").splitlines()
-        if "owner notify" in ln
-    ]
     delivery = [json.loads(ln).get("delivery") for ln in notes if ln.startswith("{")]
     return f"{out}; {how}; rust called python's owner notify {notified}x (delivery {delivery})"
 

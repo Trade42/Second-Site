@@ -113,15 +113,20 @@ impl Ctx {
     }
 
     async fn outreach(&self, pid: Uuid, property_id: &str, channel: &str) -> Value {
+        // Raw bytes, so that the recipient keeps Python's key order (`json!` sorts keys).
+        let body = format!(
+            r#"{{"property_id": "{property_id}", "channel": "{channel}", "recipient": {{"role": "broker", "name": "Dana Broker", "phone": "+15555550100"}}, "purpose": "Verify electrical, plumbing and HVAC"}}"#
+        );
         let r = self
-            .post(
-                &format!("/api/v1/projects/{pid}/outreach"),
-                &json!({
-                    "property_id": property_id,
-                    "channel": channel,
-                    "recipient": {"role": "broker", "name": "Dana Broker", "phone": "+15555550100"},
-                    "purpose": "Verify electrical, plumbing and HVAC",
-                }),
+            .t
+            .send(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri(format!("/api/v1/projects/{pid}/outreach"))
+                    .header("authorization", format!("Bearer {}", self.token))
+                    .header("content-type", "application/json")
+                    .body(Body::from(body))
+                    .unwrap(),
             )
             .await;
         assert_eq!(r.status, StatusCode::ACCEPTED, "{}", r.text);
@@ -1292,10 +1297,13 @@ both_backends!(simulator_refuses_with_a_live_voice_provider, |db| {
 });
 
 both_backends!(simulated_call_later_and_no_response, |db| {
-    for (action, expect_deferred) in [("later", "DEFERRED"), ("none", "EXPIRED")] {
+    for (action, expect_deferred, phone) in [
+        ("later", "DEFERRED", OWNER_PHONE),
+        ("none", "EXPIRED", "+15555550143"),
+    ] {
         let c = Ctx::new(db).await;
         let pid = c.project().await;
-        link_owner(&c.t, c.user, OWNER_PHONE).await;
+        link_owner(&c.t, c.user, phone).await;
         let (_, _, call) = c.approved_call(pid).await;
         let r = c
             .post(

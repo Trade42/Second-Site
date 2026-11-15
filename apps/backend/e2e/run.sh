@@ -255,6 +255,19 @@ wait_health() { # name url pid log seconds
 }
 wait_health "rust service" "$RS_URL" "$RS_PID" "$RUN/rust.log" 30 || fatal "rust service did not start"
 wait_health "python app" "$PY_URL" "$PY_PID" "$RUN/python.log" 90 || fatal "python app did not start"
+# Rust probes GET {PYTHON_SERVICE_URL}/health in the background (when its build has the forwarder); its first
+# probe usually runs before the Python app is up. Wait (max 15 s) until rust's /ready reports the link LIVE.
+link_status() {
+  curl -sf --noproxy '*' --max-time 1 "$RS_URL/ready" | "$PY" -I -c 'import json, sys
+d = json.load(sys.stdin)
+print(next((p["status"] for p in d.get("providers", []) if p.get("provider") == "python_service"), "ABSENT"))' 2>/dev/null
+}
+for i in $(seq 1 150); do
+  LINK="$(link_status)"
+  if [ "$LINK" = LIVE ] || [ "$LINK" = ABSENT ]; then break; fi
+  sleep 0.1
+done
+say "rust /ready python_service entry: ${LINK:-no answer} after ~$((i / 10)).$((i % 10)) s of waiting"
 say "rust start-up migration: $(grep -o '"msg": "[^"]*\(alembic\|migrat\)[^"]*"' "$RUN/rust.log" | head -n1)"
 if alembic check >"$RUN/alembic-check-after-rust.log" 2>&1; then
   say "alembic check after the rust start-up: $(tail -n1 "$RUN/alembic-check-after-rust.log")"

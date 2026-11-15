@@ -30,8 +30,8 @@ cargo fmt --all -- --check
 
 - With `TEST_DATABASE_URL` set, every PostgreSQL test creates its own schema, migrates it and drops it; the database itself is not reset. A test that prints `SKIPPED` did not run.
 - Tests read `fixtures/` and `packages/contracts/schemas/` from the repository.
-- `ss-domain` is compiled with `opt-level = 2` in the dev and test profiles (`Cargo.toml`): the layout solver is much slower unoptimised.
-- The layout solver is also about 14 times slower in a debug build, so run the service from a release build.
+- `ss-domain` is compiled with `opt-level = 1` in the dev and test profiles (`Cargo.toml`). Its tests run 4-5 times faster that way, and its library rebuilds about as fast as unoptimised.
+- The rest of a debug build is unoptimised, and the layout solver is about 14 times slower in a debug build of the service than in a release build. Run the service from a release build.
 
 ## Run locally
 

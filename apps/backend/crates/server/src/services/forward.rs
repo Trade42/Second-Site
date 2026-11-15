@@ -246,7 +246,13 @@ fn classify(e: &hyper_util::client::legacy::Error) -> Failure {
 }
 
 /// A `ProblemDetail` answer with this request's id.
-pub fn problem(status: StatusCode, code: &str, message: String, details: Value, retryable: bool) -> Response {
+pub fn problem(
+    status: StatusCode,
+    code: &str,
+    message: String,
+    details: Value,
+    retryable: bool,
+) -> Response {
     let details = match details {
         Value::Object(m) => m,
         _ => Map::new(),
@@ -286,8 +292,7 @@ fn end_to_end(headers: &HeaderMap, drop: &[HeaderName]) -> HeaderMap {
     let listed = connection_listed(headers);
     let mut out = HeaderMap::new();
     for (name, value) in headers {
-        if is_hop_by_hop(name) || drop.contains(name) || listed.iter().any(|l| l == name.as_str())
-        {
+        if is_hop_by_hop(name) || drop.contains(name) || listed.iter().any(|l| l == name.as_str()) {
             continue;
         }
         out.append(name.clone(), value.clone());
@@ -327,7 +332,10 @@ impl PythonLink {
     /// was assembled without [`register`].
     pub fn of(app: &App) -> Arc<PythonLink> {
         app.extensions.get::<PythonLink>().unwrap_or_else(|| {
-            Arc::new(PythonLink::from_settings(&app.settings, Timeouts::default()))
+            Arc::new(PythonLink::from_settings(
+                &app.settings,
+                Timeouts::default(),
+            ))
         })
     }
 
@@ -366,7 +374,14 @@ impl PythonLink {
         )
     }
 
-    fn failed(&self, method: &Method, path: &str, failure: Failure, budget: Budget, ms: f64) -> Response {
+    fn failed(
+        &self,
+        method: &Method,
+        path: &str,
+        failure: Failure,
+        budget: Budget,
+        ms: f64,
+    ) -> Response {
         logging::warning(
             "app.forward",
             "python service unavailable",
@@ -430,7 +445,10 @@ impl PythonLink {
         }
         let bytes = match Limited::new(body, MAX_REQUEST_BYTES).collect().await {
             Ok(c) => c.to_bytes(),
-            Err(e) if e.downcast_ref::<http_body_util::LengthLimitError>().is_some() => {
+            Err(e)
+                if e.downcast_ref::<http_body_util::LengthLimitError>()
+                    .is_some() =>
+            {
                 return too_large()
             }
             Err(_) => {
@@ -465,8 +483,8 @@ impl PythonLink {
                 HeaderName::from_static("x-request-id"),
             ],
         );
-        if let Some(rid) = logging::current_request_id()
-            .and_then(|r| HeaderValue::from_str(&r).ok())
+        if let Some(rid) =
+            logging::current_request_id().and_then(|r| HeaderValue::from_str(&r).ok())
         {
             headers.insert(HeaderName::from_static("x-request-id"), rid);
         }
@@ -488,7 +506,10 @@ impl PythonLink {
             }
             let bytes = match Limited::new(rbody, MAX_RESPONSE_BYTES).collect().await {
                 Ok(c) => c.to_bytes(),
-                Err(e) if e.downcast_ref::<http_body_util::LengthLimitError>().is_some() => {
+                Err(e)
+                    if e.downcast_ref::<http_body_util::LengthLimitError>()
+                        .is_some() =>
+                {
                     return Err(Failure::TooLarge)
                 }
                 Err(_) => return Err(Failure::Transport),
@@ -503,7 +524,8 @@ impl PythonLink {
                 let mut resp = Response::new(Body::from(bytes));
                 *resp.status_mut() = rparts.status;
                 let mut headers = end_to_end(&rparts.headers, &[header::CONTENT_LENGTH]);
-                let cors: Vec<HeaderName> = headers.keys().filter(|n| is_cors(n)).cloned().collect();
+                let cors: Vec<HeaderName> =
+                    headers.keys().filter(|n| is_cors(n)).cloned().collect();
                 for name in cors {
                     headers.remove(&name);
                 }
@@ -674,7 +696,10 @@ impl ProviderStatus for PythonServiceStatus {
 pub fn register(app: &App) {
     install(
         app,
-        Arc::new(PythonLink::from_settings(&app.settings, Timeouts::default())),
+        Arc::new(PythonLink::from_settings(
+            &app.settings,
+            Timeouts::default(),
+        )),
     );
 }
 
@@ -683,7 +708,8 @@ pub fn register(app: &App) {
 /// install one with short timeouts).
 pub fn install(app: &App, link: Arc<PythonLink>) {
     app.extensions.insert(link.clone());
-    app.providers.register(Arc::new(PythonServiceStatus { link: link.clone() }));
+    app.providers
+        .register(Arc::new(PythonServiceStatus { link: link.clone() }));
     if link.base().is_some() {
         if let Ok(rt) = tokio::runtime::Handle::try_current() {
             rt.spawn(poll_health(Arc::downgrade(&link)));

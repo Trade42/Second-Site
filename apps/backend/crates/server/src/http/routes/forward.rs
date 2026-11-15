@@ -68,7 +68,10 @@ pub const CALL_FLOW_ROUTES_UNTIL_PART_4: &[Forwarded] = &[
     route("GET", "/api/v1/projects/{project_id}/communications"),
     route("POST", "/api/v1/projects/{project_id}/calls"),
     route("GET", "/api/v1/projects/{project_id}/calls"),
-    route("POST", "/api/v1/projects/{project_id}/calls/{call_id}/simulate"),
+    route(
+        "POST",
+        "/api/v1/projects/{project_id}/calls/{call_id}/simulate",
+    ),
     route("GET", "/api/v1/projects/{project_id}/handoffs"),
     route(
         "POST",

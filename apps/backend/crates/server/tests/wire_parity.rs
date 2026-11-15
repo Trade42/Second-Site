@@ -36,6 +36,13 @@
 //! `project.profile.confirmed` event's idempotency key is also replaced on both sides: the shared
 //! plan mandates a stable SHA-256 digest where Python used its per-process `hash()`.
 //!
+//! Since part 5 the sequence also reads `GET /api/v1/projects/{project}` before and after the
+//! first search (the supervisor's `get_project_state` tool validates that answer strictly), and,
+//! for each property after the search, the evidence list and its validation. Python has no HTTP
+//! route for those two; the script computed their expected answers with Python's
+//! `EvidenceService.for_property` and the supervisor tool `validate_evidence` over the rows the
+//! same Python run wrote, and the replay compares this service's routes with them.
+//!
 //! One store-dependent order: rows written in one transaction share `created_at`, and
 //! `ORDER BY created_at` returns such ties in the database's physical order. Python on
 //! PostgreSQL and this backend on PostgreSQL write the same rows and get the same order (compared
@@ -307,7 +314,10 @@ fn resolve(path: &str, refs: &HashMap<String, String>) -> String {
 both_backends!(property_slice_matches_python, |db| {
     let golden = golden("property_slice.json");
     let steps = golden.as_array().expect("steps");
-    assert_eq!(steps.len(), 50);
+    // 27 property-slice steps, 23 design-studio steps (part 3), and since part 5 the project
+    // before and after the first search plus the two evidence routes of each property, whose
+    // expected answers Python computed in-process (their "oracle" field says how).
+    assert_eq!(steps.len(), 56);
     let t = TestApp::new(db, &[]);
     let mut refs: HashMap<String, String> = HashMap::new();
     let mut token: Option<String> = None;

@@ -17,8 +17,8 @@ use ss_domain::contracts::communications::{
 use ss_domain::contracts::infrastructure::InfrastructureAssessment;
 use ss_domain::integrations::telnyx::{decode_client_state, encode_client_state};
 use ss_domain::integrations::webhook_signatures::{
-    standard_webhooks_sign, verify_standard_webhook, verify_telnyx, VerifiedWebhook,
-    WebhookError, WebhookMode,
+    standard_webhooks_sign, verify_standard_webhook, verify_telnyx, VerifiedWebhook, WebhookError,
+    WebhookMode,
 };
 use ss_domain::integrations::xai_voice::build_session_update;
 use ss_domain::py::{self, PyRegex};
@@ -73,7 +73,11 @@ fn every_state_pair_matches_python() {
             (r, ok) => panic!("{from} -> {to}: Rust {r:?}, Python ok={ok}"),
         }
     }
-    assert_eq!(allowed, 26 + 6, "26 call and 6 handoff transitions are allowed");
+    assert_eq!(
+        allowed,
+        26 + 6,
+        "26 call and 6 handoff transitions are allowed"
+    );
 }
 
 #[test]
@@ -173,7 +177,10 @@ fn client_state_matches_python() {
     }
     let mut unrepresentable = 0;
     for c in doc["client_state"]["decode"].as_array().unwrap() {
-        assert!(c.get("raises").is_none(), "Python never raises on a str: {c}");
+        assert!(
+            c.get("raises").is_none(),
+            "Python never raises on a str: {c}"
+        );
         let decoded = decode_client_state(c["value"].as_str());
         if let Some(text) = c["decoded_unrepresentable"].as_str() {
             // Documented deviation: Python parses NaN/Infinity literals and lone surrogates;
@@ -374,7 +381,11 @@ fn signatures_sign_with_a_maintained_ed25519_and_hmac() {
     msg.extend(body(&valid["body_b64"]));
     use ed25519_dalek::Signer;
     let sig = base64::engine::general_purpose::STANDARD.encode(key.sign(&msg).to_bytes());
-    assert_eq!(sig, headers(&valid["headers"])[0].1, "Ed25519 is deterministic");
+    assert_eq!(
+        sig,
+        headers(&valid["headers"])[0].1,
+        "Ed25519 is deterministic"
+    );
 }
 
 // ---- Python regex semantics and base64 ----------------------------------------------------------
@@ -408,7 +419,12 @@ fn check_code_points(doc: &Value, code_points: impl Iterator<Item = u32>) -> (u3
         .unwrap()
         .iter()
         .map(|(k, v)| {
-            let cps = v.as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as u32).collect();
+            let cps = v
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|x| x.as_u64().unwrap() as u32)
+                .collect();
             (k.clone(), cps)
         })
         .collect();
@@ -428,7 +444,11 @@ fn check_code_points(doc: &Value, code_points: impl Iterator<Item = u32>) -> (u3
             ("word", py::is_py_word(c), in_ranges(&word, cp)),
             ("space", re_space.is_match(one), in_ranges(&space, cp)),
             ("digit", re_digit.is_match(one), in_ranges(&digit, cp)),
-            ("boundary", re_boundary.is_match(&format!("a{c}")), !in_ranges(&word, cp)),
+            (
+                "boundary",
+                re_boundary.is_match(&format!("a{c}")),
+                !in_ranges(&word, cp),
+            ),
         ];
         // re.I: the non-ASCII characters CPython matches for each ASCII letter.
         if cp >= 0x80 {
@@ -437,7 +457,11 @@ fn check_code_points(doc: &Value, code_points: impl Iterator<Item = u32>) -> (u3
             pairs.push(("re.I letter", any, theirs_any));
             if any {
                 for ((name, re), (_, cps)) in letters.iter().zip(&extras) {
-                    assert_eq!(re.is_match(one), cps.contains(&cp), "U+{cp:04X} re.I {name}");
+                    assert_eq!(
+                        re.is_match(one),
+                        cps.contains(&cp),
+                        "U+{cp:04X} re.I {name}"
+                    );
                 }
             }
         }
@@ -518,6 +542,9 @@ fn json_helpers_round_trip() {
         py::json_dumps_compact(&v),
         r#"{"a":null,"b":[1,2.5,1e+16,1e-05,"\u00e9\u0001"],"c":true}"#
     );
-    assert_eq!(py::json_loads_bytes(b"\xef\xbb\xbf{}").unwrap(), Value::Object(Map::new()));
+    assert_eq!(
+        py::json_loads_bytes(b"\xef\xbb\xbf{}").unwrap(),
+        Value::Object(Map::new())
+    );
     assert!(py::json_loads_bytes(b"{\"k\": NaN}").is_err());
 }

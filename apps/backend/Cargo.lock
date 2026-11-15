@@ -2321,6 +2321,7 @@ dependencies = [
  "base64",
  "bytes",
  "chrono",
+ "ed25519-dalek",
  "futures-util",
  "hex",
  "hmac",

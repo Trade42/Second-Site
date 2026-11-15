@@ -165,7 +165,12 @@ fn outside_tolerance(now: f64, ts: f64) -> bool {
 }
 
 /// HMAC-SHA256 of `"{msg_id}.{timestamp}."` + body, keyed by the decoded secret, base64.
-fn sign_canonical(secret: &str, msg_id: &str, timestamp: &str, body: &[u8]) -> Result<String, String> {
+fn sign_canonical(
+    secret: &str,
+    msg_id: &str,
+    timestamp: &str,
+    body: &[u8],
+) -> Result<String, String> {
     let key = py::b64decode(secret.strip_prefix("whsec_").unwrap_or(secret))?;
     let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(&key)
         .map_err(|e| format!("HMAC key rejected: {e}"))?;
@@ -231,8 +236,8 @@ where
     if outside_tolerance(now, ts_value) {
         return Err(invalid("webhook timestamp outside tolerance"));
     }
-    let expected = sign_canonical(secret, msg_id, &canonical_ts, body)
-        .map_err(WebhookError::Unhandled)?;
+    let expected =
+        sign_canonical(secret, msg_id, &canonical_ts, body).map_err(WebhookError::Unhandled)?;
     let expected = expected.split_once(',').map_or("", |(_, s)| s);
     for entry in py::split_whitespace(sig_header) {
         let (version, sig) = entry.split_once(',').unwrap_or((entry, ""));
@@ -283,7 +288,9 @@ where
     };
     let present = |name: &str| header(headers, name).filter(|v| !v.is_empty());
     let (Some(sig), Some(ts)) = (present(TELNYX_SIGNATURE), present(TELNYX_TIMESTAMP)) else {
-        return Err(invalid("missing telnyx-signature-ed25519 / telnyx-timestamp"));
+        return Err(invalid(
+            "missing telnyx-signature-ed25519 / telnyx-timestamp",
+        ));
     };
     let now = now_or_time(now);
     let (_, ts_value) = timestamp(ts).map_err(WebhookError::Unhandled)?;

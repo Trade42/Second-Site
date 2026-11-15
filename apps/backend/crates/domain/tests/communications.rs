@@ -384,7 +384,10 @@ fn communications_contracts_conform_to_their_schemas() {
     }))
     .unwrap();
     assert_eq!(call.state, CallState::Created);
-    assert_eq!(call.automation_disclosure, ss_domain::contracts::communications::AUTOMATION_DISCLOSURE);
+    assert_eq!(
+        call.automation_disclosure,
+        ss_domain::contracts::communications::AUTOMATION_DISCLOSURE
+    );
     assert_eq!(call.authority_scope, AuthorityScope::default());
     assert!(!call.simulated && call.question_index == 0);
     // Unknown fields are refused like Pydantic's extra="forbid".
@@ -438,25 +441,53 @@ fn signed_photon(body: &[u8], msg_id: &str, ts: Option<i64>) -> Vec<(String, Str
 
 #[test]
 fn test_photon_webhook_signature() {
-    let body = std::fs::read(common::repo_root().join("fixtures/communications/photon_inbound_text.json"))
-        .unwrap();
+    let body =
+        std::fs::read(common::repo_root().join("fixtures/communications/photon_inbound_text.json"))
+            .unwrap();
     let secret = test_photon_secret();
     let hdr = signed_photon(&body, "evt_fixture_0001", None);
-    let ok = verify_standard_webhook("photon", Some(&secret), &hdr, &body, WebhookMode::Fixture, None)
-        .unwrap();
+    let ok = verify_standard_webhook(
+        "photon",
+        Some(&secret),
+        &hdr,
+        &body,
+        WebhookMode::Fixture,
+        None,
+    )
+    .unwrap();
     assert_eq!(ok.event_id, "evt_fixture_0001");
     // Fixture secret != live verification.
     assert_eq!(ok.mode, WebhookMode::Fixture);
     assert!(!ok.is_live_verified());
     let mut bad = hdr.clone();
     use base64::Engine;
-    bad[2].1 = format!("v1,{}", base64::engine::general_purpose::STANDARD.encode([b'x'; 32]));
-    let err = verify_standard_webhook("photon", Some(&secret), &bad, &body, WebhookMode::Fixture, None)
-        .unwrap_err();
-    assert_eq!((err.status_code(), err.error_code()), (400, "INVALID_SIGNATURE"));
+    bad[2].1 = format!(
+        "v1,{}",
+        base64::engine::general_purpose::STANDARD.encode([b'x'; 32])
+    );
+    let err = verify_standard_webhook(
+        "photon",
+        Some(&secret),
+        &bad,
+        &body,
+        WebhookMode::Fixture,
+        None,
+    )
+    .unwrap_err();
+    assert_eq!(
+        (err.status_code(), err.error_code()),
+        (400, "INVALID_SIGNATURE")
+    );
     let stale = signed_photon(&body, "evt_old", Some(now_s() - 3600));
     assert!(matches!(
-        verify_standard_webhook("photon", Some(&secret), &stale, &body, WebhookMode::Fixture, None),
+        verify_standard_webhook(
+            "photon",
+            Some(&secret),
+            &stale,
+            &body,
+            WebhookMode::Fixture,
+            None
+        ),
         Err(WebhookError::InvalidSignature(_))
     ));
     let text = String::from_utf8(body.clone()).unwrap();
@@ -489,8 +520,10 @@ fn test_telnyx_webhook_ed25519() {
     let b64 = base64::engine::general_purpose::STANDARD;
     let private = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
     let public = b64.encode(private.verifying_key().as_bytes());
-    let body = serde_json::to_vec(&json!({"data": {"id": "tx-evt-1", "event_type": "call.answered", "payload": {}}}))
-        .unwrap();
+    let body = serde_json::to_vec(
+        &json!({"data": {"id": "tx-evt-1", "event_type": "call.answered", "payload": {}}}),
+    )
+    .unwrap();
     let ts = now_s().to_string();
     let mut msg = format!("{ts}|").into_bytes();
     msg.extend(&body);
@@ -500,7 +533,10 @@ fn test_telnyx_webhook_ed25519() {
         ("telnyx-timestamp".to_owned(), ts),
     ];
     let ok = verify_telnyx(Some(&public), &hdr, &body, WebhookMode::Fixture, None).unwrap();
-    assert_eq!((ok.provider.as_str(), ok.event_id.as_str()), ("telnyx", "tx-evt-1"));
+    assert_eq!(
+        (ok.provider.as_str(), ok.event_id.as_str()),
+        ("telnyx", "tx-evt-1")
+    );
     let mut longer = body.clone();
     longer.push(b' ');
     assert_eq!(

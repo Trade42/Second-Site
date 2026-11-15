@@ -98,7 +98,12 @@ impl Contract for ExecuteBody {
     const NAME: &'static str = "NessieExecute";
 }
 
-async fn owned(app: &App, tx: &mut dyn Tx, project_id: Uuid, user: Uuid) -> AppResult<ProjectContext> {
+async fn owned(
+    app: &App,
+    tx: &mut dyn Tx,
+    project_id: Uuid,
+    user: Uuid,
+) -> AppResult<ProjectContext> {
     app.authz().project_for_user(tx, project_id, user).await
 }
 
@@ -159,11 +164,13 @@ async fn set_up_sandbox(
             }
         }
     });
-    Ok(match svc::set_up_sandbox(&app, project_id, requested).await? {
-        SetUp::Created(view) => (StatusCode::CREATED, Json(*view)).into_response(),
-        SetUp::Existing(view) => (StatusCode::OK, Json(*view)).into_response(),
-        SetUp::Incomplete(e) => status_problem(StatusCode::BAD_GATEWAY, e),
-    })
+    Ok(
+        match svc::set_up_sandbox(&app, project_id, requested).await? {
+            SetUp::Created(view) => (StatusCode::CREATED, Json(*view)).into_response(),
+            SetUp::Existing(view) => (StatusCode::OK, Json(*view)).into_response(),
+            SetUp::Incomplete(e) => status_problem(StatusCode::BAD_GATEWAY, e),
+        },
+    )
 }
 
 async fn read_sandbox(

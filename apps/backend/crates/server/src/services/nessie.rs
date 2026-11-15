@@ -72,7 +72,9 @@ use crate::error::{AppError, AppResult};
 use crate::logging;
 use crate::services::approvals::{ApprovalSpec, ApprovedAction};
 use crate::services::design::lock_key;
-use crate::store::repo::{superseded, Document, ProjectScoped, Repo, APPROVALS, BOMS, COST_SCENARIOS};
+use crate::store::repo::{
+    superseded, Document, ProjectScoped, Repo, APPROVALS, BOMS, COST_SCENARIOS,
+};
 use crate::store::schema::{self, TableDef};
 use crate::store::{Query, Row, Tx};
 
@@ -201,10 +203,7 @@ pub struct NessieSlot {
 
 impl NessieSlot {
     pub fn current(&self) -> Arc<NessieState> {
-        self.state
-            .read()
-            .unwrap_or_else(|p| p.into_inner())
-            .clone()
+        self.state.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
 }
 
@@ -259,7 +258,9 @@ impl App {
     pub fn nessie(&self) -> Arc<NessieState> {
         match self.extensions.get::<NessieSlot>() {
             Some(slot) => slot.current(),
-            None => Arc::new(NessieState::misconfigured("the Nessie integration is not registered")),
+            None => Arc::new(NessieState::misconfigured(
+                "the Nessie integration is not registered",
+            )),
         }
     }
 }
@@ -307,8 +308,9 @@ fn is_not_found(e: &NessieError) -> bool {
 /// the formula of `services::design::lock_key` with a composite id. Python:
 /// `int.from_bytes(hashlib.sha256(f"second-site:nessie:{project}:{property}:{item}".encode()).digest()[:8], "big", signed=True)`.
 pub fn plan_item_lock_key(project_id: Uuid, property_id: Uuid, plan_item_id: &str) -> i64 {
-    let digest =
-        Sha256::digest(format!("second-site:nessie:{project_id}:{property_id}:{plan_item_id}"));
+    let digest = Sha256::digest(format!(
+        "second-site:nessie:{project_id}:{property_id}:{plan_item_id}"
+    ));
     let mut b = [0u8; 8];
     b.copy_from_slice(&digest[..8]);
     i64::from_be_bytes(b)
@@ -425,7 +427,8 @@ impl StoredPaymentRecord {
     /// The crate's labelled record again.
     pub fn restore(&self) -> AppResult<SimulatedPaymentRecord> {
         let bad = |what: &str| AppError::internal(format!("stored Nessie record: unknown {what}"));
-        let simulation = Simulation::from_wire(&self.simulation).ok_or_else(|| bad("simulation"))?;
+        let simulation =
+            Simulation::from_wire(&self.simulation).ok_or_else(|| bad("simulation"))?;
         let operation = match self.operation.as_str() {
             "purchase" => "purchase",
             "create_recurring_bill" => "create_recurring_bill",
@@ -528,9 +531,13 @@ impl Validate for NessieSimulationRecord {
         c.max_len("record_key", &self.record_key, 255);
         match self.kind.as_str() {
             KIND_SANDBOX => {
-                if self.sandbox.is_none() || self.payment.is_some() || self.record_key != SANDBOX_KEY
+                if self.sandbox.is_none()
+                    || self.payment.is_some()
+                    || self.record_key != SANDBOX_KEY
                 {
-                    c.value_error("a sandbox record carries sandbox data only, under record_key 'sandbox'");
+                    c.value_error(
+                        "a sandbox record carries sandbox data only, under record_key 'sandbox'",
+                    );
                 }
             }
             KIND_PAYMENT => {
@@ -621,7 +628,8 @@ fn sandbox_unusable(state: &NessieState, sb: &SandboxData) -> Option<String> {
     if sb.bank_ref != state.bank_ref() {
         return Some(match Simulation::from_wire(&sb.simulation) {
             Some(Simulation::FixtureBank) if state.simulation() == Simulation::FixtureBank => {
-                "the fixture bank was reset (the server restarted), so the sandbox it held is gone".into()
+                "the fixture bank was reset (the server restarted), so the sandbox it held is gone"
+                    .into()
             }
             _ => format!(
                 "the sandbox was set up in another bank ({}) than the one this server uses ({})",
@@ -776,11 +784,12 @@ pub async fn plan_inputs(
         .into_iter()
         .filter(|s| s.project_id == project_id)
         .collect();
-    let mut live: Vec<CostScenario> = superseded::live_for_property::<CostScenario>(tx, property_id)
-        .await?
-        .into_iter()
-        .filter(|s| s.project_id == project_id)
-        .collect();
+    let mut live: Vec<CostScenario> =
+        superseded::live_for_property::<CostScenario>(tx, property_id)
+            .await?
+            .into_iter()
+            .filter(|s| s.project_id == project_id)
+            .collect();
     let live_scenarios = live.len();
     let Some(scenario) = live.pop() else {
         return Err(AppError::not_found(
@@ -833,7 +842,8 @@ pub fn plan_error(e: PlanError) -> AppError {
 /// T1: the plan always targets the bank this server uses (`bank.simulation()`).
 pub fn build_plan(state: &NessieState, inputs: &PlanInputs) -> AppResult<MoveInPaymentPlan> {
     let bom = inputs.bom.as_ref().map(bom_totals);
-    plan_move_in_payments(&inputs.scenario, bom.as_ref(), state.simulation(), None).map_err(plan_error)
+    plan_move_in_payments(&inputs.scenario, bom.as_ref(), state.simulation(), None)
+        .map_err(plan_error)
 }
 
 // ---- Views (every one carries the crate's label at the top level) -----------------------------------
@@ -1014,7 +1024,11 @@ fn create_sandbox_objects(bank: &dyn NessieBank, project_id: Uuid, opening: i64)
 
 /// `POST /nessie/sandbox`: once per project (per bank). `opening` is the request's balance, or
 /// `None` for the business profile's opening capital.
-pub async fn set_up_sandbox(app: &App, project_id: Uuid, requested: Option<i64>) -> AppResult<SetUp> {
+pub async fn set_up_sandbox(
+    app: &App,
+    project_id: Uuid,
+    requested: Option<i64>,
+) -> AppResult<SetUp> {
     let state = app.nessie();
     let bank = state.bank()?;
     let out = crate::in_tx!(app, |tx| {
@@ -1038,9 +1052,8 @@ pub async fn set_up_sandbox(app: &App, project_id: Uuid, requested: Option<i64>)
                             ))));
                         }
                         Err(e) if is_not_found(&e) => {
-                            replace_reason = Some(
-                                "the bank no longer knows the stored sandbox account".into(),
-                            )
+                            replace_reason =
+                                Some("the bank no longer knows the stored sandbox account".into())
                         }
                         Err(e) => return Err(bank_error(&e)),
                     }
@@ -1165,8 +1178,10 @@ pub async fn read_sandbox(app: &App, project_id: Uuid) -> AppResult<SandboxView>
     let bank = state.bank()?;
     let rec = crate::in_tx!(app, |tx| { sandbox_record(tx, project_id).await? });
     let Some(rec) = rec else {
-        return Err(AppError::not_found("no Nessie sandbox is set up for this project")
-            .code("NESSIE_SANDBOX_NOT_SET_UP"));
+        return Err(
+            AppError::not_found("no Nessie sandbox is set up for this project")
+                .code("NESSIE_SANDBOX_NOT_SET_UP"),
+        );
     };
     let sb = rec
         .sandbox
@@ -1217,7 +1232,9 @@ async fn sandbox_with_account(
 pub async fn plan_view(app: &App, project_id: Uuid, property_id: Uuid) -> AppResult<PlanView> {
     let state = app.nessie();
     state.bank()?;
-    let inputs = crate::in_tx!(app, |tx| { plan_inputs(tx, project_id, property_id).await? });
+    let inputs = crate::in_tx!(app, |tx| {
+        plan_inputs(tx, project_id, property_id).await?
+    });
     let plan = build_plan(&state, &inputs)?;
     Ok(PlanView::new(&inputs, plan))
 }
@@ -1252,8 +1269,8 @@ pub async fn affordability_view(
     });
     let plan = build_plan(&state, &inputs)?;
     let (_, _, account) = sandbox_with_account(&state, rec).await?;
-    let report =
-        ss_nessie::check_affordability(&account, &plan, &inputs.scenario, reserve).map_err(plan_error)?;
+    let report = ss_nessie::check_affordability(&account, &plan, &inputs.scenario, reserve)
+        .map_err(plan_error)?;
     Ok(AffordabilityView {
         simulation: report.simulation,
         disclaimer: report.disclaimer,
@@ -1409,14 +1426,19 @@ pub async fn request_approval(
                 payload_hash(&payload)
             );
             let existing = APPROVALS
-                .list(tx, Query::new().eq("idempotency_key", key.as_str()).limit(1))
+                .list(
+                    tx,
+                    Query::new().eq("idempotency_key", key.as_str()).limit(1),
+                )
                 .await?
                 .into_iter()
                 .next();
             match existing {
                 Some(a) if a.project_id != project_id => {
-                    return Err(AppError::conflict("idempotency key already used by another project")
-                        .code("IDEMPOTENCY_KEY_CONFLICT"))
+                    return Err(AppError::conflict(
+                        "idempotency key already used by another project",
+                    )
+                    .code("IDEMPOTENCY_KEY_CONFLICT"))
                 }
                 Some(a) if is_dead(&a) => continue,
                 Some(a) => {
@@ -1537,7 +1559,12 @@ pub async fn execute_payment(
         // The approval's attempt id: the only value taken from the stored approval; everything
         // else in the payload is rebuilt now from the current plan and sandbox.
         let stored = APPROVALS
-            .require_in_project(tx, approval_id, project_id, &format!("ApprovalRequest {approval_id} not found"))
+            .require_in_project(
+                tx,
+                approval_id,
+                project_id,
+                &format!("ApprovalRequest {approval_id} not found"),
+            )
             .await?;
         let attempt_id = stored
             .action_payload
@@ -1584,7 +1611,9 @@ pub async fn execute_payment(
             })
             .unwrap_or_default();
         let mut rec = NessieSimulationRecord {
-            record_id: existing.as_ref().map_or_else(ss_core::new_id, |r| r.record_id),
+            record_id: existing
+                .as_ref()
+                .map_or_else(ss_core::new_id, |r| r.record_id),
             project_id,
             kind: KIND_PAYMENT.into(),
             record_key: attempt_key(property_id, &item),
@@ -1702,7 +1731,10 @@ pub async fn execute_payment(
                 let mut details = label;
                 if let Some(d) = details.as_object_mut() {
                     d.insert("attempt_status".into(), json!(ATTEMPT_MAY_EXIST));
-                    d.insert("approval_status".into(), json!(spent.approval_status.as_str()));
+                    d.insert(
+                        "approval_status".into(),
+                        json!(spent.approval_status.as_str()),
+                    );
                     d.insert("http_status".into(), json!(failure.http_status));
                     d.insert("kind".into(), json!(failure.kind));
                 }
@@ -1780,7 +1812,9 @@ pub async fn refresh_payment(
         (Some(r), Some(_)) if p.attempt_status == ATTEMPT_SENT => r.restore()?,
         _ => {
             let why = match p.attempt_status.as_str() {
-                ATTEMPT_MAY_EXIST => "its outcome is unknown (MAY_EXIST): check the sandbox account's transactions",
+                ATTEMPT_MAY_EXIST => {
+                    "its outcome is unknown (MAY_EXIST): check the sandbox account's transactions"
+                }
                 ATTEMPT_REFUSED => "the bank refused it, so nothing exists",
                 _ => "it created a recurring bill, not a transaction",
             };
@@ -1834,7 +1868,10 @@ pub async fn refresh_payment(
 }
 
 /// The stored attempt documents of a project (tests and diagnostics).
-pub async fn records_of(tx: &mut dyn Tx, project_id: Uuid) -> AppResult<Vec<NessieSimulationRecord>> {
+pub async fn records_of(
+    tx: &mut dyn Tx,
+    project_id: Uuid,
+) -> AppResult<Vec<NessieSimulationRecord>> {
     NESSIE_RECORDS
         .list(tx, Query::new().eq("project_id", project_id))
         .await

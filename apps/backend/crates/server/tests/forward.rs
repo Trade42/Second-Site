@@ -60,10 +60,6 @@ impl Captured {
         assert!(all.len() <= 1, "{name} sent {} times", all.len());
         all.first().map(|v| String::from_utf8_lossy(v).into_owned())
     }
-
-    fn path(&self) -> &str {
-        self.target.split('?').next().unwrap_or("")
-    }
 }
 
 /// How the upstream answers one request.
@@ -92,7 +88,8 @@ impl Reply {
     }
 
     fn json(status: u16, v: Value) -> Reply {
-        Reply::new(status, serde_json::to_vec(&v).unwrap()).header("content-type", "application/json")
+        Reply::new(status, serde_json::to_vec(&v).unwrap())
+            .header("content-type", "application/json")
     }
 
     fn header(mut self, k: &str, v: &str) -> Reply {
@@ -129,7 +126,9 @@ fn read_request(stream: &mut TcpStream) -> Option<Captured> {
         }
     };
     let head = &buf[..end - 4];
-    let mut lines = head.split(|&b| b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l));
+    let mut lines = head
+        .split(|&b| b == b'\n')
+        .map(|l| l.strip_suffix(b"\r").unwrap_or(l));
     let request_line = String::from_utf8_lossy(lines.next()?).into_owned();
     let mut parts = request_line.split(' ');
     let method = parts.next()?.to_owned();
@@ -307,20 +306,50 @@ fn request(method: &str, uri: &str, headers: &[(&str, &[u8])], body: Vec<u8>) ->
 
 // ---- what is forwarded, and how --------------------------------------------------------------
 
+/// Send `req` through the forwarded routes alone (no native routes), with the app's middleware.
+async fn send_forward_only(t: &TestApp, req: Request<Body>) -> Resp {
+    let router =
+        ss_server::http::with_middleware(ss_server::http::routes::forward::router(), t.app.clone());
+    let resp = tower::ServiceExt::oneshot(router, req).await.unwrap();
+    let status = resp.status();
+    let headers = resp.headers().clone();
+    let bytes = http_body_util::BodyExt::collect(resp.into_body())
+        .await
+        .unwrap()
+        .to_bytes();
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    Resp {
+        status,
+        headers,
+        body: serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        text,
+    }
+}
+
+fn listed_request(f: &ss_server::http::routes::forward::Forwarded) -> (String, Request<Body>) {
+    let path = concrete(f.path);
+    let body = if f.method == "GET" {
+        vec![]
+    } else {
+        br#"{"x": 1}"#.to_vec()
+    };
+    let req = request(
+        f.method,
+        &path,
+        &[("content-type", b"application/json")],
+        body,
+    );
+    (path, req)
+}
+
 both_backends!(every_listed_route_is_forwarded, |db| {
     let up = Upstream::echo();
     let t = app_for(db, &up.base);
+    // The forwarding routes on their own: every entry of both lists is forwarded as sent.
     let mut expected = Vec::new();
     for f in forwarded() {
-        let path = concrete(f.path);
-        let body = if f.method == "GET" {
-            vec![]
-        } else {
-            br#"{"x": 1}"#.to_vec()
-        };
-        let r = t
-            .send(request(f.method, &path, &[("content-type", b"application/json")], body))
-            .await;
+        let (path, req) = listed_request(f);
+        let r = send_forward_only(&t, req).await;
         assert_eq!(r.status, StatusCode::OK, "{} {path}: {}", f.method, r.text);
         assert_eq!(r.body, json!({"method": f.method, "target": path}));
         expected.push((f.method.to_owned(), path));
@@ -331,7 +360,43 @@ both_backends!(every_listed_route_is_forwarded, |db| {
         .map(|c| (c.method, c.target))
         .collect();
     assert_eq!(got, expected);
-    assert_eq!(expected.len(), PYTHON_ROUTES.len() + CALL_FLOW_ROUTES_UNTIL_PART_4.len());
+    assert_eq!(
+        expected.len(),
+        PYTHON_ROUTES.len() + CALL_FLOW_ROUTES_UNTIL_PART_4.len()
+    );
+    // The whole service: the Python routes are always forwarded; a temporary call-flow entry is
+    // forwarded unless a native route of the same path and method answers it (part 4).
+    let before = up.forwarded().len();
+    for f in PYTHON_ROUTES {
+        let (path, req) = listed_request(f);
+        let r = t.send(req).await;
+        assert_eq!(
+            r.body,
+            json!({"method": f.method, "target": path}),
+            "{}",
+            r.text
+        );
+    }
+    assert_eq!(up.forwarded().len(), before + PYTHON_ROUTES.len());
+    for f in CALL_FLOW_ROUTES_UNTIL_PART_4 {
+        let n = up.forwarded().len();
+        let (path, req) = listed_request(f);
+        let r = t.send(req).await;
+        let was_forwarded = up.forwarded().len() == n + 1;
+        if was_forwarded {
+            assert_eq!(r.body, json!({"method": f.method, "target": path}));
+        }
+        eprintln!(
+            "call-flow entry {} {}: {}",
+            f.method,
+            f.path,
+            if was_forwarded {
+                "forwarded"
+            } else {
+                "answered natively"
+            }
+        );
+    }
 });
 
 both_backends!(bodies_and_headers_pass_unchanged, |db| {
@@ -348,7 +413,10 @@ both_backends!(bodies_and_headers_pass_unchanged, |db| {
                 ("authorization", b"Bearer abc.def"),
                 ("webhook-id", b"msg_2KWPBgLlAfxdpx2AI54pPJ85f4W"),
                 ("webhook-timestamp", b"1731628800"),
-                ("webhook-signature", b"v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4= v1,second"),
+                (
+                    "webhook-signature",
+                    b"v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4= v1,second",
+                ),
                 ("telnyx-signature-ed25519", b"c2ln"),
                 ("telnyx-timestamp", b"1731628800"),
                 ("x-custom", b"one"),
@@ -383,7 +451,10 @@ both_backends!(bodies_and_headers_pass_unchanged, |db| {
         ("authorization", "Bearer abc.def"),
         ("webhook-id", "msg_2KWPBgLlAfxdpx2AI54pPJ85f4W"),
         ("webhook-timestamp", "1731628800"),
-        ("webhook-signature", "v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4= v1,second"),
+        (
+            "webhook-signature",
+            "v1,K5oZfzN95Z9UVu1EsfQmfVNQhnkZ2pj9o9NDN/H/pI4= v1,second",
+        ),
         ("telnyx-signature-ed25519", "c2ln"),
         ("telnyx-timestamp", "1731628800"),
         ("cookie", "a=1; b=2"),
@@ -459,9 +530,19 @@ both_backends!(bodies_and_headers_pass_unchanged, |db| {
     assert_eq!(c.one("content-length").unwrap(), spaced.len().to_string());
 
     // Query strings arrive as sent.
-    for q in ["?x=1&y=%20a+b&z", "?", "?a=%2F..%2Finternal&b=%E2%9C%93", "?=&&"] {
+    for q in [
+        "?x=1&y=%20a+b&z",
+        "?",
+        "?a=%2F..%2Finternal&b=%E2%9C%93",
+        "?=&&",
+    ] {
         let r = t
-            .send(request("GET", &format!("/api/v1/owner/channel{q}"), &[], vec![]))
+            .send(request(
+                "GET",
+                &format!("/api/v1/owner/channel{q}"),
+                &[],
+                vec![],
+            ))
             .await;
         assert_eq!(r.status, StatusCode::NO_CONTENT);
         let c = up.forwarded().pop().unwrap();
@@ -475,7 +556,14 @@ both_backends!(bodies_and_headers_pass_unchanged, |db| {
         .send(request("POST", "/api/v1/owner/channel/poll", &[], vec![]))
         .await;
     assert_eq!(r.status, StatusCode::NO_CONTENT);
-    assert_eq!(up.forwarded().pop().unwrap().one("content-length").as_deref(), Some("0"));
+    assert_eq!(
+        up.forwarded()
+            .pop()
+            .unwrap()
+            .one("content-length")
+            .as_deref(),
+        Some("0")
+    );
 });
 
 both_backends!(answers_come_back_unchanged, |db| {
@@ -522,7 +610,10 @@ both_backends!(answers_come_back_unchanged, |db| {
     }
     let r = t.send(get("401")).await;
     assert_eq!(r.headers["www-authenticate"], "Bearer");
-    assert_eq!(r.body["request_id"], "py", "the body is Python's, unchanged");
+    assert_eq!(
+        r.body["request_id"], "py",
+        "the body is Python's, unchanged"
+    );
     let r = t.send(get("500")).await;
     assert_eq!(r.status, StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(r.text, "Internal Server Error");
@@ -531,11 +622,17 @@ both_backends!(answers_come_back_unchanged, |db| {
     let before = up.forwarded().len();
     let r = t.send(get("302")).await;
     assert_eq!(r.status, StatusCode::FOUND);
-    assert_eq!(r.headers["location"], "http://python.internal:8001/elsewhere");
+    assert_eq!(
+        r.headers["location"],
+        "http://python.internal:8001/elsewhere"
+    );
     assert_eq!(up.forwarded().len(), before + 1);
     // A chunked answer arrives whole, without its transfer coding.
     let r = t.send(get("chunked")).await;
-    assert_eq!(r.body, json!({"reply": "a chunked answer from the supervisor"}));
+    assert_eq!(
+        r.body,
+        json!({"reply": "a chunked answer from the supervisor"})
+    );
     assert!(r.headers.get("transfer-encoding").is_none());
     // Headers: end-to-end ones kept (several set-cookies stay several), hop-by-hop and CORS
     // ones dropped; this service's CORS and request id apply.
@@ -543,7 +640,10 @@ both_backends!(answers_come_back_unchanged, |db| {
         .send(request(
             "GET",
             "/api/v1/owner/channel?headers",
-            &[("origin", b"http://localhost:3000"), ("x-request-id", b"rid-7")],
+            &[
+                ("origin", b"http://localhost:3000"),
+                ("x-request-id", b"rid-7"),
+            ],
             vec![],
         ))
         .await;
@@ -559,7 +659,11 @@ both_backends!(answers_come_back_unchanged, |db| {
     assert_eq!(r.headers["cache-control"], "no-store");
     assert_eq!(r.headers["x-request-id"], "rid-7");
     assert_eq!(r.headers.get_all("x-request-id").iter().count(), 1);
-    let allow: Vec<_> = r.headers.get_all("access-control-allow-origin").iter().collect();
+    let allow: Vec<_> = r
+        .headers
+        .get_all("access-control-allow-origin")
+        .iter()
+        .collect();
     assert_eq!(allow, [HeaderValue::from_static("http://localhost:3000")]);
     assert_eq!(r.headers["access-control-allow-credentials"], "true");
     assert!(r.headers.get("access-control-expose-headers").is_none());
@@ -592,7 +696,6 @@ both_backends!(paths_next_to_the_list_are_not_forwarded, |db| {
         ("POST", "/api/v1/owner/channels".to_owned()),
         ("POST", format!("/api/v1/projects/{p}/chat/extra")),
         ("POST", format!("/api/v1/projects/{p}/chats")),
-        ("POST", "/api/v1/projects/chat".to_owned()),
         ("POST", "/webhooks/photon2".to_owned()),
         ("POST", "/webhooks/photon/x".to_owned()),
         ("POST", "/webhooks".to_owned()),
@@ -601,9 +704,19 @@ both_backends!(paths_next_to_the_list_are_not_forwarded, |db| {
         ("POST", format!("/api/v1/projects/{p}/calls/x/y/simulate")),
     ] {
         let r = t
-            .send(request(method, &path, &[("authorization", format!("Bearer {tok}").as_bytes())], vec![]))
+            .send(request(
+                method,
+                &path,
+                &[("authorization", format!("Bearer {tok}").as_bytes())],
+                vec![],
+            ))
             .await;
-        assert_eq!(r.status, StatusCode::NOT_FOUND, "{method} {path}: {}", r.text);
+        assert_eq!(
+            r.status,
+            StatusCode::NOT_FOUND,
+            "{method} {path}: {}",
+            r.text
+        );
         assert_eq!(r.body, json!({"detail": "Not Found"}), "{method} {path}");
     }
     // Methods the list does not name, on forwarded paths: the ordinary 405.
@@ -616,6 +729,8 @@ both_backends!(paths_next_to_the_list_are_not_forwarded, |db| {
         ("GET", "/api/v1/owner/channel/poll".to_owned()),
         ("PATCH", format!("/api/v1/projects/{p}/chat")),
         ("GET", format!("/api/v1/projects/{p}/chat")),
+        // `/api/v1/projects/{project_id}` itself (the native project route, GET only).
+        ("POST", "/api/v1/projects/chat".to_owned()),
     ] {
         let r = t.send(request(method, &path, &[], vec![])).await;
         assert_eq!(r.status, StatusCode::METHOD_NOT_ALLOWED, "{method} {path}");
@@ -680,14 +795,21 @@ both_backends!(the_internal_link_is_never_forwarded, |db| {
     for path in internal_tricks() {
         for method in ["POST", "GET", "PUT"] {
             for auth in [None, Some(tok.as_str()), Some(service.as_str())] {
-                let mut headers: Vec<(&str, Vec<u8>)> = vec![("content-type", b"application/json".to_vec())];
+                let mut headers: Vec<(&str, Vec<u8>)> =
+                    vec![("content-type", b"application/json".to_vec())];
                 if let Some(a) = auth {
                     headers.push(("authorization", format!("Bearer {a}").into_bytes()));
                 }
-                let h: Vec<(&str, &[u8])> = headers.iter().map(|(k, v)| (*k, v.as_slice())).collect();
+                let h: Vec<(&str, &[u8])> =
+                    headers.iter().map(|(k, v)| (*k, v.as_slice())).collect();
                 let r = t.send(request(method, &path, &h, notify.to_vec())).await;
                 if strict(&path) {
-                    assert_eq!(r.status, StatusCode::NOT_FOUND, "{method} {path}: {}", r.text);
+                    assert_eq!(
+                        r.status,
+                        StatusCode::NOT_FOUND,
+                        "{method} {path}: {}",
+                        r.text
+                    );
                     assert_eq!(r.body, json!({"detail": "Not Found"}), "{method} {path}");
                 } else {
                     // A trick on another template: answered here (the ordinary 404 unless a
@@ -701,7 +823,10 @@ both_backends!(the_internal_link_is_never_forwarded, |db| {
             }
         }
     }
-    assert!(up.captured().iter().all(|c| !c.target.to_ascii_lowercase().contains("internal")));
+    assert!(up
+        .captured()
+        .iter()
+        .all(|c| !c.target.to_ascii_lowercase().contains("internal")));
     assert!(up.forwarded().is_empty(), "{:#?}", up.forwarded());
 });
 
@@ -759,7 +884,10 @@ async fn the_internal_link_is_never_forwarded_over_tcp() {
     .unwrap();
     assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
     let got: Vec<String> = up.forwarded().into_iter().map(|c| c.target).collect();
-    assert_eq!(got, ["/api/v1/owner/channel/poll?next=/internal/v1/owner/notify"]);
+    assert_eq!(
+        got,
+        ["/api/v1/owner/channel/poll?next=/internal/v1/owner/notify"]
+    );
     server.abort();
 }
 
@@ -798,17 +926,33 @@ async fn a_native_route_wins_over_a_forwarded_one() {
             }
         };
         let p = pid();
-        assert_eq!(send("POST", format!("/api/v1/projects/{p}/outreach")).await, (StatusCode::OK, "native".into()));
-        assert_eq!(send("POST", format!("/api/v1/projects/{p}/calls")).await, (StatusCode::OK, "native".into()));
-        assert_eq!(send("POST", "/webhooks/telnyx".into()).await, (StatusCode::OK, "native".into()));
+        assert_eq!(
+            send("POST", format!("/api/v1/projects/{p}/outreach")).await,
+            (StatusCode::OK, "native".into())
+        );
+        assert_eq!(
+            send("POST", format!("/api/v1/projects/{p}/calls")).await,
+            (StatusCode::OK, "native".into())
+        );
+        assert_eq!(
+            send("POST", "/webhooks/telnyx".into()).await,
+            (StatusCode::OK, "native".into())
+        );
         // The forwarded method of a partly native path still goes to Python.
         let (s, body) = send("GET", format!("/api/v1/projects/{p}/calls")).await;
         assert_eq!(s, StatusCode::OK);
-        assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["method"], "GET");
+        assert_eq!(
+            serde_json::from_str::<Value>(&body).unwrap()["method"],
+            "GET"
+        );
         let (s, _) = send("DELETE", format!("/api/v1/projects/{p}/calls")).await;
         assert_eq!(s, StatusCode::METHOD_NOT_ALLOWED);
     }
-    let got: Vec<String> = up.forwarded().into_iter().map(|c| format!("{} {}", c.method, c.target)).collect();
+    let got: Vec<String> = up
+        .forwarded()
+        .into_iter()
+        .map(|c| format!("{} {}", c.method, c.target))
+        .collect();
     assert_eq!(
         got,
         [
@@ -821,7 +965,13 @@ async fn a_native_route_wins_over_a_forwarded_one() {
 // ---- failures --------------------------------------------------------------------------------
 
 both_backends!(an_unset_url_is_an_honest_503, |db| {
-    for url in [None, Some(""), Some("   "), Some("ftp://python:21"), Some("http://user:pw@python")] {
+    for url in [
+        None,
+        Some(""),
+        Some("   "),
+        Some("ftp://python:21"),
+        Some("http://user:pw@python"),
+    ] {
         let t = match url {
             None => TestApp::new(db, &[]),
             Some(u) => TestApp::new(db, &[("PYTHON_SERVICE_URL", u)]),
@@ -831,11 +981,28 @@ both_backends!(an_unset_url_is_an_honest_503, |db| {
             ("GET", "/api/v1/owner/channel".to_owned()),
             ("POST", format!("/api/v1/projects/{}/chat", pid())),
         ] {
-            let r = t.send(request(m, &p, &[("content-type", b"application/json")], b"{}".to_vec())).await;
+            let r = t
+                .send(request(
+                    m,
+                    &p,
+                    &[("content-type", b"application/json")],
+                    b"{}".to_vec(),
+                ))
+                .await;
             assert_problem(&r, 503, "PYTHON_SERVICE_NOT_CONFIGURED");
             assert_eq!(r.body["retryable"], false);
-            assert!(r.body["message"].as_str().unwrap().contains("runs in the Python service"), "{}", r.text);
-            assert_eq!(r.body["request_id"], r.headers["x-request-id"].to_str().unwrap());
+            assert!(
+                r.body["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("runs in the Python service"),
+                "{}",
+                r.text
+            );
+            assert_eq!(
+                r.body["request_id"],
+                r.headers["x-request-id"].to_str().unwrap()
+            );
             assert!(!r.text.contains("pw@"), "the URL leaked: {}", r.text);
         }
     }
@@ -845,45 +1012,86 @@ both_backends!(an_unreachable_service_is_an_honest_502, |db| {
     let t = fast_app_for(db, &closed_port_url());
     for (m, p) in [
         ("POST", "/webhooks/photon".to_owned()),
-        ("POST", "/webhooks/telnyx".to_owned()),
         ("GET", "/api/v1/owner/channel".to_owned()),
+        ("POST", format!("/api/v1/projects/{}/chat", pid())),
     ] {
         let r = t.send(request(m, &p, &[], b"{}".to_vec())).await;
         assert_problem(&r, 502, "PYTHON_SERVICE_UNAVAILABLE");
         assert_eq!(r.body["retryable"], true);
         assert_eq!(r.body["details"]["reason"], "connection_refused");
-        assert!(r.body["message"].as_str().unwrap().contains("Nothing was forwarded"), "{}", r.text);
+        assert!(
+            r.body["message"]
+                .as_str()
+                .unwrap()
+                .contains("Nothing was forwarded"),
+            "{}",
+            r.text
+        );
     }
 });
 
 both_backends!(timeouts_are_honest_504s, |db| {
     let up = Upstream::start(|r| {
-        let delay = if r.target.contains("slow") { 2000 } else { 1000 };
+        let delay = if r.target.contains("slow") {
+            2000
+        } else {
+            1000
+        };
         Reply::json(200, json!({"ok": true})).delayed(Duration::from_millis(delay))
     });
     let t = fast_app_for(db, &up.base);
     // 1 s is over the 0.7 s default budget ...
     let r = t
-        .send(request("POST", "/api/v1/owner/channel/simulate-text?x", &[], b"{}".to_vec()))
+        .send(request(
+            "POST",
+            "/api/v1/owner/channel/simulate-text?x",
+            &[],
+            b"{}".to_vec(),
+        ))
         .await;
     assert_problem(&r, 504, "PYTHON_SERVICE_UNAVAILABLE");
     assert_eq!(r.body["retryable"], true);
     assert_eq!(r.body["details"]["reason"], "timeout");
-    assert!(r.body["message"].as_str().unwrap().contains("whether the request took effect there is unknown")
-        || r.body["message"].as_str().unwrap().contains("Whether the request took effect there is unknown"), "{}", r.text);
+    assert!(
+        r.body["message"]
+            .as_str()
+            .unwrap()
+            .contains("whether the request took effect there is unknown")
+            || r.body["message"]
+                .as_str()
+                .unwrap()
+                .contains("Whether the request took effect there is unknown"),
+        "{}",
+        r.text
+    );
     // ... a webhook is never answered 2xx when it was not passed on ...
-    let r = t.send(request("POST", "/webhooks/photon", &[], b"{}".to_vec())).await;
+    let r = t
+        .send(request("POST", "/webhooks/photon", &[], b"{}".to_vec()))
+        .await;
     assert_eq!(r.status, StatusCode::GATEWAY_TIMEOUT);
     // ... and within the chat's 1.5 s budget.
     let chat = format!("/api/v1/projects/{}/chat", pid());
     let r = t.send(request("POST", &chat, &[], b"{}".to_vec())).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.text);
-    let r = t.send(request("POST", &format!("{chat}?slow"), &[], b"{}".to_vec())).await;
+    let r = t
+        .send(request(
+            "POST",
+            &format!("{chat}?slow"),
+            &[],
+            b"{}".to_vec(),
+        ))
+        .await;
     assert_problem(&r, 504, "PYTHON_SERVICE_UNAVAILABLE");
     // A GET that timed out says to try again.
-    let r = t.send(request("GET", "/api/v1/owner/channel", &[], vec![])).await;
+    let r = t
+        .send(request("GET", "/api/v1/owner/channel", &[], vec![]))
+        .await;
     assert_problem(&r, 504, "PYTHON_SERVICE_UNAVAILABLE");
-    assert!(r.body["message"].as_str().unwrap().contains("Try again"), "{}", r.text);
+    assert!(
+        r.body["message"].as_str().unwrap().contains("Try again"),
+        "{}",
+        r.text
+    );
 });
 
 /// A listener whose accept queue is full: further connection attempts hang, so the connect
@@ -908,7 +1116,9 @@ async fn a_connection_that_never_opens_is_a_504() {
     let db = TestDb::new(Kind::Memory).await.unwrap();
     let t = fast_app_for(&db, &format!("http://{addr}"));
     let started = std::time::Instant::now();
-    let r = t.send(request("POST", "/webhooks/photon", &[], b"{}".to_vec())).await;
+    let r = t
+        .send(request("POST", "/webhooks/photon", &[], b"{}".to_vec()))
+        .await;
     assert_problem(&r, 504, "PYTHON_SERVICE_UNAVAILABLE");
     let reason = r.body["details"]["reason"].as_str().unwrap();
     assert!(["connect_timeout", "timeout"].contains(&reason), "{reason}");
@@ -928,10 +1138,14 @@ both_backends!(cut_off_and_oversized_answers_are_502s, |db| {
         }
     });
     let t = fast_app_for(db, &up.base);
-    let r = t.send(request("GET", "/api/v1/owner/channel?cut", &[], vec![])).await;
+    let r = t
+        .send(request("GET", "/api/v1/owner/channel?cut", &[], vec![]))
+        .await;
     assert_problem(&r, 502, "PYTHON_SERVICE_UNAVAILABLE");
     assert_eq!(r.body["details"]["reason"], "transport_error");
-    let r = t.send(request("GET", "/api/v1/owner/channel?big", &[], vec![])).await;
+    let r = t
+        .send(request("GET", "/api/v1/owner/channel?big", &[], vec![]))
+        .await;
     assert_problem(&r, 502, "PYTHON_SERVICE_UNAVAILABLE");
     assert_eq!(r.body["details"]["reason"], "response_too_large");
 });
@@ -946,7 +1160,12 @@ both_backends!(an_oversized_body_is_refused, |db| {
     assert_eq!(r.status, StatusCode::OK, "{}", r.text);
     assert_eq!(r.body["received"], limit);
     let r = t
-        .send(request("POST", "/webhooks/photon", &[], vec![b'a'; limit + 1]))
+        .send(request(
+            "POST",
+            "/webhooks/photon",
+            &[],
+            vec![b'a'; limit + 1],
+        ))
         .await;
     assert_problem(&r, 413, "PAYLOAD_TOO_LARGE");
     // Refused from the declared length alone, before the body is read.
@@ -993,7 +1212,10 @@ both_backends!(ready_reports_the_python_service_honestly, |db| {
     let e = python_entry(&t.get("/ready", None).await.body);
     assert_eq!(e["mode"], "not_configured");
     assert_eq!(e["status"], "NOT_STARTED");
-    assert!(e["note"].as_str().unwrap().starts_with("NOT_CONFIGURED"), "{e}");
+    assert!(
+        e["note"].as_str().unwrap().starts_with("NOT_CONFIGURED"),
+        "{e}"
+    );
     // Not usable.
     let t = TestApp::new(db, &[("PYTHON_SERVICE_URL", "ftp://python")]);
     let e = python_entry(&t.get("/ready", None).await.body);
@@ -1001,14 +1223,18 @@ both_backends!(ready_reports_the_python_service_honestly, |db| {
     // Configured but nothing listens: never LIVE on the strength of configuration alone.
     let t = fast_app_for(db, &closed_port_url());
     let e = wait_for_status(&t, "BLOCKED").await;
-    assert!(e["note"].as_str().unwrap().contains("connection_refused"), "{e}");
+    assert!(
+        e["note"].as_str().unwrap().contains("connection_refused"),
+        "{e}"
+    );
     // A service whose /health answers slowly: not checked yet, then LIVE ...
     let healthy = Arc::new(AtomicBool::new(true));
     let h2 = healthy.clone();
     let up = Upstream::start(move |r| {
         assert_eq!(r.target, "/health");
         if h2.load(Ordering::SeqCst) {
-            Reply::json(200, json!({"status": "ok", "version": "0.1.0"})).delayed(Duration::from_millis(150))
+            Reply::json(200, json!({"status": "ok", "version": "0.1.0"}))
+                .delayed(Duration::from_millis(150))
         } else {
             Reply::json(503, json!({"status": "down"}))
         }
@@ -1018,7 +1244,10 @@ both_backends!(ready_reports_the_python_service_honestly, |db| {
     assert_eq!(e["status"], "NOT_STARTED", "{e}");
     let e = wait_for_status(&t, "LIVE").await;
     assert_eq!(e["mode"], "forward");
-    assert!(e["note"].as_str().unwrap().contains("answered HTTP 200"), "{e}");
+    assert!(
+        e["note"].as_str().unwrap().contains("answered HTTP 200"),
+        "{e}"
+    );
     // ... and BLOCKED within a few checks of it going down.
     healthy.store(false, Ordering::SeqCst);
     let e = wait_for_status(&t, "BLOCKED").await;
@@ -1036,7 +1265,10 @@ async fn the_default_link_checks_health_at_start() {
     let t = app_for(&db, &up.base);
     let e = wait_for_status(&t, "LIVE").await;
     assert!(e["note"].as_str().unwrap().contains("HTTP 200"));
-    assert!(up.captured().iter().all(|c| c.method == "GET" && c.target == "/health"));
+    assert!(up
+        .captured()
+        .iter()
+        .all(|c| c.method == "GET" && c.target == "/health"));
 }
 
 // ---- the log ---------------------------------------------------------------------------------
@@ -1070,14 +1302,19 @@ async fn nothing_sensitive_is_logged() {
     let (l2, (tx, rx)) = (lines.clone(), std::sync::mpsc::channel::<String>());
     std::thread::spawn(move || {
         use std::io::BufRead;
-        for line in std::io::BufReader::new(stdout).lines().map_while(Result::ok) {
+        for line in std::io::BufReader::new(stdout)
+            .lines()
+            .map_while(Result::ok)
+        {
             if line.contains("\"listening\"") {
                 let _ = tx.send(line.clone());
             }
             l2.lock().unwrap().push(line);
         }
     });
-    let listening = rx.recv_timeout(Duration::from_secs(20)).expect("the binary did not start");
+    let listening = rx
+        .recv_timeout(Duration::from_secs(20))
+        .expect("the binary did not start");
     let v: Value = serde_json::from_str(&listening).unwrap();
     let addr: std::net::SocketAddr = v["addr"].as_str().unwrap().parse().unwrap();
     let secrets = [
@@ -1110,9 +1347,10 @@ async fn nothing_sensitive_is_logged() {
     let base = up.base.clone();
     drop(up);
     // Now the upstream is gone: the failure path logs too.
-    let failed = tokio::task::spawn_blocking(move || send(format!("/api/v1/projects/{}/chat", pid())))
-        .await
-        .unwrap();
+    let failed =
+        tokio::task::spawn_blocking(move || send(format!("/api/v1/projects/{}/chat", pid())))
+            .await
+            .unwrap();
     assert!(failed.starts_with("HTTP/1.1 502"), "{failed}");
     tokio::time::sleep(Duration::from_millis(300)).await;
     let _ = child.kill();
@@ -1123,14 +1361,26 @@ async fn nothing_sensitive_is_logged() {
     for s in secrets {
         assert!(!out.contains(s), "{s} appears in the log:\n{out}");
     }
-    assert!(!out.contains(&base), "the upstream URL appears in the log:\n{out}");
-    let failure: Vec<&str> = out.lines().filter(|l| l.contains("python service unavailable")).collect();
+    assert!(
+        !out.contains(&base),
+        "the upstream URL appears in the log:\n{out}"
+    );
+    let failure: Vec<&str> = out
+        .lines()
+        .filter(|l| l.contains("python service unavailable"))
+        .collect();
     assert_eq!(failure.len(), 1, "{out}");
     let f: Value = serde_json::from_str(failure[0]).unwrap();
     assert_eq!(f["level"], "WARNING");
     assert_eq!(f["method"], "POST");
     assert_eq!(f["path"], format!("/api/v1/projects/{}/chat", pid()));
     assert_eq!(f["reason"], "connection_refused");
-    assert!(out.lines().filter(|l| l.contains("\"app.request\"")).count() >= 2, "{out}");
+    assert!(
+        out.lines()
+            .filter(|l| l.contains("\"app.request\""))
+            .count()
+            >= 2,
+        "{out}"
+    );
     let _ = std::fs::remove_dir_all(dir.parent().unwrap().parent().unwrap());
 }
