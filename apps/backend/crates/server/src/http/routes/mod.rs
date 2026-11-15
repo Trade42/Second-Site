@@ -10,6 +10,7 @@ pub mod evidence;
 pub mod forward;
 pub mod health;
 pub mod media;
+pub mod media_matterport;
 pub mod nessie;
 pub mod projects;
 pub mod properties;
@@ -31,6 +32,7 @@ pub fn api_routes() -> Router<AppState> {
         .merge(events::router())
         .merge(properties::router())
         .merge(media::router())
+        .merge(media_matterport::router())
         .merge(design::router())
         .merge(nessie::router())
         .merge(evidence::router())
