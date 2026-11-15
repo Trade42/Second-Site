@@ -54,8 +54,12 @@ use chrono::{Duration, Utc};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use ss_core::{DataOrigin, EvidenceClassification, UtcDateTime};
+use ss_domain::communications::call_purposes::{
+    self as cp, Approved, CallPurposes, PurposeOutcome, PurposeState,
+};
+use ss_domain::communications::call_summary::{self as csum, CallEnd, InputFinding};
 use ss_domain::communications::response_agent::{
-    self as agent, CallContext, ConversationState, Say, Utterance,
+    self as agent, CallContext, ConversationState, EscalationRule, Say, Utterance,
 };
 use ss_domain::communications::{build_script, call_payload, describe, detect_escalation, extract};
 use ss_domain::contracts::{
@@ -83,7 +87,7 @@ use crate::services::voice_session_config as vsc;
 use crate::store::comms::{
     call_by_provider_id, channel_for_owner, CALLS, COMMUNICATIONS, HANDOFFS,
 };
-use crate::store::repo::{users, ASSESSMENTS, PROJECTS};
+use crate::store::repo::{users, ASSESSMENTS, PROFILES, PROJECTS};
 use crate::store::{Query, Tx};
 
 /// `HANDOFF_TTL` (3 minutes).
@@ -230,12 +234,69 @@ pub struct StartCall {
     pub simulated: bool,
 }
 
+/// What an outreach request carried besides the fields of its `CommunicationSession`: its own
+/// questions and what the owner approved the call to do (a tour, rent limits). Kept on the
+/// server only, never in a response, an event or a log (the limits hold the maximum rent), so
+/// it has no `Debug`.
+#[derive(Clone, Default, PartialEq)]
+pub struct RequestExtras {
+    pub questions: Vec<String>,
+    pub purposes: Option<CallPurposes>,
+}
+
+impl RequestExtras {
+    fn has_purposes(&self) -> bool {
+        self.purposes
+            .as_ref()
+            .is_some_and(|p| p.tour.is_some() || p.negotiation.is_some())
+    }
+}
+
+/// The key of the approval payload that binds an approval to the request's purposes and
+/// questions.
+pub const REQUEST_DIGEST_KEY: &str = "request_digest";
+
+/// A keyed digest (HMAC-SHA256 with the service secret) of the request's purposes and
+/// questions, present only when the request has purposes. It goes into the approval payload,
+/// so `require_approved` refuses a start whose stored purposes or questions are not the ones
+/// the approval was given for; being keyed, it cannot be searched for the maximum.
+pub fn request_digest(secret: &str, extras: &RequestExtras) -> Option<String> {
+    if !extras.has_purposes() {
+        return None;
+    }
+    let body = json!({"purposes": extras.purposes, "questions": extras.questions}).to_string();
+    Some(crate::security::sign(secret, &body))
+}
+
+/// What a call may do besides its questions, with where it stands (process-local, by call id,
+/// dropped at any terminal state: a restart during a call loses it, and the call then has no
+/// tour or rent tool answers but refusals).
+#[derive(Clone, Default)]
+struct CallExtras {
+    questions: Vec<String>,
+    approved: Approved,
+    state: PurposeState,
+    /// A "would the owner go to ..." line whose `evaluate_rent` call has not arrived yet.
+    pending_concession: Option<String>,
+    /// `evaluate_rent` answered since the last counterparty line.
+    rent_tool_since_line: bool,
+}
+
+/// What a closed call leaves for its summary.
+#[derive(Default)]
+struct ClosedVoice {
+    agent: Option<(ConversationState, Option<CallContext>)>,
+    extras: Option<CallExtras>,
+}
+
 /// `CallOrchestrator`. Owner texts it asks for are collected in `notices`; the caller sends them
 /// after its transaction commits.
 pub struct CallOrchestrator<'a> {
     app: &'a App,
     telephony: Arc<dyn TelephonyProvider>,
     pub notices: Vec<NotifyRequest>,
+    /// The process-local state of calls this orchestrator closed, kept for `finalize`.
+    closed: HashMap<Uuid, ClosedVoice>,
 }
 
 impl<'a> CallOrchestrator<'a> {
@@ -245,6 +306,7 @@ impl<'a> CallOrchestrator<'a> {
             app,
             telephony,
             notices: Vec::new(),
+            closed: HashMap::new(),
         }
     }
 
@@ -388,7 +450,17 @@ impl<'a> CallOrchestrator<'a> {
     /// `start`: the approval gate, the call record and the dial.
     pub async fn start(&mut self, tx: &mut dyn Tx, s: StartCall) -> AppResult<CallSession> {
         lock_project(tx, s.project_id).await?;
-        let payload = call_payload(s.project_id, &s.recipient, s.property_id);
+        // The request's own questions and purposes are the ones stored at outreach under the
+        // communication id; nothing supplied at start can replace them. Their digest is part of
+        // the approved payload, so an approval covers exactly the request it was given for.
+        let extras = s
+            .communication_id
+            .and_then(|id| self.app.voice_calls().request_extras(id))
+            .unwrap_or_default();
+        let mut payload = call_payload(s.project_id, &s.recipient, s.property_id);
+        if let Some(d) = request_digest(self.app.settings.auth_secret.expose(), &extras) {
+            payload.insert(REQUEST_DIGEST_KEY.into(), Value::String(d));
+        }
         let approved = self
             .app
             .approvals()
@@ -489,6 +561,10 @@ impl<'a> CallOrchestrator<'a> {
         )];
         let call = self.save(tx, call).await?;
         self.app.approvals().mark_executed(tx, approved).await?;
+        self.begin_purposes(tx, &call, extras).await?;
+        if let Some(id) = s.communication_id {
+            self.app.voice_calls().forget_request(id);
+        }
         self.set_comm_state(tx, &call, CommunicationState::InProgress)
             .await?;
         self.emit(
@@ -521,7 +597,8 @@ impl<'a> CallOrchestrator<'a> {
         }
         let call = self.save(tx, call).await?;
         if is_terminal(target) {
-            self.app.voice_calls().close(call.call_id).await;
+            let left = self.app.voice_calls().close(call.call_id).await;
+            self.closed.insert(call.call_id, left);
         } else if target == CallState::AiResumed {
             self.app.voice_calls().unpause(call.call_id).await;
         }
@@ -651,6 +728,20 @@ impl<'a> CallOrchestrator<'a> {
         if et == Some("call.machine.detection.ended")
             && p.get("result").and_then(Value::as_str) == Some("machine")
         {
+            // With the voice bridge on, nothing is spoken on the carrier to a machine: not over
+            // the owner's recording, not over the assistant. The call is hung up without a
+            // message and the reason is stored (a voicemail policy is the owner's to decide).
+            let vcs = self.app.voice_calls();
+            if vcs.enabled() || vcs.is_bridged(call.call_id) {
+                vcs.pause(call.call_id).await;
+                let mut call = call;
+                call.transcript.push(turn("system", VOICEMAIL_NOTE));
+                let call = self.save(tx, call).await?;
+                if let Some(leg) = call.provider_call_id.clone() {
+                    let _ = self.tel(move |t| t.hangup(&leg)).await?;
+                }
+                return Ok(Some(call));
+            }
             let owner = self.owner_name(tx, call.owner_id).await?;
             let call = self
                 .say(
@@ -942,6 +1033,7 @@ impl<'a> CallOrchestrator<'a> {
                 .await?;
             return Ok(call);
         }
+        let prior = call.state;
         let call = if call.state == CallState::Intro {
             let detail = format!(
                 "ended during intro ({})",
@@ -965,10 +1057,295 @@ impl<'a> CallOrchestrator<'a> {
             self.advance(tx, call.call_id, CallState::Completed, Some(&detail))
                 .await?
         };
-        self.finalize(tx, call).await
+        self.finalize(tx, call, prior).await
     }
 
-    async fn finalize(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
+    /// The owner's monthly rent limit of the project's business profile, in cents.
+    async fn rent_limit_cents(&self, tx: &mut dyn Tx, project_id: Uuid) -> AppResult<Option<i64>> {
+        Ok(PROFILES
+            .list(tx, Query::new().eq("project_id", project_id))
+            .await?
+            .into_iter()
+            .next()
+            .and_then(|p| p.monthly_rent_limit))
+    }
+
+    fn label(call: &CallSession) -> &'static str {
+        if call.simulated {
+            SIMULATED_LABEL
+        } else {
+            ""
+        }
+    }
+
+    fn contact(call: &CallSession) -> String {
+        let name = vsc::field(get_default(&call.recipient, "name", ""));
+        let role = vsc::field(get_default(&call.recipient, "role", ""));
+        match (name.is_empty(), role.is_empty()) {
+            (true, true) => "the listing contact".to_owned(),
+            (true, false) => format!("the {role}"),
+            (false, true) => name,
+            (false, false) => format!("{name} ({role})"),
+        }
+    }
+
+    /// At call start: validate what the owner approved against the profile's rent limit and
+    /// keep it, with the request's questions, for the call. A refused purpose does not stop
+    /// the call; the owner is told why.
+    async fn begin_purposes(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: &CallSession,
+        extras: RequestExtras,
+    ) -> AppResult<()> {
+        let has = extras.has_purposes();
+        if !has && extras.questions.is_empty() {
+            return Ok(());
+        }
+        let owner = self.owner_name(tx, call.owner_id).await?;
+        let limit = self.rent_limit_cents(tx, call.project_id).await?;
+        let mut approved = cp::approve(&extras.purposes.unwrap_or_default(), &owner, limit);
+        // The refusals name the profile's limit at most, never the request's maximum.
+        let mut notes = std::mem::take(&mut approved.refusals);
+        if has && !self.app.voice_calls().enabled() {
+            approved.tour = None;
+            approved.negotiation = None;
+            notes = vec![
+                "The tour request and the rent limits are not used: the voice assistant is \
+                 switched off, so this call only asks its questions."
+                    .to_owned(),
+            ];
+        }
+        if !notes.is_empty() {
+            let text = format!(
+                "{}About the call to {}: {} The call goes ahead without it.",
+                Self::label(call),
+                Self::contact(call),
+                notes.join(" ")
+            );
+            self.notify_owner(
+                call,
+                text,
+                "call_purposes",
+                format!("call-purposes:{}", call.call_id),
+            );
+        }
+        self.app.voice_calls().set_extras(
+            call.call_id,
+            CallExtras {
+                questions: extras.questions,
+                approved,
+                ..CallExtras::default()
+            },
+        );
+        Ok(())
+    }
+
+    /// The owner notices for what a tool call changed (never sent to the counterparty).
+    fn notify_outcomes(&mut self, call: &CallSession, before: &PurposeState, after: &PurposeState) {
+        let old = cp::outcomes(before);
+        let (label, who) = (Self::label(call), Self::contact(call));
+        for o in cp::outcomes(after) {
+            if old.contains(&o) {
+                continue;
+            }
+            match o {
+                PurposeOutcome::RentWithinLimits {
+                    amount_cents,
+                    at_or_under_target,
+                    ..
+                } => {
+                    let text = format!(
+                        "{label}Needs your decision: on the call, {who} said {} a month. That \
+                         is {}. Nothing is agreed: the assistant only said it would bring the \
+                         number to you.",
+                        agent::format_money(amount_cents, "USD"),
+                        if at_or_under_target {
+                            "at or under your target"
+                        } else {
+                            "inside the limit you set"
+                        }
+                    );
+                    self.notify_owner(
+                        call,
+                        text,
+                        "rent_decision",
+                        format!("call-rent:{}:{amount_cents}", call.call_id),
+                    );
+                }
+                PurposeOutcome::TourBooked { start, end, .. } => {
+                    let text = format!(
+                        "{label}Tour set on the call with {who}: {} (the property's local \
+                         time), {} minutes, inside your times. This is the assistant's record \
+                         only: nothing was sent to them in writing.",
+                        cp::spoken_time(&start),
+                        (end - start).num_minutes()
+                    );
+                    self.notify_owner(
+                        call,
+                        text,
+                        "tour_booked",
+                        format!("call-tour:{}:{}", call.call_id, start.to_rfc3339()),
+                    );
+                }
+                PurposeOutcome::TourMoved {
+                    from_start,
+                    start,
+                    end,
+                    ..
+                } => {
+                    let text = format!(
+                        "{label}Tour moved on the call with {who}, at their request: from {} \
+                         to {} (the property's local time), {} minutes, inside your times. \
+                         This is the assistant's record only: nothing was sent to them in \
+                         writing.",
+                        cp::spoken_time(&from_start),
+                        cp::spoken_time(&start),
+                        (end - start).num_minutes()
+                    );
+                    self.notify_owner(
+                        call,
+                        text,
+                        "tour_booked",
+                        format!("call-tour:{}:{}", call.call_id, start.to_rfc3339()),
+                    );
+                }
+                PurposeOutcome::TourNeedsOwner { .. } => {
+                    let text = format!(
+                        "{label}Follow-up from the call with {who}: they could not make any of \
+                         your tour times and are waiting for other times from you."
+                    );
+                    self.notify_owner(
+                        call,
+                        text,
+                        "tour_followup",
+                        format!("call-tour-followup:{}", call.call_id),
+                    );
+                }
+                PurposeOutcome::RentAboveLimits { .. } => {}
+            }
+        }
+    }
+
+    /// How the call ended, for the summary: every state named.
+    fn call_end(prior: CallState, call: &CallSession) -> CallEnd {
+        if call
+            .transcript
+            .iter()
+            .any(|t| t.speaker == "system" && t.text == VOICEMAIL_NOTE)
+        {
+            return CallEnd::Voicemail;
+        }
+        match (call.state, prior) {
+            (CallState::Declined, _) => CallEnd::NoAnswer,
+            // No "cancelled" end exists in the summary; a cancelled call did not complete.
+            (CallState::Failed | CallState::Cancelled, _) => CallEnd::Failed,
+            (_, CallState::HumanJoined) => CallEnd::HandedToOwner,
+            (_, CallState::Intro | CallState::Dialing | CallState::Created) => CallEnd::HungUp,
+            (
+                _,
+                CallState::Active
+                | CallState::AiResumed
+                | CallState::HandoffPending
+                | CallState::OwnerJoining
+                | CallState::Completed
+                | CallState::Failed
+                | CallState::Declined
+                | CallState::Cancelled,
+            ) => CallEnd::Completed,
+        }
+    }
+
+    /// The structured summary's owner text for a bridged call or a call with purposes: the
+    /// Response Agent's kept findings with their cents, the planned questions, the handoffs,
+    /// then the purposes' owner lines inside the text's bound.
+    async fn voice_summary(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: &CallSession,
+        prior: CallState,
+        left: &ClosedVoice,
+    ) -> AppResult<String> {
+        let handoffs: Vec<OwnerHandoffRequest> = HANDOFFS
+            .list(tx, Query::new().eq("project_id", call.project_id))
+            .await?
+            .into_iter()
+            .filter(|h| h.call_id == call.call_id)
+            .collect();
+        let limit = self.rent_limit_cents(tx, call.project_id).await?;
+        let mut input =
+            csum::SummaryInput::from_call(call, Self::call_end(prior, call), handoffs, limit);
+        if let Some((state, ctx)) = &left.agent {
+            if !state.findings.is_empty() {
+                input.findings = state
+                    .findings
+                    .iter()
+                    .map(|f| {
+                        let mut i = InputFinding::from(f);
+                        // A range finding has a string value and no cents; a long bare number
+                        // (an account-like value) is not carried into the summary.
+                        if i.value.as_i64().is_some_and(|n| n.abs() >= 100_000_000)
+                            && i.amount_cents.is_none()
+                        {
+                            i.value = Value::String("[REDACTED]".into());
+                        }
+                        i
+                    })
+                    .collect();
+            }
+            if let Some(ctx) = ctx.as_ref().filter(|c| !c.questions.is_empty()) {
+                input.questions = ctx
+                    .questions
+                    .iter()
+                    .map(|q| csum::OutreachQuestion {
+                        id: q.id.clone(),
+                        text: q.text.clone(),
+                        topic: q.topic.clone(),
+                        claim_type: q.claim_type.clone(),
+                    })
+                    .collect();
+            }
+        }
+        let mut text = csum::owner_text(&csum::summarize(&input));
+        if let Some(extras) = &left.extras {
+            for line in cp::owner_lines(&extras.state) {
+                if text.chars().count() + 1 + line.chars().count()
+                    <= csum::MAX_OWNER_TEXT_CHARS
+                {
+                    text.push(' ');
+                    text.push_str(&line);
+                }
+            }
+        }
+        Ok(text)
+    }
+
+    async fn finalize(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+        prior: CallState,
+    ) -> AppResult<CallSession> {
+        let left = self.closed.remove(&call.call_id).unwrap_or_default();
+        let mut call = call;
+        if let Some(q) = left
+            .extras
+            .as_ref()
+            .and_then(|e| e.pending_concession.clone())
+        {
+            // A proposal the rent tool never answered still reaches the owner.
+            call.deferred_questions.push(q);
+        }
+        let voice = left.agent.is_some()
+            || left
+                .extras
+                .as_ref()
+                .is_some_and(|e| e.approved.tour.is_some() || e.approved.negotiation.is_some());
+        let voice_text = if voice {
+            Some(self.voice_summary(tx, &call, prior, &left).await?)
+        } else {
+            None
+        };
         let known: Vec<&StructuredFinding> = call
             .findings
             .iter()
@@ -997,9 +1374,17 @@ impl<'a> CallOrchestrator<'a> {
                 call.deferred_questions.join("; ")
             ));
         }
-        let summary = ss_domain::py::strip(&summary).to_owned();
-        let mut call = call;
-        call.outcome_summary = Some(summary.clone());
+        // A bridged call, or one with purposes, gets the structured summary's owner text (it
+        // carries the simulated label itself); every other call keeps Python's text.
+        let (summary, text) = match voice_text {
+            Some(t) => (t.clone(), t),
+            None => {
+                let summary = ss_domain::py::strip(&summary).to_owned();
+                let text = format!("{}{summary}", Self::label(&call));
+                (summary, text)
+            }
+        };
+        call.outcome_summary = Some(summary);
         let call = self.save(tx, call).await?;
         if let Some(comm_id) = call.communication_id {
             if let Some(mut comm) = COMMUNICATIONS
@@ -1030,10 +1415,6 @@ impl<'a> CallOrchestrator<'a> {
                     .await?;
             }
         }
-        let text = format!(
-            "{}{summary}",
-            if call.simulated { SIMULATED_LABEL } else { "" }
-        );
         self.notify_owner(
             &call,
             text,
@@ -1382,7 +1763,8 @@ impl<'a> CallOrchestrator<'a> {
                 .await?;
             if self.app.voice_calls().is_bridged(call.call_id) {
                 // The bridge is paused, so this goes out on the carrier (`speak`).
-                return self.say(tx, call, OWNER_JOINED_LINE).await;
+                let client = self.owner_name(tx, call.owner_id).await?;
+                return self.say(tx, call, &owner_joined_line(&client)).await;
             }
             return Ok(call);
         }
@@ -1479,12 +1861,47 @@ pub const APOLOGY_LINE: &str = "I'm sorry, we're having a technical problem on o
                                 owner will follow up with you directly. Goodbye.";
 /// Said (on the carrier) when the owner accepted a handoff and is being dialed.
 pub const HOLD_FOR_OWNER_LINE: &str = "Please hold for a moment.";
-/// Said by the server only on the HUMAN_JOINED transition.
-pub const OWNER_JOINED_LINE: &str = "The owner has joined the call.";
-/// A commitment or a sensitive disclosure the model asked about.
-pub const NOT_APPROVED_OUTPUT: &str = r#"{"status":"not_approved","detail":"Not approved; the owner has been asked. Say that you have asked the owner, and do not agree to or disclose anything."}"#;
+/// Said by the server only on the HUMAN_JOINED transition. To a landlord "the owner" is the
+/// property's owner, so the client is named.
+pub fn owner_joined_line(client: &str) -> String {
+    format!("{} has joined the call.", client_name(client))
+}
+/// The client's name as one bounded line (`voice_session_config::field`), or a neutral phrase.
+fn client_name(client: &str) -> String {
+    let c = vsc::field(client);
+    if c.is_empty() {
+        "The person I am calling for".to_owned()
+    } else {
+        c
+    }
+}
+/// A commitment or a sensitive disclosure the model asked about: never approved by a tool
+/// call. The client is named.
+pub fn not_approved_output(client: &str) -> String {
+    let c = client_name(client);
+    json!({
+        "status": "not_approved",
+        "detail": format!(
+            "Not approved; {c} has been asked. Say that you have asked {c}, and do not agree \
+             to or disclose anything."
+        ),
+    })
+    .to_string()
+}
 /// An escalation the model asked for.
-pub const OWNER_ASKED_OUTPUT: &str = r#"{"status":"owner_asked","detail":"The owner has been asked. Say so and wait; do not answer for them."}"#;
+pub fn owner_asked_output(client: &str) -> String {
+    let c = client_name(client);
+    json!({
+        "status": "owner_asked",
+        "detail": format!("{c} has been asked. Say so and wait; do not answer for them."),
+    })
+    .to_string()
+}
+/// The answer when no call or client can be named (an unknown call, an error).
+pub const NOT_APPROVED_OUTPUT: &str = r#"{"status":"not_approved","detail":"Not approved; the person you are calling for has been asked. Say that you have asked them, and do not agree to or disclose anything."}"#;
+/// The stored reason when an answering machine was detected on a call with the voice bridge.
+pub const VOICEMAIL_NOTE: &str =
+    "[answering machine detected; hung up without leaving a message]";
 pub const UNKNOWN_TOOL_OUTPUT: &str = r#"{"status":"unknown_tool"}"#;
 /// How long after the Response Agent's closing line the call is hung up.
 pub const CLOSING_HANGUP_DELAY_S: u64 = 8;
@@ -1571,7 +1988,14 @@ pub struct VoiceCalls {
     launcher: RwLock<Option<Arc<dyn BridgeLauncher>>>,
     app: RwLock<Weak<App>>,
     calls: Mutex<HashMap<Uuid, VoiceCall>>,
+    /// By communication id: what the outreach request carried, until its call starts.
+    requests: Mutex<IndexMap<Uuid, RequestExtras>>,
+    /// By call id: the approved purposes and their state, until the call ends.
+    extras: Mutex<HashMap<Uuid, CallExtras>>,
 }
+
+/// At most this many requests wait for their start; the oldest is dropped first.
+const MAX_PENDING_REQUESTS: usize = 2048;
 
 fn sha_hex(s: &str) -> String {
     use sha2::Digest;
@@ -1593,7 +2017,79 @@ impl VoiceCalls {
             launcher: RwLock::new(launcher),
             app: RwLock::new(Weak::new()),
             calls: Mutex::new(HashMap::new()),
+            requests: Mutex::new(IndexMap::new()),
+            extras: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Keep what an outreach request carried besides its communication's fields (server side
+    /// only). A request with neither questions nor purposes keeps nothing.
+    pub fn stash_request(&self, communication_id: Uuid, extras: RequestExtras) {
+        if extras.questions.is_empty() && !extras.has_purposes() {
+            return;
+        }
+        let mut m = self.requests.lock().unwrap_or_else(|e| e.into_inner());
+        while m.len() >= MAX_PENDING_REQUESTS {
+            m.shift_remove_index(0);
+        }
+        m.insert(communication_id, extras);
+    }
+
+    fn request_extras(&self, communication_id: Uuid) -> Option<RequestExtras> {
+        self.requests
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&communication_id)
+            .cloned()
+    }
+
+    fn forget_request(&self, communication_id: Uuid) {
+        self.requests
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .shift_remove(&communication_id);
+    }
+
+    /// Whether an approved tour or rent negotiation of the call is not settled yet.
+    fn purposes_open(&self, call_id: Uuid) -> bool {
+        self.extras_map().get(&call_id).is_some_and(|e| {
+            let tour = e.approved.tour.is_some()
+                && e.state.tour.booked.is_none()
+                && !e.state.tour.needs_owner;
+            let rent = e.approved.negotiation.is_some()
+                && e.state.negotiation.with_owner.is_none()
+                && e.state.negotiation.declined.is_none();
+            tour || rent
+        })
+    }
+
+    /// Undo the Response Agent's "ended" after a withheld closing, so later lines are decided.
+    fn reopen_agent(&self, call_id: Uuid) {
+        if let Some(v) = self.map().get_mut(&call_id) {
+            v.agent.ended = false;
+        }
+    }
+
+    fn extras_map(&self) -> std::sync::MutexGuard<'_, HashMap<Uuid, CallExtras>> {
+        self.extras.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn set_extras(&self, call_id: Uuid, extras: CallExtras) {
+        self.extras_map().insert(call_id, extras);
+    }
+
+    fn call_extras(&self, call_id: Uuid) -> Option<CallExtras> {
+        self.extras_map().get(&call_id).cloned()
+    }
+
+    /// Whether a call still holds purposes state (tests: dropped at any terminal state).
+    pub fn has_purposes_state(&self, call_id: Uuid) -> bool {
+        self.extras_map().contains_key(&call_id)
+    }
+
+    /// How many outreach requests wait for their start (tests).
+    pub fn pending_requests(&self) -> usize {
+        self.requests.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     fn map(&self) -> std::sync::MutexGuard<'_, HashMap<Uuid, VoiceCall>> {
@@ -1684,9 +2180,15 @@ impl VoiceCalls {
         }
     }
 
-    /// Stop and forget the call's bridge; the stream secret dies with it.
-    async fn close(&self, call_id: Uuid) {
+    /// Stop and forget the call's bridge; the stream secret dies with it, and so does the
+    /// purposes state (the limits). What the summary needs is handed back.
+    async fn close(&self, call_id: Uuid) -> ClosedVoice {
         let entry = self.map().remove(&call_id);
+        let extras = self.extras_map().remove(&call_id);
+        let mut left = ClosedVoice {
+            agent: None,
+            extras,
+        };
         if let Some(v) = entry {
             if let (Some(id), Some(l)) = (v.bridge_id.as_deref(), self.launcher()) {
                 l.remove(id);
@@ -1694,7 +2196,9 @@ impl VoiceCalls {
             if let Some(c) = v.control {
                 c.stop().await;
             }
+            left.agent = Some((v.agent, v.context));
         }
+        left
     }
 
     /// Drop the bridge without a stop (it ended by itself), keep the call bridged-and-paused so
@@ -1842,10 +2346,12 @@ impl CallOrchestrator<'_> {
                 if expected.is_none() || got != expected {
                     return Ok(Some(call.clone()));
                 }
+                // An ended event without a status does not start the assistant: it is treated
+                // as a failed playback.
                 let status = p
                     .get("status")
                     .and_then(Value::as_str)
-                    .unwrap_or("completed");
+                    .unwrap_or("no status");
                 if status != "completed" {
                     let why =
                         format!("the recorded introduction did not play to its end ({status})");
@@ -1964,7 +2470,16 @@ impl CallOrchestrator<'_> {
         let call = call.transition(CallState::Active)?;
         let mut call = self.save(tx, call).await?;
         let owner = self.owner_name(tx, call.owner_id).await?;
-        let built = vsc::build(tx, &call, &owner, &self.app.settings.xai_voice).await?;
+        let extras = vcs.call_extras(call.call_id).unwrap_or_default();
+        let built = vsc::build(
+            tx,
+            &call,
+            &owner,
+            &self.app.settings.xai_voice,
+            &extras.questions,
+            &extras.approved,
+        )
+        .await?;
         let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
         let key = self
             .app
@@ -2023,6 +2538,13 @@ impl CallOrchestrator<'_> {
         call: CallSession,
         d: &agent::Decision,
     ) -> AppResult<CallSession> {
+        // The Response Agent closes when its questions are done. While an approved tour or
+        // rent negotiation is still open, that closing is withheld (nothing said, no hangup)
+        // and the agent keeps deciding; it closes on a later line, once they are settled.
+        if d.end_call && self.app.voice_calls().purposes_open(call.call_id) {
+            self.app.voice_calls().reopen_agent(call.call_id);
+            return Ok(call);
+        }
         let call = match &d.say {
             Say::Exact(t) => self.say(tx, call, t).await?,
             // The bridge has no "steer" control: the model follows the server's instructions,
@@ -2098,6 +2620,10 @@ impl CallOrchestrator<'_> {
         let vcs = self.app.voice_calls();
         if is_terminal(call.state) || !vcs.is_bridged(call_id) {
             return Ok(match input {
+                // After the call ended the purposes are gone: the module's own refusal.
+                BridgeInput::Tool { name, arguments } if is_purpose_tool(&name) => {
+                    purpose_refusal(&name, &arguments)
+                }
                 BridgeInput::Tool { .. } => NOT_APPROVED_OUTPUT.to_owned(),
                 _ => String::new(),
             });
@@ -2205,7 +2731,46 @@ impl CallOrchestrator<'_> {
         if let Some(fu) = &d.owner_followup {
             call.deferred_questions.push(fu.clone());
         }
-        if let Some(esc) = d.escalation.as_ref().filter(|e| !e.hold) {
+        // While a rent negotiation is approved, `evaluate_rent` answers a counter-offer or a
+        // concession asked ("would the owner go to ..."): the Response Agent's "I can't
+        // negotiate terms myself" line is not spoken over the tool's answer, whichever of the
+        // two arrives first. A proposal the tool has not answered is kept and reaches the owner
+        // as a follow-up if the tool call never comes (by the next counterparty line, or at the
+        // end). A commitment ("do we have a deal at ...?") is a hold and is not touched here.
+        let mut d = d;
+        let negotiating = {
+            let vcs = self.app.voice_calls();
+            let mut m = vcs.extras_map();
+            match m
+                .get_mut(&call.call_id)
+                .filter(|e| e.approved.negotiation.is_some())
+            {
+                Some(e) => {
+                    let answered = std::mem::take(&mut e.rent_tool_since_line);
+                    if let Some(q) = e.pending_concession.take() {
+                        call.deferred_questions.push(q);
+                    }
+                    let concession = d
+                        .escalation
+                        .as_ref()
+                        .filter(|x| x.rule == EscalationRule::Concession && !x.hold)
+                        .map(|x| x.question_for_owner.clone());
+                    if let Some(q) = &concession {
+                        if !answered {
+                            e.pending_concession = Some(q.clone());
+                        }
+                    }
+                    concession.is_some()
+                }
+                None => false,
+            }
+        };
+        if negotiating {
+            d.say = Say::Silent;
+            if std::mem::take(&mut d.end_call) {
+                self.app.voice_calls().reopen_agent(call.call_id);
+            }
+        } else if let Some(esc) = d.escalation.as_ref().filter(|e| !e.hold) {
             call.deferred_questions.push(esc.question_for_owner.clone());
         }
         let call = self.save(tx, call).await?;
@@ -2219,7 +2784,9 @@ impl CallOrchestrator<'_> {
         self.apply_say(tx, call, &d).await
     }
 
-    /// A tool call: commitments and sensitive disclosures are never approved by the model.
+    /// A tool call. The tour and rent tools are answered by the server's rules from what the
+    /// owner approved for this call; commitments and sensitive disclosures are never approved
+    /// by the model.
     async fn on_bridge_tool(
         &mut self,
         tx: &mut dyn Tx,
@@ -2227,40 +2794,150 @@ impl CallOrchestrator<'_> {
         name: &str,
         args: &Value,
     ) -> AppResult<String> {
-        let (reason, question, output) = match name {
+        if is_purpose_tool(name) {
+            return self.on_purpose_tool(tx, call, name, args).await;
+        }
+        let client = self.owner_name(tx, call.owner_id).await?;
+        // The owner is asked in the server's words: a fixed question per kind, with the
+        // Response Agent's own question for the latest counterparty line when it raised one.
+        // The model's text is kept only as a redacted transcript note.
+        let (reason, fixed, note, output) = match name {
             vsc::TOOL_APPROVAL => {
                 let kind = arg_str(args, "kind");
-                let reason = match kind.as_str() {
-                    "commitment" => HandoffReason::BindingCommitment,
-                    "sensitive_disclosure" => HandoffReason::SensitivePersonalInfo,
-                    _ => HandoffReason::ExceedsAuthority,
+                let (reason, fixed) = match kind.as_str() {
+                    "commitment" => (
+                        HandoffReason::BindingCommitment,
+                        "The listing contact is asking for a commitment on the call. Nothing \
+                         was agreed. Can you join?",
+                    ),
+                    "sensitive_disclosure" => (
+                        HandoffReason::SensitivePersonalInfo,
+                        "The listing contact is asking for personal or financial information \
+                         (not recorded). Can you speak with them directly?",
+                    ),
+                    _ => (
+                        HandoffReason::ExceedsAuthority,
+                        "The listing contact is asking for something the assistant may not \
+                         decide. Can you join?",
+                    ),
                 };
-                let detail = arg_str(args, "detail");
                 (
                     reason,
-                    format!("The assistant was asked for a {kind}: {detail}"),
-                    NOT_APPROVED_OUTPUT,
+                    fixed,
+                    arg_str(args, "detail"),
+                    not_approved_output(&client),
                 )
             }
             vsc::TOOL_ESCALATE => (
                 HandoffReason::CounterpartyRequestedOwner,
+                "The listing contact asked something only you can answer. Can you join?",
                 arg_str(args, "question"),
-                OWNER_ASKED_OUTPUT,
+                owner_asked_output(&client),
             ),
             _ => return Ok(UNKNOWN_TOOL_OUTPUT.to_owned()),
+        };
+        let latest = self
+            .app
+            .voice_calls()
+            .map()
+            .get(&call.call_id)
+            .and_then(|v| v.agent.decisions.last())
+            .and_then(|d| d.escalation.as_ref())
+            .map(|e| e.question_for_owner.clone())
+            .filter(|q| !q.trim().is_empty());
+        let question = match latest {
+            Some(q) => format!("{fixed} Their last line: {}", vsc::field(&q)),
+            None => fixed.to_owned(),
         };
         // No server record approves a commitment or a disclosure on a call (no approval payload
         // names one), so the answer is always "not approved"; the owner is asked.
         let mut call = call;
         call.transcript.push(turn(
             "system",
-            format!("[assistant tool {name}: {}]", reason.as_str()),
+            format!(
+                "[assistant tool {name}: {}; the model's note: {note}]",
+                reason.as_str()
+            ),
         ));
         let call = self.save(tx, call).await?;
         if matches!(call.state, CallState::Active | CallState::AiResumed) {
             self.request_handoff(tx, call.call_id, reason, &question)
                 .await?;
         }
-        Ok(output.to_owned())
+        Ok(output)
     }
+
+    /// `check_tour_time` / `evaluate_rent`: the module decides from the stored approval and
+    /// state; the new state is stored; the model gets the module's JSON and nothing else. Not
+    /// approved, unreadable arguments, a call that is not the assistant's to lead right now:
+    /// the module's refusal.
+    async fn on_purpose_tool(
+        &mut self,
+        tx: &mut dyn Tx,
+        call: CallSession,
+        name: &str,
+        args: &Value,
+    ) -> AppResult<String> {
+        if !matches!(call.state, CallState::Active | CallState::AiResumed) {
+            return Ok(purpose_refusal(name, args));
+        }
+        let vcs = self.app.voice_calls();
+        let now = Utc::now().fixed_offset();
+        let step = {
+            let mut m = vcs.extras_map();
+            m.get_mut(&call.call_id).map(|e| {
+                let before = e.state.clone();
+                let (out, after) = cp::dispatch(&e.approved, &before, name, args, now);
+                e.state = after.clone();
+                if name == cp::TOOL_EVALUATE_RENT && e.approved.negotiation.is_some() {
+                    e.pending_concession = None;
+                    e.rent_tool_since_line = true;
+                }
+                (out, before, after)
+            })
+        };
+        let Some((out, before, after)) = step else {
+            return Ok(purpose_refusal(name, args));
+        };
+        let decision = out
+            .get("decision")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_owned();
+        let mut call = call;
+        // The decision's name only: the arguments and the line are not stored here (the line
+        // the assistant speaks arrives as its own transcript turn).
+        call.transcript.push(turn(
+            "system",
+            format!("[assistant tool {name}: {decision}]"),
+        ));
+        let needs_owner = !before.tour.needs_owner && after.tour.needs_owner;
+        if needs_owner {
+            call.deferred_questions.push(
+                "Tour: they could not make any of your times and are waiting for other times \
+                 from you."
+                    .to_owned(),
+            );
+        }
+        let call = self.save(tx, call).await?;
+        self.notify_outcomes(&call, &before, &after);
+        Ok(out.to_string())
+    }
+}
+
+fn is_purpose_tool(name: &str) -> bool {
+    name == cp::TOOL_CHECK_TOUR || name == cp::TOOL_EVALUATE_RENT
+}
+
+/// The module's own answer when nothing is approved for the call (or the call is over).
+fn purpose_refusal(name: &str, args: &Value) -> String {
+    cp::dispatch(
+        &Approved::default(),
+        &PurposeState::default(),
+        name,
+        args,
+        Utc::now().fixed_offset(),
+    )
+    .0
+    .to_string()
 }

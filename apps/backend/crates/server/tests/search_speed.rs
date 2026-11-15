@@ -21,10 +21,10 @@ use ss_core::Contract;
 use ss_domain::contracts::{PropertyDigitalProfile, PropertySearchRequest, ProviderStatusEntry};
 use ss_domain::integrations::base::{ProviderError, ProviderErrorKind, RetryPolicy};
 use ss_domain::integrations::costar::{CoStarProvider, FixtureCoStarProvider, RawListing};
+use ss_server::integrations::matterport::{MatterportProvider, ModelSummary};
 use ss_server::integrations::{
     Integrations, LiveLaPermitProvider, LiveMatterportProvider, LiveVexcelProvider,
 };
-use ss_server::integrations::matterport::{MatterportProvider, ModelSummary};
 use ss_server::workflows::enrichment::enrich_interior_pool;
 use ss_server::workflows::property_analysis::SearchTimingSink;
 use ss_server::workflows::property_analysis::{SearchConcurrency, PROVIDER_CONCURRENCY}; // SINK
@@ -43,6 +43,8 @@ struct Delays {
     permits: Duration,
     vexcel: Duration,
     matterport: Duration,
+    /// The permit provider knows no permit at any address.
+    no_permits: bool,
 }
 
 impl Delays {
@@ -50,6 +52,7 @@ impl Delays {
         permits: DELAY,
         vexcel: DELAY,
         matterport: DELAY,
+        no_permits: false,
     };
     /// Unequal latencies close to what the real providers can take (estimates, not measured):
     /// a Socrata `like` query on a large dataset 400 ms (each permit call is two of them, one
@@ -59,6 +62,7 @@ impl Delays {
         permits: Duration::from_millis(400),
         vexcel: Duration::from_millis(250),
         matterport: Duration::from_millis(1500),
+        no_permits: false,
     };
 }
 
@@ -228,7 +232,11 @@ fn serve(
         "vexcel" => delays.vexcel,
         _ => delays.matterport,
     });
-    let answer = answer(&target, &body);
+    let answer = if delays.no_permits && provider == "permits" {
+        json!([])
+    } else {
+        answer(&target, &body)
+    };
     in_flight.fetch_sub(1, Ordering::SeqCst);
     {
         let mut g = spans.lock().unwrap();
@@ -440,7 +448,10 @@ fn percent_decode(s: &str) -> String {
     let mut i = 0;
     while i < b.len() {
         let hex = (b[i] == b'%')
-            .then(|| s.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok()))
+            .then(|| {
+                s.get(i + 1..i + 3)
+                    .and_then(|h| u8::from_str_radix(h, 16).ok())
+            })
             .flatten();
         match hex {
             Some(v) => {
@@ -726,7 +737,11 @@ both_backends!(one_bad_matterport_id_costs_only_its_listing, |db| {
         "{}",
         server.spans()
     );
-    assert!(server.spans().contains("matterport: 19 requests"), "{}", server.spans());
+    assert!(
+        server.spans().contains("matterport: 19 requests"),
+        "{}",
+        server.spans()
+    );
 });
 
 // Not an assertion of speed: the search with unequal, realistic provider latencies
@@ -817,17 +832,20 @@ fn assert_own_permits(p: &Value) {
         .map(|c| c.get(1).unwrap().as_str())
         .collect();
     assert!(!houses.is_empty(), "{address}: no permit attached: {text}");
-    assert!(!text.contains("false"), "{address}: another property's permit: {text}");
+    assert!(
+        !text.contains("false"),
+        "{address}: another property's permit: {text}"
+    );
     assert!(text.contains("parcel APN agrees"), "{address}: {text}");
     assert!(houses.iter().all(|h| *h == house), "{address}: {houses:?}");
 }
 
-// A second search finds every address already stored in the project in another form (other
-// parcel ids and coordinates; the second listing repeats the first one's address). The permit
-// fetches, started before the results are stored, must be the ones of the stored identities:
-// every property carries its own permits only, nothing is fetched twice, and the outcome does
-// not depend on the bound or on whether the permit fetches end before, during or after the
-// exterior phase.
+// A search finds every address already stored in the project in another form (other parcel
+// ids and coordinates; the second listing repeats the first one's address) and without permits
+// yet. The permit fetches, started before the results are stored, must be the ones of the
+// stored identities: every property gets its own permits only, matched against its stored
+// parcel, nothing is fetched twice, and the outcome does not depend on the bound or on whether
+// the permit fetches end before, during or after the exterior phase.
 both_backends!(stored_address_in_another_form_keeps_its_permits, |db| {
     let t = TestApp::new(db, &[]);
     let (tok, _) = t.dev_token().await;
@@ -841,19 +859,27 @@ both_backends!(stored_address_in_another_form_keeps_its_permits, |db| {
         (PROVIDER_CONCURRENCY, ms(100), ms(100)),
         (PROVIDER_CONCURRENCY, ms(150), ms(5)),
     ] {
-        let server = SlowServer::with_delays(Delays {
+        let delays = Delays {
             permits,
             vexcel,
             matterport: ms(5),
-        });
-        install_listings(&t, &server, false, LISTINGS, true, false);
+            no_permits: true,
+        };
+        // The first search stores the properties; its permit provider knows no permit.
+        let empty = SlowServer::with_delays(delays);
+        install_listings(&t, &empty, false, LISTINGS, true, false);
         let pid = t.create_project(&tok, &demo_project_body()).await["project"]["project_id"]
             .as_str()
             .unwrap()
             .to_owned();
         let (first, _) = search_in(&t, &tok, bound, &pid, LISTINGS).await;
+        assert!(first.properties.iter().all(|p| p["permits"] == json!([])));
+        // The second one finds them in another form; its provider has their permits.
+        let server = SlowServer::with_delays(Delays {
+            no_permits: false,
+            ..delays
+        });
         install_listings(&t, &server, false, LISTINGS, true, true);
-        server.reset();
         let (again, _) = search_in(&t, &tok, bound, &pid, LISTINGS).await;
         assert!(server.max_per_provider() <= bound, "{}", server.spans());
         assert!(
@@ -861,7 +887,7 @@ both_backends!(stored_address_in_another_form_keeps_its_permits, |db| {
             "{}",
             server.spans()
         );
-        for p in first.properties.iter().chain(&again.properties) {
+        for p in &again.properties {
             assert_own_permits(p);
         }
         outcomes.push((first, again));
@@ -977,18 +1003,27 @@ fn one_failed_matterport_batch_of_three() {
     use ProviderErrorKind::{BadResponse, NotFound, RateLimited, Timeout};
     let lost = |v: &Value| v[0].to_string().contains("Matterport scans not retrieved");
     let ok = BatchMp::new(None);
-    let all = batch_view(&enrich_interior_pool(batch_pool(), &ok, PROVIDER_CONCURRENCY));
+    let all = batch_view(&enrich_interior_pool(
+        batch_pool(),
+        &ok,
+        PROVIDER_CONCURRENCY,
+    ));
     assert_eq!(ok.requests.load(Ordering::SeqCst), 3);
     assert_eq!(ok.max.load(Ordering::SeqCst), 3);
-    assert!(all.iter().all(|v| !lost(v) && v[1][0]["matches_listing_unit"] == true));
+    assert!(all
+        .iter()
+        .all(|v| !lost(v) && v[1][0]["matches_listing_unit"] == true));
     for kind in [Timeout, RateLimited, BadResponse, NotFound] {
         for (batch, bad) in ["m05", "m25", "m45"].into_iter().enumerate() {
             let one = BatchMp::new(Some((bad, kind)));
             let sequential = batch_view(&enrich_interior_pool(batch_pool(), &one, 1));
             assert_eq!(one.max.load(Ordering::SeqCst), 1);
             let eight = BatchMp::new(Some((bad, kind)));
-            let concurrent =
-                batch_view(&enrich_interior_pool(batch_pool(), &eight, PROVIDER_CONCURRENCY));
+            let concurrent = batch_view(&enrich_interior_pool(
+                batch_pool(),
+                &eight,
+                PROVIDER_CONCURRENCY,
+            ));
             assert_eq!(concurrent, sequential, "{kind} in batch {batch}");
             assert!(eight.max.load(Ordering::SeqCst) <= PROVIDER_CONCURRENCY);
             let lost_at: Vec<usize> = (0..POOL).filter(|i| lost(&concurrent[*i])).collect();

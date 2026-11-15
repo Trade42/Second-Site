@@ -6,6 +6,7 @@
 //! our sentence, spoken verbatim by the bridge before the model may speak.
 
 use serde_json::json;
+use ss_domain::communications::call_purposes::{self as cp, Approved};
 use ss_domain::communications::response_agent::{
     may_not_key, owner_requirements, plan_questions, topic_of_claim, CallContext, KnownFact,
     OwnerRequirement, PlannedQuestion,
@@ -74,6 +75,37 @@ fn allowed(scope: &AuthorityScope, topic: &str) -> bool {
 
 /// The two function tools. Their answers come from the server, never from the model.
 pub fn tools() -> Vec<FunctionTool> {
+    tools_with(&Approved::default())
+}
+
+/// What the approval tool's description gains while a rent negotiation is approved.
+pub const RENT_TOOL_EXCEPTION: &str = " A rent number that evaluate_rent has just returned is \
+                                       not an offer under this rule: say it as returned.";
+/// What the "never state agreement" rule gains while a tour may be booked.
+pub const TOUR_RULE_EXCEPTION: &str = " A tour time that check_tour_time has just returned may \
+                                       be stated; a tour is a visit, not an agreement.";
+/// What the "never state agreement" rule gains while a rent negotiation is approved.
+pub const RENT_RULE_EXCEPTION: &str = " A rent number that evaluate_rent has just returned may \
+                                       be stated; stating it is not agreement.";
+
+/// The function tools of a call: the two above, then the tour and rent tools of what the owner
+/// approved for it (none when nothing was approved: then exactly [`tools`]).
+pub fn tools_with(approved: &Approved) -> Vec<FunctionTool> {
+    let rent = if approved.negotiation.is_some() {
+        RENT_TOOL_EXCEPTION
+    } else {
+        ""
+    };
+    let mut out = base_tools(rent);
+    out.extend(cp::tools(approved).into_iter().map(|t| FunctionTool {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+    }));
+    out
+}
+
+fn base_tools(rent_exception: &str) -> Vec<FunctionTool> {
     vec![
         FunctionTool {
             name: TOOL_ESCALATE.into(),
@@ -91,11 +123,12 @@ pub fn tools() -> Vec<FunctionTool> {
         },
         FunctionTool {
             name: TOOL_APPROVAL.into(),
-            description: "Required before any commitment (agreeing to terms, holding the \
-                          space, payments, signatures, offers) and before disclosing anything \
-                          sensitive. Call it and wait; do not commit or disclose unless the \
-                          answer says approved."
-                .into(),
+            description: format!(
+                "Required before any commitment (agreeing to terms, holding the space, \
+                 payments, signatures, offers) and before disclosing anything sensitive. Call \
+                 it and wait; do not commit or disclose unless the answer says \
+                 approved.{rent_exception}"
+            ),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -114,6 +147,19 @@ pub fn instructions(
     business_lines: &[String],
     ctx: &CallContext,
     missing: &[String],
+) -> String {
+    instructions_with(owner, business_lines, ctx, missing, &Approved::default())
+}
+
+/// The instructions with the section for what the owner approved for this call (a tour, rent
+/// limits) inserted before the rules, and the one rule line it would contradict amended. With
+/// nothing approved the text is exactly [`instructions`]'s.
+pub fn instructions_with(
+    owner: &str,
+    business_lines: &[String],
+    ctx: &CallContext,
+    missing: &[String],
+    approved: &Approved,
 ) -> String {
     let owner = field(owner);
     let mut s = String::new();
@@ -160,18 +206,32 @@ pub fn instructions(
         field(&ctx.authority.may_ask_about.join(", ")),
         field(&ctx.authority.may_not.join(", "))
     ));
-    s.push_str(
+    if let Some(section) = cp::instructions(approved) {
+        s.push('\n');
+        s.push_str(&section);
+    }
+    let tour = if approved.tour.is_some() {
+        TOUR_RULE_EXCEPTION
+    } else {
+        ""
+    };
+    let rent = if approved.negotiation.is_some() {
+        RENT_RULE_EXCEPTION
+    } else {
+        ""
+    };
+    s.push_str(&format!(
         "\n## Rules\n\
          - You are an AI assistant. Never claim to be a person, the owner or a recording.\n\
          - Never commit the owner to anything and never state agreement to any term, price, \
-         date, hold or payment.\n\
+         date, hold or payment.{tour}{rent}\n\
          - Never give out personal, financial or account data.\n\
          - Before any commitment or sensitive disclosure, call request_owner_approval and wait \
          for its answer. Before anything outside your authority, call escalate_to_owner and wait.\n\
          - Never say the owner has joined, is joining or is listening. The system says that.\n\
          - When you do not know, say so and offer to ask the owner.\n\
-         - Keep answers short. Do not invent facts about the property or the client.\n",
-    );
+         - Keep answers short. Do not invent facts about the property or the client.\n"
+    ));
     s
 }
 
@@ -181,6 +241,8 @@ pub async fn build(
     call: &CallSession,
     owner: &str,
     voice: &str,
+    request_questions: &[String],
+    approved: &Approved,
 ) -> AppResult<BuiltSession> {
     let scope = call.authority_scope.clone();
     let profile = PROFILES
@@ -194,9 +256,12 @@ pub async fn build(
         if allowed(&scope, "permitted_use") && !p.business_type.trim().is_empty() {
             business_lines.push(format!("The business is a {}.", p.business_type.trim()));
         }
+        // While a rent negotiation is approved, no rent figure of the profile goes into the
+        // instructions: numbers come from `evaluate_rent` only.
         requirements = owner_requirements(p)
             .into_iter()
             .filter(|r| allowed(&scope, &r.topic))
+            .filter(|r| approved.negotiation.is_none() || r.topic != "rent")
             .collect();
         business_lines.extend(requirements.iter().map(|r| r.statement.clone()));
     }
@@ -232,9 +297,8 @@ pub async fn build(
             });
         }
     }
-    // The outreach request's own questions are not stored with the call or its communication
-    // (`StartCall` does not carry them), so only the bank's questions are planned here.
-    let questions: Vec<PlannedQuestion> = plan_questions(&[], &call.script);
+    // The outreach request's own questions first, then the bank's.
+    let questions: Vec<PlannedQuestion> = plan_questions(request_questions, &call.script);
     let missing: Vec<String> = call
         .script
         .iter()
@@ -248,7 +312,14 @@ pub async fn build(
         owner_requirements: requirements,
         questions,
     };
-    Ok(build_from(owner, &business_lines, context, &missing, voice))
+    Ok(build_from(
+        owner,
+        &business_lines,
+        context,
+        &missing,
+        voice,
+        approved,
+    ))
 }
 
 /// The configuration from its parts.
@@ -258,12 +329,13 @@ pub fn build_from(
     context: CallContext,
     missing: &[String],
     voice: &str,
+    approved: &Approved,
 ) -> BuiltSession {
     let opening = opening_line(owner, &context.property_summary, &context.disclosure);
     let session = SessionSpec {
-        instructions: instructions(owner, business_lines, &context, missing),
+        instructions: instructions_with(owner, business_lines, &context, missing, approved),
         voice: voice.to_owned(),
-        tools: tools(),
+        tools: tools_with(approved),
         input_transcription_model: None,
     };
     BuiltSession {

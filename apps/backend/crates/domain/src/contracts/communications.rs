@@ -581,6 +581,10 @@ pub struct OutreachRequest {
     pub questions: Vec<String>,
     #[serde(default)]
     pub intro_recording_reference: Option<String>,
+    /// What the owner approves the call to do besides its questions (a tour, rent limits).
+    /// The service keeps it server side: it is never returned, emitted or logged.
+    #[serde(default)]
+    pub purposes: Option<crate::communications::call_purposes::CallPurposes>,
 }
 
 impl Validate for OutreachRequest {

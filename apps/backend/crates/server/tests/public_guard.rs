@@ -68,7 +68,10 @@ fn assert_refused(r: &Resp, what: &str) {
 }
 
 /// Twenty requests whose answers do not depend on the clock (the request id is fixed).
-fn twenty(token: &str) -> Vec<(&'static str, String, Vec<(&'static str, String)>)> {
+type Headers<'a> = &'a [(&'a str, &'a str)];
+type OwnedCase = (&'static str, String, Vec<(&'static str, String)>);
+
+fn twenty(token: &str) -> Vec<OwnedCase> {
     let auth = || vec![("authorization", format!("Bearer {token}"))];
     let preflight = vec![
         ("origin", "http://localhost:8090".to_owned()),
@@ -97,7 +100,11 @@ fn twenty(token: &str) -> Vec<(&'static str, String, Vec<(&'static str, String)>
             "/api/v1/media/vexcel/ortho/1b4e28ba-2fa1-11d2-883f-0016d3cca427".into(),
             vec![],
         ),
-        ("GET", "/api/v1/owner/intro-recording/history".into(), auth()),
+        (
+            "GET",
+            "/api/v1/owner/intro-recording/history".into(),
+            auth(),
+        ),
         ("GET", "/docs".into(), vec![]),
     ]
 }
@@ -172,9 +179,7 @@ both_backends!(on_allowed_shapes_reach_their_handlers, |db| {
     let via_header: [(&str, &str); 2] = [("host", LOCAL_HOST), ("cf-ray", "8f1c2d3e4f5a6b7c-LAX")];
     for from in [&[("host", TUNNEL_HOST)][..], &via_header[..]] {
         // The webhook: the handler's own refusal of an unsigned event (not the guard's 404).
-        let r = t
-            .send(build("POST", "/webhooks/telnyx", from, b"{}"))
-            .await;
+        let r = t.send(build("POST", "/webhooks/telnyx", from, b"{}")).await;
         assert_ne!(r.status, StatusCode::NOT_FOUND, "{}", r.text);
         assert!(r.body["error_code"].is_string(), "webhook: {}", r.text);
         // The audio stream: the route's own answer (in process there is no socket to upgrade;
@@ -214,7 +219,7 @@ both_backends!(on_everything_else_is_404, |db| {
         ("origin", "http://localhost:8090"),
         ("access-control-request-method", "POST"),
     ];
-    let cases: Vec<(&str, &str, &[(&str, &str)])> = vec![
+    let cases: Vec<(&str, &str, Headers)> = vec![
         ("POST", "/api/v1/dev/token", &[]),
         ("GET", "/api/v1/dev/fixtures/project", &[]),
         ("GET", "/api/v1/projects", auth),
@@ -475,7 +480,10 @@ both_backends!(over_a_socket, |db| {
     // The carrier's WebSocket upgrade through the tunnel reaches the handler: a missing token and
     // an unknown bridge are its 401, before any upgrade.
     let upgrade = "Connection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n";
-    for target in ["/api/v1/voice/stream/abc", "/api/v1/voice/stream/abc?token=x"] {
+    for target in [
+        "/api/v1/voice/stream/abc",
+        "/api/v1/voice/stream/abc?token=x",
+    ] {
         let (status, text) = raw(
             addr,
             format!("GET {target} HTTP/1.1\r\nHost: {TUNNEL_HOST}\r\nX-Forwarded-For: 203.0.113.9\r\n{upgrade}"),

@@ -321,7 +321,10 @@ fn is_public_shape(method: &axum::http::Method, path: &str) -> bool {
     }
     let under = |prefix: &str| path.strip_prefix(prefix).is_some_and(is_plain_segment);
     if method == Method::POST {
-        matches!(path, "/webhooks/telnyx" | "/record/check" | "/record/upload")
+        matches!(
+            path,
+            "/webhooks/telnyx" | "/record/check" | "/record/upload"
+        )
     } else if method == Method::GET {
         path == "/record" || under("/api/v1/voice/stream/") || under("/api/v1/media/public/")
     } else if method == Method::HEAD {
@@ -347,6 +350,11 @@ async fn public_path_guard(on: bool, req: Request, next: Next) -> Response {
     let start = Instant::now();
     let rid = Uuid::new_v4().to_string();
     let mut resp = not_found().await;
+    // The headers of the router's own 404 (axum's routing sets the length; this is outside it).
+    if let Some(n) = hyper::body::Body::size_hint(resp.body()).exact() {
+        resp.headers_mut()
+            .insert(header::CONTENT_LENGTH, HeaderValue::from(n));
+    }
     if let Ok(v) = HeaderValue::from_str(&rid) {
         resp.headers_mut().insert("x-request-id", v);
     }

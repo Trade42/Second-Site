@@ -5,12 +5,15 @@
 mod common;
 
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use axum::http::StatusCode;
 use serde_json::{json, Value};
-use ss_core::Contract;
+use ss_core::{Contract, Validate};
 use ss_domain::contracts::geometry::{FloorEstimate, LISTED_AREA_NOT_VERIFIED};
 use ss_domain::contracts::{InteriorAsset, SiteGeometry};
+use ss_domain::integrations::base::{ProviderError, ProviderErrorKind};
+use ss_server::integrations::matterport::{MatterportProvider, ModelSummary};
 use ss_server::services::design::{
     assumed_site, floor_estimate, ASSUMED_COORDINATE_REFERENCE, ESTIMATE_QUANTITY_NOTE,
     NO_FLOOR_NO_AREA,
@@ -428,3 +431,225 @@ fn a_floor_estimate_label_cannot_claim_a_measurement() {
         assert!(FloorEstimate::from_json_value(bad).is_err(), "{k}");
     }
 }
+
+// ---- added by the independent review -----------------------------------------------------------
+
+/// What the configured (live-mode) Matterport double answers for a floor.
+#[derive(Clone, Copy)]
+enum ScanAnswer {
+    Fails(ProviderErrorKind),
+    /// `None`, and the provider says it does not know the model.
+    UnknownModel,
+    /// `None`: the model is known and has no usable floor.
+    NoFloor,
+}
+
+struct ScanDouble {
+    answer: Mutex<ScanAnswer>,
+    asked: Mutex<Vec<String>>,
+}
+
+impl MatterportProvider for ScanDouble {
+    fn mode(&self) -> &str {
+        "live"
+    }
+    fn get_floor_geometry(&self, asset_id: &str) -> Result<Option<Value>, ProviderError> {
+        self.asked.lock().unwrap().push(asset_id.to_owned());
+        match *self.answer.lock().unwrap() {
+            ScanAnswer::Fails(kind) => Err(ProviderError::new("matterport", kind, "test double")),
+            ScanAnswer::UnknownModel | ScanAnswer::NoFloor => Ok(None),
+        }
+    }
+    fn model_not_found(&self, _asset_id: &str) -> bool {
+        matches!(*self.answer.lock().unwrap(), ScanAnswer::UnknownModel)
+    }
+    fn model_summaries(
+        &self,
+        _ids: &[String],
+    ) -> Result<indexmap::IndexMap<String, ModelSummary>, ProviderError> {
+        Ok(indexmap::IndexMap::new())
+    }
+    fn status(&self) -> ss_server::contracts::ProviderStatusEntry {
+        ss_domain::integrations::base::status_entry(
+            "matterport",
+            "live",
+            ss_core::IntegrationStatus::Live,
+            true,
+            "test double",
+        )
+    }
+}
+
+fn install_scan_double(t: &TestApp) -> Arc<ScanDouble> {
+    let stub = Arc::new(ScanDouble {
+        answer: Mutex::new(ScanAnswer::NoFloor),
+        asked: Mutex::new(Vec::new()),
+    });
+    let mut integrations = ss_server::integrations::Integrations::from_settings(&t.app.settings);
+    integrations.matterport = stub.clone();
+    t.app.extensions.insert(Arc::new(integrations));
+    stub
+}
+
+fn scan_asset(own_suite: bool) -> InteriorAsset {
+    InteriorAsset {
+        provider: "matterport".into(),
+        asset_id: "SxQL3iGyoDo".into(),
+        asset_type: "matterport_model".into(),
+        data_origin: ss_core::DataOrigin::Live,
+        url: None,
+        label: None,
+        area_sqm: None,
+        matches_listing_unit: Some(own_suite),
+        has_measured_geometry: own_suite,
+    }
+}
+
+// A provider failure while reading the suite's own scan stays a failure (it can be retried); it
+// never becomes a sketch, not even when an assumed floor of the same area is already stored.
+both_backends!(
+    a_provider_failure_on_the_suites_scan_is_never_sketched_over,
+    |db| {
+        let t = TestApp::new(db, &[]);
+        let d = demo(&t).await;
+        let first = generate(&t, &d, &d.alhambra, reqs()).await;
+        assert_eq!(first["status"], "COMPLETED", "{first}");
+        let layouts_before = layouts(&t, &d).await.len();
+        assert_eq!(stored_geometries(&t, &d.alhambra).await.len(), 1);
+
+        let stub = install_scan_double(&t);
+        edit_property(&t, &d, &d.alhambra, |p| {
+            p.interior_assets.push(scan_asset(true))
+        })
+        .await;
+        for answer in [
+            ScanAnswer::Fails(ProviderErrorKind::Timeout),
+            ScanAnswer::Fails(ProviderErrorKind::RateLimited),
+            ScanAnswer::Fails(ProviderErrorKind::Unavailable),
+            ScanAnswer::UnknownModel,
+        ] {
+            *stub.answer.lock().unwrap() = answer;
+            let task = generate(&t, &d, &d.alhambra, reqs()).await;
+            assert_eq!(task["status"], "FAILED", "{task}");
+            assert!(
+                task["output_reference"].get("floor_estimate").is_none(),
+                "{task}"
+            );
+            if matches!(answer, ScanAnswer::Fails(_)) {
+                // Not the "no floor" answer: the provider's own error, which a retry can clear.
+                assert_ne!(task["error_code"], "NotFoundError", "{task}");
+            } else {
+                assert!(
+                    task["error_message"]
+                        .as_str()
+                        .unwrap()
+                        .contains("Matterport does not know the model"),
+                    "{task}"
+                );
+            }
+            assert_eq!(layouts(&t, &d).await.len(), layouts_before);
+            assert_eq!(stored_geometries(&t, &d.alhambra).await.len(), 1);
+        }
+        assert_eq!(stub.asked.lock().unwrap().len(), 4);
+
+        // The scan is known and has no usable floor: there is no measured floor to be had, and the
+        // sketch is labelled.
+        *stub.answer.lock().unwrap() = ScanAnswer::NoFloor;
+        let task = generate(&t, &d, &d.alhambra, reqs()).await;
+        assert_eq!(task["status"], "COMPLETED", "{task}");
+        assert_label(&task["output_reference"]["floor_estimate"]);
+        assert_eq!(geometry_reference(&t, &d, &d.alhambra).await, Value::Null);
+    }
+);
+
+// A scan of another space in the building is never asked for, and never becomes this suite's
+// floor: the sketch stays a sketch, with the listing's id.
+both_backends!(a_scan_of_another_space_is_never_the_suites_floor, |db| {
+    let t = TestApp::new(db, &[]);
+    let d = demo(&t).await;
+    let stub = install_scan_double(&t);
+    edit_property(&t, &d, &d.alhambra, |p| {
+        p.interior_assets.push(scan_asset(false))
+    })
+    .await;
+    let task = generate(&t, &d, &d.alhambra, reqs()).await;
+    assert_eq!(task["status"], "COMPLETED", "{task}");
+    assert_label(&task["output_reference"]["floor_estimate"]);
+    assert!(stub.asked.lock().unwrap().is_empty());
+    let stored = stored_geometries(&t, &d.alhambra).await;
+    assert_eq!(stored.len(), 1);
+    assert_eq!(stored[0].geometry_source.as_str(), "LISTED_AREA_ESTIMATE");
+    assert_eq!(stored[0].source_id, ALHAMBRA_LISTING);
+    assert_ne!(stored[0].source_id, "SxQL3iGyoDo");
+    assert!(!stored[0].scale_verified);
+});
+
+// A revision of a sketch is still a sketch: the new version, the task and its bill carry the
+// label, on the same assumed floor.
+both_backends!(a_revision_of_a_sketch_keeps_the_label, |db| {
+    let t = TestApp::new(db, &[]);
+    let d = demo(&t).await;
+    let first = generate(&t, &d, &d.alhambra, reqs()).await;
+    assert_eq!(first["status"], "COMPLETED", "{first}");
+    let base = first["output_reference"]["design_version_ids"][0]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = t
+        .post(
+            &format!("/api/v1/projects/{}/layouts/{base}/revisions", d.pid),
+            Some(&d.tok),
+            &json!({"requested_changes": ["again"], "room_requirement_overrides": reqs()}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::ACCEPTED, "{}", r.text);
+    let task = &r.body["task"];
+    assert_eq!(task["status"], "COMPLETED", "{task}");
+    assert_eq!(
+        task["output_reference"]["revision_status"], "APPLIED",
+        "{task}"
+    );
+    assert_label(&task["output_reference"]["floor_estimate"]);
+    let revised = task["output_reference"]["design_version_ids"][0]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let lv = layouts(&t, &d).await;
+    let of = |id: &str| lv.iter().find(|l| l["design_version_id"] == id).unwrap();
+    assert_label(&of(&revised)["floor_estimate"]);
+    assert_eq!(of(&revised)["geometry_id"], of(&base)["geometry_id"]);
+    assert_eq!(of(&revised)["approval_status"], "PROPOSED");
+    let bom = t
+        .get(
+            &format!("/api/v1/projects/{}/layouts/{revised}/bom", d.pid),
+            Some(&d.tok),
+        )
+        .await;
+    assert_eq!(bom.status, StatusCode::OK, "{}", bom.text);
+    for item in bom.body["items"].as_array().unwrap() {
+        assert!(
+            item["price_note"]
+                .as_str()
+                .unwrap()
+                .ends_with(ESTIMATE_QUANTITY_NOTE),
+            "{item}"
+        );
+    }
+});
+
+// Every stored estimate round-trips through the store with its source, origin and scale flag.
+both_backends!(the_label_survives_the_store, |db| {
+    let t = TestApp::new(db, &[]);
+    let d = demo(&t).await;
+    let task = generate(&t, &d, &d.alhambra, reqs()).await;
+    assert_eq!(task["status"], "COMPLETED", "{task}");
+    let stored = stored_geometries(&t, &d.alhambra).await;
+    assert_eq!(stored.len(), 1);
+    let g = &stored[0];
+    assert_eq!(g.geometry_source.as_str(), "LISTED_AREA_ESTIMATE");
+    assert_eq!(g.data_origin, ss_core::DataOrigin::Derived);
+    assert!(!g.scale_verified);
+    assert_eq!(g.measurement_uncertainty_m, None);
+    assert_eq!(g.source_id, ALHAMBRA_LISTING);
+    assert!(g.validate().is_ok());
+});
