@@ -63,18 +63,49 @@ async fn main() -> ExitCode {
     }
     let addr = format!("{}:{}", settings.host, settings.port);
     let app = build_app(settings, store);
-    let router = http::router(app);
+    let router = http::router(app.clone());
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) => return fail("could not bind", e),
     };
     let bound = listener.local_addr().map(|a| a.to_string()).unwrap_or(addr);
     logging::info("app.main", "listening", &[("addr", Value::String(bound))]);
-    match axum::serve(listener, router)
+    let served = axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
-        .await
-    {
+        .await;
+    wait_for_nessie_flows(&app).await;
+    match served {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => fail("server error", e),
+    }
+}
+
+/// A simulated Nessie payment runs on a task of its own (its client may already have gone), with
+/// its claim committed before the bank call and its outcome recorded after it. `axum::serve` does
+/// not wait for such a task, so wait for it here, for a bounded time (the send window plus the
+/// bank's deadline plus 5 s); an execute still in flight after that is recorded `MAY_EXIST` by the
+/// stale-claim rule when its plan item is next read.
+async fn wait_for_nessie_flows(app: &ss_server::app::App) {
+    let state = app.nessie();
+    let n = state.flights().count();
+    if n == 0 {
+        return;
+    }
+    let max = state.timing().shutdown_wait();
+    logging::info(
+        "app.main",
+        "waiting for simulated Nessie payments between their two phases",
+        &[
+            ("in_flight", Value::from(n)),
+            ("max_wait_s", Value::from(max.as_secs())),
+        ],
+    );
+    let left = ss_server::services::nessie::wait_for_flows_within(app, max).await;
+    if left > 0 {
+        logging::warning(
+            "app.main",
+            "stopping with simulated Nessie payments still in flight; their claims become MAY_EXIST",
+            &[("in_flight", Value::from(left))],
+        );
     }
 }

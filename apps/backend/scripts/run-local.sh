@@ -118,9 +118,9 @@ say "fixtures:  $FIXTURES_DIR"
 say "listen:    http://$HOST:$PORT"
 say "workdir:   $workdir (also reads $workdir/.env and $workdir/../../.env)"
 if [[ -n ${PYTHON_SERVICE_URL:-} ]]; then
-  say "python:    PYTHON_SERVICE_URL is set (used once the forwarder lands)"
+  say "python:    PYTHON_SERVICE_URL is set in the environment: owner messaging, the Photon webhook, the chat and the Studio routes are forwarded to it, and owner texts go through it (/ready shows whether it answers)"
 else
-  say "python:    PYTHON_SERVICE_URL unset (Photon, chat and the call flow are served by the Python app)"
+  say "python:    PYTHON_SERVICE_URL is not set in the environment (a .env file may still set it; not checked here). Unset, the forwarded routes (owner messaging, the Photon webhook, the chat, the Studio) answer 503 PYTHON_SERVICE_NOT_CONFIGURED and owner texts are recorded as not sent; the call flow is served here"
 fi
 cd "$workdir"
 exec "$bin"
