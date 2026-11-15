@@ -236,9 +236,7 @@ impl<'a> CallSimulator<'a> {
                 p.insert("call_control_id".into(), Value::from(owner_leg));
                 p.insert("client_state".into(), Value::from(state));
                 p.insert("hangup_cause".into(), Value::from("normal_clearing"));
-                self.orch
-                    .handle_event(tx, &event("call.hangup", p))
-                    .await?;
+                self.orch.handle_event(tx, &event("call.hangup", p)).await?;
                 return CALLS.require(tx, call.call_id).await;
             }
             return Ok(call);
@@ -250,9 +248,8 @@ impl<'a> CallSimulator<'a> {
                 .await;
         }
         let mut h = HANDOFFS.require(tx, hid).await?;
-        h.expires_at = ss_core::UtcDateTime::from_datetime(
-            chrono::Utc::now() - chrono::Duration::seconds(1),
-        );
+        h.expires_at =
+            ss_core::UtcDateTime::from_datetime(chrono::Utc::now() - chrono::Duration::seconds(1));
         HANDOFFS.upsert(tx, &h).await?;
         self.orch.expire_stale_handoffs(tx, call.call_id).await
     }

@@ -56,7 +56,7 @@ docker compose -f infra/compose.yaml --profile web up --build   # plus the web a
 
 | Service | Inside the network | Host port | Calls |
 |---|---|---|---|
-| `backend` (Rust, `infra/docker/backend.Dockerfile`) | `backend:8000` | 8000 (`BACKEND_HOST_PORT`) | postgres; `PYTHON_SERVICE_URL=http://api:8000` once the forwarder lands |
+| `backend` (Rust, `infra/docker/backend.Dockerfile`) | `backend:8000` | 8000 (`BACKEND_HOST_PORT`) | postgres; `PYTHON_SERVICE_URL=http://api:8000` for owner texts and forwarding, once built |
 | `api` (Python) | `api:8000` | 8001 (`API_HOST_PORT`), for debugging | postgres, redis; `BACKEND_API_URL=http://backend:8000` for the supervisor tools |
 | `web` | `web:3000` | 3000 | the browser calls `http://localhost:8000`, the Rust service |
 | `postgres`, `redis`, `worker` | unchanged | 5432, 6379, none | |
@@ -113,7 +113,7 @@ The service reads every environment variable of `apps/api/app/core/config.py` un
 | `STORE_BACKEND` | `postgres` or `memory` (in-memory, not durable; `/ready` says `degraded`) | `postgres` |
 | `HOST`, `PORT` | listen address (uvicorn's command-line flags in Python) | `0.0.0.0`, `8000` |
 | `FIXTURES_DIR` | directory with `properties/`, `permits/` and `geometry/` fixtures, read at run time | the repository's `fixtures/` (image: `/app/fixtures`) |
-| `PYTHON_SERVICE_URL` | the Python app, for the forwarded paths | unset (forwarder not built yet) |
+| `PYTHON_SERVICE_URL` | the Python app's origin (no `/api/v1`): owner texts and the forwarded paths | unset (neither is built yet) |
 
 Notes:
 - `DATABASE_URL` accepts `postgresql://` and SQLAlchemy's `postgresql+psycopg://`.

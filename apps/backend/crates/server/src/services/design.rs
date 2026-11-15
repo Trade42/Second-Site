@@ -66,7 +66,7 @@ pub const SITE_ATTEMPTS: usize = 3;
 #[derive(Debug, Clone)]
 pub enum SiteSource {
     /// The property's last stored geometry.
-    Stored(SiteGeometry),
+    Stored(Box<SiteGeometry>),
     /// Nothing is stored yet: the property's interior assets with measured geometry, in order.
     Assets(Vec<String>),
 }
@@ -271,7 +271,7 @@ impl<'a> DesignService<'a> {
             .list(tx, Query::new().eq("property_id", property_id))
             .await?;
         if let Some(last) = stored.pop() {
-            return Ok(SiteSource::Stored(last));
+            return Ok(SiteSource::Stored(Box::new(last)));
         }
         Ok(SiteSource::Assets(
             prop.interior_assets
@@ -292,7 +292,7 @@ impl<'a> DesignService<'a> {
         source: SiteSource,
     ) -> AppResult<PreparedSite> {
         let assets = match source {
-            SiteSource::Stored(g) => return Ok(PreparedSite::Stored(g)),
+            SiteSource::Stored(g) => return Ok(PreparedSite::Stored(*g)),
             SiteSource::Assets(assets) => assets,
         };
         for asset_id in assets {

@@ -7,9 +7,7 @@
 //! written by either backend load in the other.
 
 use serde_json::{json, Value};
-use ss_domain::contracts::{
-    CallSession, CommunicationSession, OwnerChannel, OwnerHandoffRequest,
-};
+use ss_domain::contracts::{CallSession, CommunicationSession, OwnerChannel, OwnerHandoffRequest};
 use ss_domain::integrations::webhook_signatures::VerifiedWebhook;
 use uuid::Uuid;
 
@@ -183,7 +181,9 @@ pub mod webhooks {
         Ok(tx
             .select(
                 &schema::PROCESSED_WEBHOOK_EVENTS,
-                &Query::new().eq("provider", provider).order_asc("created_at"),
+                &Query::new()
+                    .eq("provider", provider)
+                    .order_asc("created_at"),
             )
             .await?)
     }

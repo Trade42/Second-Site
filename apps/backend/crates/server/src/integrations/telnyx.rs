@@ -191,7 +191,10 @@ impl TelephonyProvider for LiveTelnyxProvider {
 
     fn play(&self, call_control_id: &str, audio_url: &str) -> Result<(), TelephonyError> {
         self.post(
-            &format!("/calls/{}/actions/playback_start", path_segment(call_control_id)),
+            &format!(
+                "/calls/{}/actions/playback_start",
+                path_segment(call_control_id)
+            ),
             &json!({"audio_url": audio_url}),
             None,
         )?;
@@ -276,13 +279,13 @@ impl Voice {
     /// `build_container`'s choice.
     pub fn from_settings(s: &Settings) -> Self {
         match (&s.telnyx_api_key, s.voice_provider_mode) {
-            (Some(key), ProviderMode::Live) if !key.is_empty() => Self::live(Arc::new(
-                LiveTelnyxProvider::new(
+            (Some(key), ProviderMode::Live) if !key.is_empty() => {
+                Self::live(Arc::new(LiveTelnyxProvider::new(
                     key.expose(),
                     s.telnyx_connection_id.as_deref().unwrap_or(""),
                     s.allow_live_outbound_calls,
-                ),
-            )),
+                )))
+            }
             _ => Self::fixture(),
         }
     }

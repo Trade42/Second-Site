@@ -103,7 +103,11 @@ async fn dialing_call(t: &TestApp, owner_phone: Option<&str>) -> (Uuid, CallSess
             &json!({"project_name": "t", "market": {"city": "Los Angeles", "state": "CA"}}),
         )
         .await;
-    let pid: Uuid = p["project"]["project_id"].as_str().unwrap().parse().unwrap();
+    let pid: Uuid = p["project"]["project_id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
     if let Some(phone) = owner_phone {
         let mut tx = t.app.store.begin().await.unwrap();
         ss_server::store::comms::OWNER_CHANNELS
@@ -187,12 +191,16 @@ fn cs(call_id: Uuid, role: &str) -> String {
 
 both_backends!(telnyx_webhook_ed25519, |db| {
     let (t, _) = app_with_key(db, &[]);
-    let body =
-        serde_json::to_vec(&json!({"data": {"id": "tx-evt-1", "event_type": "call.answered", "payload": {}}}))
-            .unwrap();
+    let body = serde_json::to_vec(
+        &json!({"data": {"id": "tx-evt-1", "event_type": "call.answered", "payload": {}}}),
+    )
+    .unwrap();
     let ts = now();
     assert_eq!(
-        t.send(signed_request(&body, ts, &key())).await.status.as_u16(),
+        t.send(signed_request(&body, ts, &key()))
+            .await
+            .status
+            .as_u16(),
         204
     );
     let mut tampered = body.clone();
@@ -239,7 +247,11 @@ both_backends!(bad_and_missing_signatures_are_refused_in_both_modes, |db| {
         );
         // Signed by another key.
         let r = t
-            .send(signed_request(&body, now(), &SigningKey::from_bytes(&[9u8; 32])))
+            .send(signed_request(
+                &body,
+                now(),
+                &SigningKey::from_bytes(&[9u8; 32]),
+            ))
             .await;
         assert_eq!(r.status.as_u16(), 400, "{mode}");
         assert_eq!(r.body["message"], "telnyx signature mismatch");
@@ -249,15 +261,16 @@ both_backends!(bad_and_missing_signatures_are_refused_in_both_modes, |db| {
             .insert("telnyx-signature-ed25519", "AAAA".parse().unwrap());
         assert_eq!(t.send(req).await.status.as_u16(), 400, "{mode}");
         // Stale timestamp (correctly signed).
-        let r = t
-            .send(signed_request(&body, now() - 3600, &key()))
-            .await;
+        let r = t.send(signed_request(&body, now() - 3600, &key())).await;
         assert_eq!(r.status.as_u16(), 400, "{mode}");
         assert_eq!(r.body["message"], "webhook timestamp outside tolerance");
         assert_eq!(processed(&t).await.len(), base, "{mode}: nothing stored");
         // A good one is stored with the mode's label.
         assert_eq!(
-            t.send(signed_request(&body, now(), &key())).await.status.as_u16(),
+            t.send(signed_request(&body, now(), &key()))
+                .await
+                .status
+                .as_u16(),
             204
         );
         let rows = processed(&t).await;
@@ -292,13 +305,25 @@ both_backends!(webhooks_drive_a_call_deduplicated_and_in_any_order, |db| {
     let mine = cs(id, "counterparty");
     // Out of order: the end of the intro arrives before the answer, and is ignored.
     assert_eq!(
-        deliver(&t, "e1", "call.speak.ended", json!({"call_control_id": leg, "client_state": mine})).await,
+        deliver(
+            &t,
+            "e1",
+            "call.speak.ended",
+            json!({"call_control_id": leg, "client_state": mine})
+        )
+        .await,
         204
     );
     assert_eq!(load(&t, id).await.state, CallState::Dialing);
     // Answered (the carrier's own event): INTRO, intro spoken.
     assert_eq!(
-        deliver(&t, "e2", "call.answered", json!({"call_control_id": leg, "client_state": mine})).await,
+        deliver(
+            &t,
+            "e2",
+            "call.answered",
+            json!({"call_control_id": leg, "client_state": mine})
+        )
+        .await,
         204
     );
     let c = load(&t, id).await;
@@ -307,12 +332,24 @@ both_backends!(webhooks_drive_a_call_deduplicated_and_in_any_order, |db| {
     let commands = fixture.commands().len();
     // Replay of the same event id: nothing happens.
     assert_eq!(
-        deliver(&t, "e2", "call.answered", json!({"call_control_id": leg, "client_state": mine})).await,
+        deliver(
+            &t,
+            "e2",
+            "call.answered",
+            json!({"call_control_id": leg, "client_state": mine})
+        )
+        .await,
         204
     );
     // A second answer with a new id (carrier duplicate): ignored outside DIALING.
     assert_eq!(
-        deliver(&t, "e3", "call.answered", json!({"call_control_id": leg, "client_state": mine})).await,
+        deliver(
+            &t,
+            "e3",
+            "call.answered",
+            json!({"call_control_id": leg, "client_state": mine})
+        )
+        .await,
         204
     );
     let c = load(&t, id).await;
@@ -320,7 +357,13 @@ both_backends!(webhooks_drive_a_call_deduplicated_and_in_any_order, |db| {
     assert_eq!(c.transcript.len(), transcript);
     assert_eq!(fixture.commands().len(), commands);
     // Intro done: questions start; transcription is started on the broker leg.
-    deliver(&t, "e4", "call.speak.ended", json!({"call_control_id": leg, "client_state": mine})).await;
+    deliver(
+        &t,
+        "e4",
+        "call.speak.ended",
+        json!({"call_control_id": leg, "client_state": mine}),
+    )
+    .await;
     let c = load(&t, id).await;
     assert_eq!(c.state, CallState::Active);
     assert!(fixture
@@ -341,13 +384,25 @@ both_backends!(webhooks_drive_a_call_deduplicated_and_in_any_order, |db| {
     assert_eq!(load(&t, other.call_id).await, other_before);
     // Malformed client_state (not base64 JSON; not even a string): matched by the leg, no 500.
     assert_eq!(
-        deliver(&t, "e6", "call.transcription", json!({"call_control_id": leg, "client_state": "!!!",
-            "transcription_data": {"transcript": "  ", "is_final": true}})).await,
+        deliver(
+            &t,
+            "e6",
+            "call.transcription",
+            json!({"call_control_id": leg, "client_state": "!!!",
+            "transcription_data": {"transcript": "  ", "is_final": true}})
+        )
+        .await,
         204
     );
     assert_eq!(
-        deliver(&t, "e7", "call.transcription", json!({"call_control_id": leg, "client_state": 5,
-            "transcription_data": {"transcript": "x", "is_final": false}})).await,
+        deliver(
+            &t,
+            "e7",
+            "call.transcription",
+            json!({"call_control_id": leg, "client_state": 5,
+            "transcription_data": {"transcript": "x", "is_final": false}})
+        )
+        .await,
         204
     );
     // Transcription events carry no client_state: matched by leg. The answer is a finding.
@@ -367,12 +422,22 @@ both_backends!(webhooks_drive_a_call_deduplicated_and_in_any_order, |db| {
     // The script is done: the assistant thanked them and hung up its leg.
     assert_eq!(fixture.commands().last().unwrap().cmd(), "hangup");
     // Hangup: COMPLETED on the carrier's event, summary text queued after the commit.
-    deliver(&t, "e9", "call.hangup", json!({"call_control_id": leg, "client_state": mine,
-        "hangup_cause": "normal_clearing"})).await;
+    deliver(
+        &t,
+        "e9",
+        "call.hangup",
+        json!({"call_control_id": leg, "client_state": mine,
+        "hangup_cause": "normal_clearing"}),
+    )
+    .await;
     let c = load(&t, id).await;
     assert_eq!(c.state, CallState::Completed);
     assert!(c.ended_at.is_some());
-    assert!(c.outcome_summary.as_deref().unwrap().contains("available_from"));
+    assert!(c
+        .outcome_summary
+        .as_deref()
+        .unwrap()
+        .contains("available_from"));
     t.app.owner_notify().idle().await;
     let reqs = fake.requests();
     assert_eq!(reqs.len(), 1);
@@ -380,11 +445,23 @@ both_backends!(webhooks_drive_a_call_deduplicated_and_in_any_order, |db| {
     assert_eq!(reqs[0].idempotency_key, format!("call-summary:{id}"));
     assert!(!reqs[0].text.starts_with("[Simulated call]"));
     // After the end, later events change nothing.
-    deliver(&t, "e10", "call.answered", json!({"call_control_id": leg, "client_state": mine})).await;
+    deliver(
+        &t,
+        "e10",
+        "call.answered",
+        json!({"call_control_id": leg, "client_state": mine}),
+    )
+    .await;
     assert_eq!(load(&t, id).await, c);
     // An event of an unknown call is recorded and ignored.
     assert_eq!(
-        deliver(&t, "e11", "call.answered", json!({"call_control_id": "nope"})).await,
+        deliver(
+            &t,
+            "e11",
+            "call.answered",
+            json!({"call_control_id": "nope"})
+        )
+        .await,
         204
     );
     let rows = processed(&t).await;
@@ -399,20 +476,45 @@ both_backends!(webhooks_for_both_legs_of_a_handoff, |db| {
     let id = call.call_id;
     let leg = call.provider_call_id.clone().unwrap();
     let broker = cs(id, "counterparty");
-    deliver(&t, "h1", "call.answered", json!({"call_control_id": leg, "client_state": broker})).await;
-    deliver(&t, "h2", "call.speak.ended", json!({"call_control_id": leg, "client_state": broker})).await;
+    deliver(
+        &t,
+        "h1",
+        "call.answered",
+        json!({"call_control_id": leg, "client_state": broker}),
+    )
+    .await;
+    deliver(
+        &t,
+        "h2",
+        "call.speak.ended",
+        json!({"call_control_id": leg, "client_state": broker}),
+    )
+    .await;
     // Escalation on the broker's utterance.
-    deliver(&t, "h3", "call.transcription", json!({"call_control_id": leg,
-        "transcription_data": {"transcript": "Will you need a guarantor?", "is_final": true}})).await;
+    deliver(
+        &t,
+        "h3",
+        "call.transcription",
+        json!({"call_control_id": leg,
+        "transcription_data": {"transcript": "Will you need a guarantor?", "is_final": true}}),
+    )
+    .await;
     let c = load(&t, id).await;
     assert_eq!(c.state, CallState::HandoffPending);
     // While the handoff waits, the assistant stays quiet and records nothing.
-    let said = c.transcript.iter().filter(|x| x.speaker == "assistant").count();
+    let said = c
+        .transcript
+        .iter()
+        .filter(|x| x.speaker == "assistant")
+        .count();
     deliver(&t, "h4", "call.transcription", json!({"call_control_id": leg,
         "transcription_data": {"transcript": "We also need first month and deposit", "is_final": true}})).await;
     let c = load(&t, id).await;
     assert_eq!(
-        c.transcript.iter().filter(|x| x.speaker == "assistant").count(),
+        c.transcript
+            .iter()
+            .filter(|x| x.speaker == "assistant")
+            .count(),
         said
     );
     assert!(c.findings.is_empty());
@@ -437,29 +539,75 @@ both_backends!(webhooks_for_both_legs_of_a_handoff, |db| {
         .find(|s| s.role == "owner")
         .and_then(|s| s.leg_id.clone())
         .unwrap();
-    let dial = fixture.calls().into_iter().find(|x| x.id == owner_leg).unwrap();
+    let dial = fixture
+        .calls()
+        .into_iter()
+        .find(|x| x.id == owner_leg)
+        .unwrap();
     assert_eq!(dial.to, "+15555550160");
-    assert_eq!(dial.idempotency_key, format!("owner-leg:{}", c.handoff_request_id.unwrap()));
+    assert_eq!(
+        dial.idempotency_key,
+        format!("owner-leg:{}", c.handoff_request_id.unwrap())
+    );
     let owner_cs = cs(id, "owner");
     // Owner leg answered: joined to the conference; then the conference join: HUMAN_JOINED.
-    deliver(&t, "h5", "call.answered", json!({"call_control_id": owner_leg, "client_state": owner_cs})).await;
+    deliver(
+        &t,
+        "h5",
+        "call.answered",
+        json!({"call_control_id": owner_leg, "client_state": owner_cs}),
+    )
+    .await;
     let conf = c.conference_id.clone().unwrap();
-    assert_eq!(fixture.conferences()[&conf], vec![leg.clone(), owner_leg.clone()]);
-    deliver(&t, "h6", "conference.participant.joined", json!({"call_control_id": owner_leg,
-        "client_state": owner_cs, "conference_id": conf})).await;
+    assert_eq!(
+        fixture.conferences()[&conf],
+        vec![leg.clone(), owner_leg.clone()]
+    );
+    deliver(
+        &t,
+        "h6",
+        "conference.participant.joined",
+        json!({"call_control_id": owner_leg,
+        "client_state": owner_cs, "conference_id": conf}),
+    )
+    .await;
     let c = load(&t, id).await;
     assert_eq!(c.state, CallState::HumanJoined);
-    assert!(c.transcript.iter().any(|x| x.text == "[owner joined the call]"));
+    assert!(c
+        .transcript
+        .iter()
+        .any(|x| x.text == "[owner joined the call]"));
     // An owner-role event from a leg that is not one of the call's legs: ignored.
-    deliver(&t, "h7", "call.hangup", json!({"call_control_id": "someone-else", "client_state": owner_cs})).await;
+    deliver(
+        &t,
+        "h7",
+        "call.hangup",
+        json!({"call_control_id": "someone-else", "client_state": owner_cs}),
+    )
+    .await;
     assert_eq!(load(&t, id).await.state, CallState::HumanJoined);
     // The owner leaves: the assistant resumes and (script done) closes the call.
-    deliver(&t, "h8", "call.hangup", json!({"call_control_id": owner_leg, "client_state": owner_cs})).await;
+    deliver(
+        &t,
+        "h8",
+        "call.hangup",
+        json!({"call_control_id": owner_leg, "client_state": owner_cs}),
+    )
+    .await;
     let c = load(&t, id).await;
     assert_eq!(c.state, CallState::AiResumed);
-    assert!(c.transcript.iter().any(|x| x.text == "[owner left the call]"));
-    deliver(&t, "h9", "call.hangup", json!({"call_control_id": leg, "client_state": broker,
-        "hangup_cause": "normal_clearing"})).await;
+    assert!(c
+        .transcript
+        .iter()
+        .any(|x| x.text == "[owner left the call]"));
+    deliver(
+        &t,
+        "h9",
+        "call.hangup",
+        json!({"call_control_id": leg, "client_state": broker,
+        "hangup_cause": "normal_clearing"}),
+    )
+    .await;
     assert_eq!(load(&t, id).await.state, CallState::Completed);
     let mut tx = t.app.store.begin().await.unwrap();
     let h = ss_server::store::comms::HANDOFFS
@@ -475,18 +623,33 @@ both_backends!(a_hangup_while_dialing_is_not_answered, |db| {
     let (t, _) = app_with_key(db, &[]);
     let (_, rejected) = dialing_call(&t, None).await;
     let leg = rejected.provider_call_id.clone().unwrap();
-    deliver(&t, "d1", "call.hangup", json!({"call_control_id": leg,
-        "client_state": cs(rejected.call_id, "counterparty"), "hangup_cause": "call_rejected"})).await;
+    deliver(
+        &t,
+        "d1",
+        "call.hangup",
+        json!({"call_control_id": leg,
+        "client_state": cs(rejected.call_id, "counterparty"), "hangup_cause": "call_rejected"}),
+    )
+    .await;
     let c = load(&t, rejected.call_id).await;
     assert_eq!(c.state, CallState::Declined);
     assert!(c.ended_at.is_some());
     assert!(c.failure_reason.is_none());
     let (_, busy) = dialing_call(&t, None).await;
     let leg = busy.provider_call_id.clone().unwrap();
-    deliver(&t, "d2", "call.hangup", json!({"call_control_id": leg, "hangup_cause": "user_busy"})).await;
+    deliver(
+        &t,
+        "d2",
+        "call.hangup",
+        json!({"call_control_id": leg, "hangup_cause": "user_busy"}),
+    )
+    .await;
     let c = load(&t, busy.call_id).await;
     assert_eq!(c.state, CallState::Failed);
-    assert_eq!(c.failure_reason.as_deref(), Some("not answered (user_busy)"));
+    assert_eq!(
+        c.failure_reason.as_deref(),
+        Some("not answered (user_busy)")
+    );
 });
 
 // ---- the live client, against a mock server only -------------------------------------------
@@ -557,12 +720,23 @@ fn live_telnyx_request_shapes() {
         serde_json::to_value(&decoded).unwrap(),
         json!({"call_id": "c1", "role": "counterparty"})
     );
-    assert_eq!(reqs[0].headers.get("idempotency-key").map(String::as_str), Some("idem"));
-    assert!(reqs[1..].iter().all(|r| !r.headers.contains_key("idempotency-key")));
-    assert_eq!(body(1), json!({"payload": "hello", "voice": "female", "language": "en-US"}));
+    assert_eq!(
+        reqs[0].headers.get("idempotency-key").map(String::as_str),
+        Some("idem")
+    );
+    assert!(reqs[1..]
+        .iter()
+        .all(|r| !r.headers.contains_key("idempotency-key")));
+    assert_eq!(
+        body(1),
+        json!({"payload": "hello", "voice": "female", "language": "en-US"})
+    );
     assert_eq!(body(2), json!({"audio_url": "https://x/a.mp3"}));
     assert_eq!(body(3), json!({"transcription_engine": "Telnyx"}));
-    assert_eq!(body(4), json!({"call_control_id": "v3:abc", "name": "call-1"}));
+    assert_eq!(
+        body(4),
+        json!({"call_control_id": "v3:abc", "name": "call-1"})
+    );
     assert_eq!(body(5), json!({"call_control_id": "v3:owner"}));
     assert_eq!(body(6), json!({}));
     // Outbound disabled: refused before any request.
@@ -578,9 +752,13 @@ fn live_telnyx_request_shapes() {
     assert_eq!(st["status"], "PARTIAL");
     assert_eq!(st["credentials_present"], true);
     let st = serde_json::to_value(blocked.status()).unwrap();
-    assert!(st["note"].as_str().unwrap().ends_with("; live outbound disabled."));
-    let st = serde_json::to_value(LiveTelnyxProvider::with_base_url("KEY", "", true, &base).status())
-        .unwrap();
+    assert!(st["note"]
+        .as_str()
+        .unwrap()
+        .ends_with("; live outbound disabled."));
+    let st =
+        serde_json::to_value(LiveTelnyxProvider::with_base_url("KEY", "", true, &base).status())
+            .unwrap();
     assert_eq!(st["credentials_present"], false);
 }
 
@@ -603,7 +781,8 @@ fn live_telnyx_errors_are_provider_errors_without_retry() {
             body: Vec::new(),
         },
     });
-    let tx = LiveTelnyxProvider::with_base_url("KEY", "conn1", true, &format!("{}/v2", server.base));
+    let tx =
+        LiveTelnyxProvider::with_base_url("KEY", "conn1", true, &format!("{}/v2", server.base));
     match tx.dial("+1", "+1", "u", "k", None) {
         Err(TelephonyError::Provider(e)) => {
             assert_eq!(e.kind, ProviderErrorKind::Unavailable);
@@ -611,7 +790,11 @@ fn live_telnyx_errors_are_provider_errors_without_retry() {
         }
         other => panic!("{other:?}"),
     }
-    assert_eq!(server.requests().len(), 1, "one attempt, as Python's RetryPolicy(attempts=1)");
+    assert_eq!(
+        server.requests().len(),
+        1,
+        "one attempt, as Python's RetryPolicy(attempts=1)"
+    );
     match tx.create_conference("v3:abc", "x") {
         Err(TelephonyError::Provider(e)) => assert_eq!(e.kind, ProviderErrorKind::BadResponse),
         other => panic!("{other:?}"),
@@ -679,7 +862,11 @@ both_backends!(live_client_through_the_orchestrator, |db| {
             &json!({"project_name": "t", "market": {"city": "Los Angeles", "state": "CA"}}),
         )
         .await;
-    let pid: Uuid = p["project"]["project_id"].as_str().unwrap().parse().unwrap();
+    let pid: Uuid = p["project"]["project_id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
     let mut recipient = IndexMap::new();
     recipient.insert("phone".to_owned(), "+15555550100".to_owned());
     let mut tx = t2.app.store.begin().await.unwrap();
@@ -702,7 +889,13 @@ both_backends!(live_client_through_the_orchestrator, |db| {
         .unwrap();
     t2.app
         .approvals()
-        .decide(&mut *tx, a.approval_id, owner, ApprovalStatus::Approved, &a.action_payload_hash)
+        .decide(
+            &mut *tx,
+            a.approval_id,
+            owner,
+            ApprovalStatus::Approved,
+            &a.action_payload_hash,
+        )
         .await
         .unwrap();
     tx.commit().await.unwrap();

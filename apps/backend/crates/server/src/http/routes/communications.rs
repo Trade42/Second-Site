@@ -23,11 +23,11 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ss_core::Contract;
-use ss_domain::contracts::{
-    CallSession, Channel, CommunicationSession, CommunicationState, HandoffStatus,
-    OutreachRequest, OwnerHandoffRequest,
-};
 use ss_domain::communications::call_payload;
+use ss_domain::contracts::{
+    CallSession, Channel, CommunicationSession, CommunicationState, HandoffStatus, OutreachRequest,
+    OwnerHandoffRequest,
+};
 use uuid::Uuid;
 
 use crate::app::{App, AppState};
@@ -123,10 +123,41 @@ pub fn py_dict_repr(m: &IndexMap<String, String>) -> String {
 
 fn parse_body<T: Contract>(decoded: crate::http::extract::EarlyBody) -> AppResult<T> {
     let obj = decoded.into_object()?;
-    T::from_json_value(Value::Object(obj.clone())).map_err(|e| body_errors_with_input(e, &obj))
+    T::from_json_value(Value::Object(obj.clone()))
+        .map_err(|e| with_enum_ctx(body_errors_with_input(e, &obj)))
 }
 
-async fn owned(app: &App, tx: &mut dyn Tx, project_id: Uuid, user: Uuid) -> AppResult<(Uuid, Uuid)> {
+/// Pydantic's `ctx` of an `enum` error, `{"expected": "'A', 'B' or 'C'"}`, read back from the
+/// message it formats from it (`Input should be 'A', 'B' or 'C'`).
+fn with_enum_ctx(e: AppError) -> AppError {
+    let AppError::RequestValidation(mut errors) = e else {
+        return e;
+    };
+    for err in &mut errors {
+        let Some(obj) = err.as_object_mut() else {
+            continue;
+        };
+        if obj.get("type").and_then(Value::as_str) != Some("enum") || obj.contains_key("ctx") {
+            continue;
+        }
+        let expected = obj
+            .get("msg")
+            .and_then(Value::as_str)
+            .and_then(|m| m.strip_prefix("Input should be "))
+            .map(str::to_owned);
+        if let Some(expected) = expected {
+            obj.insert("ctx".into(), json!({ "expected": expected }));
+        }
+    }
+    AppError::RequestValidation(errors)
+}
+
+async fn owned(
+    app: &App,
+    tx: &mut dyn Tx,
+    project_id: Uuid,
+    user: Uuid,
+) -> AppResult<(Uuid, Uuid)> {
     let p = app.authz().project_for_user(tx, project_id, user).await?;
     Ok((p.project_id, p.owner_id))
 }
@@ -333,9 +364,7 @@ async fn simulate_call(
         let (project_id, _) = owned(&app, tx, project_id, user).await?;
         let call_id = params.uuid("call_id")?;
         let req: SimulateBody = parse_body(decoded)?;
-        let call = CALLS
-            .require(tx, call_id)
-            .await?;
+        let call = CALLS.require(tx, call_id).await?;
         if call.project_id != project_id {
             return Err(AppError::not_found("call not found"));
         }

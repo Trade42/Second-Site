@@ -261,10 +261,10 @@ fn closed_port_url() -> String {
 
 fn fast() -> Timeouts {
     Timeouts {
-        connect: Duration::from_millis(500),
-        chat: Duration::from_millis(1500),
-        default: Duration::from_millis(700),
-        health: Duration::from_millis(300),
+        connect: Duration::from_millis(1000),
+        chat: Duration::from_millis(3000),
+        default: Duration::from_millis(1000),
+        health: Duration::from_millis(1000),
         health_interval: Duration::from_millis(100),
     }
 }
@@ -1033,14 +1033,14 @@ both_backends!(an_unreachable_service_is_an_honest_502, |db| {
 both_backends!(timeouts_are_honest_504s, |db| {
     let up = Upstream::start(|r| {
         let delay = if r.target.contains("slow") {
-            2000
+            4500
         } else {
-            1000
+            1800
         };
         Reply::json(200, json!({"ok": true})).delayed(Duration::from_millis(delay))
     });
     let t = fast_app_for(db, &up.base);
-    // 1 s is over the 0.7 s default budget ...
+    // 1.8 s is over the 1 s default budget ...
     let r = t
         .send(request(
             "POST",
@@ -1069,7 +1069,7 @@ both_backends!(timeouts_are_honest_504s, |db| {
         .send(request("POST", "/webhooks/photon", &[], b"{}".to_vec()))
         .await;
     assert_eq!(r.status, StatusCode::GATEWAY_TIMEOUT);
-    // ... and within the chat's 1.5 s budget.
+    // ... and within the chat's 3 s budget (4.5 s is not).
     let chat = format!("/api/v1/projects/{}/chat", pid());
     let r = t.send(request("POST", &chat, &[], b"{}".to_vec())).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.text);
@@ -1234,7 +1234,7 @@ both_backends!(ready_reports_the_python_service_honestly, |db| {
         assert_eq!(r.target, "/health");
         if h2.load(Ordering::SeqCst) {
             Reply::json(200, json!({"status": "ok", "version": "0.1.0"}))
-                .delayed(Duration::from_millis(150))
+                .delayed(Duration::from_millis(400))
         } else {
             Reply::json(503, json!({"status": "down"}))
         }

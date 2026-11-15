@@ -136,7 +136,9 @@ pub fn check_labels(purpose: &str, key: &str) -> Result<(), String> {
         n >= 1 && n <= max && !has_control(s) && s.chars().any(|c| !is_py_space(c))
     };
     if !label_ok(purpose, MAX_PURPOSE_CHARS) {
-        return Err("purpose must be 1 to 100 characters, not blank, without control characters".into());
+        return Err(
+            "purpose must be 1 to 100 characters, not blank, without control characters".into(),
+        );
     }
     if !label_ok(key, MAX_KEY_CHARS) || !key.is_ascii() {
         return Err(
@@ -251,7 +253,11 @@ impl HttpInner {
             Ok(resp) => parse_answer(resp),
             Err(ureq::Error::Status(code, resp)) => {
                 let error_code = json_of(resp)
-                    .and_then(|v| v.get("error_code").and_then(Value::as_str).map(str::to_owned))
+                    .and_then(|v| {
+                        v.get("error_code")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                    })
                     .unwrap_or_default();
                 let reason = format!("Python service answered HTTP {code} {error_code}")
                     .trim_end()
@@ -454,7 +460,10 @@ impl OwnerNotify {
 
 /// Validate, send, log, and record honestly what could not be confirmed.
 async fn deliver_one(app: &App, notifier: &dyn OwnerNotifier, mut req: NotifyRequest) {
-    let outcome = match (fit_text(&req.text), check_labels(&req.purpose, &req.idempotency_key)) {
+    let outcome = match (
+        fit_text(&req.text),
+        check_labels(&req.purpose, &req.idempotency_key),
+    ) {
         (Err(e), _) | (_, Err(e)) => NotifyOutcome::NotSent {
             reason: format!("refused before calling the Python service: {e}"),
         },
@@ -473,7 +482,10 @@ async fn deliver_one(app: &App, notifier: &dyn OwnerNotifier, mut req: NotifyReq
     let fields = |extra: Vec<(&'static str, Value)>| {
         let mut f = vec![
             ("purpose", Value::String(req.purpose.clone())),
-            ("idempotency_key", Value::String(req.idempotency_key.clone())),
+            (
+                "idempotency_key",
+                Value::String(req.idempotency_key.clone()),
+            ),
             ("project_id", Value::String(req.project_id.to_string())),
             ("notifier", Value::String(notifier.kind().to_owned())),
         ];
@@ -487,13 +499,20 @@ async fn deliver_one(app: &App, notifier: &dyn OwnerNotifier, mut req: NotifyReq
         } => {
             let f = fields(vec![
                 ("delivery", Value::String(delivery.clone())),
-                ("communication_id", Value::String(communication_id.to_string())),
+                (
+                    "communication_id",
+                    Value::String(communication_id.to_string()),
+                ),
             ]);
             if matches!(delivery.as_str(), "accepted" | "recorded") {
                 // 'accepted' means Photon took the message, not that it was delivered.
                 logging::info("app.services.notifier", "owner notify answered", &f);
             } else {
-                logging::warning("app.services.notifier", "owner notify answered: not sent", &f);
+                logging::warning(
+                    "app.services.notifier",
+                    "owner notify answered: not sent",
+                    &f,
+                );
             }
         }
         NotifyOutcome::NotSent { reason } => logging::warning(

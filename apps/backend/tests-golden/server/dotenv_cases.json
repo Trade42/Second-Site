@@ -1,0 +1,545 @@
+{
+ "dotenv_version": "1.2.4",
+ "cases": [
+  {
+   "line": "PHOTON_API_KEY=      # comment",
+   "values": {
+    "PHOTON_API_KEY": ""
+   }
+  },
+  {
+   "line": "KEY=\t# comment after a tab",
+   "values": {
+    "KEY": ""
+   }
+  },
+  {
+   "line": "KEY= #",
+   "values": {
+    "KEY": ""
+   }
+  },
+  {
+   "line": "KEY=",
+   "values": {
+    "KEY": ""
+   }
+  },
+  {
+   "line": "KEY= ",
+   "values": {
+    "KEY": ""
+   }
+  },
+  {
+   "line": "KEY=#novalue",
+   "values": {
+    "KEY": "#novalue"
+   }
+  },
+  {
+   "line": "KEY=#novalue # comment",
+   "values": {
+    "KEY": "#novalue"
+   }
+  },
+  {
+   "line": "KEY=value",
+   "values": {
+    "KEY": "value"
+   }
+  },
+  {
+   "line": "KEY=value # comment",
+   "values": {
+    "KEY": "value"
+   }
+  },
+  {
+   "line": "KEY=value#notcomment",
+   "values": {
+    "KEY": "value#notcomment"
+   }
+  },
+  {
+   "line": "KEY=value\t#tab comment",
+   "values": {
+    "KEY": "value"
+   }
+  },
+  {
+   "line": "KEY=a b c # x",
+   "values": {
+    "KEY": "a b c"
+   }
+  },
+  {
+   "line": "KEY=a #b #c",
+   "values": {
+    "KEY": "a"
+   }
+  },
+  {
+   "line": "KEY=a  #b",
+   "values": {
+    "KEY": "a"
+   }
+  },
+  {
+   "line": "KEY=trailing spaces   ",
+   "values": {
+    "KEY": "trailing spaces"
+   }
+  },
+  {
+   "line": "KEY=http://localhost:8001/#frag",
+   "values": {
+    "KEY": "http://localhost:8001/#frag"
+   }
+  },
+  {
+   "line": "KEY=a=b",
+   "values": {
+    "KEY": "a=b"
+   }
+  },
+  {
+   "line": "KEY=value  ",
+   "values": {
+    "KEY": "value"
+   }
+  },
+  {
+   "line": "KEY=\"quoted value\"",
+   "values": {
+    "KEY": "quoted value"
+   }
+  },
+  {
+   "line": "KEY=\"quoted # not a comment\"",
+   "values": {
+    "KEY": "quoted # not a comment"
+   }
+  },
+  {
+   "line": "KEY=\"quoted\" # comment",
+   "values": {
+    "KEY": "quoted"
+   }
+  },
+  {
+   "line": "KEY=\"quoted\"# comment",
+   "values": {
+    "KEY": "quoted"
+   }
+  },
+  {
+   "line": "KEY='single'",
+   "values": {
+    "KEY": "single"
+   }
+  },
+  {
+   "line": "KEY='single # x' # y",
+   "values": {
+    "KEY": "single # x"
+   }
+  },
+  {
+   "line": "KEY=\"esc \\n \\t \\\\ \\\" \\' end\"",
+   "values": {
+    "KEY": "esc \n \t \\ \" ' end"
+   }
+  },
+  {
+   "line": "KEY='esc \\n \\' \\\\ end'",
+   "values": {
+    "KEY": "esc \\n ' \\ end"
+   }
+  },
+  {
+   "line": "KEY=\"\"",
+   "values": {
+    "KEY": ""
+   }
+  },
+  {
+   "line": "KEY=\"\" # c",
+   "values": {
+    "KEY": ""
+   }
+  },
+  {
+   "line": "KEY=''",
+   "values": {
+    "KEY": ""
+   }
+  },
+  {
+   "line": "KEY= \"spaced quoted\"",
+   "values": {
+    "KEY": "spaced quoted"
+   }
+  },
+  {
+   "line": "KEY=\"a\" junk",
+   "values": {}
+  },
+  {
+   "line": "KEY=\"unterminated",
+   "values": {}
+  },
+  {
+   "line": "KEY='unterminated",
+   "values": {}
+  },
+  {
+   "line": "KEY=un\"quoted\"",
+   "values": {
+    "KEY": "un\"quoted\""
+   }
+  },
+  {
+   "line": "export KEY=exported",
+   "values": {
+    "KEY": "exported"
+   }
+  },
+  {
+   "line": "export   KEY=exported2",
+   "values": {
+    "KEY": "exported2"
+   }
+  },
+  {
+   "line": "exportKEY=x",
+   "values": {
+    "exportKEY": "x"
+   }
+  },
+  {
+   "line": "'QKEY'=v",
+   "values": {
+    "QKEY": "v"
+   }
+  },
+  {
+   "line": "KEY = spaced",
+   "values": {
+    "KEY": "spaced"
+   }
+  },
+  {
+   "line": "  KEY=indented",
+   "values": {
+    "KEY": "indented"
+   }
+  },
+  {
+   "line": "KEY",
+   "values": {
+    "KEY": null
+   }
+  },
+  {
+   "line": "# full comment",
+   "values": {}
+  },
+  {
+   "line": "   # indented comment",
+   "values": {}
+  },
+  {
+   "line": "=novalue",
+   "values": {}
+  },
+  {
+   "line": "KEY#x=1",
+   "values": {
+    "KEY": null
+   }
+  },
+  {
+   "line": "APP_ENV=development",
+   "values": {
+    "APP_ENV": "development"
+   }
+  },
+  {
+   "line": "LOG_LEVEL=INFO",
+   "values": {
+    "LOG_LEVEL": "INFO"
+   }
+  },
+  {
+   "line": "CORS_ORIGINS=http://localhost:3000",
+   "values": {
+    "CORS_ORIGINS": "http://localhost:3000"
+   }
+  },
+  {
+   "line": "PUBLIC_BASE_URL=http://localhost:8000        # public HTTPS in prod: Telnyx/Photon webhooks + intro audio links",
+   "values": {
+    "PUBLIC_BASE_URL": "http://localhost:8000"
+   }
+  },
+  {
+   "line": "PUBLIC_WEB_URL=http://localhost:3000         # links in owner texts (approvals, handoffs)",
+   "values": {
+    "PUBLIC_WEB_URL": "http://localhost:3000"
+   }
+  },
+  {
+   "line": "TASK_EXECUTION_MODE=inline          # inline | redis (redis requires the worker)",
+   "values": {
+    "TASK_EXECUTION_MODE": "inline"
+   }
+  },
+  {
+   "line": "DATABASE_URL=postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite",
+   "values": {
+    "DATABASE_URL": "postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite"
+   }
+  },
+  {
+   "line": "TEST_DATABASE_URL=postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test",
+   "values": {
+    "TEST_DATABASE_URL": "postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test"
+   }
+  },
+  {
+   "line": "REDIS_URL=redis://localhost:6379/0",
+   "values": {
+    "REDIS_URL": "redis://localhost:6379/0"
+   }
+  },
+  {
+   "line": "AUTH_SECRET=change-me-in-any-shared-deployment",
+   "values": {
+    "AUTH_SECRET": "change-me-in-any-shared-deployment"
+   }
+  },
+  {
+   "line": "ALLOW_DEV_TOKENS=true                # must be false in production",
+   "values": {
+    "ALLOW_DEV_TOKENS": "true"
+   }
+  },
+  {
+   "line": "SUPERVISOR_MODEL=",
+   "values": {
+    "SUPERVISOR_MODEL": ""
+   }
+  },
+  {
+   "line": "ANTHROPIC_API_KEY=",
+   "values": {
+    "ANTHROPIC_API_KEY": ""
+   }
+  },
+  {
+   "line": "AGENT_CHECKPOINTER=memory            # memory | postgres",
+   "values": {
+    "AGENT_CHECKPOINTER": "memory"
+   }
+  },
+  {
+   "line": "BACKEND_API_URL=",
+   "values": {
+    "BACKEND_API_URL": ""
+   }
+  },
+  {
+   "line": "PROPERTY_PROVIDER_MODE=fixture",
+   "values": {
+    "PROPERTY_PROVIDER_MODE": "fixture"
+   }
+  },
+  {
+   "line": "PERMIT_PROVIDER_MODE=fixture         # live works without credentials (public Socrata API)",
+   "values": {
+    "PERMIT_PROVIDER_MODE": "fixture"
+   }
+  },
+  {
+   "line": "VOICE_PROVIDER_MODE=fixture",
+   "values": {
+    "VOICE_PROVIDER_MODE": "fixture"
+   }
+  },
+  {
+   "line": "MESSAGING_PROVIDER_MODE=fixture",
+   "values": {
+    "MESSAGING_PROVIDER_MODE": "fixture"
+   }
+  },
+  {
+   "line": "PROCUREMENT_PROVIDER_MODE=fixture",
+   "values": {
+    "PROCUREMENT_PROVIDER_MODE": "fixture"
+   }
+  },
+  {
+   "line": "COSTAR_KIT_DIR=                      # default: <repo>/.data/costar-kit",
+   "values": {
+    "COSTAR_KIT_DIR": ""
+   }
+  },
+  {
+   "line": "MATTERPORT_PROVIDER_MODE=fixture     # live: suite scans + measured floor geometry",
+   "values": {
+    "MATTERPORT_PROVIDER_MODE": "fixture"
+   }
+  },
+  {
+   "line": "MATTERPORT_API_KEY=",
+   "values": {
+    "MATTERPORT_API_KEY": ""
+   }
+  },
+  {
+   "line": "MATTERPORT_API_TOKEN=",
+   "values": {
+    "MATTERPORT_API_TOKEN": ""
+   }
+  },
+  {
+   "line": "MATTERPORT_SDK_KEY=                  # Showcase SDK (browser embed); not used server-side yet",
+   "values": {
+    "MATTERPORT_SDK_KEY": ""
+   }
+  },
+  {
+   "line": "VEXCEL_PROVIDER_MODE=fixture         # live: orthomosaic imagery + roof/structure elements",
+   "values": {
+    "VEXCEL_PROVIDER_MODE": "fixture"
+   }
+  },
+  {
+   "line": "VEXCEL_API_KEY=",
+   "values": {
+    "VEXCEL_API_KEY": ""
+   }
+  },
+  {
+   "line": "LA_OPEN_DATA_BASE_URL=https://data.lacity.org",
+   "values": {
+    "LA_OPEN_DATA_BASE_URL": "https://data.lacity.org"
+   }
+  },
+  {
+   "line": "LA_OPEN_DATA_APP_TOKEN=              # optional; raises rate limits",
+   "values": {
+    "LA_OPEN_DATA_APP_TOKEN": ""
+   }
+  },
+  {
+   "line": "LA_ELECTRICAL_DATASET=ysqd-apz7",
+   "values": {
+    "LA_ELECTRICAL_DATASET": "ysqd-apz7"
+   }
+  },
+  {
+   "line": "LA_MECHANICAL_DATASET=67is-svtd",
+   "values": {
+    "LA_MECHANICAL_DATASET": "67is-svtd"
+   }
+  },
+  {
+   "line": "PHOTON_API_KEY=",
+   "values": {
+    "PHOTON_API_KEY": ""
+   }
+  },
+  {
+   "line": "PHOTON_PROJECT_ID=",
+   "values": {
+    "PHOTON_PROJECT_ID": ""
+   }
+  },
+  {
+   "line": "PHOTON_WEBHOOK_SECRET=               # whsec_... from the webhook destination",
+   "values": {
+    "PHOTON_WEBHOOK_SECRET": ""
+   }
+  },
+  {
+   "line": "PHOTON_AGENT_HANDLE=                 # the agent's assigned number, shown to the owner (\"text hi to ...\")",
+   "values": {
+    "PHOTON_AGENT_HANDLE": ""
+   }
+  },
+  {
+   "line": "TELNYX_API_KEY=",
+   "values": {
+    "TELNYX_API_KEY": ""
+   }
+  },
+  {
+   "line": "TELNYX_PUBLIC_KEY=                   # base64 Ed25519 public key (Mission Control > Keys)",
+   "values": {
+    "TELNYX_PUBLIC_KEY": ""
+   }
+  },
+  {
+   "line": "TELNYX_CONNECTION_ID=",
+   "values": {
+    "TELNYX_CONNECTION_ID": ""
+   }
+  },
+  {
+   "line": "TELNYX_FROM_NUMBER=",
+   "values": {
+    "TELNYX_FROM_NUMBER": ""
+   }
+  },
+  {
+   "line": "XAI_API_KEY=",
+   "values": {
+    "XAI_API_KEY": ""
+   }
+  },
+  {
+   "line": "OBJECT_STORAGE_MODE=local",
+   "values": {
+    "OBJECT_STORAGE_MODE": "local"
+   }
+  },
+  {
+   "line": "OBJECT_STORAGE_LOCAL_DIR=./.data/objects",
+   "values": {
+    "OBJECT_STORAGE_LOCAL_DIR": "./.data/objects"
+   }
+  },
+  {
+   "line": "ALLOW_LIVE_OUTBOUND_CALLS=false",
+   "values": {
+    "ALLOW_LIVE_OUTBOUND_CALLS": "false"
+   }
+  },
+  {
+   "line": "ALLOW_LIVE_PURCHASES=false",
+   "values": {
+    "ALLOW_LIVE_PURCHASES": "false"
+   }
+  },
+  {
+   "line": "NESSIE_PROVIDER_MODE=",
+   "values": {
+    "NESSIE_PROVIDER_MODE": ""
+   }
+  },
+  {
+   "line": "NESSIE_API_KEY=",
+   "values": {
+    "NESSIE_API_KEY": ""
+   }
+  },
+  {
+   "line": "NESSIE_BASE_URL=",
+   "values": {
+    "NESSIE_BASE_URL": ""
+   }
+  }
+ ]
+}

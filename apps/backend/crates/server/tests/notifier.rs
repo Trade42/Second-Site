@@ -75,7 +75,13 @@ fn check_request(r: &Recorded, owner: Uuid) {
     keys.sort();
     assert_eq!(
         keys,
-        ["idempotency_key", "owner_id", "project_id", "purpose", "text"]
+        [
+            "idempotency_key",
+            "owner_id",
+            "project_id",
+            "purpose",
+            "text"
+        ]
     );
 }
 
@@ -116,19 +122,36 @@ async fn http_client_outcomes() {
             delivery: "accepted".into()
         }
     );
-    assert!(matches!(n.notify(&req).await, NotifyOutcome::NotSent { reason } if reason.contains("409 IDEMPOTENCY_KEY_REUSED")));
-    assert!(matches!(n.notify(&req).await, NotifyOutcome::NotSent { .. }));
+    assert!(
+        matches!(n.notify(&req).await, NotifyOutcome::NotSent { reason } if reason.contains("409 IDEMPOTENCY_KEY_REUSED"))
+    );
+    assert!(matches!(
+        n.notify(&req).await,
+        NotifyOutcome::NotSent { .. }
+    ));
     // A 500 may come after the text went out: unknown, not "not sent".
-    assert!(matches!(n.notify(&req).await, NotifyOutcome::Unknown { .. }));
-    assert!(matches!(n.notify(&req).await, NotifyOutcome::Unknown { .. }));
+    assert!(matches!(
+        n.notify(&req).await,
+        NotifyOutcome::Unknown { .. }
+    ));
+    assert!(matches!(
+        n.notify(&req).await,
+        NotifyOutcome::Unknown { .. }
+    ));
     // A delivery value outside the route's vocabulary is never taken as sent.
-    assert!(matches!(n.notify(&req).await, NotifyOutcome::Unknown { .. }));
+    assert!(matches!(
+        n.notify(&req).await,
+        NotifyOutcome::Unknown { .. }
+    ));
     let reqs = server.requests();
     assert_eq!(reqs.len(), 6, "no automatic retries");
     for r in &reqs {
         check_request(r, owner);
         let v: Value = serde_json::from_slice(&r.body).unwrap();
-        assert_eq!(v["idempotency_key"], "call-summary:1", "the key is passed through unchanged");
+        assert_eq!(
+            v["idempotency_key"], "call-summary:1",
+            "the key is passed through unchanged"
+        );
         assert_eq!(v["owner_id"], owner.to_string());
         assert_eq!(v["project_id"], project.to_string());
         assert_eq!(v["text"], "hello");
@@ -148,7 +171,9 @@ async fn timeouts_are_unknown_and_refused_connections_not_sent() {
         Duration::from_millis(500),
         Duration::from_millis(400),
     );
-    let out = n.notify(&request(Uuid::new_v4(), Uuid::new_v4(), "k")).await;
+    let out = n
+        .notify(&request(Uuid::new_v4(), Uuid::new_v4(), "k"))
+        .await;
     assert!(matches!(out, NotifyOutcome::Unknown { .. }), "{out:?}");
     // Nothing listens on this port any more.
     let closed = {
@@ -161,7 +186,9 @@ async fn timeouts_are_unknown_and_refused_connections_not_sent() {
         Duration::from_millis(500),
         Duration::from_millis(500),
     );
-    let out = n.notify(&request(Uuid::new_v4(), Uuid::new_v4(), "k")).await;
+    let out = n
+        .notify(&request(Uuid::new_v4(), Uuid::new_v4(), "k"))
+        .await;
     assert!(matches!(out, NotifyOutcome::NotSent { .. }), "{out:?}");
     let out = NotConfiguredNotifier
         .notify(&request(Uuid::new_v4(), Uuid::new_v4(), "k"))
@@ -169,120 +196,147 @@ async fn timeouts_are_unknown_and_refused_connections_not_sent() {
     assert!(matches!(out, NotifyOutcome::NotSent { .. }));
 }
 
-both_backends!(routes_notify_after_commit_and_record_what_was_not_sent, |db| {
-    let comm = Uuid::new_v4();
-    // Notify requests get these answers in order; anything else (the forwarder's health probe of
-    // the same service) gets a plain 200.
-    let answers = std::sync::Mutex::new(vec![
-        status(404, "NOT_FOUND"),
-        status(500, "INTERNAL_ERROR"),
-        ok_answer(comm, "recorded"),
-    ]);
-    let server = MockServer::start_with(move |r: &Recorded| {
-        if r.path == "/internal/v1/owner/notify" {
-            answers.lock().unwrap().pop().unwrap_or_else(|| status(500, "x"))
-        } else {
-            ok_answer(Uuid::new_v4(), "recorded")
-        }
-    });
-    let t = TestApp::new(db, &[("PYTHON_SERVICE_URL", server.base.as_str())]);
-    let (token, user) = t.dev_token().await;
-    let p = t
-        .create_project(&token, &common::demo_project_body())
-        .await;
-    let pid: Uuid = p["project"]["project_id"].as_str().unwrap().parse().unwrap();
-    let r = t
-        .post(
-            &format!("/api/v1/projects/{pid}/properties/search"),
-            Some(&token),
-            &json!({"city": "Los Angeles", "state": "CA"}),
-        )
-        .await;
-    assert_eq!(r.status.as_u16(), 202);
-    let props = t
-        .get(&format!("/api/v1/projects/{pid}/properties"), Some(&token))
-        .await;
-    let prop = props.body[0]["property_id"].as_str().unwrap().to_owned();
-    let outreach = |n: u32| {
-        let t = &t;
-        let token = token.clone();
-        let prop = prop.clone();
-        async move {
-            t.post(
-                &format!("/api/v1/projects/{pid}/outreach"),
+both_backends!(
+    routes_notify_after_commit_and_record_what_was_not_sent,
+    |db| {
+        let comm = Uuid::new_v4();
+        // Notify requests get these answers in order; anything else (the forwarder's health probe of
+        // the same service) gets a plain 200.
+        let answers = std::sync::Mutex::new(vec![
+            status(404, "NOT_FOUND"),
+            status(500, "INTERNAL_ERROR"),
+            ok_answer(comm, "recorded"),
+        ]);
+        let server = MockServer::start_with(move |r: &Recorded| {
+            if r.path == "/internal/v1/owner/notify" {
+                answers
+                    .lock()
+                    .unwrap()
+                    .pop()
+                    .unwrap_or_else(|| status(500, "x"))
+            } else {
+                ok_answer(Uuid::new_v4(), "recorded")
+            }
+        });
+        let t = TestApp::new(db, &[("PYTHON_SERVICE_URL", server.base.as_str())]);
+        let (token, user) = t.dev_token().await;
+        let p = t.create_project(&token, &common::demo_project_body()).await;
+        let pid: Uuid = p["project"]["project_id"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let r = t
+            .post(
+                &format!("/api/v1/projects/{pid}/properties/search"),
                 Some(&token),
-                &json!({"property_id": prop, "channel": "VOICE",
+                &json!({"city": "Los Angeles", "state": "CA"}),
+            )
+            .await;
+        assert_eq!(r.status.as_u16(), 202);
+        let props = t
+            .get(&format!("/api/v1/projects/{pid}/properties"), Some(&token))
+            .await;
+        let prop = props.body[0]["property_id"].as_str().unwrap().to_owned();
+        let outreach = |n: u32| {
+            let t = &t;
+            let token = token.clone();
+            let prop = prop.clone();
+            async move {
+                t.post(
+                    &format!("/api/v1/projects/{pid}/outreach"),
+                    Some(&token),
+                    &json!({"property_id": prop, "channel": "VOICE",
                         "recipient": {"name": format!("Broker {n}"), "phone": "+15555550100"},
                         "purpose": "check"}),
-            )
-            .await
-        }
-    };
-    // 1: Python answers 200: Python wrote its record, Rust writes none.
-    let r1 = outreach(1).await;
-    assert_eq!(r1.status.as_u16(), 202, "{}", r1.text);
-    t.app.owner_notify().idle().await;
-    // 2: Python answers 500: outcome unknown, recorded as such.
-    let r2 = outreach(2).await;
-    assert_eq!(r2.status.as_u16(), 202, "the request never fails because of the notify");
-    t.app.owner_notify().idle().await;
-    // 3: Python refuses (404): not sent, recorded as failed.
-    let r3 = outreach(3).await;
-    assert_eq!(r3.status.as_u16(), 202);
-    t.app.owner_notify().idle().await;
-    let reqs: Vec<Recorded> = server
-        .requests()
-        .into_iter()
-        .filter(|r| r.path == "/internal/v1/owner/notify")
-        .collect();
-    assert_eq!(reqs.len(), 3);
-    for (r, out) in reqs.iter().zip([&r1, &r2, &r3]) {
-        check_request(r, user);
-        let v: Value = serde_json::from_slice(&r.body).unwrap();
-        assert_eq!(v["purpose"], "approval_request");
+                )
+                .await
+            }
+        };
+        // 1: Python answers 200: Python wrote its record, Rust writes none.
+        let r1 = outreach(1).await;
+        assert_eq!(r1.status.as_u16(), 202, "{}", r1.text);
+        t.app.owner_notify().idle().await;
+        // 2: Python answers 500: outcome unknown, recorded as such.
+        let r2 = outreach(2).await;
         assert_eq!(
-            v["idempotency_key"],
-            format!(
-                "approval-notify:{}",
-                out.body["approval"]["approval_id"].as_str().unwrap()
-            )
+            r2.status.as_u16(),
+            202,
+            "the request never fails because of the notify"
         );
+        t.app.owner_notify().idle().await;
+        // 3: Python refuses (404): not sent, recorded as failed.
+        let r3 = outreach(3).await;
+        assert_eq!(r3.status.as_u16(), 202);
+        t.app.owner_notify().idle().await;
+        let reqs: Vec<Recorded> = server
+            .requests()
+            .into_iter()
+            .filter(|r| r.path == "/internal/v1/owner/notify")
+            .collect();
+        assert_eq!(reqs.len(), 3);
+        for (r, out) in reqs.iter().zip([&r1, &r2, &r3]) {
+            check_request(r, user);
+            let v: Value = serde_json::from_slice(&r.body).unwrap();
+            assert_eq!(v["purpose"], "approval_request");
+            assert_eq!(
+                v["idempotency_key"],
+                format!(
+                    "approval-notify:{}",
+                    out.body["approval"]["approval_id"].as_str().unwrap()
+                )
+            );
+        }
+        let mut tx = t.app.store.begin().await.unwrap();
+        let comms = COMMUNICATIONS
+            .list(&mut *tx, Query::new().eq("project_id", pid))
+            .await
+            .unwrap();
+        let events = t.app.events().list(&mut *tx, pid, 0, 500).await.unwrap();
+        tx.commit().await.unwrap();
+        let notified: Vec<_> = events
+            .iter()
+            .filter(|(_, e)| e.event_type.as_str() == "communication.owner_notified")
+            .map(|(_, e)| e.clone())
+            .collect();
+        assert_eq!(
+            notified.len(),
+            2,
+            "only the two notifies Python did not answer 200"
+        );
+        let key = |r: &common::Resp| {
+            format!(
+                "notify-unreached:approval-notify:{}",
+                r.body["approval"]["approval_id"].as_str().unwrap()
+            )
+        };
+        let e2 = notified
+            .iter()
+            .find(|e| e.idempotency_key == key(&r2))
+            .unwrap();
+        assert_eq!(e2.payload["delivery"], "unknown");
+        assert_eq!(e2.payload["purpose"], "approval_request");
+        assert_eq!(e2.actor_id, "owner-messaging");
+        let e3 = notified
+            .iter()
+            .find(|e| e.idempotency_key == key(&r3))
+            .unwrap();
+        assert_eq!(e3.payload["delivery"], "failed");
+        for e in [e2, e3] {
+            let cid: Uuid = e.payload["communication_id"]
+                .as_str()
+                .unwrap()
+                .parse()
+                .unwrap();
+            let c = comms.iter().find(|c| c.communication_id == cid).unwrap();
+            assert_eq!(c.state.as_str(), "FAILED");
+            assert_eq!(c.purpose, "approval_request");
+            assert_eq!(c.external_participants[0]["role"], "owner");
+        }
+        // No record for the answered notify; three outreach drafts plus two honest records.
+        assert_eq!(comms.len(), 5);
     }
-    let mut tx = t.app.store.begin().await.unwrap();
-    let comms = COMMUNICATIONS
-        .list(&mut *tx, Query::new().eq("project_id", pid))
-        .await
-        .unwrap();
-    let events = t.app.events().list(&mut *tx, pid, 0, 500).await.unwrap();
-    tx.commit().await.unwrap();
-    let notified: Vec<_> = events
-        .iter()
-        .filter(|(_, e)| e.event_type.as_str() == "communication.owner_notified")
-        .map(|(_, e)| e.clone())
-        .collect();
-    assert_eq!(notified.len(), 2, "only the two notifies Python did not answer 200");
-    let key = |r: &common::Resp| {
-        format!(
-            "notify-unreached:approval-notify:{}",
-            r.body["approval"]["approval_id"].as_str().unwrap()
-        )
-    };
-    let e2 = notified.iter().find(|e| e.idempotency_key == key(&r2)).unwrap();
-    assert_eq!(e2.payload["delivery"], "unknown");
-    assert_eq!(e2.payload["purpose"], "approval_request");
-    assert_eq!(e2.actor_id, "owner-messaging");
-    let e3 = notified.iter().find(|e| e.idempotency_key == key(&r3)).unwrap();
-    assert_eq!(e3.payload["delivery"], "failed");
-    for e in [e2, e3] {
-        let cid: Uuid = e.payload["communication_id"].as_str().unwrap().parse().unwrap();
-        let c = comms.iter().find(|c| c.communication_id == cid).unwrap();
-        assert_eq!(c.state.as_str(), "FAILED");
-        assert_eq!(c.purpose, "approval_request");
-        assert_eq!(c.external_participants[0]["role"], "owner");
-    }
-    // No record for the answered notify; three outreach drafts plus two honest records.
-    assert_eq!(comms.len(), 5);
-});
+);
 
 #[tokio::test]
 async fn texts_beyond_the_route_limits_are_cut_and_bad_labels_refused() {
@@ -292,10 +346,12 @@ async fn texts_beyond_the_route_limits_are_cut_and_bad_labels_refused() {
     let n: Arc<dyn OwnerNotifier> = Arc::new(HttpOwnerNotifier::new(&server.base, SECRET));
     t.app.extensions.insert(Arc::new(OwnerNotify::new(n)));
     let (token, user) = t.dev_token().await;
-    let p = t
-        .create_project(&token, &common::demo_project_body())
-        .await;
-    let pid: Uuid = p["project"]["project_id"].as_str().unwrap().parse().unwrap();
+    let p = t.create_project(&token, &common::demo_project_body()).await;
+    let pid: Uuid = p["project"]["project_id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
     let long = "é".repeat(2000);
     t.app.owner_notify().dispatch(
         t.app.clone(),

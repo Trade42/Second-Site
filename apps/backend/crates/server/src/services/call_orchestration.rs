@@ -56,8 +56,8 @@ use serde_json::{json, Value};
 use ss_core::{DataOrigin, EvidenceClassification, UtcDateTime};
 use ss_domain::communications::{build_script, call_payload, describe, detect_escalation, extract};
 use ss_domain::contracts::{
-    CallSession, CallState, CommunicationState, HandoffReason, HandoffStatus,
-    OwnerHandoffRequest, ParticipantState, SourceEvidence, StructuredFinding, TranscriptTurn,
+    CallSession, CallState, CommunicationState, HandoffReason, HandoffStatus, OwnerHandoffRequest,
+    ParticipantState, SourceEvidence, StructuredFinding, TranscriptTurn,
 };
 use ss_domain::integrations::telnyx::{
     client_state, decode_client_state_json, TelephonyError, TelephonyProvider,
@@ -249,7 +249,7 @@ impl<'a> CallOrchestrator<'a> {
         format!("{}/webhooks/telnyx", self.app.settings.public_base_url)
     }
 
-    fn from_number(&self) -> String {
+    fn caller_number(&self) -> String {
         self.app
             .settings
             .telnyx_from_number
@@ -381,7 +381,7 @@ impl<'a> CallOrchestrator<'a> {
         CALLS.add(tx, &call).await?;
         let mut call = call.transition(CallState::Dialing)?;
         let (from, url, key) = (
-            self.from_number(),
+            self.caller_number(),
             self.webhook_url(),
             format!("call:{}", call.call_id),
         );
@@ -551,7 +551,10 @@ impl<'a> CallOrchestrator<'a> {
             return Ok(Some(call));
         }
         if role == "owner" {
-            return self.owner_leg_event(tx, call, et.as_deref(), p).await.map(Some);
+            return self
+                .owner_leg_event(tx, call, et.as_deref(), p)
+                .await
+                .map(Some);
         }
         let et = et.as_deref();
         if et == Some("call.answered") && call.state == CallState::Dialing {
@@ -613,7 +616,9 @@ impl<'a> CallOrchestrator<'a> {
         let mut call = self.save(tx, call).await?;
         let owner = self.owner_name(tx, call.owner_id).await?;
         if let (Some(intro), Some(leg)) = (
-            call.intro_recording_reference.clone().filter(|r| !r.is_empty()),
+            call.intro_recording_reference
+                .clone()
+                .filter(|r| !r.is_empty()),
             call.provider_call_id.clone(),
         ) {
             let token = crate::security::sign_media_key(
@@ -737,8 +742,7 @@ impl<'a> CallOrchestrator<'a> {
         let mut evidence_id: Option<Uuid> = None;
         let claim = finding.claim_type.clone().unwrap_or_default();
         if let Some(property_id) = call.property_id {
-            if !finding.value.is_null() && finding.claim_type.as_deref() != Some("available_from")
-            {
+            if !finding.value.is_null() && finding.claim_type.as_deref() != Some("available_from") {
                 let who = get_or(&call.recipient, "name", "the listing contact");
                 let who = if who.is_empty() {
                     "the listing contact"
@@ -837,13 +841,18 @@ impl<'a> CallOrchestrator<'a> {
                 CallState::Failed
             };
             let detail = format!("not answered ({})", cause.as_deref().unwrap_or("unknown"));
-            let call = self.advance(tx, call.call_id, target, Some(&detail)).await?;
+            let call = self
+                .advance(tx, call.call_id, target, Some(&detail))
+                .await?;
             self.set_comm_state(tx, &call, CommunicationState::Failed)
                 .await?;
             return Ok(call);
         }
         let call = if call.state == CallState::Intro {
-            let detail = format!("ended during intro ({})", cause.as_deref().unwrap_or("hangup"));
+            let detail = format!(
+                "ended during intro ({})",
+                cause.as_deref().unwrap_or("hangup")
+            );
             self.advance(tx, call.call_id, CallState::Completed, Some(&detail))
                 .await?
         } else if matches!(
@@ -866,8 +875,11 @@ impl<'a> CallOrchestrator<'a> {
     }
 
     async fn finalize(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
-        let known: Vec<&StructuredFinding> =
-            call.findings.iter().filter(|f| !f.value.is_null()).collect();
+        let known: Vec<&StructuredFinding> = call
+            .findings
+            .iter()
+            .filter(|f| !f.value.is_null())
+            .collect();
         let mut summary = format!(
             "Call with {} ended. ",
             get_default(&call.recipient, "name", "the broker")
@@ -902,7 +914,8 @@ impl<'a> CallOrchestrator<'a> {
             {
                 comm.state = CommunicationState::Completed;
                 comm.structured_findings = call.findings.clone();
-                comm.transcript_reference = Some(format!("call_sessions/{}/transcript", call.call_id));
+                comm.transcript_reference =
+                    Some(format!("call_sessions/{}/transcript", call.call_id));
                 COMMUNICATIONS.upsert(tx, &comm).await?;
                 self.app
                     .events()
@@ -1133,7 +1146,7 @@ impl<'a> CallOrchestrator<'a> {
             }
             let owner_leg = if failure.is_none() {
                 let (from, url, key) = (
-                    self.from_number(),
+                    self.caller_number(),
                     self.webhook_url(),
                     format!("owner-leg:{}", h.handoff_request_id),
                 );
@@ -1243,10 +1256,16 @@ impl<'a> CallOrchestrator<'a> {
                     s.updated_at = now();
                 }
             }
-            call.transcript.push(turn("system", "[owner joined the call]"));
+            call.transcript
+                .push(turn("system", "[owner joined the call]"));
             let call = self.save(tx, call).await?;
             return self
-                .advance(tx, call.call_id, CallState::HumanJoined, Some("owner joined"))
+                .advance(
+                    tx,
+                    call.call_id,
+                    CallState::HumanJoined,
+                    Some("owner joined"),
+                )
                 .await;
         }
         if et == Some("call.hangup") && call.state == CallState::OwnerJoining {
@@ -1260,7 +1279,8 @@ impl<'a> CallOrchestrator<'a> {
         }
         if et == Some("call.hangup") && call.state == CallState::HumanJoined {
             let mut call = call;
-            call.transcript.push(turn("system", "[owner left the call]"));
+            call.transcript
+                .push(turn("system", "[owner left the call]"));
             let call = self.save(tx, call).await?;
             let call = self
                 .advance(
