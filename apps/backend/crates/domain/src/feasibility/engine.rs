@@ -14,7 +14,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use ss_core::{new_id, BusinessExpansionProfile, Contract, CurrencyCode, EvidenceClassification};
+use ss_core::{
+    new_id, BusinessExpansionProfile, Contract, CurrencyCode, DataOrigin, EvidenceClassification,
+};
 use uuid::Uuid;
 
 use crate::contracts::{
@@ -35,6 +37,54 @@ pub const USABLE: &[EvidenceClassification] = &[
     EvidenceClassification::ProfessionallyVerified,
     EvidenceClassification::VisuallyObserved,
 ];
+
+/// The limitation line an assessment carries when evidence it would have read was left out by
+/// [`counts_for`] (not in Python).
+pub const SIMULATED_NOT_COUNTED: &str = "A simulated answer on this point exists (scripted demo data, not a statement about this property); it was not counted, because this listing is not demo data.";
+
+/// True when the property's listing is itself invented demo data (`FIXTURE_SYNTHETIC`). A
+/// property without a listing is not demo data.
+pub fn synthetic_listing(prop: &PropertyDigitalProfile) -> bool {
+    prop.commercial_listing
+        .as_ref()
+        .is_some_and(|l| l.data_origin == DataOrigin::FixtureSynthetic)
+}
+
+/// The one rule on what evidence may move a property's feasibility, costs, ranking, bill and
+/// payment plan (all of them start from [`FeasibilityEngine::evaluate`], which applies it):
+/// `FIXTURE_SYNTHETIC` evidence (a simulated call's scripted answer, any invented record) counts
+/// only for a property whose listing is itself `FIXTURE_SYNTHETIC`. For every other listing
+/// (`LIVE`, `FIXTURE_REAL`, `USER_PROVIDED`, none) it is left out: fixture data never passes for
+/// real data. Evidence of every other origin counts as before.
+///
+/// Deliberate difference from Python, which counts evidence whatever its origin.
+pub fn counts_for(prop: &PropertyDigitalProfile, e: &SourceEvidence) -> bool {
+    e.data_origin != DataOrigin::FixtureSynthetic || synthetic_listing(prop)
+}
+
+/// The observation types each rule of [`FeasibilityEngine::evaluate`] reads, by requirement id
+/// suffix. Keep in step with the `of_type` calls there.
+fn types_read(requirement_id: &str) -> &'static [&'static str] {
+    if requirement_id.ends_with("electrical.tenant_service") {
+        &["electrical_service_amps", "tenant_subpanel_amps"]
+    } else if requirement_id.ends_with("plumbing.treatment_sinks") {
+        &[
+            "sink_installed",
+            "in_unit_plumbing",
+            "water_service_diameter",
+        ]
+    } else if requirement_id.ends_with("plumbing.water_service") {
+        &[
+            "water_service_diameter",
+            "water_and_waste_work",
+            "sink_installed",
+        ]
+    } else if requirement_id.ends_with("hvac.ventilation") {
+        &["hvac_tenant_improvement", "vav_boxes", "hvac_zonable"]
+    } else {
+        &[]
+    }
+}
 
 /// A work-item quantity as Python passes it to `_work`: an `int` or a `float`. It becomes
 /// `Decimal(str(qty))`, so `Int(5)` is `"5"` and `Float(139.4)` is `"139.4"`.
@@ -206,8 +256,9 @@ impl FeasibilityEngine {
         Self
     }
 
-    /// `FeasibilityEngine.evaluate`. Only evidence whose `property_id` is this property's and
-    /// whose classification is in [`USABLE`] is considered, in the order given.
+    /// `FeasibilityEngine.evaluate`. Only evidence whose `property_id` is this property's,
+    /// whose classification is in [`USABLE`] and which [`counts_for`] this property is
+    /// considered, in the order given.
     ///
     /// Errors where Python raises: [`DomainError::Validation`] for an assessment or work item
     /// Pydantic would reject (for example a negative room count gives a negative quantity);
@@ -230,12 +281,21 @@ impl FeasibilityEngine {
         prop: &PropertyDigitalProfile,
         evidence: &[SourceEvidence],
     ) -> Result<(Vec<InfrastructureAssessment>, Vec<RenovationWorkItem>), DomainError> {
-        let ev: Vec<&SourceEvidence> = evidence
+        let usable: Vec<&SourceEvidence> = evidence
             .iter()
             .filter(|e| {
                 e.property_id == Some(prop.property_id)
                     && USABLE.contains(&e.evidence_classification)
             })
+            .collect();
+        // Not in Python (see `counts_for`): synthetic evidence does not count for a listing that
+        // is not itself synthetic. The observation types left out are remembered so that the
+        // assessments reading them can say so.
+        let (ev, left_out): (Vec<&SourceEvidence>, Vec<&SourceEvidence>) =
+            usable.into_iter().partition(|e| counts_for(prop, e));
+        let left_out: HashSet<&str> = left_out
+            .iter()
+            .map(|e| e.observation_type.as_str())
             .collect();
         let unit_permit_evidence: HashSet<Uuid> = prop
             .permit_records
@@ -724,6 +784,20 @@ impl FeasibilityEngine {
                         "No rule implemented for this requirement yet.",
                     )
                 })?);
+            }
+        }
+
+        // Not in Python (see `counts_for`): one limitation line on each assessment whose rule
+        // reads an observation type that was left out. Appended after validation, like Python's
+        // own late append above.
+        if !left_out.is_empty() {
+            for a in &mut assessments {
+                if types_read(&a.requirement_id)
+                    .iter()
+                    .any(|t| left_out.contains(t))
+                {
+                    a.limitations.push(SIMULATED_NOT_COUNTED.to_owned());
+                }
             }
         }
 
