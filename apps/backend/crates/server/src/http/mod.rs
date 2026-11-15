@@ -222,6 +222,23 @@ fn panic_response(err: Box<dyn Any + Send + 'static>) -> Response {
     AppError::internal_kind("Panic", detail).into_response()
 }
 
+/// Path prefixes whose next segment is a credential (a signed link that works without a login).
+/// The request log writes the prefix and `[redacted]` in place of everything after it. Add a
+/// prefix here whenever a route takes a token, signature or other secret in its path; a secret in
+/// the query string or the URL fragment is never logged (only `uri().path()` is written).
+const SECRET_PATH_PREFIXES: &[&str] = &["/api/v1/media/public/"];
+
+/// The request path as the request log writes it: a path under [`SECRET_PATH_PREFIXES`] becomes
+/// the prefix plus `[redacted]`; every other path is returned unchanged.
+pub fn loggable_path(path: &str) -> std::borrow::Cow<'_, str> {
+    for prefix in SECRET_PATH_PREFIXES {
+        if path.starts_with(prefix) {
+            return format!("{prefix}[redacted]").into();
+        }
+    }
+    path.into()
+}
+
 /// `request_context` middleware.
 async fn request_context(req: Request, next: Next) -> Response {
     let rid = req
@@ -252,7 +269,7 @@ async fn request_context(req: Request, next: Next) -> Response {
             "request",
             &[
                 ("method", Value::String(method)),
-                ("path", Value::String(path)),
+                ("path", Value::String(loggable_path(&path).into_owned())),
                 ("status", json!(resp.status().as_u16())),
                 ("request_id", Value::String(rid.clone())),
                 ("ms", json!(ms)),

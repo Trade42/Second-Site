@@ -1779,14 +1779,12 @@ impl CallBridgeEvents {
         let app = self.app.upgrade()?;
         match bridge_input(&app, self.call_id, input).await {
             Ok(s) => Some(s),
-            Err(e) => {
+            Err(_) => {
+                // Ids only: an error message is not logged (it could quote call content).
                 logging::warning(
                     "app.services.call_orchestration",
                     "bridge event failed",
-                    &[
-                        ("call_id", Value::String(self.call_id.to_string())),
-                        ("status", Value::from(e.status.as_u16())),
-                    ],
+                    &[("call_id", Value::String(self.call_id.to_string()))],
                 );
                 None
             }

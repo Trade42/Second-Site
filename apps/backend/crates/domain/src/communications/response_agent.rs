@@ -688,7 +688,9 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
     }
     let mut redact_tok = vec![false; toks.len()];
     let mut long_run = false;
-    // Runs of digit tokens / digit words joined by single separators.
+    // Runs of digit tokens / digit words joined by single separators: (first, last, digits,
+    // whether the run is spoken digit words only).
+    let mut runs: Vec<(usize, usize, usize, bool)> = Vec::new();
     let mut k = 0;
     while k < toks.len() {
         if !matches!(toks[k].2, 0 | 1) {
@@ -699,8 +701,10 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
         let mut digits = 0usize;
         let mut last = k;
         let mut j = k;
+        let mut spoken = true;
         while j < toks.len() && matches!(toks[j].2, 0 | 1) {
             digits += if toks[j].2 == 0 {
+                spoken = false;
                 toks[j].1 - toks[j].0
             } else {
                 1
@@ -712,6 +716,7 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
                 break;
             }
         }
+        runs.push((start, last, digits, spoken));
         if digits >= 9 {
             for r in redact_tok.iter_mut().take(last + 1).skip(start) {
                 *r = true;
@@ -723,25 +728,47 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
         }
         k = last + 1;
     }
+    // A number given in parts ("078 05 and the rest, um, 1120"): the digits of every run in the
+    // utterance that is not explained (money, a measurement or count, a suite or street number, a
+    // date or a year; a lone spoken digit word is never counted) are added up; two or more such
+    // runs with 9 or more digits together are redacted and hold the call.
+    let mut split = false;
+    if runs.iter().all(|r| r.2 < 9) {
+        let parts: Vec<&(usize, usize, usize, bool)> = runs
+            .iter()
+            .filter(|r| !(r.3 && r.1 == r.0) && !explained_run(text, &toks, r.0, r.1, r.3))
+            .collect();
+        if parts.len() >= 2 && parts.iter().map(|r| r.2).sum::<usize>() >= 9 {
+            split = true;
+            for r in parts {
+                for t in redact_tok.iter_mut().take(r.1 + 1).skip(r.0) {
+                    *t = true;
+                }
+            }
+        }
+    }
+    // Once the utterance is sensitive, every digit, every number word, ordinal and month name
+    // goes (an expiry after a card number, "April twelfth" after "born", an EIN's first word).
+    if keyword.is_some() || ssn_shape || long_run || split {
+        let mut j = 0;
+        while j < toks.len() {
+            let kind = toks[j].2;
+            if matches!(kind, 0..=2) {
+                redact_tok[j] = true;
+            } else if kind == 3 {
+                let w = text[toks[j].0..toks[j].1].to_lowercase();
+                if ORDINAL_WORDS.contains(&w.as_str()) || MONTHS.contains(&w.as_str()) {
+                    redact_tok[j] = true;
+                }
+            }
+            j += 1;
+        }
+    }
     if keyword.is_some() {
         let mut j = 0;
         while j < toks.len() {
             let kind = toks[j].2;
-            if kind == 0 {
-                redact_tok[j] = true;
-            } else if matches!(kind, 1 | 2) {
-                // Two or more number words in a row (spaces or hyphens between).
-                let mut e = j;
-                while e + 2 < toks.len() && toks[e + 1].2 == 4 && matches!(toks[e + 2].2, 1 | 2) {
-                    e += 2;
-                }
-                if e > j {
-                    for r in redact_tok.iter_mut().take(e + 1).skip(j) {
-                        *r = true;
-                    }
-                }
-                j = e;
-            } else if kind == 3 {
+            if kind == 3 {
                 let w = text[toks[j].0..toks[j].1].to_lowercase();
                 if matches!(w.as_str(), "password" | "passcode" | "pin") {
                     // The next word, past "is", "it's", ":" and spaces.
@@ -788,11 +815,90 @@ pub fn redact(text: &str) -> (String, bool, Option<String>) {
             Some("a social security number".into())
         } else if long_run {
             Some("an account or card number".into())
+        } else if split {
+            Some("a long number given in parts".into())
         } else {
             None
         }
     });
     (out, any, label)
+}
+
+const ORDINAL_WORDS: [&str; 25] = [
+    "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth",
+    "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
+    "eighteenth", "nineteenth", "twentieth", "thirtieth", "st", "nd", "rd", "th",
+];
+/// Words after a number that make it a measurement, a count, money or a time.
+const UNIT_WORDS: [&str; 75] = [
+    "amp", "amps", "ampere", "amperage", "volt", "volts", "v", "kw", "kva", "square", "sq", "sf",
+    "sqft", "ft", "feet", "foot", "space", "spaces", "spot", "spots", "stall", "stalls", "parking",
+    "unit", "units", "suite", "suites", "room", "rooms", "office", "offices", "people",
+    "employees", "cars", "percent", "day", "days", "week", "weeks", "month", "months", "mo", "year",
+    "years", "yr", "yrs", "hour", "hours", "hrs", "minutes", "k", "m", "dollar", "dollars", "bucks",
+    "grand", "thousand", "hundred", "million", "ton", "tons", "gallons", "inch", "inches",
+    "stories", "floors", "bathrooms", "restrooms", "seats", "chairs", "sinks", "stations", "pm",
+    "am", "o'clock",
+];
+const STREET_WORDS: [&str; 18] = [
+    "street", "st", "avenue", "ave", "boulevard", "blvd", "road", "rd", "drive", "dr", "way",
+    "lane", "ln", "place", "pl", "court", "ct", "highway",
+];
+/// Words before a number that make it a suite, unit or lot number.
+const PLACE_WORDS: [&str; 11] = [
+    "suite", "ste", "unit", "apt", "apartment", "floor", "room", "building", "bldg", "lot", "space",
+];
+
+/// Whether the digit run `s..=e` of [`redact`]'s tokens is money, a measurement or a count, a
+/// suite or street number, a date or a year (so it is not part of a number given in parts).
+fn explained_run(text: &str, toks: &[(usize, usize, u8)], s: usize, e: usize, spoken: bool) -> bool {
+    let lw = |k: usize| text[toks[k].0..toks[k].1].to_lowercase();
+    // The year shape: one group of four digits, 1900 to 2099.
+    if !spoken && s == e {
+        let t = &text[toks[s].0..toks[s].1];
+        if t.len() == 4 && (t.starts_with("19") || t.starts_with("20")) {
+            return true;
+        }
+    }
+    // Before: `$`, `#`, a place word or a month name (separators skipped).
+    let mut b = s;
+    while b > 0 && toks[b - 1].2 == 4 && &text[toks[b - 1].0..toks[b - 1].1] == " " {
+        b -= 1;
+    }
+    if b > 0 {
+        let k = b - 1;
+        let w = lw(k);
+        if matches!(w.as_str(), "$" | "#")
+            || (toks[k].2 == 3
+                && (PLACE_WORDS.contains(&w.as_str()) || MONTHS.contains(&w.as_str())))
+        {
+            return true;
+        }
+    }
+    // After: the next three words.
+    let mut after: Vec<String> = Vec::new();
+    let mut k = e + 1;
+    while k < toks.len() && after.len() < 3 {
+        match toks[k].2 {
+            4 => {}
+            5 => {
+                if &text[toks[k].0..toks[k].1] == "%" && after.is_empty() {
+                    return true;
+                }
+                break;
+            }
+            _ => after.push(lw(k)),
+        }
+        k += 1;
+    }
+    let first = after.first().map(String::as_str).unwrap_or("");
+    let second = after.get(1).map(String::as_str).unwrap_or("");
+    UNIT_WORDS.contains(&first)
+        || ORDINAL_WORDS.contains(&first)
+        || MONTHS.contains(&first)
+        || (matches!(first, "a" | "an" | "per" | "each")
+            && matches!(second, "month" | "year" | "square" | "sq" | "foot" | "mo" | "yr"))
+        || after.iter().any(|w| STREET_WORDS.contains(&w.as_str()))
 }
 
 // ---- Lexer ------------------------------------------------------------------------------------
@@ -1101,7 +1207,83 @@ fn period_after(toks: &[Tok], j: usize) -> (Option<MoneyPeriod>, usize) {
     }
 }
 
-const RENT_WORDS: [&str; 5] = ["rent", "rents", "asking", "rental", "base"];
+const RENT_WORDS: [&str; 6] = ["rent", "rents", "rent's", "asking", "rental", "base"];
+/// Words that make a money mention a question or a proposal, not a statement of fact.
+const PROPOSAL_WORDS: [&str; 9] = [
+    "agreed", "agree", "deal", "accept", "settle", "okay", "ok", "fine", "counter",
+];
+/// A segment's first word that makes it a question (after "so", "and", "but", "well", "then").
+const QUESTION_WORDS: [&str; 22] = [
+    "what", "what's", "whats", "how", "when", "where", "who", "which", "why", "do", "does", "did",
+    "is", "are", "can", "could", "would", "will", "should", "shall", "wouldn't", "isn't",
+];
+const RANGE_WORDS: [&str; 4] = ["to", "through", "or", "and"];
+
+/// The comma-delimited part of the clause `s..e` around token `i`.
+fn segment(toks: &[Tok], i: usize, s: usize, e: usize) -> (usize, usize) {
+    let mut a = i;
+    while a > s && toks[a - 1] != Tok::Punct(',') {
+        a -= 1;
+    }
+    let mut b = i;
+    while b < e && toks[b] != Tok::Punct(',') {
+        b += 1;
+    }
+    (a, b)
+}
+
+/// Whether the money mention at `i` is asked or proposed ("Does $4,600 work for your client?",
+/// "So we're agreed at $4,500?", "Would the owner go to $5,000?"), not stated.
+fn proposed(toks: &[Tok], i: usize, s: usize, e: usize) -> bool {
+    let (a, b) = segment(toks, i, s, e);
+    let first = toks[a..b]
+        .iter()
+        .filter_map(|t| match t {
+            Tok::Word(w) => Some(w.as_str()),
+            _ => None,
+        })
+        .find(|w| !matches!(*w, "so" | "and" | "but" | "well" | "then" | "okay" | "ok" | "um"));
+    if first.is_some_and(|w| QUESTION_WORDS.contains(&w)) {
+        return true;
+    }
+    if has_any(toks, a, b, &PROPOSAL_WORDS) {
+        return true;
+    }
+    let pair = |x: &str, ys: &[&str]| {
+        (a..b.saturating_sub(1)).any(|k| {
+            word(toks.get(k)) == Some(x) && word(toks.get(k + 1)).is_some_and(|y| ys.contains(&y))
+        })
+    };
+    pair("work", &["for"])
+        || pair("works", &["for"])
+        || pair("how", &["about"])
+        || pair("what", &["about"])
+        || pair("go", &["to", "up"])
+        || pair("come", &["down", "up"])
+        || pair("meet", &["at", "in"])
+}
+
+/// A number token at `i` (written or spoken): its value in cents, the index past it, `$` before,
+/// a `k`/`m` multiplier on it.
+fn number_at(toks: &[Tok], i: usize) -> Option<(i128, usize, bool, bool)> {
+    match &toks[i] {
+        Tok::Num {
+            mantissa,
+            frac_len,
+            mult,
+            dollar,
+        } => {
+            let scale = 10i128.pow(*frac_len);
+            let num = mantissa * mult * 100;
+            (num % scale == 0).then(|| (num / scale, i + 1, *dollar, *mult > 1))
+        }
+        Tok::Word(_) => match spoken_number(toks, i) {
+            Some((v, j)) if j > i => Some((v * 100, j, false, false)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
 const DEPOSIT_WORDS: [&str; 2] = ["deposit", "security"];
 const UTILITY_WORDS: [&str; 2] = ["utilities", "utility"];
 const OPEX_WORDS: [&str; 6] = ["cam", "nnn", "triple", "common", "fees", "taxes"];
@@ -1148,33 +1330,56 @@ fn money_findings(lx: &Lexed) -> Vec<AgentFinding> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < toks.len() {
-        let (value_cents, next, dollar_marked, mult_marked) = match &toks[i] {
-            Tok::Num {
-                mantissa,
-                frac_len,
-                mult,
-                dollar,
-            } => {
-                let scale = 10i128.pow(*frac_len);
-                let num = mantissa * mult * 100;
-                if num % scale != 0 {
-                    i += 1;
-                    continue;
-                }
-                (num / scale, i + 1, *dollar, *mult > 1)
-            }
-            Tok::Word(_) => match spoken_number(toks, i) {
-                Some((v, j)) if j > i => (v * 100, j, false, false),
-                _ => {
-                    i += 1;
-                    continue;
-                }
-            },
-            _ => {
-                i += 1;
-                continue;
-            }
+        let Some((value_cents, mut next, mut dollar_marked, mut mult_marked)) = number_at(toks, i)
+        else {
+            i += 1;
+            continue;
         };
+        let first_end = next;
+        let (s, e) = clause(toks, i);
+        // A range ("$4,000 to $5,000", "between four and five thousand", "4000-5000"): one
+        // finding that carries the whole range and no amount, or nothing.
+        let mut value_cents = value_cents;
+        let mut range = false;
+        {
+            let between = (s..i).any(|k| word(toks.get(k)) == Some("between"));
+            let mut c = next;
+            if matches!(word(toks.get(c)), Some("dollar" | "dollars" | "bucks")) {
+                c += 1;
+            }
+            // `spoken_number` swallows an "and" it cannot continue past.
+            let swallowed_and = matches!(toks[i], Tok::Word(_))
+                && c > 0
+                && word(toks.get(c - 1)) == Some("and")
+                && between;
+            let conn = if swallowed_and {
+                Some(c)
+            } else {
+                match toks.get(c) {
+                    Some(Tok::Punct('-')) => Some(c + 1),
+                    Some(Tok::Word(w))
+                        if RANGE_WORDS.contains(&w.as_str()) && (w != "and" || between) =>
+                    {
+                        Some(c + 1)
+                    }
+                    _ => None,
+                }
+            };
+            if let Some(mut b) = conn {
+                if matches!(toks.get(b), Some(Tok::Punct('$'))) {
+                    b += 1;
+                }
+                if b < toks.len() && b < e {
+                    if let Some((v2, n2, d2, m2)) = number_at(toks, b) {
+                        range = true;
+                        value_cents = v2;
+                        next = n2;
+                        dollar_marked |= d2;
+                        mult_marked |= m2;
+                    }
+                }
+            }
+        }
         let mut j = next;
         let dollar_word = matches!(
             word(toks.get(j)),
@@ -1184,7 +1389,6 @@ fn money_findings(lx: &Lexed) -> Vec<AgentFinding> {
             j += 1;
         }
         let (period, after) = period_after(toks, j);
-        let (s, e) = clause(toks, i);
         let cost_context = has_any(toks, s, e, &RENT_WORDS)
             || has_any(toks, s, e, &DEPOSIT_WORDS)
             || has_any(toks, s, e, &UTILITY_WORDS)
@@ -1201,7 +1405,12 @@ fn money_findings(lx: &Lexed) -> Vec<AgentFinding> {
             || (mult_marked && cost_context)
             || (period.is_some() && value_cents >= 10_000);
         if !is_money || value_cents <= 0 || value_cents > MAX_AMOUNT_CENTS {
-            i = next;
+            i = if range { first_end } else { next };
+            continue;
+        }
+        // A number the counterparty asks about or proposes is not a claim.
+        if proposed(toks, i, s, e) {
+            i = after.max(next);
             continue;
         }
         let pick = [
@@ -1242,13 +1451,39 @@ fn money_findings(lx: &Lexed) -> Vec<AgentFinding> {
         if topic == "improvement" {
             specialists.push(Specialist::Feasibility);
         }
+        let range_text = || -> String {
+            let end = after.max(next).min(lx.spans.len());
+            if end == 0 {
+                return String::new();
+            }
+            let from = if i > 0 && toks[i - 1] == Tok::Punct('$') {
+                i - 1
+            } else {
+                i
+            };
+            lx.chars[lx.spans[from].0..lx.spans[end - 1].1]
+                .iter()
+                .collect::<String>()
+                .trim()
+                .chars()
+                .take(200)
+                .collect()
+        };
         out.push(AgentFinding {
             topic: topic.into(),
             claim_type: claim.into(),
             reported: clause_text(lx, s, e),
-            value: Value::from(value_cents as i64),
-            unit: Some("USD_cents".into()),
-            amount_cents: Some(value_cents as i64),
+            value: if range {
+                Value::String(range_text())
+            } else {
+                Value::from(value_cents as i64)
+            },
+            unit: if range {
+                Some("USD_range".into())
+            } else {
+                Some("USD_cents".into())
+            },
+            amount_cents: (!range).then_some(value_cents as i64),
             period,
             purpose,
             reported_by: "counterparty".into(),
@@ -1642,6 +1877,21 @@ fn current_answer(q: &PlannedQuestion, text: &str) -> AgentFinding {
             }
             _ => AnswerKind::Stated,
         }
+    } else if legacy.value.is_null() && !patterns().unsure.is_match(text) {
+        // A bank question with no value read: a plain yes or no still answers it.
+        let yn = extract(
+            &CallQuestion {
+                question: String::new(),
+                claim_type: "in_unit_plumbing".into(),
+                requirement_id: None,
+            },
+            text,
+        );
+        match yn.value {
+            Value::Bool(true) => AnswerKind::Yes,
+            Value::Bool(false) => AnswerKind::No,
+            _ => AnswerKind::Unclear,
+        }
     } else {
         answer_kind(&legacy.value, text)
     };
@@ -1998,6 +2248,9 @@ pub fn resume(
     (d, next)
 }
 
+/// How many times one question is put before it is skipped unanswered.
+const MAX_ASKS: usize = 2;
+
 /// One turn, one decision. See the module documentation and the report for the order.
 pub fn step(
     ctx: &CallContext,
@@ -2072,7 +2325,18 @@ pub fn step(
     // 9. Did the turn answer the open question?
     let current_finding = findings.iter().find(|f| f.question_id.is_some());
     let holds = escalation.as_ref().is_some_and(|e| e.hold);
+    // Only an answer closes the open question: a value, yes, no or "I don't know". An unrelated
+    // statement ("Rent is $4,500 a month" while the amps question is open) leaves it open.
+    let responsive = current_finding
+        .is_some_and(|f| {
+            !f.value.is_null()
+                || matches!(
+                    f.answer_kind,
+                    Some(AnswerKind::DontKnow | AnswerKind::Yes | AnswerKind::No)
+                )
+        });
     let answered = current.is_some()
+        && responsive
         && !holds
         && !identity
         && !(asks
@@ -2135,7 +2399,24 @@ pub fn step(
         None => None,
     };
     d.escalation = escalation;
-    let q = if answered || current.is_none() {
+    // The bound: a question that has been put twice (the first ask and one re-ask) and is still
+    // not answered is skipped, so the call never loops on it.
+    let put = |id: &str| {
+        state
+            .decisions
+            .iter()
+            .filter(|x| x.next_question.as_ref().is_some_and(|q| q.id == id))
+            .count()
+    };
+    let exhausted = !answered && current.as_ref().is_some_and(|q| put(&q.id) >= MAX_ASKS);
+    if exhausted {
+        if let Some(q) = &current {
+            next.skipped
+                .push((q.id.clone(), "not answered after being asked twice".into()));
+            next.current = None;
+        }
+    }
+    let q = if answered || current.is_none() || exhausted {
         take_next(ctx, &mut next)
     } else {
         current.clone()

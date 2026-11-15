@@ -673,3 +673,140 @@ fn review_sensitive_shapes_escalate_and_vanish() {
     assert!(d.escalation.is_none());
     assert!(!d.stored_text.contains("555"));
 }
+
+// ---- Response Agent 2: the owed review findings (F5 to F10) ---------------------------------
+
+#[test]
+fn f5_a_number_given_in_parts_is_redacted_and_holds() {
+    for (t, parts) in [
+        ("078 05 and the rest, um, 1120.", &["078", "05", "1120"][..]),
+        ("It's 078, 05, and then 1120.", &["078", "1120"][..]),
+        (
+            "oh seven eight, then oh five, and one one two oh",
+            &["seven eight", "one one two"][..],
+        ),
+        ("4111 1111 then 1111 and 1111 exp 12/27", &["4111", "12/27", "27"][..]),
+        (
+            "Card 4111 1111 1111 1111, expires 12/27",
+            &["12/27", "27"][..],
+        ),
+        ("The EIN is twelve dash three four five six seven eight nine", &["twelve"][..]),
+        ("born on April twelfth nineteen eighty five", &["April", "twelfth"][..]),
+        ("The account ending 4321", &["4321"][..]),
+    ] {
+        let (d, s) = one(&ctx(), t);
+        let e = d
+            .escalation
+            .as_ref()
+            .unwrap_or_else(|| panic!("no escalation: {t}"));
+        assert!(e.sensitive_handoff && e.hold, "{t}");
+        assert_eq!(d.say, Say::Exact(SENSITIVE_LINE.into()), "{t}");
+        assert!(d.findings.is_empty(), "{t}");
+        let js = serde_json::to_string(&(&d, &s)).unwrap();
+        for x in parts {
+            assert!(!js.contains(x), "{x} survives in {t}: {}", d.stored_text);
+        }
+    }
+    // Near misses: numbers that are explained do not add up to a sensitive number.
+    for t in [
+        "Suite 1200, 3 parking spaces, 200 amps, 1,400 square feet.",
+        "It's 1,400 sq ft at 123 Main Street, renovated in 2019, 200 amps.",
+        "Rent is $4,500 a month, 5 year lease, available March 1st, 4 spots.",
+        "Call me back at 310 555 1234.",
+        "We have 12 units, 30 percent are 900 square feet.",
+    ] {
+        let (d, _) = one(&ctx(), t);
+        assert!(
+            d.escalation.as_ref().is_none_or(|e| !e.sensitive_handoff),
+            "false positive: {t} -> {:?}",
+            d.escalation
+        );
+    }
+}
+
+#[test]
+fn f9_an_unrelated_statement_does_not_close_the_open_question() {
+    let c = ctx();
+    let (d0, s0) = start(&c);
+    let open = d0.next_question.unwrap().id;
+    assert_eq!(open, "bank:tenant_subpanel_amps");
+    let (d1, s1) = step(&c, &s0, &cp(1, "Rent is $4,500 a month."));
+    assert!(d1.answered_question.is_none(), "{d1:?}");
+    assert_eq!(s1.current.as_deref(), Some(open.as_str()));
+    assert_eq!(d1.next_question.as_ref().map(|q| q.id.as_str()), Some(open.as_str()));
+    assert!(d1.findings.iter().all(|f| f.question_id.is_none()));
+    assert!(d1.findings.iter().all(|f| !f.value.is_null()));
+    assert!(d1.findings.iter().any(|f| f.claim_type == "rent"));
+    // A second unrelated statement: the question has been put twice, it is skipped, the call moves on.
+    let (d2, s2) = step(&c, &s1, &cp(2, "The building is very nice."));
+    assert!(d2.answered_question.is_none());
+    assert!(d2.findings.iter().all(|f| !f.value.is_null()));
+    assert!(s2.skipped.iter().any(|(id, _)| *id == open));
+    assert_ne!(d2.next_question.as_ref().map(|q| q.id.as_str()), Some(open.as_str()));
+    // An answer still closes it: a value, yes, no, "I don't know".
+    for a in ["About 100 amps.", "I don't know.", "Yes.", "No."] {
+        let (d, s) = step(&c, &s0, &cp(1, a));
+        assert_eq!(d.answered_question.as_deref(), Some(open.as_str()), "{a}");
+        assert!(s.current.as_deref() != Some(open.as_str()), "{a}");
+    }
+}
+
+#[test]
+fn f6_f10_a_number_asked_or_proposed_is_not_a_claim() {
+    for t in [
+        "Does $4,600 work for your client?",
+        "So we're agreed at $4,500?",
+        "Would the owner go to $5,000 a month?",
+        "How about $4,400 a month?",
+        "Is the owner OK with $5,000 a month?",
+    ] {
+        let (d, _) = one(&ctx(), t);
+        assert!(
+            d.findings.iter().all(|f| f.amount_cents.is_none()),
+            "{t}: {:?}",
+            d.findings
+        );
+        assert!(d.escalation.is_some() || d.owner_followup.is_some(), "{t}");
+    }
+    // Near misses: statements keep their claim.
+    for (t, claim, cents) in [
+        ("Rent's $4500/mo", "rent", 450_000),
+        ("Rent is $4,500 a month, does that work for your client?", "rent", 450_000),
+        ("The asking rent is $4,500 a month.", "rent", 450_000),
+    ] {
+        let found: Vec<_> = extract_findings(None, t)
+            .into_iter()
+            .filter(|f| f.amount_cents.is_some())
+            .collect();
+        assert_eq!(found.len(), 1, "{t}: {found:?}");
+        assert_eq!(found[0].claim_type, claim, "{t}");
+        assert_eq!(found[0].amount_cents, Some(cents), "{t}");
+    }
+}
+
+#[test]
+fn f7_a_range_is_one_finding_without_an_amount() {
+    for (t, whole) in [
+        ("Rent is $4,000 to $5,000 a month.", "$4,000 to $5,000 a month"),
+        ("Rent is between four and five thousand a month.", "four and five thousand a month"),
+        ("Rent runs 4000-5000 a month.", "4000-5000 a month"),
+    ] {
+        let f: Vec<_> = extract_findings(None, t)
+            .into_iter()
+            .filter(|f| f.unit.as_deref().is_some_and(|u| u.starts_with("USD")))
+            .collect();
+        assert_eq!(f.len(), 1, "{t}: {f:?}");
+        assert_eq!(f[0].amount_cents, None, "{t}");
+        assert!(f[0].needs_verification, "{t}");
+        assert_eq!(f[0].value.as_str(), Some(whole), "{t}");
+        assert!(f[0].reported.contains(whole), "{t}");
+    }
+    // Near misses: two separate amounts stay two claims.
+    let f = extract_findings(None, "Rent is $4,500 and the deposit is $9,000.");
+    assert_eq!(
+        f.iter().filter_map(|f| f.amount_cents).collect::<Vec<_>>(),
+        vec![450_000, 900_000]
+    );
+    let f = extract_findings(None, "It needs $40,000 to fix the plumbing.");
+    assert_eq!(f.iter().filter_map(|f| f.amount_cents).collect::<Vec<_>>(), vec![4_000_000]);
+}
