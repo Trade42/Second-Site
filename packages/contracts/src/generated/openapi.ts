@@ -1579,6 +1579,8 @@ export interface components {
             estimated_construction_cost: number | null;
             /** Finish Specifications */
             finish_specifications: components["schemas"]["FinishSpecification"][];
+            /** @description Set only when the layout was solved on a floor assumed from the listing's stated area (LISTED_AREA_ESTIMATE): what is assumed and unknown. */
+            floor_estimate: components["schemas"]["FloorEstimate"] | null;
             /** Furniture Placements */
             furniture_placements: components["schemas"]["FurniturePlacement"][];
             /**
@@ -1766,6 +1768,56 @@ export interface components {
                 number
             ];
         };
+        /**
+         * FloorEstimate
+         * @description What a layout on a floor assumed from the listing's stated area is (DesignVersion.floor_estimate).
+         *
+         *     Never present on a layout solved on a measured, CAD, owner-measured, photo or fixture floor.
+         */
+        FloorEstimate: {
+            /**
+             * Area Measured
+             * @description Always false: the area is the listing's stated figure, not a measurement.
+             */
+            area_measured: boolean;
+            /**
+             * Assumed Shape
+             * @description e.g. 'rectangle 3:2, one entrance mid short side'.
+             */
+            assumed_shape: string;
+            /** @description Always LISTED_AREA_ESTIMATE. */
+            geometry_source: components["schemas"]["GeometrySource"];
+            /**
+             * Label
+             * @description A short label for display.
+             */
+            label: string;
+            /**
+             * Listed Area
+             * @description The listing's stated area, as stored.
+             */
+            listed_area: number;
+            /**
+             * Listed Area Unit
+             * @description Unit of listed_area as stored ('sqm': CommercialListing.available_area_sqm).
+             */
+            listed_area_unit: string;
+            /**
+             * Shape Assumed
+             * @description Always true: the floor's shape is an assumption.
+             */
+            shape_assumed: boolean;
+            /**
+             * Shows
+             * @description What the sketch can and cannot show, in plain words.
+             */
+            shows: string;
+            /**
+             * Unknown
+             * @description What is not known about the real floor, e.g. 'columns', 'fixed_walls', 'plumbing'.
+             */
+            unknown: string[];
+        };
         /** FurniturePlacement */
         FurniturePlacement: {
             /** Footprint */
@@ -1784,7 +1836,7 @@ export interface components {
          * GeometrySource
          * @enum {string}
          */
-        GeometrySource: "MATTERPORT_MEASURED" | "CAD_OR_IFC" | "OWNER_MEASURED" | "PHOTO_ESTIMATE" | "FIXTURE";
+        GeometrySource: "MATTERPORT_MEASURED" | "CAD_OR_IFC" | "OWNER_MEASURED" | "PHOTO_ESTIMATE" | "FIXTURE" | "LISTED_AREA_ESTIMATE";
         /** GeometryValidationReport */
         GeometryValidationReport: {
             /**

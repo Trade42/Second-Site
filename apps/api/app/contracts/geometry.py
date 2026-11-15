@@ -29,6 +29,9 @@ class GeometrySource(StrEnum):
     OWNER_MEASURED = "OWNER_MEASURED"
     PHOTO_ESTIMATE = "PHOTO_ESTIMATE"  # can never be scale_verified
     FIXTURE = "FIXTURE"
+    # An assumed floor built from the listing's stated area (no scan of the suite): never measured,
+    # so it can never be scale_verified.
+    LISTED_AREA_ESTIMATE = "LISTED_AREA_ESTIMATE"
 
 
 class Opening(Contract):
@@ -76,6 +79,8 @@ class SiteGeometry(Contract):
     def _photo_not_verified(self) -> SiteGeometry:
         if self.geometry_source == GeometrySource.PHOTO_ESTIMATE and self.scale_verified:
             raise ValueError("photo-derived geometry cannot be scale_verified")
+        if self.geometry_source == GeometrySource.LISTED_AREA_ESTIMATE and self.scale_verified:
+            raise ValueError("a floor assumed from the listed area cannot be scale_verified")
         return self
 
 
@@ -139,6 +144,41 @@ class GeometryValidationReport(Contract):
     )
 
 
+class FloorEstimate(Contract):
+    """What a layout on a floor assumed from the listing's stated area is (DesignVersion.floor_estimate).
+
+    Never present on a layout solved on a measured, CAD, owner-measured, photo or fixture floor.
+    """
+
+    geometry_source: GeometrySource = Field(description="Always LISTED_AREA_ESTIMATE.")
+    shape_assumed: bool = Field(description="Always true: the floor's shape is an assumption.")
+    area_measured: bool = Field(
+        description="Always false: the area is the listing's stated figure, not a measurement."
+    )
+    listed_area: float = Field(gt=0, description="The listing's stated area, as stored.")
+    listed_area_unit: str = Field(
+        description="Unit of listed_area as stored ('sqm': CommercialListing.available_area_sqm)."
+    )
+    assumed_shape: str = Field(description="e.g. 'rectangle 3:2, one entrance mid short side'.")
+    unknown: list[str] = Field(
+        description="What is not known about the real floor, e.g. 'columns', 'fixed_walls', 'plumbing'."
+    )
+    shows: str = Field(description="What the sketch can and cannot show, in plain words.")
+    label: str = Field(description="A short label for display.")
+
+    @model_validator(mode="after")
+    def _never_measured(self) -> FloorEstimate:
+        if (
+            self.geometry_source != GeometrySource.LISTED_AREA_ESTIMATE
+            or not self.shape_assumed
+            or self.area_measured
+        ):
+            raise ValueError(
+                "a floor estimate is LISTED_AREA_ESTIMATE, its shape is assumed and its area is not measured"
+            )
+        return self
+
+
 class DesignApprovalStatus(StrEnum):
     DRAFT = "DRAFT"
     PROPOSED = "PROPOSED"
@@ -162,6 +202,11 @@ class DesignVersion(Contract):
     estimated_construction_cost: NonNegativeMinor | None = None
     created_from_revision_request: UUID | None = None
     approval_status: DesignApprovalStatus = DesignApprovalStatus.DRAFT
+    floor_estimate: FloorEstimate | None = Field(
+        default=None,
+        description="Set only when the layout was solved on a floor assumed from the listing's stated "
+        "area (LISTED_AREA_ESTIMATE): what is assumed and unknown.",
+    )
 
     @model_validator(mode="after")
     def _approved_must_be_valid(self) -> DesignVersion:

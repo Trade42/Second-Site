@@ -55,6 +55,7 @@ export type FieldProvenance = S["FieldProvenance"];
 export type FindingPayload = S["FindingPayload"];
 export type FinishSpecification = S["FinishSpecification"];
 export type Fixture = S["Fixture"];
+export type FloorEstimate = S["FloorEstimate"];
 export type FurniturePlacement = S["FurniturePlacement"];
 export type GeometrySource = S["GeometrySource"];
 export type GeometryValidationReport = S["GeometryValidationReport"];

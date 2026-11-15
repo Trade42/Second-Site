@@ -1812,7 +1812,6 @@ fn review_dump_payloads_for_python_parity() {
                         estimated_total_minor: 1_377_651,
                         approved_total_minor: None,
                         status: "DRAFT".into(),
-                        floor: ss_nessie::plan::BomFloor::NotAnEstimate,
                     };
                     for with_bom in [false, true] {
                         let plan = plan_move_in_payments(&sc, with_bom.then_some(&bom), sim, None)

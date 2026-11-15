@@ -894,34 +894,6 @@
         "title": "CallPayload",
         "type": "object"
       },
-      "CallPurposes": {
-        "additionalProperties": false,
-        "description": "What the owner approves a voice call to do besides its questions (Rust service only).",
-        "properties": {
-          "negotiation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/NegotiationLimits"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "tour": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TourRequest"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "title": "CallPurposes",
-        "type": "object"
-      },
       "CallQuestion": {
         "additionalProperties": false,
         "description": "One question the assistant may ask, grounded in an UNKNOWN / MAY_REQUIRE_WORK assessment.",
@@ -3664,48 +3636,6 @@
         "title": "Money",
         "type": "object"
       },
-      "NegotiationLimits": {
-        "additionalProperties": false,
-        "description": "The owner's rent limits for one call. Kept on the server; never returned or logged.",
-        "properties": {
-          "max_counters": {
-            "default": 3,
-            "title": "Max Counters",
-            "type": "integer"
-          },
-          "max_monthly_rent_cents": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Monthly Rent Cents"
-          },
-          "may_mention": {
-            "items": {
-              "type": "string"
-            },
-            "title": "May Mention",
-            "type": "array"
-          },
-          "target_monthly_rent_cents": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Monthly Rent Cents"
-          }
-        },
-        "title": "NegotiationLimits",
-        "type": "object"
-      },
       "OfferPayload": {
         "additionalProperties": false,
         "properties": {
@@ -3909,16 +3839,6 @@
           "purpose": {
             "title": "Purpose",
             "type": "string"
-          },
-          "purposes": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CallPurposes"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "questions": {
             "items": {
@@ -6750,28 +6670,6 @@
         "title": "TaskType",
         "type": "string"
       },
-      "TimeWindow": {
-        "additionalProperties": false,
-        "description": "A window of local time with the property's UTC offset, e.g. 2026-11-17T15:00:00-08:00.",
-        "properties": {
-          "end": {
-            "format": "date-time",
-            "title": "End",
-            "type": "string"
-          },
-          "start": {
-            "format": "date-time",
-            "title": "Start",
-            "type": "string"
-          }
-        },
-        "required": [
-          "start",
-          "end"
-        ],
-        "title": "TimeWindow",
-        "type": "object"
-      },
       "TimelinePayload": {
         "additionalProperties": false,
         "properties": {
@@ -6797,47 +6695,6 @@
           "detail"
         ],
         "title": "TimelinePayload",
-        "type": "object"
-      },
-      "TourRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "attendee_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Attendee Name"
-          },
-          "duration_minutes": {
-            "default": 30,
-            "title": "Duration Minutes",
-            "type": "integer"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "windows": {
-            "items": {
-              "$ref": "#/components/schemas/TimeWindow"
-            },
-            "title": "Windows",
-            "type": "array"
-          }
-        },
-        "title": "TourRequest",
         "type": "object"
       },
       "TranscriptTurn": {
