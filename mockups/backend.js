@@ -1,0 +1,1770 @@
+// Opt-in connection from the three-stage workspace to the Second Site backend (the Rust service, which
+// forwards the chat to the Python app). Loaded by workspace.js only when the page URL carries ?live=1;
+// without it this file is never imported and the page stays the scripted demo.
+//
+//   workspace.html?live=1                       backend at http://localhost:8000
+//   workspace.html?live=1&api=http://host:port  another backend origin
+//
+// What it sends: the dev sign-in, the project and its business profile, the property search, layout
+// generation and reads. Never outreach, calls, approval decisions or payments: those are sent only by
+// the last stage (next-steps.js, loaded at the end of bind()), each by a person's own click.
+// Money from the backend is integer minor units (cents) and geometry is metres; both are converted for
+// display only, in toDollars() and toSqft(). Pure mapping functions are exported for backend.test.mjs.
+
+const SQFT_PER_SQM = 10.7639104; // exact to the precision shown (1 m = 3.28084 ft)
+export const toDollars = cents => (Number.isInteger(cents) ? cents / 100 : null);
+export const toSqft = sqm => (typeof sqm === 'number' ? Math.round(sqm * SQFT_PER_SQM) : null);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const words = s => String(s || '').toLowerCase().replace(/_/g, ' ');
+// The page inserts finding, room and item text as HTML, so backend text is escaped here.
+export const html = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Where a record comes from, from the backend's own labels. Only FIXTURE_SYNTHETIC (or provider
+// "fixture") is demo data. FIXTURE_REAL is a genuine record from a dated snapshot (the CoStar data kit),
+// never "demo", "synthetic" or "live". LIVE is a live provider answer. Anything else stays "not stated".
+export function sourceOf(provider, origin) {
+  if (origin === 'FIXTURE_SYNTHETIC' || provider === 'fixture') return 'synthetic';
+  if (origin === 'FIXTURE_REAL') return 'snapshot';
+  if (origin === 'LIVE') return 'live';
+  return 'unknown';
+}
+const PROVIDER = { costar: 'CoStar', matterport: 'Matterport', vexcel: 'Vexcel' };
+const providerName = p => PROVIDER[p] || (p ? cap(String(p)) : 'Provider not stated');
+export function listingSource(cl = {}) {
+  const kind = sourceOf(cl.provider, cl.data_origin);
+  const label = kind === 'synthetic' ? 'Demo data'
+    : kind === 'snapshot' ? (cl.provider === 'costar' ? 'CoStar listing (data-kit snapshot)' : `${providerName(cl.provider)} record (data snapshot)`)
+    : kind === 'live' ? `${providerName(cl.provider)} listing (live)` : 'Source not stated';
+  return { kind, label };
+}
+// workspace.js puts p.address, p.short and p.suite into chat HTML unescaped (its lines 396, 400, 675,
+// 681, 711) and escapes them elsewhere; text without < and > is safe both ways.
+const plain = s => String(s ?? '').replace(/[<>]/g, '');
+// workspace.js (compareTurn) builds `new RegExp(<last word of p.short>)`: a bracket or quantifier in a
+// unit ("(Rear)", "*") would throw there, so `short` carries none.
+const reSafe = s => s.replace(/[\\^$*+?()[\]{}|]/g, '').replace(/\s+/g, ' ').trim();
+// An image link the page puts into src="…" unescaped: http(s) only, serialized by the URL parser
+// (which percent-encodes quotes and angle brackets).
+export const safeUrl = u => { try { const x = new URL(String(u)); return /^https?:$/.test(x.protocol) ? x.href : null; } catch { return null; } };
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+
+/* ------------------------------------------------------------ configuration */
+
+export function config(search = globalThis.location?.search || '') {
+  const q = new URLSearchParams(search);
+  // talk=1: the "Talk to the assistant" control, for testing only; live mode alone has no voice in the chat.
+  return { live: q.get('live') === '1', talk: q.get('talk') === '1', api: (q.get('api') || 'http://localhost:8000').replace(/\/+$/, '') };
+}
+
+/* ------------------------------------------------- pure mapping: stage 1 */
+
+// The rooms answer is known only as a whole number above zero. The page searches after every answer;
+// before this one the link neither creates the project nor searches (no room count is invented).
+export const roomsKnown = (req = {}) => Number.isInteger(req.rooms) && req.rooms > 0;
+// The search stage's chat answers (the page's S.req) -> the project's business profile.
+// Only what the person said is sent. Rooms beyond treatment and reception, capital and reserve were not
+// asked, so they are left out (the backend keeps them unknown). The contract requires business_type
+// (non-empty), current_location_count, target_market and space_requirements; rent, opening and areas are
+// optional and are left out or null when not answered.
+export function profileFromAnswers(req = {}) {
+  const facial = req.business === 'Facial studio';
+  const type = facial ? 'facial_studio' : String(req.business || 'unspecified').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'unspecified';
+  const profile = {
+    business_type: type,
+    business_description: req.business ? `${req.business} (from the workspace chat)` : null,
+    current_location_count: 1,
+    target_market: { city: 'Los Angeles', state: 'CA' },
+    monthly_rent_limit: Number.isFinite(req.rent) && req.rent > 0 ? Math.round(req.rent) * 100 : null,
+    source_references: [{ field: '*', source: 'workspace chat answers', confirmation_status: 'CONFIRMED', note: 'Typed or chosen by the person in the search stage' }],
+    confirmation_status: 'CONFIRMED',
+  };
+  profile.space_requirements = roomsKnown(req) ? { required_rooms: { treatment: req.rooms, reception: 1 } } : {}; // required by the contract
+  return profile;
+}
+export function searchBody(req = {}) {
+  return { city: 'Los Angeles', state: 'CA', limit: 20, max_monthly_rent: Number.isFinite(req.rent) && req.rent > 0 ? Math.round(req.rent) * 100 : null };
+}
+
+// The page's four areas, derived from the backend's coordinates (the backend has no such field).
+// Anything outside these boxes has no area and only appears when the person chose "Anywhere".
+export function zoneOf(lat, lon) {
+  if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+  if (lat > 34.135) return 'valley';
+  if (lon < -118.37) return 'westside';
+  if (lon > -118.225) return 'eastside';
+  if (lat < 34.065 && lon > -118.29) return 'downtown';
+  return null;
+}
+export const NO_AREA_TEXT = 'In none of the page’s four areas (Downtown, Westside, Eastside, the Valley), so it stays shown whichever area you choose.';
+// A listing zoneOf() cannot name (between the boxes, or no coordinates) is not dropped when the person
+// picks an area: the page's filter reads p.zone (workspace.js matches()), so for such a listing p.zone
+// answers with the first area the person chose (null while they chose none). It is never called by an
+// area's name: live.area_named is false and the tooltip and the search note say so (NO_AREA_TEXT).
+export function openArea(p, chosen) {
+  Object.defineProperty(p, 'zone', { enumerable: true, configurable: true, get: () => chosen()?.[0] ?? null });
+  p.live.area_named = false;
+  return p;
+}
+const DIRECTIONS = new Set(['N', 'S', 'E', 'W']);
+const SUFFIX = new Set(['ST', 'AVE', 'BLVD', 'DR', 'RD', 'WAY', 'PL', 'LN', 'CT', 'PKWY']);
+export function shortAddress(street) {
+  const t = String(street || '').split(/\s+/).filter(Boolean);
+  const keep = t.filter((w, i) => !(i > 0 && (DIRECTIONS.has(w.toUpperCase()) || SUFFIX.has(w.toUpperCase()))));
+  return keep.slice(0, 3).map(w => (/^\d/.test(w) ? w : cap(w.toLowerCase()))).join(' ');
+}
+
+// The listing's Matterport scans: the suite's own scan (measured geometry) first.
+export function scansOf(rec) {
+  const all = (rec.interior_assets || []).filter(a => a.provider === 'matterport' || a.asset_type === 'matterport_model');
+  const suite = all.find(a => a.has_measured_geometry) || null;
+  return {
+    suite: suite ? { asset_id: suite.asset_id, label: suite.label ?? null, data_origin: suite.data_origin, area_sqm: suite.area_sqm ?? null } : null,
+    all: all.map(a => ({ asset_id: a.asset_id, label: a.label ?? null, data_origin: a.data_origin, matches_listing_unit: a.matches_listing_unit ?? null, has_measured_geometry: !!a.has_measured_geometry })),
+    text: suite ? (sourceOf(suite.provider, suite.data_origin) === 'synthetic' ? '3D scan of this suite (demo data)' : '3D scan of this suite') : all.length ? 'Building scans only' : 'No 3D scan',
+  };
+}
+// The listing's images: its own photo (provider CDN link, loaded by the browser only), else the
+// Vexcel aerial image the backend serves without a token, else none.
+export function imagesOf(rec, api = '') {
+  const cl = rec.commercial_listing || {};
+  const photo = (cl.photo_urls || []).map(safeUrl).find(Boolean) || null;
+  const ax = (rec.exterior_assets || []).find(a => a.provider === 'vexcel' && sourceOf(a.provider, a.data_origin) === 'live');
+  const aerial = ax && (api || /^https?:\/\//.test(String(ax.url || ''))) ? {
+    url: safeUrl(/^https?:\/\//.test(String(ax.url || '')) ? ax.url : api + (ax.url || `/api/v1/media/vexcel/ortho/${encodeURIComponent(rec.property_id)}`)),
+    captured_at: ax.captured_at || null,
+    caption: `Aerial image, Vexcel, ${ax.captured_at ? `captured ${ax.captured_at}` : 'capture date not stated'}`,
+  } : null;
+  const photoCaption = photo ? `${cl.provider === 'costar' ? 'CoStar' : providerName(cl.provider)} photo` : null;
+  return { photo, photoCaption, aerial, files: [photo ? 'listing-photo' : null, aerial ? 'aerial-vexcel' : null].filter(Boolean) };
+}
+// One backend property record -> one POOL entry.
+// `src`: a synthetic (demo) listing gets "live-<id>", so the page's own "Demo property" label
+// (id !== src) shows for it. A real listing (CoStar kit snapshot or live) gets src = id, so that label
+// does not show. Here src is never one of the page's local asset folders; only withLocal() below
+// sets it to a slug, for a listing whose own suite scan has that slug's model id. asset() answers for
+// every backend listing, so no local photo, scan or plan of another listing is used.
+export function poolEntry(rec, api = '') {
+  const id = rec.property_id, ident = rec.property_identity || {}, cl = rec.commercial_listing || {};
+  const source = listingSource(cl), fixture = source.kind === 'synthetic';
+  const unit = plain(ident.unit_or_suite).replace(/\s+/g, ' ').trim();
+  const rentKnown = Number.isInteger(cl.asking_rent_monthly), sqft = toSqft(cl.available_area_sqm);
+  const img = imagesOf(rec, api), scans = scansOf(rec);
+  // The page prints `suite · <sqft> SF` and `money(rent)`; unknown rent and area are said here in words
+  // (the page itself prints $0 and 0 SF for them; see the report).
+  const suite = [unit ? clip(unit, 32) : 'Unit not stated', source.label, rentKnown ? null : 'rent not stated', sqft == null ? 'area not stated' : null].filter(Boolean).join(' · ');
+  return {
+    id, src: fixture ? 'live-' + id : id, photo: img.files[0] || 'none',
+    address: plain(ident.street_address || ident.normalized_address) || 'Address not stated',
+    short: reSafe(plain(shortAddress(ident.street_address))) || 'Address not stated',
+    suite,
+    hood: ident.city || 'Los Angeles', zone: zoneOf(ident.latitude, ident.longitude),
+    rent: toDollars(cl.asking_rent_monthly) ?? 0, rentKnown,
+    sqft: sqft ?? 0, sqftKnown: sqft != null,
+    use: cl.property_type || 'Use not stated', lease: cl.lease_service_type || 'Lease type not stated',
+    broker: cl.broker_contact?.company || cl.brokerage_company || 'Broker not stated',
+    lat: ident.latitude, lon: ident.longitude,
+    live: {
+      property_id: id, fixture, source: source.kind, source_label: source.label, provider: cl.provider, data_origin: cl.data_origin,
+      disclaimer: cl.disclaimer || null, listing_id: cl.provider_listing_id, unit: unit || null, source_record_date: cl.source_record_date || null,
+      photo_url: img.photo, photo_caption: img.photoCaption, aerial: img.aerial, images: img.files,
+      scan: scans.suite, scans: scans.all, scan_text: scans.text, interior: interiorOf(rec), floor_is_suite: floorIsSuite(rec),
+    },
+  };
+}
+/* ------------------------- the interior of a live listing: Matterport tour and backend media (web-link-4) */
+
+// A Matterport model id as the show page takes it. Nothing else goes into a tour or media URL.
+const MP_ID = /^[A-Za-z0-9]{11}$/;
+// The scan the viewer shows: the suite's own (measured geometry, not marked as another unit's), else the
+// first other scan in the backend's order, which is another space in the same building. LIVE Matterport
+// scans of a listing that is not demo data only; anything else gives no interior ("No 3D scan").
+export function interiorOf(rec) {
+  if (listingSource(rec.commercial_listing || {}).kind === 'synthetic') return null;
+  const all = (rec.interior_assets || []).filter(a => a && a.provider === 'matterport' && a.data_origin === 'LIVE' && typeof a.asset_id === 'string' && MP_ID.test(a.asset_id));
+  const own = all.find(a => a.has_measured_geometry === true && a.matches_listing_unit !== false), a = own || all[0];
+  if (!a) return null;
+  const label = clip(plain(a.label).replace(/\s+/g, ' ').trim(), 60);
+  const space = own ? 'this suite' : `another space in this building: ${label || 'no label given'}`;
+  return {
+    asset_id: a.asset_id, label: label || null, scope: own ? 'suite' : 'building',
+    tour_text: `3D tour of ${space} · Matterport tour (live)`,
+    mesh_text: `3D scan of ${space} · Matterport scan (live, fetched by the backend)`,
+    photo_text: `Interior still of ${space} · Matterport scan (live, fetched by the backend)`,
+  };
+}
+// Whether a layout of this listing is drawn on the suite's own live scan: the backend uses the first
+// interior asset with measured geometry (DesignService::site_source), so only when that one is the
+// suite's own LIVE Matterport scan chosen above. Anything else is never called the suite's floor.
+export function floorIsSuite(rec) {
+  const it = interiorOf(rec), first = (rec.interior_assets || []).find(a => a && a.has_measured_geometry === true);
+  return !!(it && it.scope === 'suite' && first && first.asset_id === it.asset_id);
+}
+export const tourUrl = id => (typeof id === 'string' && MP_ID.test(id) ? `https://my.matterport.com/show/?m=${id}&play=1&qs=1&brand=0&help=0&dh=1` : null);
+const mediaUrl = (id, file) => `${backend?.api ?? config().api}/api/v1/media/matterport/${id}/${file}`;
+const MEDIA_PHOTO = /^mp-live-photo-(\d{1,2})$/;
+// One manifest request per scan for the page's lifetime; a 404, an error answer or a network error is
+// cached as null ("no interior from the backend") and is never reported.
+const manifests = new Map();
+export function manifest(id) {
+  if (typeof id !== 'string' || !MP_ID.test(id)) return Promise.resolve(null);
+  if (!manifests.has(id)) manifests.set(id, (async () => {
+    try {
+      const r = await globalThis.fetch(mediaUrl(id, 'manifest.json'));
+      if (!r.ok) return null;
+      const m = await r.json();
+      return m && m.asset_id === id && m.provider === 'matterport' && m.data_origin === 'LIVE' ? m : null;
+    } catch { return null; }
+  })());
+  return manifests.get(id);
+}
+export function forgetManifests() { manifests.clear(); } // tests only
+const photoCount = m => (Number.isInteger(m?.photos?.count) && m.photos.count > 0 ? Math.min(m.photos.count, 12) : 0);
+// The extra viewer view a live listing gets, and its button label.
+export const views = p => (p?.live?.interior ? ['tour'] : []);
+export const viewName = v => (v === 'tour' ? '3D tour' : v);
+// Whether the page offers a view's tab for a live listing (workspace.js renderViewer filters with it):
+// no Floor plan tab without a layout's rooms, no Dollhouse tab without any scan (in the furnish stage a
+// sketch has its plain floor), no Aerial tab without an aerial image. Map, Photos and the tour stay.
+export function hasView(v, p, d) {
+  if (!p?.live) return true;
+  if (v === 'floorplan') return !!d?.rooms?.length;
+  if (v === 'dollhouse') return !!(p.live.local || p.live.interior || (d?.sketch && page?.S().stage === 'furnish'));
+  if (v === 'aerial') return aerialDirs(p.live).length > 0;
+  return true;
+}
+// The furnish stage's first chat line names the space by what a person sees (address and unit), not by
+// the card's line, which carries the data-origin label (workspace.js go()).
+export const unitName = p => (p?.live ? `${p.address}${p.live.unit ? `, ${p.live.unit}` : ''}` : undefined);
+// What paint3D (workspace.js) loads for a live listing: the saved copy of a matched suite (web-link-3,
+// unchanged, blocks as before), else the backend's mesh of the chosen scan (no furniture blocks: the
+// layout plan is in the backend geometry's frame, whose fit to the mesh nobody has checked), else no mesh.
+export async function dollhouse(p) {
+  const L = p?.live;
+  if (!L) return null;
+  // A layout sketched on an assumed floor is shown in the furnish stage: no scan mesh under or beside it.
+  // The page then loads this plain floor like any mesh and furniture-view.js stands our models on it.
+  const sk = page?.D[p.src];
+  if (sk?.sketch && page.S().stage === 'furnish') return { key: `sketch:${p.src}:${sk.plan.w}x${sk.plan.h}`, mesh: sketchFloorObj(sk.plan), poster: null, caption: SKETCH_3D_TEXT, blocks: true };
+  if (L.local) return { key: p.src, mesh: `assets/meshes/${p.src}.obj`, poster: `assets/dollhouses/${p.src}.png`, caption: '3D scan of this suite · Matterport (saved copy)', blocks: true };
+  const it = L.interior;
+  if (!it) return { key: p.src, mesh: null, poster: null, text: 'No 3D scan', blocks: false };
+  const m = await manifest(it.asset_id);
+  if (!m?.mesh?.available) return { key: p.src, mesh: null, poster: null, text: 'No 3D model from the backend for this scan. The 3D tour view shows the Matterport tour (live).', blocks: false };
+  // The scan's own still as the poster for the suite's scan only (it shows with no caption while loading).
+  return { key: 'matterport:' + it.asset_id, mesh: mediaUrl(it.asset_id, 'mesh.obj'), poster: it.scope === 'suite' && m.image?.available ? mediaUrl(it.asset_id, 'image.jpg') : null, caption: it.mesh_text, blocks: false };
+}
+// The caption of one entry of the Photos view (null: none needed, the neutral image says it).
+export function photoCaption(p, f) {
+  const L = p?.live;
+  if (!L) return null;
+  if (L.local?.captions[f]) return L.local.captions[f];
+  if (MEDIA_PHOTO.test(f) && L.interior) return L.interior.photo_text;
+  if (f === 'listing-photo') return L.photo_caption;
+  if (f === 'aerial-vexcel') return L.aerial?.caption ?? null;
+  return null;
+}
+// Once the viewer is opened for a listing with a chosen scan and no saved copy: its manifest, then its
+// stills after the listing's own CoStar photo. Nothing is requested before.
+function mediaPhotos(p, d) {
+  const it = p.live?.interior;
+  if (!it || p.live.local || !d || d.mediaFor === it.asset_id) return;
+  d.mediaFor = it.asset_id;
+  manifest(it.asset_id).then(m => {
+    const n = photoCount(m);
+    if (!n || page?.D[p.src] !== d) return;
+    const names = Array.from({ length: n }, (_, i) => `mp-live-photo-${i + 1}`);
+    const own = d.photos.filter(f => f !== 'none'), at = own.indexOf('listing-photo') + 1;
+    d.photos = [...own.slice(0, at), ...names, ...own.slice(at)];
+    const S = page.S(), shown = page.P[S.stage === 'furnish' ? S.chosen : S.finalist];
+    if (shown === p && S.view === 'photos') page.renderViewer?.();
+  });
+}
+// Called by workspace.js at the end of renderViewer(): the tour iframe (created only while the tour view
+// of a listing is open, one at a time, removed otherwise) and the captions of the tour and the photos.
+export function viewer(view, p, d) {
+  if (view === 'tour' || view === 'photos' || view === 'dollhouse') mediaPhotos(p, d);
+  const doc = globalThis.document, layer = doc?.getElementById('v-tour');
+  if (!layer) return;
+  const it = p?.live?.interior, url = view === 'tour' && it ? tourUrl(it.asset_id) : null;
+  const holder = layer.querySelector('.live-tour'), old = holder.querySelector('iframe');
+  if (old && old.dataset.src !== url) old.remove();
+  if (url && !holder.querySelector('iframe')) {
+    const f = doc.createElement('iframe');
+    f.dataset.src = url; f.src = url; f.title = it.tour_text;
+    f.setAttribute('allow', 'fullscreen; xr-spatial-tracking'); f.setAttribute('allowfullscreen', ''); f.setAttribute('referrerpolicy', 'no-referrer');
+    f.style.cssText = 'display:block;width:100%;height:100%;border:0';
+    holder.append(f);
+  }
+  layer.querySelector('.live-caption').textContent = url ? it.tour_text : '';
+  const cap = doc.getElementById('v-photos')?.querySelector('.live-caption');
+  if (cap) {
+    const text = view === 'photos' && d ? photoCaption(p, d.photos[clampIndex(page?.S().photo, d.photos.length)]) : null;
+    cap.textContent = text || ''; cap.hidden = !text;
+    const img = doc.querySelector('#v-photos > img');
+    if (text && img) img.alt = `${p.address}: ${text}`;
+  }
+  aerialDirections(view, p); sketchBanner(view, p, d); extrasNote(); findingsExtras(); billPatch();
+}
+// The aerial view's direction buttons (workspace.html .dirs): only the directions this listing has an
+// image of its own for. A live listing has one overhead image, so it gets one button, "Overhead"; a
+// saved copy keeps the directions it has files for. The page's default direction is moved to one shown.
+export const aerialDirs = L => [...new Set([...(L?.aerial || L?.local?.aerial?.ortho ? ['ortho'] : []), ...Object.keys(L?.local?.aerial || {})])];
+function aerialDirections(view, p) {
+  const doc = globalThis.document, box = doc?.querySelector?.('#v-aerial .dirs');
+  if (!box || view !== 'aerial' || !p?.live) return;
+  const have = aerialDirs(p.live), S = page?.S();
+  box.style.display = have.length ? '' : 'none';
+  if (S && have.length && !have.includes(S.dir)) {
+    S.dir = have[0];
+    const img = doc.querySelector('#v-aerial > img'), src = asset(p.src, `vexcel-${S.dir}.jpg`);
+    if (img && src && img.getAttribute('src') !== src) img.src = src;
+  }
+  for (const b of box.querySelectorAll('button[data-dir]')) {
+    if (b.dataset.label == null) b.dataset.label = b.textContent;
+    b.style.display = have.includes(b.dataset.dir) ? '' : 'none';
+    b.textContent = b.dataset.dir === 'ortho' && have.length === 1 ? 'Overhead' : b.dataset.label;
+    if (S) b.setAttribute('aria-pressed', String(b.dataset.dir === S.dir));
+  }
+  // The image's source, said in this view too (browser sweep 1, defect 10): the saved copy's caption, else the backend's.
+  const layer = box.parentElement;
+  if (layer?.querySelector && S) {
+    let cap = layer.querySelector('.live-caption');
+    if (!cap) { cap = doc.createElement('p'); cap.className = 'evidence live-caption'; layer.append(cap); }
+    const text = aerialCaption(p.live, S.dir);
+    cap.textContent = text || ''; cap.hidden = !text;
+  }
+}
+export const aerialCaption = (L, dir) => L?.local?.captions?.[`vexcel-${dir}.jpg`] || (!L?.local?.aerial?.[dir] && L?.aerial ? L.aerial.caption : null);
+// The sketch label under the viewer (in the page's flow, in the bar below the stage: it covers nothing):
+// in the furnish stage for every view, and in Compare while the floor plan view shows the sketch.
+function sketchBanner(view, p, d) {
+  const doc = globalThis.document, bar = doc?.querySelector?.('#viewer .vbar');
+  if (!bar) return;
+  let el = doc.getElementById('live-sketch');
+  const on = !!(d?.sketch && d.rooms?.length && (page?.S().stage === 'furnish' || view === 'floorplan'));
+  if (!el) {
+    if (!on) return;
+    el = doc.createElement('p'); el.id = 'live-sketch'; el.className = 'live-sketch'; el.setAttribute('role', 'note');
+    el.style.cssText = 'flex:1 0 100%;min-width:0;overflow-wrap:anywhere;margin:0;font-size:13px;line-height:1.4;color:var(--ink2)';
+    bar.append(el);
+  }
+  el.hidden = !on; el.textContent = on ? d.sketch.label : '';
+}
+// The same label at the top of the furnish side pane (the catalog and the parts list), which the page
+// re-renders on its own (renderPane): put back whenever it is missing while the sketch is the layout shown.
+function paneSketch() {
+  const doc = globalThis.document, pane = doc?.getElementById?.('pane'), S = page?.S();
+  if (!pane || !S) return;
+  const p = page.P[S.chosen], d = p && page.D[p.src], on = !!(S.stage === 'furnish' && d?.sketch);
+  const old = [...pane.children].find(c => c.className === 'live-sketch-pane');
+  if (!on) { old?.remove(); return; }
+  const text = [d.sketch.label, d.sketch.bill].filter(Boolean).join(' ');
+  if (old) { if (old.textContent !== text) old.textContent = text; return; }
+  if (!pane.children.length) return; // the pane is closed (the chat is shown): the label is under the viewer
+  const el = doc.createElement('p'); el.className = 'live-sketch-pane'; el.setAttribute('role', 'note'); el.textContent = text;
+  el.style.cssText = 'grid-column:1/-1;min-width:0;overflow-wrap:anywhere;margin:0 0 10px;font-size:13px;line-height:1.4;color:var(--ink2)';
+  pane.prepend(el);
+}
+// Under the cost table (rebuilt by the page's renderFindings, always followed by renderViewer): which
+// totals leave the lease extras out because the listing does not state them.
+export const EXTRAS_NOTE = names => `* Total to open excludes lease extras for ${names.join(' and ')}: the NNN/CAM charges are not stated, so the cost each month may be higher than the rent.`;
+function extrasNote() {
+  const doc = globalThis.document, f = doc?.getElementById?.('findings'), table = f?.querySelector?.('table.costs');
+  if (!table || !page) return;
+  f.querySelector('.live-extras')?.remove();
+  const ids = [...table.querySelectorAll('thead button[data-finalist]')].map(b => b.dataset.finalist);
+  const unknown = ids.map((id, i) => ({ p: page.P[id], i })).filter(x => x.p?.live && page.D[x.p.src]?.extras == null);
+  if (!unknown.length) return;
+  const cells = table.querySelectorAll('tr.total td');
+  for (const x of unknown) { const td = cells[x.i + 1]; if (td && !td.textContent.endsWith('*')) td.textContent += '*'; }
+  const note = doc.createElement('p'); note.className = 'live-extras'; note.style.cssText = 'margin:8px 0 0;font-size:13px;line-height:1.4;color:var(--ink3)';
+  note.textContent = EXTRAS_NOTE(unknown.map(x => x.p.short));
+  (table.closest('.table-scroll') || table).after(note);
+}
+// In Compare, in #findings (rebuilt with the cost table): a line when more than three are saved (the page
+// compares the first three, workspace.js finalists()), and a button that stays in view at the bottom of
+// the panel while the cost table's last row is below it, and scrolls to "What it takes to open".
+export const MORE_SAVED = n => `${n} more saved ${n === 1 ? 'listing is' : 'listings are'} not compared here: only three compare at a time, the first three you saved. Unsave one in Search to bring another in.`;
+function findingsExtras() {
+  const doc = globalThis.document, f = doc?.getElementById?.('findings'), S = page?.S();
+  if (!f?.querySelector || !S || S.stage !== 'compare' || !f.querySelector('table.costs')) return;
+  f.querySelector('.live-more')?.remove();
+  if (S.saved.length > 3) { const n = mk('p', 'live-more', MORE_SAVED(S.saved.length - 3)); n.style.cssText = 'margin:0 0 12px;font-size:13px;line-height:1.4;color:var(--ink2)'; f.prepend(n); }
+  let cue = f.querySelector('.live-cue');
+  if (!cue) {
+    cue = mk('button', 'live-cue', 'What it takes to open ↓'); cue.type = 'button';
+    cue.style.cssText = 'position:sticky;bottom:4px;display:block;margin:8px 0 0 auto;padding:6px 12px;border-radius:999px;border:1px solid var(--ink3);background:var(--surface);color:var(--ink);font:inherit;font-size:13px;font-weight:500;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.14)';
+    cue.onclick = () => { const h = [...f.querySelectorAll('h2')].at(-1); if (h) f.scrollTo({ top: h.offsetTop - f.offsetTop - 4, behavior: 'smooth' }); };
+    f.append(cue);
+  }
+  const update = () => { const c = f.querySelector('.live-cue'), t = f.querySelector('table.costs'); if (c) c.hidden = !t || t.getBoundingClientRect().bottom <= f.getBoundingClientRect().bottom - 30; };
+  update();
+  if (!f.dataset.liveCue) { f.dataset.liveCue = '1'; f.addEventListener('scroll', update, { passive: true }); globalThis.addEventListener?.('resize', update); }
+}
+// The furnish total (defect 9 of the browser sweep). The page adds delivery, tax and installation by its
+// own demo rules (workspace.js sums()); the backend gives no such figure. In live mode the headline is
+// the backend's bill total while the list is the bill's own, else the total of the items now listed,
+// said so; the three invented lines are taken out of the parts list and named as not included.
+const usd = n => '$' + Math.round(n).toLocaleString('en-US');
+export const NOT_IN_BILL = 'Delivery, sales tax and installation are not in this figure: the backend gives none for them.';
+export function billHead(S, C, bom) {
+  const placed = (S?.placed || []).filter(i => i.st === 'placed' && C[i.c]), items = placed.reduce((n, i) => n + C[i.c].price, 0);
+  const known = Number.isFinite(bom?.estimated_total), whole = known && placed.length === bom.placed.length && Math.abs(items - bom.estimated_total) < 0.5;
+  return { amount: whole ? bom.estimated_total : items, whole, count: placed.length,
+    line: whole ? `The backend’s bill of materials total for this layout: ${placed.length} items at planning prices, not quotes. ${NOT_IN_BILL}`
+      : `Total of the ${placed.length} ${placed.length === 1 ? 'item' : 'items'} now in the parts list, at planning prices, not quotes${known ? ` (the backend’s bill for this layout was ${usd(bom.estimated_total)})` : ''}. ${NOT_IN_BILL}` };
+}
+function billPatch() {
+  const doc = globalThis.document, S = page?.S();
+  if (!doc?.querySelector || !S || S.stage !== 'furnish') return;
+  const p = page.P[S.chosen], d = p && page.D[p.src];
+  if (!p?.live || !d?.bom) return;
+  const b = billHead(S, page.C, d.bom), cost = doc.querySelector('#furnish-head .cost');
+  if (cost && !cost.dataset.live) {
+    cost.dataset.live = '1';
+    const amount = cost.querySelector('b'), line = cost.querySelector('p');
+    if (amount) amount.textContent = usd(b.amount);
+    if (line) line.textContent = b.line;
+  }
+  const foot = doc.querySelector('#pane table.parts tfoot');
+  if (foot && !foot.dataset.live) {
+    foot.dataset.live = '1';
+    for (const tr of [...foot.querySelectorAll('tr')]) {
+      const cells = tr.querySelectorAll('td');
+      if (tr.className === 'total') { cells[0].textContent = b.whole ? 'Bill of materials total' : 'Total of these items'; cells[1].textContent = usd(b.amount); } else tr.remove();
+    }
+    const tr = doc.createElement('tr'), td = doc.createElement('td');
+    td.colSpan = 5; td.textContent = 'Not included: delivery, sales tax and installation (the backend gives no figure for them).';
+    td.style.cssText = 'padding-top:6px;font-size:13px;font-weight:400;color:var(--ink3);text-align:left;white-space:normal';
+    tr.append(td); foot.append(tr);
+  }
+}
+// An item's footprint in the tooltip. The page prints "<w> × <d> ft" from the catalog entry
+// (workspace.js showTip), and the backend's bill of materials gives no size (w = d = 0).
+const FT_PER_M = 3.28084;
+export function sizeText(c, nominal) {
+  if ([c?.w, c?.d].every(v => Number.isFinite(v) && v > 0)) return { text: `${c.w} × ${c.d} ft`, note: null };
+  const n = nominal?.(c?.id), ft = m => String(Math.round(m * FT_PER_M * 10) / 10);
+  return n && [n.width, n.depth].every(v => Number.isFinite(v) && v > 0) ? { text: `${ft(n.width)} × ${ft(n.depth)} ft (nominal)`, note: n.note || null } : { text: 'Size not given', note: null };
+}
+let nominalSize = null; // furniture.js nominalSize, loaded by bind(); without it every unknown size reads "Size not given"
+function tipSize() {
+  const doc = globalThis.document, tip = doc?.getElementById?.('tip'), dd = tip?.querySelector?.('.tip-facts dd:not(.tip-price)');
+  if (!dd || dd.dataset.live || !page) return;
+  const t = doc.querySelector('[aria-describedby="tip"]'), c = page.C[t?.dataset.place || t?.dataset.key?.split('|')[0]];
+  if (!c?.live) return;
+  const s = sizeText(c, nominalSize);
+  dd.dataset.live = '1'; dd.textContent = s.text;
+  if (s.note) { const n = doc.createElement('span'); n.className = 'tip-meta'; n.textContent = s.note; tip.append(n); }
+}
+// Watches the two elements the page re-renders without calling back (the tooltip and the furnish pane).
+function watchPage() {
+  const doc = globalThis.document, MO = globalThis.MutationObserver;
+  if (!doc?.getElementById || !MO) return;
+  const tip = doc.getElementById('tip'), pane = doc.getElementById('pane');
+  if (tip) new MO(tipSize).observe(tip, { childList: true });
+  if (pane) new MO(() => { paneSketch(); billPatch(); }).observe(pane, { childList: true });
+}
+const clampIndex = (i, n) => Math.max(0, Math.min(n - 1, Number.isInteger(i) ? i : 0));
+// The viewer's extra elements, made once by bind() in a browser: the tour layer (its caption above the
+// tour, not over it) and a caption over the Photos view.
+function viewerElements() {
+  const doc = globalThis.document, stage = doc?.querySelector('#viewer .vstage');
+  if (!stage || doc.getElementById('v-tour')) return;
+  const layer = doc.createElement('div'); layer.className = 'layer'; layer.id = 'v-tour'; layer.hidden = true;
+  const col = doc.createElement('div'); col.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column';
+  const cap = doc.createElement('p'); cap.className = 'live-caption'; cap.style.cssText = 'margin:0;padding:8px 12px;font-size:13.5px';
+  const holder = doc.createElement('div'); holder.className = 'live-tour'; holder.style.cssText = 'position:relative;flex:1;min-height:0';
+  col.append(cap, holder); layer.append(col); stage.append(layer);
+  const pc = doc.createElement('p'); pc.className = 'evidence live-caption'; pc.hidden = true;
+  doc.getElementById('v-photos')?.append(pc);
+}
+// Two listings with the same short address (one building, two suites): add the unit so the page's
+// chat lines ("<short> needs about …") say which one.
+export function disambiguate(pool) {
+  const n = {};
+  for (const p of pool) n[p.short] = (n[p.short] || 0) + 1;
+  for (const p of pool) if (n[p.short] > 1 && reSafe(p.live?.unit || '')) p.short = `${p.short}, ${clip(reSafe(p.live.unit), 20)}`;
+  return pool;
+}
+/* ------------------------------------- local saved copies of a suite's own scan (assets/places.json) */
+
+// The page's asset folder (git-ignored, licensed) holds saved copies for a few suites, one folder per
+// slug, indexed by assets/places.json. It is read at run time only; nothing from it is in this file.
+// A live listing uses that folder only when the suite's own Matterport scan (measured geometry, the
+// backend's own record, not demo data) has exactly the model id of one places.json record.
+const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/, MODEL = /^[A-Za-z0-9]{6,32}$/, FILE = /^[a-z0-9][a-z0-9._-]{0,80}\.(jpe?g|png|webp)$/i;
+const LOCAL_CAPTION = { costar: 'CoStar photo (saved copy)', matterport: 'Matterport still (saved copy)', vexcel: 'Vexcel aerial (saved copy)' };
+const MAX_PHOTOS = 6; // per source in the Photos view
+// places.json -> Map(model id -> { slug, photos, aerial, captions }). Anything malformed is skipped;
+// a model id claimed by two records is used by neither.
+export function localIndex(places) {
+  const out = new Map(), twice = new Set();
+  for (const r of Array.isArray(places) ? places : []) {
+    if (!r || typeof r !== 'object' || !SLUG.test(String(r.slug)) || !MODEL.test(String(r.matterport_model_id))) continue;
+    const slug = r.slug, captions = {}, photos = { costar: [], matterport: [] }, aerial = {};
+    for (const im of Array.isArray(r.images) ? r.images : []) {
+      const [dir, name, more] = String(im?.file || '').split('/');
+      if (dir !== slug || more !== undefined || !FILE.test(name || '') || !LOCAL_CAPTION[im.source] || !name.startsWith(im.source + '-')) continue;
+      if (im.kind === 'photo' && im.source !== 'vexcel') { photos[im.source].push(name); captions[name] = LOCAL_CAPTION[im.source]; }
+      else if (im.source === 'vexcel' && /^(ortho|oblique-[nesw])$/.test(im.kind) && name === `vexcel-${im.kind}.jpg`) { aerial[im.kind] = name; captions[name] = LOCAL_CAPTION.vexcel; }
+    }
+    const rec = { slug, photos: [...photos.costar.slice(0, MAX_PHOTOS), ...photos.matterport.slice(0, MAX_PHOTOS)], aerial, captions };
+    if (out.has(r.matterport_model_id)) twice.add(r.matterport_model_id); else out.set(r.matterport_model_id, rec);
+  }
+  for (const m of twice) out.delete(m);
+  const slugs = [...out.values()].map(x => x.slug);
+  for (const [m, x] of out) if (slugs.filter(s => s === x.slug).length > 1) out.delete(m);
+  return out;
+}
+// The suite's own scan as the backend reports it, or null: a Matterport model with measured geometry,
+// not demo data, on a listing that is not demo data, and not marked as another unit's scan.
+function ownSuiteScan(rec) {
+  if (listingSource(rec.commercial_listing || {}).kind === 'synthetic') return null;
+  // Only the scan scansOf() names as the suite's (the one live.scan and the hover text describe).
+  const a = (rec.interior_assets || []).filter(x => x.provider === 'matterport' || x.asset_type === 'matterport_model').find(x => x.has_measured_geometry);
+  return a && a.provider === 'matterport' && a.has_measured_geometry === true && a.matches_listing_unit !== false
+    && sourceOf(a.provider, a.data_origin) !== 'synthetic' && typeof a.asset_id === 'string' ? a : null;
+}
+export const localMatch = (rec, index) => { const s = ownSuiteScan(rec); return (s && index?.get(s.asset_id)) || null; };
+// Give one POOL entry its local files. id and src both become the slug: the page builds the mesh and
+// dollhouse paths from src (workspace.js 587, 593) and prints "Demo property" when id !== src. Every
+// table the page keys by id or src was emptied by bind(), so the slug finds only backend facts. The
+// backend's own id stays in live.property_id (used for the layout request).
+export function withLocal(p, local) {
+  p.id = p.src = local.slug;
+  const first = local.photos[0];
+  if (first) p.photo = first;
+  p.live.local = local;
+  p.live.images = [...local.photos, ...(local.aerial.ortho ? [local.aerial.ortho] : p.live.aerial ? ['aerial-vexcel'] : [])];
+  if (!p.live.images.length) p.live.images = ['none'];
+  p.live.scan_text = '3D scan of this suite (Matterport)';
+  return p;
+}
+let localLoad = null;
+// Tests pass the parsed places.json in; null or anything malformed means no local files; undefined
+// makes the next search fetch it again.
+export function useLocalPlaces(places) { localLoad = places === undefined ? null : Promise.resolve(localIndex(places)); } // undefined: load again
+function localPlaces() {
+  if (!localLoad) localLoad = (async () => {
+    try {
+      if (!globalThis.location?.href) return new Map();
+      const r = await globalThis.fetch(new URL('assets/places.json', globalThis.location.href).href, { headers: { accept: 'application/json' } });
+      return r.ok ? localIndex(await r.json()) : new Map();
+    } catch { return new Map(); } // a clone without the folder: live mode as before
+  })();
+  return localLoad;
+}
+
+// The tooltip text for a live listing (page's SPACE_NOTES shape), from the record only.
+export function spaceNotes(rec, api = '', local = null) {
+  const cl = rec.commercial_listing || {}, a = rec.infrastructure_assessments || [];
+  const count = s => a.filter(x => x.status === s).length;
+  const source = listingSource(cl), img = imagesOf(rec, api), scans = scansOf(rec);
+  const has = k => Object.values(local?.captions || {}).includes(LOCAL_CAPTION[k]);
+  const ident = rec.property_identity || {}, noArea = zoneOf(ident.latitude, ident.longitude) == null;
+  const image = local
+    ? `${scans.text} (Matterport): its mesh and dollhouse view${has('matterport') ? ' and stills' : ''} are saved copies from this scan${has('costar') ? `, the photos are saved copies of this listing's CoStar photos` : ''}${has('vexcel') ? ', and the aerial images are saved Vexcel images of the building' : ''} (files on this computer).`
+    : [img.photoCaption ? `Image: ${img.photoCaption}.` : null, img.aerial ? `${img.photoCaption ? 'Also: ' : 'Image: '}${img.aerial.caption}.` : null].filter(Boolean).join(' ');
+  return {
+    description: [`${source.label}.`, local ? null : `${scans.text}.`, image || null, cl.disclaimer, cl.existing_buildout ? `Build-out: ${words(cl.existing_buildout)}.` : null, noArea ? NO_AREA_TEXT : null].filter(Boolean).join(' '),
+    pros: [scans.suite ? '3D scan of this suite (a layout is drawn on its measured floor)' : null, ...a.filter(x => x.status === 'MEETS').map(x => requirementLabel(x.requirement_id) + ': meets')].filter(Boolean).concat(count('MEETS') ? [] : ['No requirement confirmed as met']).slice(0, 2),
+    cons: [scans.suite ? null : `${scans.text}: no measured layout (at most an approximate sketch on the listed area)`, count('UNKNOWN') ? `${count('UNKNOWN')} requirement(s) unknown` : null, count('MAY_REQUIRE_WORK') ? `${count('MAY_REQUIRE_WORK')} may need work` : null, ...(rec.missing_information || [])].filter(Boolean).slice(0, 3),
+  };
+}
+
+/* ------------------------------------------------- pure mapping: stage 2 */
+
+const LABELS = {
+  'space.min_area': 'Floor area', 'space.enclosed_rooms': 'Enclosed rooms', 'electrical.tenant_service': 'Electrical service',
+  'plumbing.treatment_sinks': 'Sinks in the treatment rooms', 'plumbing.water_service': 'Water service', 'hvac.ventilation': 'Air supply to each room',
+};
+export const requirementLabel = rid => LABELS[String(rid).split('.').slice(1).join('.')] || cap(words(String(rid).split('.').pop()));
+const TOPIC = { plumbing: 'plumbing', electrical: 'power', hvac: 'hvac', space: 'layout' }; // ids the page's chat topics use
+const STATUS = {
+  MEETS: { sev: 'low', impact: 'Meets, per the evidence' }, MAY_REQUIRE_WORK: { sev: 'mid', impact: 'May need work' },
+  DOES_NOT_MEET: { sev: 'high', impact: 'Does not meet' }, FAILS: { sev: 'high', impact: 'Does not meet' }, UNKNOWN: { sev: 'unk', impact: 'Unknown' }, CONFLICTING: { sev: 'unk', impact: 'Conflicting evidence' },
+};
+// Evidence classes kept apart in words; the page's four kinds only pick the styling.
+const CLASS_KIND = { historical: 'documented', verified: 'documented', measured: 'observed', visual: 'observed', 'owner-reported': 'estimate', derived: 'estimate', unknown: 'unknown', conflicting: 'unknown' };
+export function evidenceClassOf(assessment, rec) {
+  const permits = new Map();
+  for (const p of rec.permit_records || []) for (const e of p.source_evidence_ids || []) permits.set(e, p);
+  const linked = (assessment.evidence_ids || []).map(e => permits.get(e)).filter(Boolean);
+  if (assessment.status === 'CONFLICTING') return { cls: 'conflicting', text: 'Conflicting evidence' };
+  if (linked.length) {
+    const uniq = [...new Map(linked.map(p => [p.permit_number, p])).values()];
+    const first = uniq[0];
+    return { cls: 'historical', text: `Historical permit ${uniq.map(p => p.permit_number).join(', ')} (${first.permit_status || 'status not stated'}${first.data_origin === 'FIXTURE_REAL' ? ', stored snapshot of public LA records' : ''}), not current capacity` };
+  }
+  if (/listing/i.test(assessment.uncertainty || '') || /listing/i.test((assessment.limitations || []).join(' '))) {
+    const src = listingSource(rec.commercial_listing || {});
+    const from = src.kind === 'synthetic' ? 'the listing (demo data)' : src.kind === 'snapshot' && rec.commercial_listing?.provider === 'costar' ? 'the CoStar listing (data-kit snapshot)' : 'the listing';
+    return { cls: 'derived', text: `Derived from ${from}, not measured` };
+  }
+  return { cls: 'unknown', text: 'No evidence record' };
+}
+// Feasibility assessments of one property -> the page's `issues`. UNKNOWN is never shown as met and gets
+// no dollar figure; the impact column carries the backend's status, not an amount.
+export function issuesFrom(assessments, rec) {
+  const seen = {};
+  return (assessments || []).map(a => {
+    const area = String(a.requirement_id).split('.')[1] || 'other';
+    const base = TOPIC[area] || area, n = (seen[base] = (seen[base] || 0) + 1);
+    const st = STATUS[a.status] || { sev: 'unk', impact: cap(words(a.status)) };
+    const ev = evidenceClassOf(a, rec);
+    const kind = a.status === 'UNKNOWN' ? 'unknown' : CLASS_KIND[ev.cls];
+    const work = (a.proposed_work || []).map(w => (typeof w === 'string' ? w : w.description || '')).filter(Boolean);
+    const question = (a.verification_questions || [])[0];
+    return {
+      id: n === 1 ? base : `${base}-${n}`, sev: st.sev, status: a.status,
+      title: html(`${requirementLabel(a.requirement_id)}: ${words(a.status)}`), impact: html(st.impact),
+      sum: html([a.uncertainty, work.length ? `Proposed work: ${work.join('; ')}.` : null, question ? `Open question: ${question}` : null].filter(Boolean).join(' ')),
+      why: html((a.limitations || []).join(' ')), kind, evidence_class: ev.cls,
+      ev: html(`${cap(ev.cls)} evidence: ${ev.text}`.replace(/\. /g, '; ')), next: question || null,
+      // No `ask`: the page's "Approve and send" only marks a draft as sent, so live mode offers no draft.
+    };
+  });
+}
+// The latest cost scenario of one property -> the page's cost fields (dollars, display only).
+// total to open = opening_cost_expected; "Renovation" = its one-time items except furniture (FF&E).
+// Lease extras (NNN/CAM) are a figure only when the listing states one. The calculator writes an NNN
+// line of 0 for a listing with no figure (finance/calculator.rs) and says so in its assumptions
+// ("NNN/CAM charges unknown"): that 0 is unknown, not "Included". `listing` (the record's
+// commercial_listing) decides when given: a null nnn_charges_monthly is unknown, a stated 0 is 0.
+export const NNN_UNKNOWN = /NNN\/CAM charges unknown/i;
+export function costsFrom(scenarios, propertyId, listing) {
+  const mine = (scenarios || []).filter(s => s.property_id === propertyId).sort((x, y) => String(x.calculated_at).localeCompare(String(y.calculated_at)));
+  const s = mine.at(-1);
+  if (!s) return { extras: null, build: null, other: null, weeks: null, scenario: null };
+  const ffe = s.line_items.filter(l => l.kind === 'ONE_TIME' && l.category === 'FF&E').reduce((n, l) => n + l.expected, 0);
+  const nnn = s.line_items.filter(l => l.kind === 'MONTHLY' && l.category === 'NNN').reduce((n, l) => n + l.expected, 0);
+  const unknown = (s.assumptions || []).some(a => NNN_UNKNOWN.test(String(a))) || (listing != null && listing.nnn_charges_monthly == null);
+  return {
+    extras: !unknown && s.line_items.some(l => l.category === 'NNN') ? toDollars(nnn) : null, extras_unknown: unknown,
+    build: toDollars(s.opening_cost_expected - ffe), other: toDollars(ffe), weeks: null, // the backend gives no schedule
+    scenario: { id: s.scenario_id, low: toDollars(s.opening_cost_low), expected: toDollars(s.opening_cost_expected), high: toDollars(s.opening_cost_high), assumptions: s.assumptions, excluded: s.excluded_costs },
+  };
+}
+export function detailEntry(rec, assessments, scenarios) {
+  return { ...costsFrom(scenarios, rec.property_id, rec.commercial_listing), photos: ['none'], plan: { w: 1000, h: 600, ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms: [], issues: issuesFrom(assessments ?? rec.infrastructure_assessments, rec), live: true };
+}
+
+/* ------------------------------------------------- pure mapping: stage 3 */
+
+// The layout solver needs a minimum area and width per room; the page never asks for them. These are
+// the demo minimums of the e2e driver (apps/backend/e2e/driver.py, ROOMS), said so in the chat note.
+export const ROOM_MINIMUMS = { treatment: { min_area_sqm: 10, min_width_m: 2.8, needs_plumbing: true }, reception: { min_area_sqm: 12, min_width_m: 3 }, storage: { min_area_sqm: 4, min_width_m: 1.5 } };
+export function roomRequirements(counts) {
+  return Object.entries(counts || { treatment: 3, reception: 1, storage: 1 }).map(([room_type, count]) => ({ room_type, count, ...ROOM_MINIMUMS[room_type] }));
+}
+
+// A generated layout and its site geometry (metres) -> the page's plan (100 px per metre) and rooms
+// (fractions of the plan). Every room is a proposal: drawn dashed, never as an approved plan.
+// A layout solved on a floor assumed from the listing's stated area (the backend's FloorEstimate:
+// SiteGeometry.geometry_source and DesignVersion.floor_estimate.geometry_source are LISTED_AREA_ESTIMATE,
+// scale_verified false). It is a sketch: never worded or drawn as a measured plan.
+export const SKETCH_SOURCE = 'LISTED_AREA_ESTIMATE';
+export const isSketch = (layout, geometry) => geometry?.geometry_source === SKETCH_SOURCE || (layout?.floor_estimate != null && typeof layout.floor_estimate === 'object');
+// The words a person reads. With the backend's own FloorEstimate its label and assumed shape are shown
+// as given; without one (only the site geometry says it is an estimate) the page's own sentence.
+// The backend's own words are shown as given but never without a limit: a label is a line, not a page.
+const upTo = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+export function sketchLabel(area, fe = null) {
+  const listed = area ? `${area} as the listing states it` : 'not a figure the page can show';
+  const own = typeof fe?.label === 'string' && fe.label.trim() ? upTo(fe.label.trim(), 200).replace(/\.$/, '') : null;
+  if (!own) return `Approximate sketch on the listed area (${listed}). The floor’s shape is assumed: this suite has no 3D scan of its own. Not a measured plan.`;
+  const shape = typeof fe.assumed_shape === 'string' && fe.assumed_shape.trim() ? ` (${upTo(fe.assumed_shape.trim(), 160)})` : '';
+  return `${own}. Listed area: ${listed}. The floor’s shape is assumed${shape}: this suite has no 3D scan of its own.`;
+}
+// The backend's sentence at the end of a sketch's bill items ("Quantity from an approximate sketch …"), kept visible.
+const SKETCH_QUANTITY = /Quantity from an approximate sketch[^.]*\./;
+// The 3D furnish view of a sketch: a plain floor of the sketch's rectangle (the plan's own box), as a
+// two-triangle OBJ in a data: link the page's own loader reads. No scan's mesh, photo or texture.
+// The page's scans are Z-up and are turned by -90° about X (workspace.js paint3D), so the floor lies in
+// the OBJ's x-y plane at z = 0, facing +Z, with y = -(scene z); corners follow the page's plan-to-scene
+// rule (x = mesh[0] + (px - ink[0]) / 100, z = -(mesh[1] - (py - ink[1]) / 100)).
+export const SKETCH_3D_TEXT = 'Plain floor of the sketch’s assumed rectangle, with the rooms’ outlines and furniture models. Not a scan: no walls, windows or columns.';
+export function sketchFloorBox(plan) {
+  const x0 = plan.mesh[0] - plan.ink[0] / 100, z0 = -plan.mesh[1] - plan.ink[1] / 100;
+  return { x0, z0, x1: x0 + plan.w / 100, z1: z0 + plan.h / 100 };
+}
+export function sketchFloorObj(plan) {
+  const b = sketchFloorBox(plan), n = v => String(Number((v === 0 ? 0 : v).toFixed(4)));
+  const text = ['o sketch_floor', `v ${n(b.x0)} ${n(-b.z0)} 0`, `v ${n(b.x1)} ${n(-b.z0)} 0`, `v ${n(b.x1)} ${n(-b.z1)} 0`, `v ${n(b.x0)} ${n(-b.z1)} 0`, 'f 4 3 2', 'f 4 2 1', ''].join('\n');
+  return 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
+}
+// null for a layout on any other floor. The area is the estimate's own listed_area (square metres as
+// stored, shown in SF like every area on the page), else the listing's area the page already shows.
+export function sketchOf(layout, geometry, p, bom = null) {
+  if (!isSketch(layout, geometry)) return null;
+  const fe = layout?.floor_estimate && typeof layout.floor_estimate === 'object' ? layout.floor_estimate : null;
+  const given = Number.isFinite(fe?.listed_area) && fe.listed_area > 0;
+  const sqft = given && fe.listed_area_unit === 'sqm' ? toSqft(fe.listed_area) : !given && p?.sqftKnown ? p.sqft : null;
+  const area = sqft != null ? `${sqft.toLocaleString('en-US')} SF` : given ? `${fe.listed_area} ${plain(fe.listed_area_unit || '(unit not stated)')}` : null;
+  const unknown = Array.isArray(fe?.unknown) && fe.unknown.length ? `Not known about the real floor: ${fe.unknown.slice(0, 12).map(u => upTo(words(u), 40)).join(', ')}${fe.unknown.length > 12 ? ', and more' : ''}.` : null;
+  const shows = typeof fe?.shows === 'string' && fe.shows.trim() ? `It shows ${upTo(fe.shows.trim(), 240).replace(/\.$/, '')}.` : null;
+  const bill = (bom?.items || []).map(i => SKETCH_QUANTITY.exec(String(i.price_note || ''))?.[0]).find(Boolean) || null;
+  return { area, label: sketchLabel(area, fe), detail: [unknown, shows].filter(Boolean).join(' '), bill };
+}
+// The plan image under a sketch: a plain rectangle (the assumed floor's outline), nothing else.
+const SKETCH_FLOOR = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect x="2" y="2" width="396" height="296" fill="#F4F3EF" stroke="#8A8985" stroke-width="2" stroke-dasharray="9 7" vector-effect="non-scaling-stroke"/></svg>');
+// The plan image under a layout on any other floor: the backend's floor outline and nothing else (no
+// "No floor plan image" text through the rooms). `outline`: the boundary in fractions of the plan box.
+export function floorImage(plan, outline) {
+  const w = plan?.w > 0 ? plan.w : 400, h = plan?.h > 0 ? plan.h : 300;
+  const pts = (Array.isArray(outline) ? outline : []).filter(q => Array.isArray(q) && q.every(Number.isFinite)).map(q => `${(q[0] * w).toFixed(1)},${(q[1] * h).toFixed(1)}`);
+  const shape = pts.length >= 3 ? `<polygon points="${pts.join(' ')}" fill="#F4F3EF" stroke="#8A8985" stroke-width="2" vector-effect="non-scaling-stroke"/>` : '';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><rect width="${w}" height="${h}" fill="#ECEBE7"/>${shape}</svg>`);
+}
+export function roomsFrom(layout, geometry) {
+  const assumed = isSketch(layout, geometry);
+  const pts = (geometry?.floor_boundary || []).concat(...(layout.room_polygons || []).map(r => r.polygon));
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0 || 1, h = Math.max(...ys) - y0 || 1;
+  const count = {};
+  const rooms = (layout.room_polygons || []).map(r => {
+    const rx = r.polygon.map(p => p[0]), ry = r.polygon.map(p => p[1]);
+    const t = ['treatment', 'reception', 'storage'].includes(r.room_type) ? r.room_type : r.room_type;
+    count[t] = (count[t] || 0) + 1;
+    return { id: r.room_id, type: t, name: html(`${cap(words(r.room_type))} ${count[t]}`), dim: `${toSqft(r.area_sqm)} SF${assumed ? ', approximate (assumed floor)' : ''}`, proposed: 1,
+      r: [(Math.min(...rx) - x0) / w, (Math.min(...ry) - y0) / h, (Math.max(...rx) - x0) / w, (Math.max(...ry) - y0) / h] };
+  });
+  const outline = (geometry?.floor_boundary || []).map(q => [(q[0] - x0) / w, (q[1] - y0) / h]);
+  return { plan: { w: Math.round(w * 100), h: Math.round(h * 100), ink: [0, 0], mesh: [0, 0], box: [0, 0, 0, 0] }, rooms, outline };
+}
+// The bill of materials -> CAT entries (one per item type and room type) and the placed list.
+// The backend gives no size, supplier or lead time: sizes are 0 (nothing drawn on the plan), the rest is
+// marked as not available. Prices are fixture planning prices, never supplier quotes.
+export function catalogFrom(bom, rooms) {
+  const typeOf = Object.fromEntries(rooms.map(r => [r.id, r.type]));
+  const cat = new Map(), placed = [];
+  for (const it of bom.items || []) {
+    const room = typeOf[it.room_id] || 'storage', q = Number(it.quantity);
+    const pieces = it.unit === 'ea' && Number.isInteger(q) && q > 0; // counted items: one placed piece each
+    // Measured items (m2 of flooring): one line at the line total, quantity and unit kept in the name.
+    const id = pieces ? `${it.item_type}@${room}` : `${it.item_type}@${it.bom_item_id}`;
+    const cents = pieces ? it.unit_price_estimate : Math.round(it.unit_price_estimate * q);
+    if (!cat.has(id)) cat.set(id, {
+      id, room, name: html(`${itemWords(it.item_type)}${pieces ? '' : `, ${it.quantity} ${unitWords(it.unit)}`}, ${priceWords(it.price_origin)}`),
+      kw: words(it.item_type), w: 0, d: 0, h: 0, price: toDollars(cents) ?? 0,
+      by: 'Not available', lead: 'Not available', at: [[0.5, 0.5]], live: { price_origin: it.price_origin, price_note: it.price_note },
+    });
+    for (let i = 0; i < (pieces ? q : 1); i++) placed.push({ c: id, r: it.room_id, st: 'placed' });
+  }
+  return { cat: [...cat.values()], placed, estimated_total: toDollars(bom.estimated_total), status: bom.status };
+}
+// An item type as words: "flooring_lvp_sqm" reads "Flooring, vinyl plank"; the unit is said once, after the quantity.
+const ITEM_WORDS = { flooring_lvp_sqm: 'Flooring, vinyl plank', wall_paint_sqm: 'Wall paint' };
+export const itemWords = t => ITEM_WORDS[t] || cap(words(String(t ?? '').replace(/_(sqm|sqft|m2|ea)$/i, '')) || 'item');
+export const unitWords = u => (/^(m2|sqm|m²)$/i.test(String(u)) ? 'm²' : /^(sqft|sf|ft2)$/i.test(String(u)) ? 'SF' : String(u ?? ''));
+// A BOM price's origin in words. None of them is a supplier quote.
+export function priceWords(origin) {
+  const k = sourceOf(null, origin);
+  return k === 'synthetic' ? 'fixture price, not a quote' : k === 'snapshot' ? 'catalog snapshot price, not a quote' : k === 'live' ? 'live catalog price, not a quote' : 'estimate, not a quote';
+}
+// A layout's floor geometry origin in words (the chat note after a layout).
+export function geometryWords(g = {}, sketch = null) {
+  if (sketch || g?.geometry_source === SKETCH_SOURCE) return (sketch || sketchOf(null, g, null)).label.replace(/\.$/, ''); // the caller ends the sentence
+  const k = sourceOf(null, g.data_origin);
+  const from = k === 'synthetic' ? ' (synthetic fixture)' : k === 'snapshot' ? ' (stored snapshot)' : k === 'live' ? ' (live provider data)' : ' (origin not stated)';
+  return `${words(g.geometry_source) || 'source not stated'}${from}${g.scale_verified ? '' : ', scale not verified'}`;
+}
+// The note after a search: each kind counted separately, nothing said for a zero count.
+// `view` is what the page itself will show: { shown: its fits(), min: its minSqft() } (workspace.js,
+// passed to bind()). With it the note counts the listings shown and says what was left out and why;
+// the size limit is the page's own figure, read at the time of the note.
+export function searchNote(pool, view = null) {
+  const n = k => pool.filter(p => p.live?.source === k).length;
+  const parts = [
+    n('snapshot') ? `${n('snapshot')} ${n('snapshot') === 1 ? 'is a real CoStar listing' : 'are real CoStar listings'} from the data-kit snapshot (dated records, not a live feed)` : null,
+    n('live') ? `${n('live')} from a live listing provider` : null,
+    n('synthetic') ? `${n('synthetic')} ${n('synthetic') === 1 ? 'is' : 'are'} synthetic demo data (fixture), not CoStar records` : null,
+    n('unknown') ? `${n('unknown')} with no source stated` : null,
+  ].filter(Boolean);
+  if (!pool.length || !parts.length) return null;
+  const N = pool.length, shown = view ? pool.filter(p => view.shown.includes(p)) : pool, hidden = pool.filter(p => !shown.includes(p));
+  const min = Number.isFinite(view?.min) ? view.min : null, is = k => (k === 1 ? 'is' : 'are');
+  const noSize = min == null ? [] : hidden.filter(p => !p.sqftKnown), small = min == null ? [] : hidden.filter(p => p.sqftKnown && p.sqft < min);
+  const other = hidden.length - noSize.length - small.length, open = shown.filter(p => p.live?.area_named === false).length;
+  const left = [
+    small.length ? `${small.length} of the ${N} ${is(small.length)} smaller than the ${min.toLocaleString('en-US')} SF your rooms need and ${is(small.length)} not shown` : null,
+    noSize.length ? `${noSize.length} ${noSize.length === 1 ? 'states' : 'state'} no area, so the page cannot tell whether your rooms fit, and ${is(noSize.length)} not shown` : null,
+    other ? `${other}${small.length || noSize.length ? ' more' : ` of the ${N}`} ${other === 1 ? 'does' : 'do'} not match your other answers (area, rent or kind of business) or ${other === 1 ? 'was' : 'were'} dismissed, and ${is(other)} not shown` : null,
+  ].filter(Boolean);
+  const count = !view ? '' : ` ${shown.length === N ? (N === 1 ? 'It is shown here.' : `All ${N} are shown here.`) : `${shown.length || 'None'} ${is(shown.length)} shown here: ${left.join('; ')}.`}`;
+  const area = open ? ` ${open}${view ? ' of those shown' : ''} ${is(open)} in none of the page’s four areas and ${open === 1 ? 'stays' : 'stay'} shown whichever area you choose.` : '';
+  const scans = shown.filter(p => p.live?.scan).length, of = view ? ' of those shown' : '';
+  const sketch = 'a layout, where the backend offers one, is an approximate sketch on the listed area, not a measured plan';
+  const floor = !shown.length ? '' : scans ? ` ${scans}${of} ${scans === 1 ? 'has' : 'have'} a 3D scan of the suite itself, so a layout there is drawn on the measured floor.${scans < shown.length ? ` For the ${shown.length - scans === 1 ? 'other' : 'others'}, ${sketch}.` : ''}` : ` None${of} has a 3D scan of the suite itself: ${sketch}.`;
+  return `Of ${N} ${N === 1 ? 'listing' : 'listings'} from the backend, ${parts.join('; ')}.${count}${area}${floor}`;
+}
+// Owner texts saved by Photon as design-change notes -> read-only chat notes.
+export function ownerTextNotes(comms) {
+  // Shape written by apps/api/app/domains/communications/inbound.py (_save_design_change).
+  return (comms || []).filter(c => String(c.purpose || '').toLowerCase() === 'design change').map(c => ({
+    id: c.communication_id, at: c.created_at, channel: c.channel,
+    text: (c.structured_findings || []).filter(f => f.question === 'design change' && f.classification === 'OWNER_REPORTED').map(f => String(f.answer || '').trim()).filter(Boolean).join(' '),
+  })).filter(x => x.text);
+}
+
+/* --------------------------------------------------------------- HTTP */
+
+export class Backend {
+  // The wrapper matters in a browser: window.fetch called as a method of this object throws "Illegal invocation".
+  constructor(api, fetchImpl = globalThis.fetch) { this.api = api; this.fetch = (...args) => fetchImpl(...args); this.token = null; this.signingIn = null; this.project = null; }
+  async req(method, path, body) {
+    const headers = { accept: 'application/json' };
+    if (body !== undefined) headers['content-type'] = 'application/json';
+    if (this.token) headers.authorization = 'Bearer ' + this.token;
+    let res;
+    try { res = await this.fetch(this.api + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }); } catch (e) {
+      throw Object.assign(new Error(`The backend at ${this.api} cannot be reached (${e.message}).`), { status: 0 });
+    }
+    const text = await res.text(); let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    if (!res.ok) throw Object.assign(new Error(`${method} ${path} answered ${res.status}${data?.error_code || data?.code ? ' ' + (data.error_code || data.code) : ''}`), { status: res.status, data });
+    return data;
+  }
+  // One sign-in at a time: every caller that arrives while one is under way waits for that same request
+  // (a reload starts several readers at once). A failed sign-in is not kept: the next call asks again.
+  signIn() {
+    if (this.token) return Promise.resolve();
+    if (!this.signingIn) this.signingIn = this.signInNow().finally(() => { this.signingIn = null; });
+    return this.signingIn;
+  }
+  async signInNow() {
+    let token;
+    try { token = (await this.req('POST', '/api/v1/dev/token'))?.access_token; } catch (e) {
+      throw Object.assign(new Error(`Sign-in refused: the backend's dev sign-in is not available (${e.message}). Live mode needs a local backend with ALLOW_DEV_TOKENS=true; no token was invented.`), { status: e.status });
+    }
+    if (!token) throw new Error('Sign-in answered without a token.');
+    this.token = token;
+  }
+  async ensureProject(req) {
+    await this.signIn();
+    const profile = profileFromAnswers(req), key = JSON.stringify(profile);
+    if (!this.project) {
+      await this.req('GET', '/api/v1/dev/fixtures/project'); // the dev seed route, as the e2e driver uses it; its contents are not used
+      const out = await this.req('POST', '/api/v1/projects', { project_name: `Workspace: ${req.business || 'new location'}`, market: { city: 'Los Angeles', state: 'CA' }, business_profile: profile });
+      this.project = out.project.project_id; this.profileKey = key;
+    } else if (key !== this.profileKey) {
+      await this.req('PUT', this.p('/business-profile'), profile); this.profileKey = key;
+    }
+    return this.project;
+  }
+  p(rest = '') { return `/api/v1/projects/${this.project}${rest}`; }
+  async search(req) {
+    await this.ensureProject(req);
+    const task = (await this.req('POST', this.p('/properties/search'), searchBody(req))).task;
+    if (task?.status !== 'COMPLETED') throw new Error(`The search task is ${task?.status || 'missing'}${task?.error_message ? ': ' + task.error_message : ''}.`);
+    const ids = task.output_reference?.property_ids || [];
+    const [props, rankings, scenarios] = await Promise.all([this.req('GET', this.p('/properties')), this.req('GET', this.p('/rankings')), this.req('GET', this.p('/cost-scenarios'))]);
+    const ranking = rankings.find(r => r.ranking_id === task.output_reference?.ranking_id) || rankings.at(-1);
+    const order = (ranking?.ranked_properties || []).map(x => x.property_id);
+    const recs = props.filter(p => ids.includes(p.property_id)).sort((a, b) => (order.indexOf(a.property_id) + 1 || 1e9) - (order.indexOf(b.property_id) + 1 || 1e9));
+    const extra = await Promise.all(recs.map(r => Promise.all([this.req('GET', this.p(`/properties/${r.property_id}/feasibility`)), this.req('GET', this.p(`/properties/${r.property_id}/permits`))])));
+    return recs.map((rec, i) => ({ rec: { ...rec, permit_records: extra[i][1] }, assessments: extra[i][0], scenarios }));
+  }
+  async layout(propertyId) {
+    const rooms = roomRequirements(this.lastRooms);
+    const task = (await this.req('POST', this.p('/layouts/generate'), { property_id: propertyId, room_requirements: rooms })).task;
+    // The task's own code and message travel with the error, so the caller can tell the cases apart.
+    if (task?.status !== 'COMPLETED') throw Object.assign(new Error(`Layout generation is ${task?.status || 'missing'}${task?.error_message ? ': ' + task.error_message : ''}.`), { task_status: task?.status ?? null, error_code: task?.error_code ?? null, error_message: task?.error_message ?? null });
+    const id = task.output_reference?.design_version_ids?.[0];
+    if (id == null) throw Object.assign(new Error('Layout generation completed with no layout and no reason.'), { task_status: 'COMPLETED', no_layout: true });
+    const layout = (await this.req('GET', this.p('/layouts'))).find(l => l.design_version_id === id);
+    if (!layout) throw new Error('The generated layout is not in the layout list.');
+    const [geometry, bom] = await Promise.all([this.req('GET', this.p(`/layouts/geometry/${layout.geometry_id}`)), this.req('GET', this.p(`/layouts/${id}/bom`))]);
+    // The estimate label travels on the task's answer too; a design version without it takes the task's.
+    const fe = task.output_reference?.floor_estimate;
+    return { layout: fe && typeof fe === 'object' && layout.floor_estimate == null ? { ...layout, floor_estimate: fe } : layout, geometry, bom };
+  }
+  // The chat request has one field, `message` (ChatRequest, at most 8,000 characters): what is on the
+  // person's screen goes before their text as one plain sentence (chatContext), never into a new field.
+  chat(message, context = '') { return this.req('POST', this.p('/chat'), { message: withContext(context, message) }); }
+  communications() { return this.req('GET', this.p('/communications')); }
+}
+// What the person sees, by the names the page shows (address and unit), for the assistant: which
+// listings are saved, which are compared (the page compares the first three saved), which one is
+// selected, and which were dismissed. Empty when nothing is saved, selected or dismissed.
+const CHAT_MAX = 8000;
+export function chatContext(S, P = {}) {
+  // A name is a listing's own text (a provider's): one line, at most 120 characters, so that it cannot start a
+  // paragraph of its own after this sentence and pose as the person's message (web-link-10 review).
+  const plain = t => { const x = String(t ?? '').replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/\s+/g, ' ').trim(); return x.length > 120 ? `${x.slice(0, 119)}…` : x; };
+  const name = id => { const p = P[id]; return p ? plain(`${p.address}${p.live?.unit ? `, ${p.live.unit}` : ''}`) || null : null; };
+  const list = ids => [...new Set((ids || []).map(name).filter(Boolean))];
+  const saved = list(S?.saved), dismissed = list(S?.dismissed);
+  const sel = name(S?.stage === 'furnish' ? S.chosen : S?.stage === 'compare' ? S.finalist : S?.open);
+  const parts = [
+    saved.length ? `saved: ${saved.join('; ')}` : null,
+    saved.length > 3 && S.stage !== 'discover' ? `side by side now (the first three saved): ${saved.slice(0, 3).join('; ')}` : null,
+    sel ? `${S.stage === 'furnish' ? 'being furnished' : 'selected'}: ${sel}` : null,
+    dismissed.length ? `dismissed and no longer shown: ${dismissed.slice(0, 12).join('; ')}${dismissed.length > 12 ? `; and ${dismissed.length - 12} more` : ''}` : null,
+  ].filter(Boolean);
+  return parts.length ? `Context from the page, not typed by the person. Listings on their screen, by the names they see: ${parts.join('. ')}. Speak about these and do not offer a dismissed listing unless asked. The person’s message follows.` : '';
+}
+// The context is dropped, never the person's text, when both would not fit the request.
+export function withContext(context, message) {
+  const text = String(message ?? '');
+  return context && context.length + 2 + text.length <= CHAT_MAX ? `${context}\n\n${text}` : text;
+}
+// A chat failure in plain words. Never a scripted answer in the assistant's name.
+export function chatFailure(e) {
+  const code = e?.data?.error_code || e?.data?.code || e?.data?.detail?.error_code || '';
+  if (e?.status === 503 || /PYTHON_SERVICE_NOT_CONFIGURED/.test(code)) return 'The assistant is not reachable: the backend has no assistant service configured. Nothing was answered.';
+  if (e?.status === 502 || e?.status === 504) return 'The assistant is not reachable right now (the backend could not get an answer from it). Nothing was answered; try again.';
+  if (e?.status === 0) return `The assistant is not reachable: ${e.message}`;
+  return `The assistant could not answer: ${e?.message || 'unknown error'}.`;
+}
+
+/* ------------------------------------------------------- page wiring */
+
+// A neutral image in place of any local listing asset for a backend listing.
+const NEUTRAL = (text, origin) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="none"><rect width="400" height="300" fill="#ECEBE7"/><text x="200" y="140" text-anchor="middle" font-family="system-ui,sans-serif" font-size="17" fill="#6B6A66">${html(text)}</text><text x="200" y="168" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" fill="#8A8985">${html(origin)}</text></svg>`);
+// The page asks for an image by (p.src, file). Every backend listing is answered here: synthetic ones by
+// "live-<id>", real ones by their id (see poolEntry). The page's own listings get undefined (its own path).
+export function asset(src, f, P = page?.P, D = page?.D) {
+  src = String(src);
+  const p = P?.[src.startsWith('live-') ? src.slice(5) : src], L = p?.live;
+  if (!L && !src.startsWith('live-')) return undefined;
+  if (/floorplan/.test(f) && D?.[src]?.sketch) return SKETCH_FLOOR; // an assumed floor: a plain rectangle, never a plan image
+  if (/floorplan/.test(f) && D?.[src]?.rooms?.length) return floorImage(D[src].plan, D[src].outline); // a layout's rooms are drawn: the floor's outline, no placeholder text
+  if (L?.local?.captions[f]) return `assets/${L.local.slug}/${f}`; // a saved copy from this suite's own scan or listing
+  const still = MEDIA_PHOTO.exec(f);
+  if (still && L?.interior && !L.local) return mediaUrl(L.interior.asset_id, `photo/${+still[1]}.jpg`); // the backend's still of the chosen scan
+  if (L && f === 'listing-photo' && L.photo_url) return L.photo_url;
+  if (L && (f === 'aerial-vexcel' || /vexcel/.test(f)) && L.aerial) return L.aerial.url; // the ortho image for every direction
+  return NEUTRAL(/floorplan/.test(f) ? 'No floor plan image' : /vexcel/.test(f) ? 'No aerial image' : 'No photo',
+    !L ? 'From the backend; no image provided' : L.fixture ? 'Demo data from the backend (fixture)' : `${L.source_label}; no image provided`);
+}
+
+/* ------------------------------------------------- waiting sequence */
+
+// Shown at the end of the chat log while one backend request is pending. The page cannot see what the
+// server is doing (each call answers once, when everything is finished), so this says what the step
+// is and how long it has run, never a finished part, a fraction or a promise. The estimate is the
+// median of this page session's own earlier successful waits of the same kind; with none, there is none.
+export const WAIT_TEXT = {
+  chat: { verb: 'Thinking…', what: 'The assistant is working on a reply. It arrives in one piece when it is ready.', earlier: 'replies', composer: 'Waiting for the assistant…' },
+  search: { verb: 'Searching…', what: 'Searching listings, then checking each one’s 3D scans, aerial imagery and permit records, and ranking them. The results arrive together at the end.', earlier: 'searches', composer: 'Waiting for the search…' },
+  layout: { verb: 'Drawing a layout…', what: 'Fitting the rooms into the floor geometry the backend has for this listing, then listing furniture and fixtures with prices. The result says where the geometry and the prices come from.', earlier: 'layouts', composer: 'Waiting for the layout…' },
+};
+export const LATE_TEXT = 'This is taking longer than usual.';
+const LATE_WITHOUT_ESTIMATE_MS = 20000;
+let clock = { now: () => (globalThis.performance?.now?.() ?? Date.now()), every: (fn, ms) => setInterval(fn, ms), stop: id => clearInterval(id) };
+const took = { chat: [], search: [], layout: [] }; // ms of earlier successful waits, this page session only
+const active = []; // pending waits, oldest first; only the newest one's element is in the log
+export function useClock(c) { clock = { ...clock, ...c }; } // tests only
+export function forgetWaits() { for (const k of Object.keys(took)) took[k].length = 0; } // tests only
+export function estimateOf(kind) {
+  const xs = [...(took[kind] || [])].sort((a, b) => a - b), n = xs.length;
+  if (!n) return null;
+  return n % 2 ? xs[(n - 1) / 2] : (xs[n / 2 - 1] + xs[n / 2]) / 2;
+}
+export const isLate = (elapsed, estimate) => (estimate == null ? elapsed > LATE_WITHOUT_ESTIMATE_MS : elapsed > Math.max(2 * estimate, estimate + 5000));
+const logEl = () => globalThis.document?.getElementById?.('log') || null;
+const keepInView = log => { if (log) log.scrollTop = log.scrollHeight; };
+function waitElement(kind, estimate) {
+  const doc = globalThis.document, T = WAIT_TEXT[kind];
+  const box = doc.createElement('div'); box.className = 'live-wait';
+  box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite');
+  const dots = doc.createElement('div'); dots.className = 'typing'; dots.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i++) dots.append(doc.createElement('i'));
+  const line = doc.createElement('p'); line.className = 'live-wait-line';
+  const verb = doc.createElement('span'); verb.textContent = T.verb;
+  const secs = doc.createElement('span'); secs.className = 'live-wait-secs'; secs.setAttribute('aria-hidden', 'true'); // not re-announced every second
+  line.append(verb, secs);
+  const what = doc.createElement('p'); what.className = 'live-wait-what'; what.textContent = T.what;
+  box.append(dots, line, what);
+  if (estimate != null) {
+    const est = doc.createElement('p'); est.className = 'live-wait-est';
+    est.textContent = `Earlier ${T.earlier} in this session took about ${Math.max(1, Math.round(estimate / 1000))} s.`;
+    box.append(est);
+  }
+  const late = doc.createElement('p'); late.className = 'live-wait-late'; late.hidden = true; late.textContent = LATE_TEXT;
+  box.append(late);
+  return { box, secs, late };
+}
+// The composer while a sent message is pending: the page drops what is sent while its `busy` flag is
+// set (workspace.js line 144), so say so. Restored exactly as it was when the last mark ends.
+let composerMarks = 0, composerSaved = null;
+function markComposer(text) {
+  const doc = globalThis.document, form = doc?.getElementById?.('composer'), input = doc?.getElementById?.('say');
+  if (!form || !input) return () => {};
+  if (composerMarks++ === 0) composerSaved = { busy: form.getAttribute('aria-busy'), placeholder: input.placeholder };
+  form.setAttribute('aria-busy', 'true'); input.placeholder = text;
+  let ended = false;
+  return () => {
+    if (ended) return; ended = true;
+    if (--composerMarks > 0) return;
+    if (composerSaved.busy === null) form.removeAttribute('aria-busy'); else form.setAttribute('aria-busy', composerSaved.busy);
+    if (input.placeholder === text || Object.values(WAIT_TEXT).some(t => t.composer === input.placeholder)) input.placeholder = composerSaved.placeholder; // the page may have set a new stage hint meanwhile
+    composerSaved = null;
+  };
+}
+// Starts the sequence for one request; returns end(ok). end() is idempotent and always removes the
+// element; only a successful wait is counted for later estimates.
+export function waiting(kind, { composer = false } = {}) {
+  const start = clock.now(), estimate = estimateOf(kind), log = logEl();
+  const w = { el: log ? waitElement(kind, estimate) : null, timer: null, ended: false };
+  const unmark = composer ? markComposer(WAIT_TEXT[kind].composer) : () => {};
+  if (w.el) {
+    active.at(-1)?.el?.box.remove(); // a second wait replaces the shown one; never two in the log
+    active.push(w); log.append(w.el.box); keepInView(log);
+    w.timer = clock.every(() => {
+      const ms = clock.now() - start, s = Math.floor(ms / 1000);
+      w.el.secs.textContent = s >= 1 ? ` ${s} s` : '';
+      if (w.el.late.hidden && isLate(ms, estimate)) { w.el.late.hidden = false; keepInView(log); }
+    }, 250);
+  }
+  return (ok = false) => {
+    if (w.ended) return; w.ended = true;
+    if (ok) took[kind].push(clock.now() - start);
+    unmark();
+    if (!w.el) return;
+    clock.stop(w.timer);
+    const i = active.indexOf(w), wasShown = i === active.length - 1;
+    w.el.box.remove(); if (i >= 0) active.splice(i, 1);
+    if (wasShown && active.length) { log.append(active.at(-1).el.box); keepInView(log); } // the older wait is still pending
+  };
+}
+const WAIT_STYLE = `.live-wait { margin: -2px 0; font-size: 13px; color: var(--ink3); }
+.live-wait .typing { padding: 4px 0 2px; }
+.live-wait p { margin: 2px 0; }
+.live-wait-line { color: var(--ink2); font-weight: 500; }
+.live-wait-secs { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .live-wait .typing i { animation: none; opacity: .6; } }`;
+const RESULT_STYLE = `
+.live-result { align-self: stretch; max-width: 92%; padding: 10px 12px; border: 1px solid var(--tint2); border-radius: 10px; background: var(--surface); font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
+.live-result p { margin: 2px 0; }
+.live-result-head { color: var(--ink); font-weight: 600; font-size: 14px; }
+.live-result-label { color: var(--ink3); }
+.live-result-reasons { margin: 2px 0 4px; padding-left: 18px; }
+/* Live mode only (browser sweep 1, defects 11 and 12): a card's second line wraps so that the area after the
+   source label is not cut off, and the dollhouse poster takes no space while it has no image. */
+.cap small { white-space: normal; text-overflow: clip; overflow: visible; }
+#v-dollhouse .poster:not([src]) { visibility: hidden; }
+/* Defect 10: the backend's one overhead image is never enlarged past its own size. Defect 11: the hover summary is not see-through. */
+#v-aerial > img { object-fit: scale-down; }
+.tip.space-tip { background: rgb(232 233 230 / .98); }
+/* Browser sweep 2, phone width: the "to open" badge lay on the address of a Compare card (the card is
+   short there and the wrapped caption reaches the badge). Badge and caption stack, and the card grows to hold both. */
+@media (max-width: 860px) {
+  .finalists { height: auto; min-height: 104px; align-items: stretch; }
+  .fin { display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 6px; padding: 9px 10px 10px; min-height: 104px; }
+  .fin .toopen { position: relative; top: auto; left: auto; flex: none; }
+  .fin .cap { position: relative; left: auto; right: auto; bottom: auto; align-self: stretch; }
+}
+/* Live mode only (browser-3d-1, defect 1): the caption under the dollhouse view ran beneath the tool buttons and
+   was cut there ("Not a scan: no walls, windows or co"). It now wraps inside the view, and while the tools are
+   shown it sits above them (the tools are 48px high, 12px from the bottom), however many buttons they hold. */
+#v-dollhouse .vstate { right: 16px; overflow-wrap: anywhere; }
+#v-dollhouse[data-state=ready] .vstate { bottom: 68px; }`;
+function waitStyle() {
+  const doc = globalThis.document, at = doc?.head || doc?.documentElement;
+  if (!at || doc.getElementById('live-wait-style')) return;
+  const s = doc.createElement('style'); s.id = 'live-wait-style'; s.textContent = WAIT_STYLE + RESULT_STYLE; at.append(s);
+}
+
+let page = null, backend = null;
+
+/* ------------------------------------------------- what survives a reload (browser sweep, defect 3) */
+// Two entries in this browser's localStorage, both for live mode only:
+//   second-site-workspace-live       the page's own state (workspace.js save()): the answers, the stage,
+//                                    saved, dismissed and selected listings, the placed pieces, the chat log.
+//   second-site-workspace-live-link  this file's: the backend origin, the project id, the profile sent, the
+//                                    last search's records as the backend answered (with the saved-copy
+//                                    matches), and the layouts fetched since. No token: the dev sign-in is
+//                                    asked again on load.
+// On load the listings are rebuilt from the stored records with no search; one read of the project's
+// properties then checks that the backend still has that project and those listings. If it does not (it
+// was restarted with another database), both entries go and the page reloads once to a clean start with
+// one plain line. A stored state the link cannot rebuild is dropped, never half restored.
+const PAGE_KEY = 'second-site-workspace-live', LINK_KEY = 'second-site-workspace-live-link', NOTICE_KEY = 'second-site-workspace-live-notice', LINK_VERSION = 1;
+const SEEDS = /^#(reset|searched|compare|furnish)$/;
+export const STALE_TEXT = 'The saved session could not be continued: the backend no longer has that project (it may have been restarted with another database). Nothing was carried over; this is a new start.';
+let stores = null, reload = () => globalThis.location?.reload?.();
+export function useStorage(x) { stores = x || null; } // tests only: { local, session }
+export function useReload(f) { reload = f; } // tests only
+const boxOf = w => { try { return (stores ? stores[w] : globalThis[w === 'local' ? 'localStorage' : 'sessionStorage']) || null; } catch { return null; } };
+const kv = {
+  get: (k, w = 'local') => { try { return boxOf(w)?.getItem(k) ?? null; } catch { return null; } },
+  set: (k, v, w = 'local') => { try { boxOf(w).setItem(k, v); return true; } catch { return false; } },
+  del: (k, w = 'local') => { try { boxOf(w)?.removeItem(k); } catch { /* storage unavailable */ } },
+};
+const parse = t => { try { return t ? JSON.parse(t) : null; } catch { return null; } };
+// Read at import, before the page reads its own entry: what can be continued is kept, the rest removed.
+export function savedLink(hash = globalThis.location?.hash || '', api = config().api) {
+  const notice = kv.get(NOTICE_KEY, 'session');
+  if (notice) { kv.del(LINK_KEY); kv.del(PAGE_KEY); return { link: null, notice }; } // the clean start after a stale session
+  const link = parse(kv.get(LINK_KEY)), seeded = SEEDS.test(hash);
+  if (!seeded && link && link.v === LINK_VERSION && link.api === api && typeof link.project === 'string' && Array.isArray(link.results) && link.results.length) return { link, notice: null };
+  kv.del(LINK_KEY);
+  // No project to come back to: the page's answers are kept only while no search was made with them.
+  const pg = parse(kv.get(PAGE_KEY));
+  if (seeded || !pg || roomsKnown(pg.req || {}) || (pg.saved || []).length || pg.stage !== 'discover') kv.del(PAGE_KEY);
+  return { link: null, notice: null };
+}
+let boot = savedLink(), link = null, searched = false, lastSearchKey = null;
+export function reboot(hash, api) { boot = savedLink(hash, api); link = null; searched = false; lastSearchKey = null; return boot; } // tests only: as a new page load
+function persist() {
+  if (!link) return;
+  if (kv.set(LINK_KEY, JSON.stringify(link))) return;
+  link.layouts = {}; // too large for this browser's storage: the layouts go first (they are asked again)
+  if (!kv.set(LINK_KEY, JSON.stringify(link))) { kv.del(LINK_KEY); link = null; } // nothing stored: the next load starts clean
+}
+// The page's state as its own fresh() makes it in live mode (its tables are empty).
+function resetState(S) {
+  Object.assign(S, { stage: 'discover', step: 0, req: {}, slots: [null, null, null, null], saved: [], dismissed: [], open: null, offered: false, msgs: [], replies: [], finalist: null, issue: null, view: 'dollhouse', photo: 0, seenCompare: false, chosen: null, committed: false, placed: [], hist: [], tab: null, room: null, sel: null, seenFurnish: null });
+}
+// Rebuild the listings and layouts from the stored link and make the page's state consistent with them.
+function restore(S, L) {
+  backend.project = L.project; backend.profileKey = L.profileKey ?? null; backend.lastRooms = L.lastRooms ?? null;
+  fill(S, L.results.map(r => ({ ...r, scenarios: L.scenarios || [] })), L.locals || [], false);
+  const { POOL, P, D, C } = page;
+  for (const [id, out] of Object.entries(L.layouts || {})) { const p = POOL.find(x => x.live.property_id === id); if (p && out?.layout && out.geometry && out.bom) applyLayout(p, D[p.src], out); }
+  S.slots = [0, 1, 2, 3].map(i => (P[S.slots?.[i]] ? S.slots[i] : null));
+  S.dismissed = (S.dismissed || []).filter(id => P[id]);
+  if (!S.saved.includes(S.finalist)) S.finalist = S.saved[0] ?? null;
+  const rooms = P[S.chosen] ? D[P[S.chosen].src].rooms : [];
+  if (!rooms.length) { S.chosen = null; S.committed = false; S.placed = []; S.hist = []; S.room = S.sel = null; S.seenFurnish = null; }
+  else { S.placed = (S.placed || []).filter(it => C[it.c] && rooms.some(r => r.id === it.r)); S.hist = []; if (!rooms.some(r => r.id === S.room)) S.room = null; }
+  if (S.stage === 'furnish' && !S.chosen) S.stage = 'compare';
+  if (S.stage === 'compare' && S.saved.length < 2) S.stage = 'discover';
+  if (!['discover', 'compare', 'furnish'].includes(S.stage)) S.stage = 'discover';
+  // The page's initMap() (which runs after bind) puts a map marker on every listing in POOL and would
+  // throw on one without coordinates: such a listing joins POOL right after, with a pin and no marker.
+  const all = [...POOL], late = all.filter(x => !(typeof x.lat === 'number' && typeof x.lon === 'number'));
+  if (late.length) {
+    POOL.length = 0; POOL.push(...all.filter(x => !late.includes(x)));
+    setTimeout(() => { POOL.length = 0; POOL.push(...all); late.forEach(addPin); const o = page.S().open; page.selectSpace(o); if (o) page.selectSpace(o); }, 0);
+  }
+  link = L; searched = true; lastSearchKey = L.searchKey ?? null; waitNoted = true;
+  return true;
+}
+// One read, no search: does the backend still have this project and these listings?
+async function verifyRestored(L) {
+  const ids = L.results.map(r => r.rec?.property_id);
+  try {
+    await backend.signIn();
+    const props = await backend.req('GET', backend.p('/properties'));
+    if (Array.isArray(props) && ids.every(id => props.some(x => x.property_id === id))) return true;
+  } catch (e) {
+    if (![400, 401, 403, 404, 410, 422].includes(e?.status)) { page.note(page.esc(`The backend could not be asked whether it still has this saved session (${e?.message || 'unknown error'}). What is shown is what this browser saved.`)); return null; }
+  }
+  kv.del(LINK_KEY); kv.del(PAGE_KEY); kv.set(NOTICE_KEY, STALE_TEXT, 'session'); link = null;
+  reload();
+  return false;
+}
+
+// What next-steps.js gets: the page's tables, the link's client and records (read when used, never copied),
+// and this file's own wording for the bill and the floor.
+export let nextSteps = null; // tests: the promise of the last mount
+export const nextStepsContext = ctx => ({ page: ctx, backend: () => backend, records: () => link?.results || [], lib: { billHead, geometryWords, unitName } });
+// Called once by workspace.js with its data tables (mutated in place) and a few of its functions.
+export function bind(ctx) {
+  page = ctx; backend = new Backend(config().api);
+  for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
+  for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
+  const S = ctx.S(), L = boot.link, notice = boot.notice; boot = { link: null, notice: null };
+  let back = false;
+  if (L) {
+    try { back = restore(S, L); } catch (e) { console.warn(`live mode: the saved session could not be rebuilt (${e?.message}); starting clean`); }
+    if (!back) { // never half restored
+      for (const t of [ctx.POOL, ctx.CAT, ctx.FIRST, ctx.FILL]) t.length = 0;
+      for (const t of [ctx.P, ctx.D, ctx.C, ctx.SPACE_NOTES]) for (const k of Object.keys(t)) delete t[k];
+      kv.del(LINK_KEY); kv.del(PAGE_KEY); resetState(S); backend = new Backend(config().api); link = null; searched = false; lastSearchKey = null;
+    }
+  }
+  if (!back) { S.slots = [null, null, null, null]; link = null; searched = false; lastSearchKey = null; }
+  if (back) verifyRestored(L);
+  if (notice) { kv.del(NOTICE_KEY, 'session'); setTimeout(() => page?.note(page.esc(notice)), 0); }
+  viewerElements(); waitStyle(); cardStyle(); watchPage();
+  import('./furniture.js').then(m => { nominalSize = typeof m.nominalSize === 'function' ? m.nominalSize : null; }, () => {}); // optional: the tooltip's nominal sizes
+  // The last stage, after Furnish (next-steps.js): what was chosen, an approved simulated call, the simulated
+  // payments. Optional: without the file, or if it fails, the page ends at Furnish as before.
+  nextSteps = import('./next-steps.js').then(m => m.mount?.(nextStepsContext(ctx)) ?? null).catch(e => { console.warn(`next steps did not load (${e?.message}); the page ends at Furnish`); return null; });
+  if (config().talk) voiceElements(); // never in plain live mode (the owner, 07:32Z: voice only on a call to the property)
+}
+const markers = {};
+function addPin(p) {
+  const map = page.map();
+  if (!map || !window.maplibregl || page.pins[p.id]) return; // no map: the page's renderMap() returns early
+  const wrap = document.createElement('div'), el = document.createElement('button');
+  el.type = 'button'; el.setAttribute('aria-label', p.address); el.dataset.property = p.id; el.onclick = () => page.selectSpace(p.id);
+  wrap.append(el); page.pins[p.id] = el; // renderMap() styles every POOL entry's pin, so one exists even without coordinates
+  if (typeof p.lat === 'number' && typeof p.lon === 'number') markers[p.id] = new window.maplibregl.Marker({ element: wrap }).setLngLat([p.lon, p.lat]).addTo(map);
+}
+function dropPin(id) { markers[id]?.remove(); page.pins[id]?.parentElement?.remove?.(); delete markers[id]; delete page.pins[id]; } // also a marker the page itself made after a reload
+// The text of an empty card frame (workspace.js renderStrip): nothing before a search has answered, and
+// nothing between the answer and the page's first cards (the page draws them about a second later, and
+// until then every frame is empty: "No more spaces fit" would be false of a search that found some).
+let framesSettled = false;
+const stripFrames = () => [...(globalThis.document?.querySelectorAll?.('#strip .frame') || [])];
+// The page has drawn what the search found: a card is in the strip, or nothing fits (no card will come),
+// or there is no strip to draw in. The page's own slots count as drawn: it fills them and draws in the same
+// step, frame by frame, so on a reload an empty frame that comes before the first card is asked for its text
+// while no frame has its card yet (review of web-link-12: that frame stayed blank after a reload).
+const cardsDrawn = () => { const f = stripFrames(); return !f.length || f.some(el => el.dataset?.id) || !!page?.S?.()?.slots?.some?.(Boolean) || (typeof page?.fits === 'function' && !page.fits().length); };
+export const emptyFrame = () => (searched && (framesSettled || (framesSettled = cardsDrawn())) ? 'No more spaces fit' : '');
+// After a search's answer: the frames that stay empty get their text once the cards are in (the page
+// rewrites a frame only when its listing changes, so a frame that stays empty is written here).
+let settling = 0;
+function settleFrames(n = ++settling, tries = 100) {
+  if (n !== settling) return; // a newer search took over
+  const text = emptyFrame();
+  for (const el of stripFrames()) if (!el.dataset?.id && el.textContent !== text) el.textContent = text;
+  if (!text && tries > 0) setTimeout(() => settleFrames(n, tries - 1), 100)?.unref?.(); // unref: Node only
+}
+// Stage 1: after each search-stage answer. Replaces the listing pool with the backend's results.
+let waitNoted = false;
+// One search at a time: the page's inline answer edit (workspace.js line 332) is not guarded by its
+// `busy` flag, so a second search could start while the first is still creating the project.
+let queue = Promise.resolve();
+// A search started by a sent message runs while the page's `busy` flag is set: turn() returned null for
+// it and the page called search() in the same synchronous run (send -> discoverTurn -> research).
+let inSend = false;
+export function search(S) { const fromSend = inSend, run = queue.then(() => searchNow(S, fromSend)); queue = run.catch(() => {}); return run; }
+async function searchNow(S, fromSend = false) {
+  if (!S.req.business) return; // nothing to search for until the business is known
+  if (!roomsKnown(S.req)) { // said once, not after every answer
+    if (!waitNoted) { waitNoted = true; page.note(page.esc('Live results start once you have said how many rooms you need.')); }
+    return;
+  }
+  // Nothing the backend is asked has changed (the opening date and the area are the page's own): no second search.
+  const key = JSON.stringify([profileFromAnswers(S.req), searchBody(S.req)]);
+  if (key === lastSearchKey && page.POOL.length) return;
+  backend.lastRooms = Number.isInteger(S.req.rooms) ? { treatment: S.req.rooms, reception: 1, storage: 1 } : null;
+  let results;
+  const end = waiting('search', { composer: fromSend });
+  try { results = await backend.search(S.req); end(true); } catch (e) { end(); page.note(page.esc(`Live search failed: ${e.message}`)); return; } finally { end(); voiceRefresh(); }
+  const index = await localPlaces();
+  // A slug is used only when exactly one listing of this result has that suite scan.
+  const hits = results.map(r => localMatch(r.rec, index)), uses = x => hits.filter(h => h?.slug === x).length;
+  const locals = hits.map(h => (h && uses(h.slug) === 1 ? h : null));
+  fill(S, results, locals, true);
+  searched = true; lastSearchKey = key;
+  framesSettled = false; settleFrames(); // empty frames say nothing until the first cards are drawn
+  link = { v: LINK_VERSION, api: backend.api, project: backend.project, profileKey: backend.profileKey, lastRooms: backend.lastRooms, searchKey: key, results: results.map(r => ({ rec: r.rec, assessments: r.assessments })), scenarios: results[0]?.scenarios || [], locals, layouts: {}, at: new Date().toISOString() };
+  persist();
+  // What the page will show, by its own rule (fits and minSqft come from workspace.js through bind()).
+  const msg = searchNote(page.POOL, typeof page.fits === 'function' ? { shown: page.fits(), min: page.minSqft?.() } : null);
+  const order = typeof page.fits === 'function' ? orderNote(page.fits()) : '';
+  if (msg) page.note(page.esc([msg, order].filter(Boolean).join(' ')));
+}
+// What order the cards come in (the backend's ranking; the page shows four at a time and never reorders),
+// and where a listing with a scan of its own suite is when it is not among the first four.
+export function orderNote(shown) {
+  if (!Array.isArray(shown) || shown.length <= 4) return '';
+  const far = shown.map((p, i) => ({ p, i })).filter(x => x.p.live?.scan && x.i >= 4);
+  const where = far.map(x => `${x.p.address}${x.p.live.unit ? `, ${x.p.live.unit}` : ''} (number ${x.i + 1} of ${shown.length})`);
+  return `The cards come in the backend’s ranking order, four at a time; dismissing one brings the next.${where.length ? ` With a 3D scan of its own suite: ${where.join('; ')}.` : ''}`;
+}
+// The backend's results into the page's tables (after a search, and from the stored link on a reload).
+function fill(S, results, locals, pins) {
+  const { POOL, P, D, FILL, SPACE_NOTES } = page;
+  const entries = results.map((r, i) => { const p = poolEntry(r.rec, backend.api); if (p.zone == null) openArea(p, () => page.S().req.zones); return locals[i] ? withLocal(p, locals[i]) : p; });
+  for (const id of Object.keys(P)) if (!entries.some(p => p.id === id)) { dropPin(id); delete P[id]; }
+  POOL.length = 0; FILL.length = 0;
+  for (const [i, { rec, assessments, scenarios }] of results.entries()) {
+    const p = entries[i]; POOL.push(p); P[p.id] = p; FILL.push(p.id);
+    D[p.src] = { ...detailEntry(rec, assessments, scenarios), photos: p.live.images.length ? p.live.images : ['none'] };
+    SPACE_NOTES[p.id] = spaceNotes(rec, backend.api, p.live.local || null); if (pins) addPin(p);
+  }
+  disambiguate(POOL);
+  // Remove saved or shown ids the backend no longer returns (the page would look them up and fail).
+  S.slots = S.slots.map(id => (id && P[id] ? id : null));
+  S.saved = S.saved.filter(id => P[id]); if (S.open && !P[S.open]) S.open = null;
+}
+// A fetched layout into the page's tables: the plan, the rooms, the bill's catalog and the sketch mark.
+function applyLayout(p, d, out) {
+  const { plan, rooms, outline } = roomsFrom(out.layout, out.geometry), cat = catalogFrom(out.bom, rooms), sketch = sketchOf(out.layout, out.geometry, p, out.bom);
+  Object.assign(d, { plan, rooms, outline, bom: cat, sketch, geometry: { source: out.geometry.geometry_source, data_origin: out.geometry.data_origin, scale_verified: out.geometry.scale_verified } });
+  for (const c of cat.cat) if (!page.C[c.id]) { page.CAT.push(c); page.C[c.id] = c; }
+  return { cat, sketch };
+}
+// Stage 3: before the Furnish stage opens. False keeps the page in Compare.
+export async function furnish(S) {
+  const p = page.P[S.finalist], d = page.D[p?.src];
+  if (!p || !d) return false;
+  if (!d.rooms.length) {
+    let out;
+    const end = waiting('layout');
+    try { out = await backend.layout(p.live?.property_id ?? p.id); end(true); } catch (e) {
+      end();
+      const r = layoutResult(e, p);
+      if (r) resultCard(r); else page.note(page.esc(`No layout for ${p.address}: ${e.message}`));
+      return false; // the page stays in Compare; a later try (new rooms) asks again
+    } finally { end(); }
+    const { cat, sketch } = applyLayout(p, d, out), g = out.geometry;
+    if (link) { link.layouts[p.live?.property_id ?? p.id] = out; persist(); } // kept for a reload
+    page.note(page.esc(`Layout version ${out.layout.version_number} for ${p.address}: ${out.layout.approval_status.toLowerCase()}, ${out.layout.validation_report?.disclaimer || 'not an approved plan'} ${sketch ? [sketch.label, sketch.detail, sketch.bill].filter(Boolean).join(' ') : `Floor geometry: ${geometryWords(g)}.`} Room minimums used: demo defaults (treatment 10 m² and 2.8 m wide, reception 12 m², storage 4 m²), not your answers. Bill of materials ${words(cat.status)}: ${cat.cat.length} item types, prices: ${[...new Set((out.bom.items || []).map(i => priceWords(i.price_origin)))].join('; ') || 'none'}.`));
+  }
+  // Only here, with a layout in hand, does the list of placed pieces change: a failed request above has
+  // left another listing's pieces alone (the page's explore() clears nothing in live mode any more).
+  if (S.chosen !== S.finalist) { S.placed = d.bom.placed.map(x => ({ ...x })); S.hist = []; S.room = S.sel = null; S.chosen = S.finalist; }
+  else if (!S.placed.length) S.placed = d.bom.placed.map(x => ({ ...x }));
+  ownerTexts();
+  return true;
+}
+/* ------------------------------- a layout that does not fit (web-link-7) */
+// The backend's own words (DesignService infeasible_message, services/design.rs). Parsed only to lay
+// the figures out; every figure is the message's own text, never computed, rounded or converted.
+const INFEASIBLE = /^No layout fits the measured floor: the floor is (\S+) m2 and (its largest rectangular area is (\S+ x \S+ m = \S+ m2)|the size of its largest rectangular area is unknown|it has no rectangular area of at least \S+ m2); the room program needs (\S+) room\(s\), at least (\S+ m2) in all plus circulation, with minimum room widths up to (\S+ m)\. Solver: (.*)\. No layout was stored\.$/s;
+export const NO_FIT_OPTIONS = 'Options: fewer or smaller rooms, or another listing.';
+const NO_GEOMETRY = /no measured geometry available/i;
+export const NO_GEOMETRY_TEXT = 'No layout yet for this listing: there is no 3D scan of this suite to measure the floor from.';
+// A failed layout task -> the result the owner reads, or null (any other failure keeps its note).
+export function layoutResult(e, p) {
+  const own = !!p?.live?.floor_is_suite;
+  const floor = own ? 'the measured floor of this suite (Matterport scan)' : 'the floor geometry the backend has for this listing (the answer does not say which scan it comes from; it may not be this suite’s own)';
+  if (e?.no_layout) return { kind: 'none', heading: `No layout for this ${own ? 'suite' : 'listing'}`, lines: [], reasons: [], tail: [`The backend returned no layout for this ${own ? 'suite' : 'listing'} and gave no reason.`] };
+  // A backend without a floor for a listing that has no scan of its own suite: a plain result, nothing drawn.
+  if (e?.error_code === 'GEOMETRY_UNAVAILABLE' || NO_GEOMETRY.test(String(e?.error_message ?? '') + ' ' + String(e?.message ?? ''))) {
+    return { kind: 'no-geometry', heading: NO_GEOMETRY_TEXT, lines: [], reasons: [], tail: ['Nothing was drawn or estimated, and no layout was stored.', ...(p?.live?.interior?.scope === 'building' ? ['The 3D tour view shows another space in this building, under its own label.'] : [])] };
+  }
+  if (e?.error_code !== 'LayoutInfeasibleError') return null;
+  const msg = String(e.error_message ?? ''), m = INFEASIBLE.exec(msg);
+  // The rooms did not fit a floor assumed from the listed area (layout-estimate-1): no scan is named or implied.
+  if (/^No layout fits the assumed floor\b/.test(msg)) return { kind: 'assumed', heading: 'The rooms do not fit a floor assumed from the listed area', lines: [['Floor', 'an assumed rectangle on the listing’s stated area, not measured: this suite has no 3D scan of its own'], ['The backend said', msg]], reasons: [], tail: [NO_FIT_OPTIONS] };
+  const heading = own ? 'The rooms do not fit this suite’s measured floor' : 'The rooms do not fit the floor geometry the backend has for this listing';
+  if (!m) return { kind: 'unparsed', heading, lines: [['Floor', floor], ['The backend said', msg.trim() ? msg : '(no message: the backend gave no details)']], reasons: [], tail: [NO_FIT_OPTIONS] };
+  const rect = m[3] ? m[3] : m[2].startsWith('the size') ? 'size unknown (the backend could not compute it)' : m[2].replace(/^it has /, '');
+  return { kind: 'infeasible', heading, lines: [
+    ['Floor', floor],
+    ['Measured floor area', `${m[1]} m2`],
+    ['Largest rectangular area', rect],
+    ['Rooms needed', `${m[4]} room(s), at least ${m[5]} in all plus circulation`],
+    ['Minimum room width', `up to ${m[6]}`],
+  ], reasons: m[7].split('; ').filter(Boolean), tail: ['No layout was stored.', NO_FIT_OPTIONS] };
+}
+// The result as its own element in the chat log (text only), before a pending wait if there is one.
+export function resultCard(r) {
+  const log = logEl(); if (!log) return null;
+  const box = mk('div', 'live-result'); box.setAttribute('role', 'status');
+  box.append(mk('p', 'live-result-head', r.heading));
+  for (const [k, v] of r.lines) { const line = mk('p', 'live-result-line'); line.append(mk('span', 'live-result-label', k + ': '), mk('span', null, v)); box.append(line); }
+  if (r.reasons.length) {
+    box.append(mk('p', 'live-result-label', 'Solver:'));
+    const ul = mk('ul', 'live-result-reasons'); for (const x of r.reasons) ul.append(mk('li', null, x)); box.append(ul);
+  }
+  for (const x of r.tail) box.append(mk('p', 'live-result-line', x));
+  const wait = log.children ? [...log.children].find(c => c.className === 'live-wait') : null;
+  if (wait && log.insertBefore) log.insertBefore(box, wait); else log.append(box);
+  keepInView(log);
+  return box;
+}
+
+const shown = new Set();
+async function ownerTexts() {
+  let list;
+  try { list = ownerTextNotes(await backend.communications()); } catch { return; }
+  for (const t of list) if (!shown.has(t.id)) {
+    shown.add(t.id);
+    page.note(`<b>Owner’s text message</b> (owner-reported; not applied to the layout, and it cannot approve anything): ${page.esc(t.text)}`);
+  }
+}
+// Typed or chosen chat text. Null lets the page handle it (the search questions and the page's own
+// navigation commands); everything else goes to the project chat.
+// discover: the page's own answer edits after the questions (rent, rooms, area, opening) re-run the live search.
+const PAGE_COMMANDS = { discover: /look into|compare|closer|ready|go ahead|\$|rent|budget|month|room|downtown|west|east|valley|anywhere|open/i, compare: /anyway|layout|try|choose|go with|pick|sign/i, furnish: /^$/ };
+// Internal record ids never reach the person: before an assistant reply is shown, UUIDs go, and so does
+// a bracket that holds nothing but ids and their labels ("(property <uuid>; ranking <uuid>)"). The
+// second line of defence; the assistant's own facts are cleaned at the source.
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const ID_WORD = '(?:property|ranking|project|scenario|cost[ _-]?scenario|layout|design[ _-]?version|version|geometry|site[ _-]?geometry|task|listing|evidence|assessment|permit|communication|bom|asset|record|internal)';
+const ID_LABEL = `(?:${ID_WORD}(?:[ _-]?ids?)?|ids?|uuids?)`;
+const RE_UUID = new RegExp('[`\'"]?\\b' + UUID + '\\b[`\'"]?', 'gi');
+const RE_LABELLED = new RegExp(`(^|[(\\[]\\s*|[,;:]\\s*|\\s[–—-]\\s*|\\s)(${ID_LABEL})\\s*[:=#]?\\s*[\`'"]?\\b${UUID}\\b[\`'"]?`, 'gim');
+const RE_LABEL_WORDS = new RegExp(`\\b${ID_LABEL}\\b|\\band\\b`, 'gi');
+export const ONLY_IDS_TEXT = 'The assistant’s reply held only internal record ids, which are not shown.';
+export function cleanReply(text) {
+  const raw = String(text ?? '');
+  const idsOnly = inner => new RegExp(UUID, 'i').test(inner) && !inner.replace(RE_UUID, '').replace(RE_LABEL_WORDS, '').replace(/[\s:;,=#|/&.·-]/g, '');
+  let s = raw.replace(/[ \t]*(\(([^()]*)\)|\[([^[\]]*)\])/g, (m, _b, a, b) => (idsOnly(a ?? b) ? '' : m));
+  // "property_id: <uuid>", "id <uuid>": label and id go. A plain noun before an id ("the property <uuid> is…") keeps the noun.
+  s = s.replace(RE_LABELLED, (m, lead, label) => {
+    if (/^[(\[]/.test(lead)) return lead.trim(); // inside a bracket that says more: only the id and its label go
+    if (/^\s?[,;:–—-]/.test(lead)) return ''; // ", property <uuid>": the whole aside goes
+    return /(ids?|uuids?)$/i.test(label) ? '' : lead + label; // "the property <uuid> is…" keeps its noun
+  });
+  s = s.replace(RE_UUID, '');
+  s = s.replace(/([(\[])\s*[;,:]+\s*/g, '$1').replace(/\s*[;,:]+\s*([)\]])/g, '$1').replace(/[ \t]*(\(\s*\)|\[\s*\])/g, '').replace(/[ \t]+([,.;:!?)\]])/g, '$1').replace(/([(\[])[ \t]+/g, '$1').replace(/[,;:]+(?=[.;!?])/g, '').replace(/([,;:])(?:\s*[,;:])+/g, '$1').replace(/[ \t]{2,}/g, ' ').replace(/[ \t]*[,;:–—-]?[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  return s || (raw.trim() ? ONLY_IDS_TEXT : '');
+}
+// Compare's quick reply "Ask the broker" (workspace.js go()). In live mode the words are never sent to the
+// assistant as chat: asking the contact is the last stage's second card, by the owner's own approval there.
+// A listing with a layout: the last stage opens for it, through the page's own "Try a layout" (no request
+// for a listing that has its layout) and the stage's own open(). Without one: one plain line.
+export const ASK_BROKER = /^\s*ask the broker\s*[.!?]*\s*$/i;
+export const ASK_TEXT = {
+  noLayout: 'Asking this listing’s contact comes after “Try a layout”: it is in Next steps, which opens once this listing has a layout.',
+  notOpened: 'Asking this listing’s contact is in Next steps, after Furnish; it could not be opened from here.',
+};
+async function askBroker() {
+  const at = () => { const S = page.S(), p = page.P[S.finalist]; return { S, p, d: page.D[p?.src] }; };
+  const { p, d } = at();
+  if (!p?.live || !d?.rooms?.length) { page.note(page.esc(ASK_TEXT.noLayout)); return; }
+  const ns = await nextSteps, there = () => { const { S } = at(); return S.stage === 'furnish' && S.chosen === S.finalist; };
+  if (ns && !there()) globalThis.document?.querySelector?.('#vextra [data-act=explore]')?.click();
+  for (let i = 0; ns && i < 40 && !there(); i++) await new Promise(r => setTimeout(r, 50));
+  if (ns && there()) { ns.open(); if (ns.state?.open) return; }
+  page.note(page.esc(ASK_TEXT.notOpened));
+}
+export function turn(stage, text, S, steps) {
+  if (stage === 'compare' && ASK_BROKER.test(text)) return askBroker();
+  if ((stage === 'discover' && S.step < steps) || PAGE_COMMANDS[stage].test(text)) { // the page handles it, still inside its send()
+    inSend = true; queueMicrotask(() => { inSend = false; }); return null;
+  }
+  return (async () => {
+    if (!backend.project) { page.note('The assistant is not connected until the search has created a project.'); return; }
+    const end = waiting('chat', { composer: true });
+    try {
+      const out = await backend.chat(text, chatContext(S, page.P)); end(true);
+      page.a(`${page.esc(cleanReply(out.reply)).replace(/\n/g, '<br>')}<br><small>${out.mode === 'deterministic' ? 'Deterministic engine, no model configured' : 'Assistant'} · from the backend</small>`);
+    } catch (e) { end(); page.note(page.esc(chatFailure(e))); } finally { end(); }
+  })();
+}
+
+/* --------------------------------------------- the AI session card (web-link-8) */
+// One card for an AI session (a call to the property in #findings, or the ?talk=1 conversation in #log).
+// Laid out by the page's flow only: no fixed/absolute/sticky position, no negative margin, no z-index.
+// The transcript part has a bounded height and scrolls inside the card.
+export const CARD_STYLE = `.live-card { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; margin: 0 0 var(--space-6); padding: var(--space-3) var(--space-4) var(--space-4); border-radius: 12px; background: var(--tint); font-size: 14px; line-height: 1.45; color: var(--ink2); overflow-wrap: anywhere; }
+.live-card p { margin: 0; }
+.live-card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+.live-card-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.live-card-body { display: flex; flex-direction: column; gap: var(--space-2); }
+.live-card-log { display: flex; flex-direction: column; gap: var(--space-2); max-height: min(40vh, 320px); overflow-y: auto; overscroll-behavior: contain; padding-right: var(--space-1); }
+.live-card-log:empty { display: none; }
+#log > .live-card { align-self: stretch; margin: 0; }`;
+function cardStyle() {
+  const doc = globalThis.document, at = doc?.head || doc?.documentElement;
+  if (!at || doc.getElementById?.('live-card-style')) return;
+  const s = doc.createElement('style'); s.id = 'live-card-style'; s.textContent = CARD_STYLE; at.append(s);
+}
+const hasClass = (n, c) => String(n?.className || '').split(' ').includes(c);
+// Builds a card: head (title), body (status lines), log (the bounded transcript).
+export function makeCard(id, title) {
+  const doc = globalThis.document, card = doc.createElement('section'); card.id = id; card.className = 'live-card';
+  card.setAttribute('aria-label', title);
+  const head = doc.createElement('div'); head.className = 'live-card-head';
+  const h = doc.createElement('h3'); h.textContent = title; head.append(h);
+  const body = doc.createElement('div'); body.className = 'live-card-body';
+  const log = doc.createElement('div'); log.className = 'live-card-log'; log.setAttribute('role', 'log');
+  card.append(head, body, log);
+  return { card, head, body, log };
+}
+// Keeps one card element in place inside a container the page re-renders (#findings: renderFindings
+// replaces its innerHTML) or appends to (#log). `inPlace(parent, card)` says whether it already is;
+// `place(parent, card)` puts it there. The observer only re-inserts when the card is not in place, and
+// drops its own insert's records (takeRecords), so its own mutation never triggers another insert.
+// The transcript's scroll position, the container's scroll position and the focus inside the card
+// are put back after the insert. Returns stop() (disconnects; the card is removed by its owner).
+export function keepCard(parent, card, { place, inPlace, scrollers = [] }) {
+  const doc = globalThis.document, saved = new Map(), keep = el => saved.set(el, el.scrollTop || 0);
+  for (const el of [parent, ...scrollers]) { keep(el); el.addEventListener?.('scroll', () => keep(el), { passive: true }); }
+  let focus = null;
+  card.addEventListener?.('focusin', e => { focus = e.target; });
+  // Focus that leaves the card by the person's own act is forgotten (to another element, or to nothing while the
+  // card is still in the page); focus lost because the page took the card out is kept, to be put back.
+  card.addEventListener?.('focusout', e => { if (e.relatedTarget ? !card.contains?.(e.relatedTarget) : card.isConnected === true) focus = null; });
+  const put = () => {
+    if (inPlace(parent, card)) return false;
+    const out = ![...(parent.children || [])].includes(card), pScroll = saved.get(parent) ?? 0;
+    place(parent, card);
+    for (const el of scrollers) el.scrollTop = saved.get(el) ?? 0;
+    // Taken out by a re-render: the page restored its own value while the card was out (it may have been clamped).
+    // Only moved (the page appended after it, #log): the page's own scroll to its newest message stands.
+    if (out) parent.scrollTop = pScroll;
+    const act = doc?.activeElement;
+    if (focus && (!act || act === doc.body || act === doc.documentElement) && card.contains?.(focus)) focus.focus?.({ preventScroll: true });
+    return true;
+  };
+  put();
+  const MO = globalThis.MutationObserver;
+  if (!MO) return { put, stop() {} };
+  const mo = new MO(() => { if (put()) mo.takeRecords(); });
+  mo.observe(parent, { childList: true });
+  return { put, stop() { mo.disconnect(); } };
+}
+// #live-call: inside #findings, directly under the issue list of "Before you sign" (above "What it
+// takes to open"). Absent while there is no call. The call flow (part 3, a later commission) fills it.
+export const afterIssues = {
+  inPlace: (f, card) => { const k = [...f.children], i = k.indexOf(card), at = k.findIndex(x => hasClass(x, 'issues')); return i >= 0 && (at < 0 || i === at + 1); },
+  place: (f, card) => { const iss = [...f.children].find(x => hasClass(x, 'issues')); if (iss?.after) iss.after(card); else if (iss) { card.remove?.(); f.insertBefore(card, iss.nextSibling); } else f.append(card); },
+};
+let liveCall = null;
+export function openLiveCall(title) {
+  const f = globalThis.document?.getElementById?.('findings');
+  if (!f) return null;
+  if (liveCall) return liveCall;
+  cardStyle();
+  const c = makeCard('live-call', title);
+  liveCall = { ...c, keeper: keepCard(f, c.card, { ...afterIssues, scrollers: [c.log] }) };
+  return liveCall;
+}
+export function closeLiveCall() { if (!liveCall) return; liveCall.keeper.stop(); liveCall.card.remove(); liveCall = null; }
+// The ?talk=1 card: the last thing in the conversation (#log), only waiting boxes after it.
+const atLogEnd = {
+  inPlace: (log, card) => { const k = [...log.children], i = k.indexOf(card); return i >= 0 && k.slice(i + 1).every(x => hasClass(x, 'live-wait')); },
+  place: (log, card) => { const w = [...log.children].find(x => hasClass(x, 'live-wait')); if (w && log.insertBefore) log.insertBefore(card, w); else log.append(card); },
+};
+
+/* --------------------------------------------- voice: talk to the assistant (web-link-6) */
+
+// One spoken conversation with the assistant through xAI's realtime voice, grounded in this project's
+// records by the backend (POST …/voice/session), with no tools: it cannot act. The page holds the
+// short-lived secret for one WebSocket open and drops it. Live mode only (bind() makes the control).
+// Event names and fields: xAI's realtime reference (orchestrator/reports/voice-1.md and voice-2.md).
+export const VOICE = {
+  talk: 'Talk to the assistant', stop: 'Stop',
+  speaker: 'Voice assistant (automated)', owner: 'You (spoken)',
+  consent: 'Starting a voice conversation sends this project’s records to xAI, and your microphone’s audio goes to xAI while the conversation is open.',
+  noProject: 'Voice is not connected until the search has created a project.',
+  listening: 'Listening. Speak when you are ready; the assistant answers when you pause.',
+  disclosing: 'The assistant is saying what it is. Your microphone is not sent until it has finished.',
+  capMs: 5 * 60 * 1000, hiddenMs: 30 * 1000, rate: 24000, chunk: 2400, // 100 ms of 24 kHz PCM16 per append
+};
+export const VOICE_END = {
+  stop: 'Voice conversation ended: you stopped it. The microphone is off.',
+  closed: 'Voice conversation ended: the connection to xAI closed. The microphone is off.',
+  error: 'Voice conversation ended: the connection to xAI failed. The microphone is off.',
+  expired: 'Voice conversation not started: its one-time key expired before the connection opened. The microphone is off; try again.',
+  hidden: 'Voice conversation ended: the page was hidden for 30 seconds. The microphone is off.',
+  cap: 'Voice conversation ended at its five-minute limit (xAI charges for voice by the minute). The microphone is off; start a new one if you need more.',
+  provider: m => `Voice conversation ended: xAI ended it (${m}). The microphone is off.`,
+  undisclosed: 'Voice conversation ended: the assistant did not finish saying what it is, so your microphone was never sent. The microphone is off; try again.',
+  noMic: 'This browser gives the page no microphone, so no voice conversation was started.',
+  denied: 'The microphone was not allowed, so no voice conversation was started.',
+  micFailed: n => `The microphone could not be opened (${n}), so no voice conversation was started.`,
+  noAudio: 'This browser cannot play the assistant’s voice here (no Web Audio), so no voice conversation was started.',
+  bad: 'Voice conversation not started: the backend’s answer was incomplete. Nothing was sent to xAI.',
+};
+WAIT_TEXT.voice = { verb: 'Connecting…', what: 'Asking the backend for a voice session, then connecting to xAI. The assistant first says what it is.', earlier: 'connections', composer: 'Waiting for the voice connection…' };
+took.voice = [];
+// A failed POST …/voice/session in plain words (one note; a retry is offered only when retryable).
+export function voiceFailure(e) {
+  const m = typeof e?.data?.message === 'string' ? e.data.message : '';
+  if (e?.status === 404) return 'Voice is not available on this backend yet (it has no voice route). Nothing was sent to xAI.';
+  if (e?.status === 503) return `Voice is not available: ${m || 'the backend has no voice provider configured'}. Nothing was sent to xAI.`;
+  if (e?.status === 502) return `Voice is not available right now: ${m || 'the backend could not get a session from xAI'}. ${e?.data?.retryable === true ? 'You can try again.' : 'Trying again will not help until this is fixed.'}`;
+  if (e?.status === 0) return `Voice is not available: ${e.message}`;
+  return `Voice is not available: the backend answered ${e?.status ?? 'with an error'}${m ? ` (${m})` : ''}. Nothing was sent to xAI.`;
+}
+let venv = {};
+export function useVoiceEnv(e) { venv = e || {}; } // tests only: WebSocket, mediaDevices, AudioContext, AudioWorkletNode
+const V = k => venv[k] ?? (k === 'mediaDevices' ? globalThis.navigator?.mediaDevices : k === 'AudioContext' ? (globalThis.AudioContext || globalThis.webkitAudioContext) : globalThis[k]);
+const later = (fn, ms) => (clock.after ? clock.after(fn, ms) : setTimeout(fn, ms));
+const cancel = id => (clock.cancel ? clock.cancel(id) : clearTimeout(id));
+let voice = null, voiceRan = false, vui = null;
+export const voiceActive = () => !!voice; // tests only
+const VOICE_STYLE = `.live-voice { font-size: 13px; }
+.live-voice-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.live-voice-btn { font: inherit; font-weight: 500; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; }
+.live-voice-btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.live-voice-btn:disabled { opacity: .5; cursor: not-allowed; }
+.live-voice p { margin: 0; }
+.live-voice-banner { background: var(--tint); border-radius: 10px; padding: 8px 12px; }
+.live-voice-banner b { color: var(--ink); }
+.live-voice-turn { max-width: 92%; line-height: 1.5; overflow-wrap: anywhere; }
+.live-voice-turn.me { align-self: flex-end; color: var(--accent-ink); background: var(--accent-soft); padding: 8px 13px; border-radius: 13px 13px 4px 13px; }
+.live-voice-who { display: block; font-size: 12px; color: var(--ink3); }
+.live-voice-turn p { margin: 0; }
+.live-voice-claim { font-size: 13px; color: var(--ink3); }`;
+const mk = (tag, cls, text) => { const e = globalThis.document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+// The control under the composer, made once by bind() (only in live mode, only where the page has #chat).
+function voiceElements() {
+  const doc = globalThis.document, chat = doc?.getElementById?.('chat'), log = logEl();
+  if (!chat || !log || doc.getElementById('live-voice')) return;
+  const c = makeCard('live-voice', VOICE.speaker), box = c.card; box.className = 'live-card live-voice';
+  const row = mk('div', 'live-voice-row'), btn = mk('button', 'live-voice-btn', VOICE.talk);
+  btn.type = 'button'; btn.setAttribute('aria-pressed', 'false'); btn.onclick = () => voiceToggle();
+  const reason = mk('span', 'live-voice-reason');
+  row.append(btn, reason);
+  const consent = mk('p', 'live-voice-consent', VOICE.consent);
+  const banner = mk('div', 'live-voice-banner'); banner.hidden = true;
+  const head = mk('p'), title = mk('b', null, VOICE.speaker); head.append(title);
+  const label = mk('p', 'live-voice-label'), disclosure = mk('p', 'live-voice-disclosure'), data = mk('p', 'live-voice-data'), status = mk('p', 'live-voice-status');
+  banner.append(head, label, disclosure, data, status);
+  const note = mk('p', 'live-voice-note'); note.setAttribute('role', 'status'); note.hidden = true;
+  c.body.append(row, consent, banner, note);
+  keepCard(log, box, { ...atLogEnd, scrollers: [c.log] }); // inside the scrolling conversation: it cannot overflow its column
+  const at = doc.head || doc.documentElement;
+  if (at && !doc.getElementById('live-voice-style')) { const s = mk('style'); s.id = 'live-voice-style'; s.textContent = VOICE_STYLE; at.append(s); }
+  vui = { box, btn, reason, consent, banner, label, disclosure, data, status, note, turns: c.log };
+  voiceRefresh();
+}
+// The button and its reason while no conversation runs.
+function voiceRefresh() {
+  if (!vui || voice) return;
+  const ok = !!backend?.project;
+  vui.btn.textContent = VOICE.talk; vui.btn.setAttribute('aria-pressed', 'false'); vui.btn.disabled = !ok;
+  vui.reason.textContent = ok ? '' : VOICE.noProject;
+  vui.consent.hidden = voiceRan;
+}
+function voiceNote(text) { if (!vui) return; vui.note.textContent = text; vui.note.hidden = !text; }
+export function voiceToggle() { return voice ? voiceEnd(voice, VOICE_END.stop) : voiceStart(); }
+// Everything one conversation holds goes; safe to call again when something arrives late.
+function release(s) {
+  for (const id of s.timers) cancel(id); s.timers.length = 0;
+  if (s.onVis) { globalThis.document?.removeEventListener?.('visibilitychange', s.onVis); s.onVis = null; }
+  if (s.ws) { const ws = s.ws; s.ws = null; ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null; try { ws.close(); } catch { /* already closed */ } }
+  if (s.stream) { for (const t of s.stream.getTracks()) t.stop(); s.stream = null; }
+  flush(s);
+  for (const n of [s.micSrc, s.micNode]) { try { n?.disconnect(); } catch { /* gone */ } }
+  if (s.micNode?.port) s.micNode.port.onmessage = null;
+  if (s.micNode) s.micNode.onaudioprocess = null;
+  s.micSrc = s.micNode = null;
+  if (s.ctx) { const c = s.ctx; s.ctx = null; try { c.close(); } catch { /* closed */ } }
+}
+function voiceEnd(s, text) {
+  if (!s || s.ended) return;
+  s.ended = true; release(s); s.endWait?.();
+  if (voice === s) voice = null;
+  if (vui) { vui.banner.hidden = true; for (const k of ['label', 'disclosure', 'data', 'status']) vui[k].textContent = ''; }
+  voiceRefresh(); voiceNote(text);
+}
+async function voiceStart() {
+  if (voice || !vui) return;
+  if (!backend?.project) { voiceNote(VOICE.noProject); return; }
+  const s = voice = { ended: false, timers: [], ws: null, stream: null, ctx: null, playAt: 0, sources: [], firstDone: false, heard: false, entries: new Map(), pend: [], pos: 0 };
+  voiceNote('');
+  vui.btn.textContent = VOICE.stop; vui.btn.setAttribute('aria-pressed', 'true'); vui.btn.disabled = false; vui.reason.textContent = '';
+  vui.banner.hidden = false; vui.status.textContent = '';
+  s.endWait = waiting('voice');
+  s.timers.push(later(() => voiceEnd(s, VOICE_END.cap), VOICE.capMs));
+  // The audio context is made inside the click, before any await, so that autoplay rules allow it.
+  const AC = V('AudioContext');
+  if (!AC) return voiceEnd(s, VOICE_END.noAudio);
+  try { s.ctx = new AC({ sampleRate: VOICE.rate }); } catch { try { s.ctx = new AC(); } catch { return voiceEnd(s, VOICE_END.noAudio); } }
+  try { s.ctx.resume?.()?.catch?.(() => {}); } catch { /* resumed later by the browser */ }
+  const md = V('mediaDevices');
+  if (!md?.getUserMedia) return voiceEnd(s, VOICE_END.noMic);
+  try { s.stream = await md.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false }); } catch (e) {
+    return voiceEnd(s, e?.name === 'NotAllowedError' || e?.name === 'SecurityError' ? VOICE_END.denied : VOICE_END.micFailed(e?.name || 'error'));
+  }
+  if (s.ended) return release(s); // stopped while the browser asked: the late stream is stopped too
+  let out;
+  try { out = await backend.req('POST', backend.p('/voice/session'), { mode: 'assistant' }); } catch (e) { return voiceEnd(s, voiceFailure(e)); }
+  if (s.ended) return;
+  let claim = null;
+  try { claim = new RegExp(out.claim_pattern, 'i'); } catch { claim = null; }
+  let url = null;
+  try { url = new URL(out.websocket_url); } catch { url = null; }
+  if (!out || url?.protocol !== 'wss:' || typeof out.client_secret !== 'string' || !out.client_secret || !out.session_update || !out.disclosure_event || !claim || typeof out.disclosure !== 'string' || typeof out.label !== 'string') return voiceEnd(s, VOICE_END.bad);
+  vui.label.textContent = out.label; vui.disclosure.textContent = out.disclosure;
+  vui.data.textContent = typeof out.data_notice === 'string' ? out.data_notice : '';
+  vui.status.textContent = VOICE.disclosing;
+  Object.assign(s, { claim, notice: String(out.no_action_notice || '') });
+  const left = Date.parse(out.expires_at) - Date.now();
+  if (!(left > 0)) return voiceEnd(s, VOICE_END.expired);
+  const first = [JSON.stringify(out.session_update), JSON.stringify(out.disclosure_event)];
+  const WS = V('WebSocket');
+  try { s.ws = new WS(out.websocket_url, ['xai-client-secret.' + out.client_secret]); } catch { return voiceEnd(s, VOICE_END.error); } finally { out.client_secret = null; out = null; } // the secret is used once and dropped
+  const openBy = later(() => { if (!s.opened) voiceEnd(s, VOICE_END.expired); }, left);
+  s.timers.push(openBy);
+  s.ws.onopen = () => { s.opened = true; voiceRan = true; for (const m of first) s.ws.send(m); };
+  s.ws.onmessage = ev => { try { onVoiceEvent(s, ev.data); } catch { voiceEnd(s, VOICE_END.error); } }; // a fault here never leaves the mic open
+  s.ws.onclose = () => voiceEnd(s, VOICE_END.closed);
+  s.ws.onerror = () => voiceEnd(s, VOICE_END.error);
+  s.onVis = () => {
+    if (globalThis.document?.visibilityState === 'hidden') { if (!s.hiddenTimer) { s.hiddenTimer = later(() => voiceEnd(s, VOICE_END.hidden), VOICE.hiddenMs); s.timers.push(s.hiddenTimer); } }
+    else if (s.hiddenTimer) { cancel(s.hiddenTimer); s.timers.splice(s.timers.indexOf(s.hiddenTimer), 1); s.hiddenTimer = null; }
+  };
+  globalThis.document?.addEventListener?.('visibilitychange', s.onVis);
+}
+function onVoiceEvent(s, raw) {
+  if (s.ended) return;
+  let e; try { e = JSON.parse(raw); } catch { return; }
+  switch (e?.type) {
+    case 'response.output_audio.delta': if (typeof e.delta === 'string') play(s, e.delta); break;
+    case 'response.output_audio_transcript.delta': entry(s, 'a', e.item_id, (entryText(s, 'a', e.item_id) || '') + String(e.delta ?? ''), false); break;
+    case 'response.output_audio_transcript.done': entry(s, 'a', e.item_id, typeof e.transcript === 'string' ? e.transcript : entryText(s, 'a', e.item_id) || '', true); break;
+    case 'conversation.item.input_audio_transcription.updated': entry(s, 'u', e.item_id, String(e.transcript ?? ''), false); break;
+    case 'conversation.item.input_audio_transcription.completed': entry(s, 'u', e.item_id, String(e.transcript ?? ''), true); break;
+    case 'input_audio_buffer.speech_started': if (s.firstDone) flush(s); break; // the owner speaks: the queued answer stops
+    case 'response.done':
+      if (!s.firstDone && e.response?.status && e.response.status !== 'completed') { voiceEnd(s, VOICE_END.undisclosed); break; } // cancelled or incomplete: the disclosure was not spoken whole
+      if (!s.firstDone) { s.firstDone = true; if (vui) vui.status.textContent = VOICE.listening; startMic(s); }
+      break;
+    case 'error': {
+      const k = e.error?.type, m = String(e.error?.message || k || 'no reason given');
+      if (k === 'timeout' || k === 'max_duration') voiceEnd(s, VOICE_END.provider(m)); else voiceNote(`xAI reported a problem: ${m}`);
+      break;
+    }
+    default: break;
+  }
+}
+// The log entries of this conversation (page elements of this file; they do not survive a reload).
+const entryText = (s, who, id) => s.entries.get(who + ':' + id)?.text.textContent;
+function entry(s, who, id, text, done) {
+  const log = vui?.turns; if (!log) return; // the card's own bounded transcript
+  const key = who + ':' + id;
+  let x = s.entries.get(key);
+  if (!x) {
+    const box = mk('div', 'live-voice-turn' + (who === 'u' ? ' me' : '')), name = mk('span', 'live-voice-who', who === 'u' ? VOICE.owner : VOICE.speaker), p = mk('p', 'live-voice-text');
+    box.append(name, p); x = { box, text: p, done: false }; s.entries.set(key, x);
+    log.append(box);
+  }
+  if (x.done) return;
+  x.text.textContent = text;
+  if (done) {
+    x.done = true;
+    if (who === 'a' && s.claim && s.claim.test(text) && s.notice) x.box.append(mk('p', 'live-voice-claim', s.notice));
+  }
+  keepInView(log);
+}
+// Playback: one context, PCM16 LE mono 24 kHz buffers scheduled back to back.
+function play(s, b64) {
+  const c = s.ctx; if (!c) return;
+  let bin; try { bin = atob(b64); } catch { return; }
+  const n = bin.length >> 1; if (!n) return;
+  const buf = c.createBuffer(1, n, VOICE.rate), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v >= 0x8000) v -= 0x10000; ch[i] = v / 32768; }
+  const src = c.createBufferSource(); src.buffer = buf; src.connect(c.destination);
+  const at = Math.max(s.playAt, c.currentTime + 0.03); src.start(at); s.playAt = at + n / VOICE.rate;
+  s.sources.push(src); src.onended = () => { const i = s.sources.indexOf(src); if (i >= 0) s.sources.splice(i, 1); };
+  if (!s.heard) { s.heard = true; s.endWait?.(true); }
+}
+function flush(s) {
+  for (const src of s.sources.splice(0)) { try { src.onended = null; src.stop(); src.disconnect(); } catch { /* not started */ } }
+  s.playAt = 0;
+}
+// Capture: the context's own rate, resampled (linear) to 24 kHz, 100 ms per append, after the disclosure.
+const WORKLET = `class C extends AudioWorkletProcessor { process(i) { const x = i[0] && i[0][0]; if (x) this.port.postMessage(x.slice(0)); return true; } } registerProcessor('ss-mic-capture', C);`;
+async function startMic(s) {
+  const c = s.ctx; if (!c || !s.stream) return;
+  try {
+    s.micSrc = c.createMediaStreamSource(s.stream);
+    const AWN = V('AudioWorkletNode');
+    if (c.audioWorklet && AWN) {
+      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' }));
+      try { await c.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+      if (s.ended) return release(s);
+      s.micNode = new AWN(c, 'ss-mic-capture'); s.micNode.port.onmessage = ev => feed(s, ev.data);
+    } else { // no worklet: the older processor node (deprecated, still in Chrome and Safari)
+      s.micNode = c.createScriptProcessor(2048, 1, 1); s.micNode.onaudioprocess = ev => feed(s, ev.inputBuffer.getChannelData(0).slice(0));
+    }
+    s.micSrc.connect(s.micNode); s.micNode.connect(c.destination); // its output is silence; connected so it runs
+  } catch (e) { voiceEnd(s, VOICE_END.micFailed(e?.name || 'audio capture error')); }
+}
+function feed(s, x) {
+  if (s.ended || !s.firstDone || !s.ws || !x?.length) return;
+  const step = (s.ctx?.sampleRate || VOICE.rate) / VOICE.rate;
+  // s.pos: the next output sample's position in the input stream, relative to x[0]; s.last: the previous chunk's last sample.
+  let p = s.pos;
+  for (; p < x.length; p += step) {
+    const i = Math.floor(p), f = p - i, a = i < 0 ? (s.last ?? 0) : x[i], b = i + 1 < x.length ? x[i + 1] : x[i];
+    s.pend.push(i < 0 ? a + (x[0] - a) * (p + 1) : a + (b - a) * f);
+  }
+  s.pos = p - x.length; s.last = x[x.length - 1];
+  while (s.pend.length >= VOICE.chunk) {
+    const part = s.pend.splice(0, VOICE.chunk);
+    let bin = '';
+    for (const v of part) { const q = Math.max(-1, Math.min(1, v)), n = q < 0 ? Math.round(q * 32768) : Math.round(q * 32767), u = n & 0xffff; bin += String.fromCharCode(u & 0xff, u >> 8); }
+    try { s.ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: btoa(bin) })); } catch { /* the close handler ends it */ }
+  }
+}

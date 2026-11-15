@@ -1,5 +1,7 @@
 // Second Site workspace prototype. One page, three stages, one conversation.
 // Design mock: the conversation is scripted and every figure is demo data.
+const LIVE = new URLSearchParams(location.search).get('live') === '1' ? await import('./backend.js') : null; // opt-in backend link, see backend.js
+const FV = LIVE || new URLSearchParams(location.search).get('models') === '1' ? await import('./furniture-view.js').catch(e => { console.warn(`furniture view did not load (${e?.message}); the page draws plain boxes`); return null; }) : null; // our furniture models in the 3D view, see furniture-view.js
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -7,7 +9,7 @@ const money = n => '$' + Math.round(n).toLocaleString('en-US');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const asset = (src, f) => `assets/${src}/${f}`;
+const asset = (src, f) => LIVE?.asset(src, f) ?? `assets/${src}/${f}`;
 const ICON = {
   x: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
 };
@@ -119,7 +121,7 @@ const BATCH = { reception: ['desk', 'bench', 'retail'], treatment: ['bed', 'stoo
 /* ----------------------------------------------------------------- state */
 
 const fresh = () => ({ stage: 'discover', step: 0, req: {}, slots: [...FIRST], saved: [], dismissed: [], open: null, offered: false, msgs: [], replies: [], finalist: null, issue: null, view: 'dollhouse', photo: 0, dir: 'oblique-n', seenCompare: false, chosen: null, committed: false, placed: [], hist: [], tab: null, room: null, sel: null, seenFurnish: null });
-const KEY = 'second-site-workspace';
+const KEY = 'second-site-workspace' + (LIVE ? '-live' : '');
 let S = fresh();
 try { S = { ...S, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { /* storage unavailable: run in memory */ }
 if (FURNISH_COMMAND.test(S.req.business || '')) S.req.business = null;
@@ -142,7 +144,7 @@ function replies(list) { S.replies = list; $('#replies').innerHTML = list.map((t
 async function send(text) {
   text = text.trim(); if (!text || busy) return;
   busy = true; say('u', esc(text)); replies([]);
-  try { await TURN[S.stage](text); } finally { busy = false; save(); }
+  try { await (LIVE?.turn(S.stage, text, S, STEPS.length) || TURN[S.stage](text)); } finally { busy = false; save(); }
 }
 
 /* ------------------------------------------------------------ 1 discover */
@@ -173,8 +175,11 @@ function enterSearch() {
 }
 
 const WORDNUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+// The questions' wording follows the chosen business: what it calls its place and its rooms. A facial studio reads as before.
+const bizPlace = () => (S.req.business || '').toLowerCase().match(/(studio|office|clinic|salon|café|cafe|boutique|shop|store|restaurant|bakery|gym|spa|practice)$/)?.[1] || 'business';
+const roomKind = r => { const b = r.business || ''; return /medical|doctor|physician|pediatric|urgent care/i.test(b) ? 'exam ' : /facial|skin|dental|dentist|clinic|therap|massage|spa\b|chiro|acupunct|derm/i.test(b) ? 'treatment ' : /yoga|pilates|fitness|dance|barre|gym/i.test(b) ? 'studio ' : ''; };
 const STEPS = [
-  { key: 'business', label: 'Business', replies: ['A facial and skincare studio', 'A pilates studio', 'A café'],
+  { key: 'business', label: 'Business', replies: ['A facial and skincare studio', 'A pilates studio', 'A café', 'A dental office', 'A medical clinic', 'A physical therapy clinic', 'A hair salon', 'A yoga studio', 'A retail boutique'],
     ask: 'What kind of business is this location for?',
     set: t => { if (FURNISH_COMMAND.test(t.trim())) return false; S.req.business = /facial|skin/i.test(t) ? 'Facial studio' : cap(t.replace(/^(an?|the)\s+/i, '').replace(/[.!]+$/, '')).slice(0, 28); },
     show: r => r.business || 'Not set', note: n => `Industrial space set aside · ${n} fit` },
@@ -183,13 +188,13 @@ const STEPS = [
     set: t => { const z = []; if (/downtown|dtla|arts/i.test(t)) z.push('downtown'); if (/west|beverly|brentwood|santa monica/i.test(t)) z.push('westside'); if (/east|silver|echo/i.test(t)) z.push('eastside'); if (/valley|noho|north holly/i.test(t)) z.push('valley'); S.req.zones = z.length ? z : null; },
     show: r => r.zones ? r.zones.map(z => ZONE[z]).join(' or ') : 'Anywhere in LA', note: n => `${STEPS[1].show(S.req)} · ${n} fit` },
   { key: 'rent', label: 'Rent', replies: ['Up to $5,500', 'Up to $7,500', 'Under $3,500'],
-    ask: 'What monthly rent can the studio carry?',
+    get ask() { return `What monthly rent can the ${bizPlace()} carry?`; },
     set: t => { const m = t.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*(k)?/i); S.req.rent = m ? Math.round(m[1] * (m[2] || m[1] < 100 ? 1000 : 1)) : null; },
     show: r => r.rent ? `Up to ${money(r.rent)} / month` : 'No limit', note: n => `${S.req.rent ? 'Up to ' + money(S.req.rent) : 'Any rent'} · ${n} fit` },
   { key: 'rooms', label: 'Space', replies: ['Three, plus reception', 'Two', 'Four'],
-    ask: 'How many treatment rooms do you need?',
+    get ask() { return `How many ${roomKind(S.req)}rooms do you need?`; },
     set: t => { const m = t.match(/\d+/) || t.toLowerCase().match(/one|two|three|four|five|six/); S.req.rooms = m ? (WORDNUM[m[0]] || +m[0]) : 3; },
-    show: r => `${r.rooms} treatment ${r.rooms === 1 ? 'room' : 'rooms'} + reception`, note: n => `${minSqft().toLocaleString()} SF or more · ${n} fit` },
+    show: r => `${r.rooms} ${roomKind(r)}${r.rooms === 1 ? 'room' : 'rooms'} + reception`, note: n => `${minSqft().toLocaleString()} SF or more · ${n} fit` },
   { key: 'opening', label: 'Opening', replies: ['By March', 'This summer', 'No fixed date'],
     ask: 'When would you like to open?',
     set: t => { S.req.opening = cap(t.replace(/[.!]+$/, '')).slice(0, 28); },
@@ -208,6 +213,7 @@ function refill() {
 async function research(noteFor) {
   $$('.frame').forEach(f => f.classList.add('loading'));
   const before = S.slots.join();
+  if (LIVE) await LIVE.search(S);
   await think(800);
   refill(); renderDiscover();
   const text = noteFor(fits().length);
@@ -266,7 +272,7 @@ function renderStrip() {
         ghost = document.createElement('div'); ghost.className = 'frame-ghost'; ghost.inert = true; ghost.setAttribute('aria-hidden', 'true'); ghost.innerHTML = $('img', el)?.outerHTML || '';
       }
       el.dataset.id = id;
-      if (id) { el.innerHTML = frameHTML(P[id]); } else { el.innerHTML = 'No more spaces fit'; }
+      if (id) { el.innerHTML = frameHTML(P[id]); } else { el.innerHTML = LIVE?.emptyFrame() ?? 'No more spaces fit'; }
       if (ghost) {
         el.append(ghost);
         const reveal = () => {
@@ -363,7 +369,7 @@ function renderFindings() {
         ${row('Lease extras', (p, c) => c.unk ? 'Not stated' : c.d.extras ? '~' + money(c.d.extras) : 'Included')}
         ${row('Renovation', (p, c) => '~' + money(c.d.build))}
         ${row('Total to open', (p, c) => '~' + money(c.total), 'total')}
-        ${row('Time to open', (p, c) => `~${c.d.weeks} wks`)}
+        ${row('Time to open', (p, c) => c.d.weeks == null ? 'Not stated' : `~${c.d.weeks} wks`)}
       </tbody>
     </table></div>`;
   $('#findings').scrollTop = scroll;
@@ -381,7 +387,8 @@ function renderCompare() { renderFinalists(); renderFindings(); renderViewer(); 
 function draft(issue) {
   a(`<div class="draft"><span class="label">To ${esc(P[S.finalist].broker)}</span><p>${issue.ask}</p><button type="button" class="btn sm solid" data-act="send-draft">Approve and send</button></div>`);
 }
-function explore(commit) {
+async function explore(commit) {
+  if (LIVE && !(await LIVE.furnish(S))) return;
   if (S.chosen !== S.finalist) { S.placed = []; S.hist = []; S.room = S.sel = null; }
   S.chosen = S.finalist; S.committed = !!commit; go('furnish');
 }
@@ -473,10 +480,10 @@ function renderPane() {
       <tr><td colspan="3">Install</td><td>${money(s.install)}</td><td></td></tr>
       <tr class="total"><td colspan="3">Total</td><td>${money(s.total)}</td><td></td></tr>
     </tfoot>`}</table>` + (proposed ? `<button type="button" class="btn sm" data-act="accept">Add the ${proposed} proposed</button>` : '');
-  $('#pane tr.on')?.scrollIntoView({ block: 'nearest' });
+  $('#pane tr.on')?.scrollIntoView({ block: 'nearest' }); FV?.annotate(pane);
 }
 function renderFurnish() { furnishHead(); renderPane(); renderViewer(); renderNav(); }
-const furnishReplies = () => !S.placed.length ? ['Warm and minimal, three treatment rooms, under $25k'] : [
+const furnishReplies = () => !S.placed.length ? [`Warm and minimal, three ${roomKind(S.req)}rooms, under $25k`] : [
   S.placed.some(i => i.st === 'proposed') && 'Accept the proposals', S.placed.some(i => i.c === 'desk') && 'Use a smaller reception desk',
   S.placed.some(i => i.c === 'retail') && 'Remove the retail shelving'].filter(Boolean).slice(0, 2);
 const findCat = text => CAT.find(c => new RegExp(c.kw, 'i').test(text));
@@ -507,7 +514,7 @@ function pieceRect(d, it, idx) {
 }
 function pieces(d) {
   const seen = {};
-  return S.placed.map(it => { const k = keyOf(it), idx = seen[k] = (seen[k] ?? -1) + 1; return { it, key: k, ...pieceRect(d, it, idx) }; });
+  return S.placed.map(it => { const k = keyOf(it), idx = seen[k] = (seen[k] ?? -1) + 1; return { it, key: k, ...pieceRect(d, it, idx), ...FV?.planRect(d, it) }; });
 }
 function paintPlan(p, d) {
   const el = $('#v-floorplan .plan'), img = $('img', el), src = asset(p.src, 'matterport-floorplan-08.png');
@@ -565,7 +572,7 @@ async function init3D() {
   canvas.addEventListener('pointerup', e => {
     if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4 || S.stage !== 'furnish') return;
     const r = canvas.getBoundingClientRect(); ray.setFromCamera(new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1), camera);
-    const hit = ray.intersectObjects(blocks.children)[0]; if (hit) selectPiece(hit.object.userData.key);
+    const hit = ray.intersectObjects(blocks.children, !!FV)[0]; if (hit) selectPiece(FV?.keyOf(hit.object) ?? hit.object.userData.key);
   });
   (function loop() { requestAnimationFrame(loop); if (box.hidden || !T.cur) return; controls.update(); renderer.render(scene, camera); })();
 }
@@ -581,13 +588,16 @@ function frame3D() {
 async function paint3D(p, d) {
   const box = $('#v-dollhouse'), poster = $('.poster', box), state = $('.vstate', box), src = p.src;
   want3D = src;
-  if (!poster.src.endsWith(`dollhouses/${src}.png`)) poster.src = `assets/dollhouses/${src}.png`;
-  if (!T?.cache[src]) { box.dataset.state = 'loading'; state.textContent = 'Loading model'; }
+  const L = LIVE && (box.dataset.state = 'loading', state.textContent = 'Loading model', poster.removeAttribute('src'), await LIVE.dollhouse(p)), key = L?.key ?? src; // live: saved copy, backend mesh or none (backend.js); the previous model stays hidden meanwhile
+  if (want3D !== src) return;
+  if (L && !L.poster) poster.removeAttribute('src'); else if (!poster.src.endsWith(L?.poster ?? `dollhouses/${src}.png`)) poster.src = L?.poster ?? `assets/dollhouses/${src}.png`;
+  if (L && !L.mesh) { box.dataset.state = 'error'; state.textContent = L.text; return; }
+  if (!T?.cache[key]) { box.dataset.state = 'loading'; state.textContent = 'Loading model'; }
   try {
     if (!T) await init3D();
-    let obj = T.cache[src];
+    let obj = T.cache[key];
     if (!obj) {
-      obj = await T.loader.loadAsync(`assets/meshes/${src}.obj`);
+      obj = await T.loader.loadAsync(L?.mesh ?? `assets/meshes/${src}.obj`);
       const bounds = new T.THREE.Box3().setFromObject(obj), upperStart = bounds.min.z + (bounds.max.z - bounds.min.z) * .55;
       // These OBJ scans have no textures: retain the study's floor/glass colors, softened toward gray.
       const gray = new T.THREE.Color('#C8C7C2'), floor = new T.THREE.Color('#D6B089').lerp(gray, .4), glass = new T.THREE.Color('#9CC2E6').lerp(gray, .4), mirror = new T.THREE.Color('#CDD3DA').lerp(gray, .4);
@@ -598,18 +608,18 @@ async function paint3D(p, d) {
         m.geometry.setAttribute('color', new T.THREE.BufferAttribute(colors, 3)); m.material = T.shell;
       } });
       obj.rotation.x = -Math.PI / 2; // scans are Z-up
-      T.cache[src] = obj;
+      T.cache[key] = obj;
     }
     if (want3D !== src) return; // a newer selection won
     if (T.cur !== obj) { if (T.cur) T.scene.remove(T.cur); T.scene.add(obj); T.cur = obj; frame3D(); }
-    T.blocks.clear();
-    if (S.stage === 'furnish') pieces(d).forEach(q => {
+    const fv = FV?.paint(T, d, S.stage === 'furnish' && L?.blocks !== false ? pieces(d) : []); if (!fv) T.blocks.clear(); // our models; false or no module: the boxes
+    if (!fv && S.stage === 'furnish' && L?.blocks !== false) pieces(d).forEach(q => {
       const hgt = C[q.it.c].h * .3048, mesh = new T.THREE.Mesh(new T.THREE.BoxGeometry(q.w / 100, hgt, q.h / 100), S.sel === q.key ? T.mats.on : T.mats[q.it.st]);
       mesh.position.set(d.plan.mesh[0] + (q.cx - d.plan.ink[0]) / 100, hgt / 2 + .02, -(d.plan.mesh[1] - (q.cy - d.plan.ink[1]) / 100));
       mesh.userData.key = q.key; T.blocks.add(mesh);
     });
     box.dataset.state = 'ready';
-    state.textContent = '';
+    state.textContent = L?.caption || '';
   } catch { box.dataset.state = 'error'; state.textContent = '3D model unavailable'; }
 }
 
@@ -625,9 +635,9 @@ function paintMapView(p) {
 }
 function renderViewer() {
   const furnish = S.stage === 'furnish', p = P[furnish ? S.chosen : S.finalist]; if (!p || S.stage === 'discover') return;
-  const d = D[p.src], views = furnish ? ['floorplan', 'dollhouse', 'photos'] : ['dollhouse', 'floorplan', 'aerial', 'map', 'photos'];
+  const d = D[p.src], views = (furnish ? ['floorplan', 'dollhouse', 'photos'] : ['dollhouse', 'floorplan', 'aerial', 'map', 'photos']).concat(LIVE ? LIVE.views(p) : []).filter(v => !LIVE || LIVE.hasView(v, p, d));
   if (!views.includes(S.view)) S.view = views[0];
-  $('#views').innerHTML = views.map(v => `<button type="button" data-view="${v}" aria-pressed="${v === S.view}">${VIEW[v]}</button>`).join('');
+  $('#views').innerHTML = views.map(v => `<button type="button" data-view="${v}" aria-pressed="${v === S.view}">${VIEW[v] || LIVE?.viewName(v)}</button>`).join('');
   $$('#viewer .layer').forEach(l => { l.hidden = l.id !== 'v-' + S.view; });
   const hue = p.hue ? `hue-rotate(${p.hue}deg)` : '';
   if (S.view === 'dollhouse') paint3D(p, d);
@@ -639,6 +649,7 @@ function renderViewer() {
     const img = $('#v-photos > img'); img.src = asset(p.src, d.photos[S.photo]); img.style.filter = hue; img.alt = `${p.address}, photo ${S.photo + 1}`;
     $('.thumbs').innerHTML = d.photos.map((f, i) => `<button type="button" data-photo="${i}" aria-pressed="${i === S.photo}" aria-label="Photo ${i + 1}"><img src="${asset(p.src, f)}" alt="" style="filter:${hue || 'none'}"></button>`).join('');
   }
+  LIVE?.viewer(S.view, p, d); // live: the tour iframe and the captions (backend.js)
   const issue = !furnish && d.issues.find(i => i.id === S.issue), ev = $('#evidence');
   ev.hidden = !(issue?.show && issue.show.view === S.view && (issue.show.photo == null || issue.show.photo === S.photo));
   if (!ev.hidden) ev.textContent = issue.show.note;
@@ -675,7 +686,7 @@ function go(stage) {
   }
   if (stage === 'furnish') {
     S.tab = null; S.view = 'floorplan'; renderFurnish();
-    if (S.seenFurnish !== S.chosen) { S.seenFurnish = S.chosen; a(`Tell me how ${P[S.chosen].suite} should feel, and I will furnish it.`); }
+    if (S.seenFurnish !== S.chosen) { S.seenFurnish = S.chosen; a(`Tell me how ${LIVE?.unitName(P[S.chosen]) ?? P[S.chosen].suite} should feel, and I will furnish it.`); }
     replies(furnishReplies());
   }
   scrollLog(); save();
@@ -835,11 +846,13 @@ async function seed(to) {
   history.replaceState(null, '', location.pathname); // a reload keeps what you did next
 }
 
+LIVE?.bind({ POOL, P, D, CAT, C, FIRST, FILL, SPACE_NOTES, pins, S: () => S, map: () => map, a, note, esc, selectSpace, renderViewer, fits, minSqft });
+FV?.bind({ S: () => S, C, save, selectPiece, renderViewer, load: s => import(s) });
 const start = location.hash.slice(1); // #reset clears saved state
 if (['searched', 'compare', 'furnish', 'reset'].includes(start)) S = fresh();
 if (start === 'reset') history.replaceState(null, '', location.pathname);
 S.msgs.forEach(m => log.append(bubble(m)));
-replies(S.replies);
+replies(STEPS.find(s => S.replies.length && S.replies.every((r, i) => r === s.replies[i]))?.replies ?? S.replies); // saved choices of a question are shown as that question's choices are now
 initMap();
 go(S.stage);
 if (!S.msgs.length) ask();
