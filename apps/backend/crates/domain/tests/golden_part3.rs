@@ -104,19 +104,6 @@ fn bill_of_materials_matches_python() {
     for c in designs {
         let name = c["name"].as_str().unwrap();
         let dv = DesignVersion::from_json_value(c["design"].clone()).expect(name);
-        // A layout on a measured floor: Python dumps `"floor_estimate": null` as the last key,
-        // and the Rust contract sends the same key in the same place (never omits it).
-        assert_eq!(
-            c["design"].get("floor_estimate"),
-            Some(&serde_json::Value::Null),
-            "{name}"
-        );
-        let wire = serde_json::to_string(&dv).expect(name);
-        assert!(
-            wire.ends_with(r#","approval_status":"PROPOSED","floor_estimate":null}"#),
-            "{name}: {wire}"
-        );
-        assert_eq!(serde_json::to_value(&dv).expect(name), c["design"], "{name}");
         let bom = generate_bom(&dv).expect(name);
         common::assert_json_eq(&bom_json(&bom), &c["bom"], name);
         // Illustrative prices stay labelled illustrative.
@@ -310,7 +297,6 @@ fn geometry_and_procurement_contracts_conform_to_schemas() {
         estimated_construction_cost: Some(1_000_000),
         created_from_revision_request: None,
         approval_status: ss_domain::contracts::geometry::DesignApprovalStatus::Proposed,
-        floor_estimate: None,
     };
     dv.validate().unwrap();
     let bom = generate_bom(&dv).unwrap();

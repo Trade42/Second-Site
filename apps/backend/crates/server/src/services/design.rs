@@ -37,11 +37,9 @@ use std::sync::Arc;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use ss_core::{new_id, Contract, DataOrigin};
-use ss_domain::contracts::geometry::FloorEstimate;
 use ss_domain::contracts::{
     BillOfMaterials, DesignApprovalStatus, DesignRevisionRequest, DesignVersion, GeometrySource,
-    LayoutGenerationRequest, LayoutPreferences, Opening, RevisionStatus, RoomRequirement,
-    SiteGeometry,
+    LayoutGenerationRequest, LayoutPreferences, RevisionStatus, RoomRequirement, SiteGeometry,
 };
 use ss_domain::design::geometry::framing::{
     frame_for_solver_checked, normalize_plan, MIN_FRAME_AREA,
@@ -80,142 +78,11 @@ pub const SITE_ATTEMPTS: usize = 3;
 /// Where the floor of a layout comes from, read in a layout task's first phase.
 #[derive(Debug, Clone)]
 pub enum SiteSource {
-    /// The property's last stored geometry that is not an assumed floor
-    /// (`LISTED_AREA_ESTIMATE`).
+    /// The property's last stored geometry.
     Stored(Box<SiteGeometry>),
-    /// No measured geometry is stored yet: the property's interior assets with measured geometry
-    /// (scans of the listed suite itself), in order, as `(asset_id, provider)` (the asset's own
-    /// `provider`, e.g. `"matterport"` or `"fixture"`), and what an assumed floor would need when
-    /// none of them has a floor.
-    Assets(Vec<(String, String)>, Box<ListedArea>),
-}
-
-/// What a floor assumed from the listing needs: the listing's stated area and id, and the
-/// assumed floor already stored for the property, if any (it is reused when it is still the
-/// rectangle of the stated area).
-#[derive(Debug, Clone, Default)]
-pub struct ListedArea {
-    /// `CommercialListing.available_area_sqm`, square meters, as stored.
-    pub area_sqm: Option<f64>,
-    /// The listing's id: `provider_listing_id`, or `listing-of-property:<property_id>` when the
-    /// listing has none. Never a scan id.
-    pub listing_id: String,
-    /// The property's last stored `LISTED_AREA_ESTIMATE` geometry.
-    pub stored: Option<SiteGeometry>,
-}
-
-/// The ratio of the assumed floor's long side to its short side. An assumption, not a
-/// measurement: 3:2 is a common proportion for a small commercial suite (deeper than its
-/// frontage, a corridor or storefront on the short side), and a moderate ratio keeps every room
-/// program that fits a real suite of that area from being refused for the rectangle's shape alone.
-pub const ASSUMED_RATIO: f64 = 1.5;
-
-/// The width of the one assumed entrance (meters), a common commercial door leaf.
-pub const ASSUMED_ENTRANCE_WIDTH_M: f64 = 0.9;
-
-/// The smallest stated area laid out on an assumed floor (square meters): below it the listing's
-/// figure is not a suite's floor area.
-pub const MIN_LISTED_AREA_SQM: f64 = 1.0;
-
-/// The largest stated area laid out on an assumed floor (square meters, about 107,600 sq ft).
-/// A listed suite larger than this is far outside what a clinic or salon leases and is more
-/// likely a data error (a building's or a parcel's area); it is refused, not sketched.
-pub const MAX_LISTED_AREA_SQM: f64 = 10_000.0;
-
-/// The `coordinate_reference` of an assumed floor.
-pub const ASSUMED_COORDINATE_REFERENCE: &str =
-    "assumed rectangle of the listed area; not measured; origin at one corner";
-
-/// What a layout on an assumed floor does not know about the real one
-/// (`FloorEstimate.unknown`).
-pub const ASSUMED_UNKNOWN: &[&str] = &["columns", "fixed_walls", "plumbing", "windows", "exits"];
-
-/// The task message when there is no measured floor and the listing states no area.
-pub const NO_FLOOR_NO_AREA: &str = "this listing has no 3D scan of its own suite and states no \
-                                    area, so there is no floor to lay rooms out on";
-
-/// The floor assumed from a listing's stated area: a rectangle of exactly `area_sqm` square
-/// meters, sides in the ratio [`ASSUMED_RATIO`] (short side along x, long side along y), one
-/// assumed entrance of [`ASSUMED_ENTRANCE_WIDTH_M`] in the middle of the short side at y = 0, and
-/// nothing else (no windows, exits, fixed walls, obstacles or fixtures: they are unknown).
-/// `LISTED_AREA_ESTIMATE`, `DERIVED`, never `scale_verified`.
-///
-/// The short side is rounded to the centimetre and the long side is `area_sqm / short`, so the
-/// area is exact and the ratio is 3:2 to within half a centimetre on the short side: the solver
-/// places rooms on centimetre positions and rounds their corners to the millimetre, and on an
-/// unrounded irrational width its validator finds rooms a fraction of a millimetre outside the
-/// floor or inside the corridor and refuses every candidate.
-///
-/// `Err` (the message a person reads) when the area is not finite, below
-/// [`MIN_LISTED_AREA_SQM`] or above [`MAX_LISTED_AREA_SQM`]: such an area is refused, not laid
-/// out.
-pub fn assumed_site(
-    property_id: Uuid,
-    listing_id: &str,
-    area_sqm: f64,
-) -> Result<SiteGeometry, String> {
-    // NaN and the infinities are outside the range too.
-    if !(MIN_LISTED_AREA_SQM..=MAX_LISTED_AREA_SQM).contains(&area_sqm) {
-        return Err(format!(
-            "this listing has no 3D scan of its own suite and its stated area ({area_sqm} m2) \
-             cannot be a suite's floor (a stated area must be at least {MIN_LISTED_AREA_SQM:.0} \
-             m2 and at most {MAX_LISTED_AREA_SQM:.0} m2), so no layout was sketched"
-        ));
-    }
-    let short = ((area_sqm / ASSUMED_RATIO).sqrt() * 100.0).round() / 100.0;
-    let long = area_sqm / short;
-    let door = ASSUMED_ENTRANCE_WIDTH_M.min(short / 2.0);
-    let mid = short / 2.0;
-    let site = SiteGeometry {
-        site_geometry_id: new_id(),
-        property_id,
-        source_id: listing_id.to_owned(),
-        geometry_source: GeometrySource::ListedAreaEstimate,
-        data_origin: DataOrigin::Derived,
-        units: "m".into(),
-        coordinate_reference: ASSUMED_COORDINATE_REFERENCE.into(),
-        floor_boundary: vec![(0.0, 0.0), (short, 0.0), (short, long), (0.0, long)],
-        fixed_obstacles: vec![],
-        fixed_walls: vec![],
-        entrances: vec![Opening {
-            kind: "entrance".into(),
-            start: (mid - door / 2.0, 0.0),
-            end: (mid + door / 2.0, 0.0),
-        }],
-        exits: vec![],
-        windows: vec![],
-        fixture_locations: vec![],
-        restricted_areas: vec![],
-        scale_verified: false,
-        measurement_uncertainty_m: None,
-    };
-    site.validate().map_err(|e| format!("assumed floor: {e}"))?;
-    Ok(site)
-}
-
-/// The label of a layout on an assumed floor of `area_sqm` square meters (as stored).
-pub fn floor_estimate(area_sqm: f64) -> FloorEstimate {
-    FloorEstimate {
-        geometry_source: GeometrySource::ListedAreaEstimate,
-        shape_assumed: true,
-        area_measured: false,
-        listed_area: area_sqm,
-        listed_area_unit: "sqm".into(),
-        assumed_shape: "rectangle, sides 3:2, one entrance in the middle of a short side".into(),
-        unknown: ASSUMED_UNKNOWN.iter().map(|u| (*u).to_owned()).collect(),
-        shows: "whether the room program's areas fit the listed area, not where rooms can really \
-                go"
-        .into(),
-        label: "Approximate sketch on the listed area; not a measured floor and not a plan".into(),
-    }
-}
-
-/// Appended to each item's `price_note` in the bill of materials of a layout on an assumed floor.
-pub const ESTIMATE_QUANTITY_NOTE: &str = "Quantity from an approximate sketch on the listing's \
-                                          stated area, not from a measured floor.";
-
-fn is_estimate(g: &SiteGeometry) -> bool {
-    g.geometry_source == GeometrySource::ListedAreaEstimate
+    /// Nothing is stored yet: the property's interior assets with measured geometry, in order, as
+    /// `(asset_id, provider)` (the asset's own `provider`, e.g. `"matterport"` or `"fixture"`).
+    Assets(Vec<(String, String)>),
 }
 
 /// The floor a layout is solved on.
@@ -250,8 +117,6 @@ pub struct VersionContext<'r> {
     pub correlation_id: Uuid,
     pub parent: Option<&'r DesignVersion>,
     pub revision_id: Option<Uuid>,
-    /// The label of every version when the floor is assumed from the listed area.
-    pub estimate: Option<&'r FloorEstimate>,
 }
 
 /// A layout task after its read phase and its solve.
@@ -261,8 +126,6 @@ struct Solved {
     candidates: Vec<Candidate>,
     /// Why no candidate is valid (`None` when one is): the task's failure message.
     infeasible: Option<String>,
-    /// The label of every version, set when the floor is assumed from the listed area.
-    estimate: Option<FloorEstimate>,
 }
 
 /// The class name a layout task records as `error_code` when it stores no layout.
@@ -302,24 +165,15 @@ pub fn infeasible_message(
         .iter()
         .flat_map(|c| c.report.issues.iter().map(|i| i.message.clone()))
         .collect();
-    let solver = if said.is_empty() {
-        "no candidate".to_owned()
-    } else {
-        said.join("; ")
-    };
-    if is_estimate(site) {
-        return format!(
-            "No layout fits the assumed floor: there is no scan of this suite, so the floor was \
-             assumed as a 3:2 rectangle of the listing's stated {floor:.0} m2 (not measured) and \
-             {usable}; the room program needs {rooms} room(s), at least {need:.1} m2 in all plus \
-             circulation, with minimum room widths up to {width:.1} m. Solver: {solver}. No layout \
-             was stored."
-        );
-    }
     format!(
         "No layout fits the measured floor: the floor is {floor:.0} m2 and {usable}; the room \
          program needs {rooms} room(s), at least {need:.1} m2 in all plus circulation, with \
-         minimum room widths up to {width:.1} m. Solver: {solver}. No layout was stored."
+         minimum room widths up to {width:.1} m. Solver: {}. No layout was stored.",
+        if said.is_empty() {
+            "no candidate".to_owned()
+        } else {
+            said.join("; ")
+        }
     )
 }
 
@@ -478,28 +332,18 @@ impl<'a> DesignService<'a> {
         let prop = PROPERTIES
             .require_in_project(tx, property_id, project_id, "property not found")
             .await?;
-        let stored = GEOMETRIES
+        let mut stored = GEOMETRIES
             .list(tx, Query::new().eq("property_id", property_id))
             .await?;
-        // A stored assumed floor never shadows a measured one, nor a scan that has arrived since.
-        if let Some(last) = stored.iter().rev().find(|g| !is_estimate(g)) {
-            return Ok(SiteSource::Stored(Box::new(last.clone())));
+        if let Some(last) = stored.pop() {
+            return Ok(SiteSource::Stored(Box::new(last)));
         }
-        let listing = prop.commercial_listing.as_ref();
-        let listed = ListedArea {
-            area_sqm: listing.and_then(|l| l.available_area_sqm),
-            listing_id: listing
-                .and_then(|l| l.provider_listing_id.clone())
-                .unwrap_or_else(|| format!("listing-of-property:{property_id}")),
-            stored: stored.into_iter().rev().find(is_estimate),
-        };
         Ok(SiteSource::Assets(
             prop.interior_assets
                 .iter()
                 .filter(|a| a.has_measured_geometry)
                 .map(|a| (a.asset_id.clone(), a.provider.clone()))
                 .collect(),
-            Box::new(listed),
         ))
     }
 
@@ -524,9 +368,9 @@ impl<'a> DesignService<'a> {
         property_id: Uuid,
         source: SiteSource,
     ) -> AppResult<PreparedSite> {
-        let (assets, listed) = match source {
+        let assets = match source {
             SiteSource::Stored(g) => return Ok(PreparedSite::Stored(*g)),
-            SiteSource::Assets(assets, listed) => (assets, listed),
+            SiteSource::Assets(assets) => assets,
         };
         let mut unknown_model = false;
         for (asset_id, provider) in assets {
@@ -573,26 +417,13 @@ impl<'a> DesignService<'a> {
                 live,
             )?));
         }
-        if unknown_model {
-            // The suite has a scan the provider cannot read: say so rather than sketch over it.
-            return Err(AppError::not_found(
-                "no measured geometry available for this property: Matterport does not know the \
-                 model, or this token cannot see it",
-            )
-            .code("GEOMETRY_UNAVAILABLE"));
-        }
-        // No floor from a scan of the suite: an assumed floor on the listing's stated area.
-        let Some(area) = listed.area_sqm else {
-            return Err(AppError::not_found(NO_FLOOR_NO_AREA).code("GEOMETRY_UNAVAILABLE"));
+        let message = if unknown_model {
+            "no measured geometry available for this property: Matterport does not know the \
+             model, or this token cannot see it"
+        } else {
+            "no measured geometry available for this property"
         };
-        let site = assumed_site(property_id, &listed.listing_id, area)
-            .map_err(|m| AppError::not_found(m).code("GEOMETRY_UNAVAILABLE"))?;
-        match listed.stored {
-            Some(g) if g.floor_boundary == site.floor_boundary && g.source_id == site.source_id => {
-                Ok(PreparedSite::Stored(g))
-            }
-            _ => Ok(PreparedSite::Fresh(site)),
-        }
+        Err(AppError::not_found(message).code("GEOMETRY_UNAVAILABLE"))
     }
 
     /// The Matterport provider for an asset whose provider is not `"matterport"`: the configured
@@ -629,20 +460,13 @@ impl<'a> DesignService<'a> {
             (PreparedSite::Stored(g), Some(l)) if l.site_geometry_id == g.site_geometry_id => {
                 Ok(Some(g.clone()))
             }
-            // A fresh floor is stored when nothing is, or when only an assumed floor is (a scan
-            // has arrived, or the listed area changed): an assumed floor never replaces a
-            // measured one.
-            (PreparedSite::Fresh(g), latest) if latest.as_ref().is_none_or(is_estimate) => {
+            (PreparedSite::Fresh(g), None) => {
+                let mut prop = PROPERTIES
+                    .require_in_project(tx, property_id, project_id, "property not found")
+                    .await?;
                 GEOMETRIES.add(tx, g).await?;
-                if !is_estimate(g) {
-                    let mut prop = PROPERTIES
-                        .require_in_project(tx, property_id, project_id, "property not found")
-                        .await?;
-                    prop.geometry_reference = Some(g.site_geometry_id);
-                    PROPERTIES.upsert(tx, &prop).await?;
-                }
-                // An assumed floor is not recorded as the property's `geometry_reference`: the
-                // property has no measured geometry.
+                prop.geometry_reference = Some(g.site_geometry_id);
+                PROPERTIES.upsert(tx, &prop).await?;
                 Ok(Some(g.clone()))
             }
             _ => Ok(None),
@@ -746,7 +570,6 @@ impl<'a> DesignService<'a> {
             correlation_id,
             parent,
             revision_id,
-            estimate,
         } = *ctx;
         let mut created = Vec::new();
         for cand in candidates {
@@ -796,7 +619,6 @@ impl<'a> DesignService<'a> {
                 created_from_revision_request: revision_id,
                 // Never approved here: approval is the owner's decision.
                 approval_status: DesignApprovalStatus::Proposed,
-                floor_estimate: estimate.cloned(),
             };
             self.persist(tx, &mut dv).await?;
             self.app
@@ -961,15 +783,7 @@ impl<'a> DesignService<'a> {
         // Read only: nothing to keep.
         tx.rollback().await?;
         let (req, source) = planned?;
-        let listed_area = match &source {
-            SiteSource::Assets(_, listed) => listed.area_sqm,
-            SiteSource::Stored(_) => None,
-        };
         let site = self.prepare_site(req.property_id, source).await?;
-        // `prepare_site` only builds or reuses an assumed floor from the stated area.
-        let estimate = listed_area
-            .filter(|_| is_estimate(site.geometry()))
-            .map(floor_estimate);
         let candidates = Self::solve(site.geometry(), &req).await?;
         let infeasible = if candidates.iter().any(|c| c.report.valid) {
             None
@@ -1000,7 +814,6 @@ impl<'a> DesignService<'a> {
             site,
             candidates,
             infeasible,
-            estimate,
         })
     }
 
@@ -1030,19 +843,11 @@ impl<'a> DesignService<'a> {
             correlation_id,
             parent: base.as_ref(),
             revision_id,
-            estimate: solved.estimate.as_ref(),
         };
         let created = self
             .record_candidates(tx, &ctx, &solved.req, &site, solved.candidates)
             .await?;
         let mut out = JsonMap::new();
-        if let Some(e) = &solved.estimate {
-            out.insert(
-                "floor_estimate".into(),
-                serde_json::to_value(e)
-                    .map_err(|e| AppError::internal(format!("serialize floor estimate: {e}")))?,
-            );
-        }
         match &base {
             None => {
                 out.insert("design_version_ids".into(), ids(&created));
@@ -1087,16 +892,7 @@ impl<'a> DesignService<'a> {
         if let Some(last) = existing.pop() {
             return Ok(last);
         }
-        let mut b = generate_bom(dv)?;
-        if dv.floor_estimate.is_some() {
-            // Quantities of a sketch on an assumed floor are not take-offs of a measured one.
-            for item in &mut b.items {
-                item.price_note = Some(match item.price_note.take() {
-                    Some(n) => format!("{n} {ESTIMATE_QUANTITY_NOTE}"),
-                    None => ESTIMATE_QUANTITY_NOTE.to_owned(),
-                });
-            }
-        }
+        let b = generate_bom(dv)?;
         BOMS.add(tx, &b).await?;
         self.app
             .events()

@@ -10385,8 +10385,7 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED",
-    "floor_estimate": null
+    "approval_status": "PROPOSED"
    },
    {
     "design_version_id": "9e3aeba9-f95d-49ae-9d6e-c18874f31d1a",
@@ -10554,8 +10553,7 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED",
-    "floor_estimate": null
+    "approval_status": "PROPOSED"
    }
   ]
  },
@@ -12880,8 +12878,7 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED",
-    "floor_estimate": null
+    "approval_status": "PROPOSED"
    },
    {
     "design_version_id": "9e3aeba9-f95d-49ae-9d6e-c18874f31d1a",
@@ -13049,8 +13046,7 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED",
-    "floor_estimate": null
+    "approval_status": "PROPOSED"
    },
    {
     "design_version_id": "4d9e331c-2c76-4ae5-8577-a7fea4183bda",
@@ -13218,8 +13214,7 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": null,
-    "approval_status": "PROPOSED",
-    "floor_estimate": null
+    "approval_status": "PROPOSED"
    },
    {
     "design_version_id": "ab24eae7-1690-4ec4-a23a-f53241df0b51",
@@ -13416,8 +13411,7 @@
     },
     "estimated_construction_cost": null,
     "created_from_revision_request": "4b4ebadd-8c1f-441c-aa2a-3c191373b121",
-    "approval_status": "PROPOSED",
-    "floor_estimate": null
+    "approval_status": "PROPOSED"
    }
   ]
  },

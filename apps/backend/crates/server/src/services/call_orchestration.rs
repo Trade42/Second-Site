@@ -48,26 +48,19 @@
 //! - Carrier commands run on the blocking pool (`integrations::blocking`).
 
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex, RwLock, Weak};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use chrono::{Duration, Utc};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use ss_core::{DataOrigin, EvidenceClassification, UtcDateTime};
-use ss_domain::communications::call_purposes::{
-    self as cp, Approved, CallPurposes, PurposeOutcome, PurposeState,
-};
-use ss_domain::communications::call_summary::{self as csum, CallEnd, InputFinding};
-use ss_domain::communications::response_agent::{
-    self as agent, CallContext, ConversationState, EscalationRule, Say, Utterance,
-};
 use ss_domain::communications::{build_script, call_payload, describe, detect_escalation, extract};
 use ss_domain::contracts::{
     CallSession, CallState, CommunicationState, HandoffReason, HandoffStatus, OwnerHandoffRequest,
     ParticipantState, SourceEvidence, StructuredFinding, TranscriptTurn,
 };
 use ss_domain::integrations::telnyx::{
-    client_state, decode_client_state_json, StreamOptions, TelephonyError, TelephonyProvider,
+    client_state, decode_client_state_json, TelephonyError, TelephonyProvider,
 };
 use uuid::Uuid;
 
@@ -79,15 +72,10 @@ use crate::logging;
 use crate::services::events::Emit;
 use crate::services::evidence::EvidenceService;
 use crate::services::notifier::NotifyRequest;
-use crate::services::voice_bridge::{
-    BridgeEnd, BridgeEvents, BridgeHandle, BridgeOptions, BridgeRegistry, CallBridgeSpec,
-    Speaker as BridgeSpeaker, ToolCall, TranscriptLine,
-};
-use crate::services::voice_session_config as vsc;
 use crate::store::comms::{
     call_by_provider_id, channel_for_owner, CALLS, COMMUNICATIONS, HANDOFFS,
 };
-use crate::store::repo::{users, ASSESSMENTS, PROFILES, PROJECTS};
+use crate::store::repo::{users, ASSESSMENTS, PROJECTS};
 use crate::store::{Query, Tx};
 
 /// `HANDOFF_TTL` (3 minutes).
@@ -234,69 +222,12 @@ pub struct StartCall {
     pub simulated: bool,
 }
 
-/// What an outreach request carried besides the fields of its `CommunicationSession`: its own
-/// questions and what the owner approved the call to do (a tour, rent limits). Kept on the
-/// server only, never in a response, an event or a log (the limits hold the maximum rent), so
-/// it has no `Debug`.
-#[derive(Clone, Default, PartialEq)]
-pub struct RequestExtras {
-    pub questions: Vec<String>,
-    pub purposes: Option<CallPurposes>,
-}
-
-impl RequestExtras {
-    fn has_purposes(&self) -> bool {
-        self.purposes
-            .as_ref()
-            .is_some_and(|p| p.tour.is_some() || p.negotiation.is_some())
-    }
-}
-
-/// The key of the approval payload that binds an approval to the request's purposes and
-/// questions.
-pub const REQUEST_DIGEST_KEY: &str = "request_digest";
-
-/// A keyed digest (HMAC-SHA256 with the service secret) of the request's purposes and
-/// questions, present only when the request has purposes. It goes into the approval payload,
-/// so `require_approved` refuses a start whose stored purposes or questions are not the ones
-/// the approval was given for; being keyed, it cannot be searched for the maximum.
-pub fn request_digest(secret: &str, extras: &RequestExtras) -> Option<String> {
-    if !extras.has_purposes() {
-        return None;
-    }
-    let body = json!({"purposes": extras.purposes, "questions": extras.questions}).to_string();
-    Some(crate::security::sign(secret, &body))
-}
-
-/// What a call may do besides its questions, with where it stands (process-local, by call id,
-/// dropped at any terminal state: a restart during a call loses it, and the call then has no
-/// tour or rent tool answers but refusals).
-#[derive(Clone, Default)]
-struct CallExtras {
-    questions: Vec<String>,
-    approved: Approved,
-    state: PurposeState,
-    /// A "would the owner go to ..." line whose `evaluate_rent` call has not arrived yet.
-    pending_concession: Option<String>,
-    /// `evaluate_rent` answered since the last counterparty line.
-    rent_tool_since_line: bool,
-}
-
-/// What a closed call leaves for its summary.
-#[derive(Default)]
-struct ClosedVoice {
-    agent: Option<(ConversationState, Option<CallContext>)>,
-    extras: Option<CallExtras>,
-}
-
 /// `CallOrchestrator`. Owner texts it asks for are collected in `notices`; the caller sends them
 /// after its transaction commits.
 pub struct CallOrchestrator<'a> {
     app: &'a App,
     telephony: Arc<dyn TelephonyProvider>,
     pub notices: Vec<NotifyRequest>,
-    /// The process-local state of calls this orchestrator closed, kept for `finalize`.
-    closed: HashMap<Uuid, ClosedVoice>,
 }
 
 impl<'a> CallOrchestrator<'a> {
@@ -306,7 +237,6 @@ impl<'a> CallOrchestrator<'a> {
             app,
             telephony,
             notices: Vec::new(),
-            closed: HashMap::new(),
         }
     }
 
@@ -403,14 +333,6 @@ impl<'a> CallOrchestrator<'a> {
     /// `_say`: speak on the broker leg and keep the transcript.
     async fn say(&self, tx: &mut dyn Tx, call: CallSession, text: &str) -> AppResult<CallSession> {
         let mut text = text.to_owned();
-        if let Some(control) = self.app.voice_calls().speaking_control(&call) {
-            if !control.say(text.clone()).await {
-                text = format!("{text} [speak failed: bridge gone]");
-            }
-            let mut call = call;
-            call.transcript.push(turn("assistant", text));
-            return self.save(tx, call).await;
-        }
         if let Some(leg) = call.provider_call_id.clone() {
             let spoken = text.clone();
             match self.tel(move |t| t.speak(&leg, &spoken)).await? {
@@ -450,17 +372,7 @@ impl<'a> CallOrchestrator<'a> {
     /// `start`: the approval gate, the call record and the dial.
     pub async fn start(&mut self, tx: &mut dyn Tx, s: StartCall) -> AppResult<CallSession> {
         lock_project(tx, s.project_id).await?;
-        // The request's own questions and purposes are the ones stored at outreach under the
-        // communication id; nothing supplied at start can replace them. Their digest is part of
-        // the approved payload, so an approval covers exactly the request it was given for.
-        let extras = s
-            .communication_id
-            .and_then(|id| self.app.voice_calls().request_extras(id))
-            .unwrap_or_default();
-        let mut payload = call_payload(s.project_id, &s.recipient, s.property_id);
-        if let Some(d) = request_digest(self.app.settings.auth_secret.expose(), &extras) {
-            payload.insert(REQUEST_DIGEST_KEY.into(), Value::String(d));
-        }
+        let payload = call_payload(s.project_id, &s.recipient, s.property_id);
         let approved = self
             .app
             .approvals()
@@ -472,21 +384,6 @@ impl<'a> CallOrchestrator<'a> {
                 &payload,
             )
             .await?;
-        // With the voice bridge on, the introduction is the owner's ACTIVE recording (read under
-        // the owner's recording lock), or none: the recording is optional (owner, 07:16Z), and a
-        // call without one opens with the server's identification line. With the bridge off, the
-        // request's reference, as before.
-        let use_active = self.app.voice_calls().enabled();
-        let intro = if use_active {
-            tx.advisory_xact_lock(crate::services::design::lock_key(
-                "intro-recording",
-                s.owner_id,
-            ))
-            .await?;
-            crate::services::intro_recording::active_for_call(tx, s.owner_id).await?
-        } else {
-            None
-        };
         let assessments = match s.property_id {
             Some(pid) => {
                 ASSESSMENTS
@@ -502,11 +399,7 @@ impl<'a> CallOrchestrator<'a> {
             approved.approval.approval_id,
         );
         call.property_id = s.property_id;
-        call.intro_recording_reference = if use_active {
-            intro.as_ref().map(|i| i.object_key.clone())
-        } else {
-            s.intro_recording_reference
-        };
+        call.intro_recording_reference = s.intro_recording_reference;
         call.communication_id = s.communication_id;
         call.script = build_script(&assessments);
         call.simulated = s.simulated;
@@ -561,10 +454,6 @@ impl<'a> CallOrchestrator<'a> {
         )];
         let call = self.save(tx, call).await?;
         self.app.approvals().mark_executed(tx, approved).await?;
-        self.begin_purposes(tx, &call, extras).await?;
-        if let Some(id) = s.communication_id {
-            self.app.voice_calls().forget_request(id);
-        }
         self.set_comm_state(tx, &call, CommunicationState::InProgress)
             .await?;
         self.emit(
@@ -596,12 +485,6 @@ impl<'a> CallOrchestrator<'a> {
             };
         }
         let call = self.save(tx, call).await?;
-        if is_terminal(target) {
-            let left = self.app.voice_calls().close(call.call_id).await;
-            self.closed.insert(call.call_id, left);
-        } else if target == CallState::AiResumed {
-            self.app.voice_calls().unpause(call.call_id).await;
-        }
         let et = match target {
             CallState::Completed => Some(EventType::CallCompleted),
             CallState::Failed => Some(EventType::CallFailed),
@@ -717,31 +600,12 @@ impl<'a> CallOrchestrator<'a> {
                 .map(Some);
         }
         let et = et.as_deref();
-        if self.app.voice_calls().is_bridged(call.call_id) {
-            if let Some(call) = self.bridged_event(tx, &call, et, p).await? {
-                return Ok(Some(call));
-            }
-        }
         if et == Some("call.answered") && call.state == CallState::Dialing {
             return self.on_answered(tx, call).await.map(Some);
         }
         if et == Some("call.machine.detection.ended")
             && p.get("result").and_then(Value::as_str) == Some("machine")
         {
-            // With the voice bridge on, nothing is spoken on the carrier to a machine: not over
-            // the owner's recording, not over the assistant. The call is hung up without a
-            // message and the reason is stored (a voicemail policy is the owner's to decide).
-            let vcs = self.app.voice_calls();
-            if vcs.enabled() || vcs.is_bridged(call.call_id) {
-                vcs.pause(call.call_id).await;
-                let mut call = call;
-                call.transcript.push(turn("system", VOICEMAIL_NOTE));
-                let call = self.save(tx, call).await?;
-                if let Some(leg) = call.provider_call_id.clone() {
-                    let _ = self.tel(move |t| t.hangup(&leg)).await?;
-                }
-                return Ok(Some(call));
-            }
             let owner = self.owner_name(tx, call.owner_id).await?;
             let call = self
                 .say(
@@ -793,9 +657,6 @@ impl<'a> CallOrchestrator<'a> {
             "joined",
         )];
         let mut call = self.save(tx, call).await?;
-        if self.app.voice_calls().enabled() {
-            return self.answered_bridged(tx, call).await;
-        }
         let owner = self.owner_name(tx, call.owner_id).await?;
         if let (Some(intro), Some(leg)) = (
             call.intro_recording_reference
@@ -853,9 +714,6 @@ impl<'a> CallOrchestrator<'a> {
     }
 
     async fn ask_next(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
-        if self.app.voice_calls().is_bridged(call.call_id) {
-            return self.agent_resume(tx, call).await;
-        }
         if let Some(q) = current_question(&call) {
             return self.say(tx, call, &q.question).await;
         }
@@ -1033,7 +891,6 @@ impl<'a> CallOrchestrator<'a> {
                 .await?;
             return Ok(call);
         }
-        let prior = call.state;
         let call = if call.state == CallState::Intro {
             let detail = format!(
                 "ended during intro ({})",
@@ -1057,289 +914,10 @@ impl<'a> CallOrchestrator<'a> {
             self.advance(tx, call.call_id, CallState::Completed, Some(&detail))
                 .await?
         };
-        self.finalize(tx, call, prior).await
+        self.finalize(tx, call).await
     }
 
-    /// The owner's monthly rent limit of the project's business profile, in cents.
-    async fn rent_limit_cents(&self, tx: &mut dyn Tx, project_id: Uuid) -> AppResult<Option<i64>> {
-        Ok(PROFILES
-            .list(tx, Query::new().eq("project_id", project_id))
-            .await?
-            .into_iter()
-            .next()
-            .and_then(|p| p.monthly_rent_limit))
-    }
-
-    fn label(call: &CallSession) -> &'static str {
-        if call.simulated {
-            SIMULATED_LABEL
-        } else {
-            ""
-        }
-    }
-
-    fn contact(call: &CallSession) -> String {
-        let name = vsc::field(get_default(&call.recipient, "name", ""));
-        let role = vsc::field(get_default(&call.recipient, "role", ""));
-        match (name.is_empty(), role.is_empty()) {
-            (true, true) => "the listing contact".to_owned(),
-            (true, false) => format!("the {role}"),
-            (false, true) => name,
-            (false, false) => format!("{name} ({role})"),
-        }
-    }
-
-    /// At call start: validate what the owner approved against the profile's rent limit and
-    /// keep it, with the request's questions, for the call. A refused purpose does not stop
-    /// the call; the owner is told why.
-    async fn begin_purposes(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: &CallSession,
-        extras: RequestExtras,
-    ) -> AppResult<()> {
-        let has = extras.has_purposes();
-        if !has && extras.questions.is_empty() {
-            return Ok(());
-        }
-        let owner = self.owner_name(tx, call.owner_id).await?;
-        let limit = self.rent_limit_cents(tx, call.project_id).await?;
-        let mut approved = cp::approve(&extras.purposes.unwrap_or_default(), &owner, limit);
-        // The refusals name the profile's limit at most, never the request's maximum.
-        let mut notes = std::mem::take(&mut approved.refusals);
-        if has && !self.app.voice_calls().enabled() {
-            approved.tour = None;
-            approved.negotiation = None;
-            notes = vec![
-                "The tour request and the rent limits are not used: the voice assistant is \
-                 switched off, so this call only asks its questions."
-                    .to_owned(),
-            ];
-        }
-        if !notes.is_empty() {
-            let text = format!(
-                "{}About the call to {}: {} The call goes ahead without it.",
-                Self::label(call),
-                Self::contact(call),
-                notes.join(" ")
-            );
-            self.notify_owner(
-                call,
-                text,
-                "call_purposes",
-                format!("call-purposes:{}", call.call_id),
-            );
-        }
-        self.app.voice_calls().set_extras(
-            call.call_id,
-            CallExtras {
-                questions: extras.questions,
-                approved,
-                ..CallExtras::default()
-            },
-        );
-        Ok(())
-    }
-
-    /// The owner notices for what a tool call changed (never sent to the counterparty).
-    fn notify_outcomes(&mut self, call: &CallSession, before: &PurposeState, after: &PurposeState) {
-        let old = cp::outcomes(before);
-        let (label, who) = (Self::label(call), Self::contact(call));
-        for o in cp::outcomes(after) {
-            if old.contains(&o) {
-                continue;
-            }
-            match o {
-                PurposeOutcome::RentWithinLimits {
-                    amount_cents,
-                    at_or_under_target,
-                    ..
-                } => {
-                    let text = format!(
-                        "{label}Needs your decision: on the call, {who} said {} a month. That \
-                         is {}. Nothing is agreed: the assistant only said it would bring the \
-                         number to you.",
-                        agent::format_money(amount_cents, "USD"),
-                        if at_or_under_target {
-                            "at or under your target"
-                        } else {
-                            "inside the limit you set"
-                        }
-                    );
-                    self.notify_owner(
-                        call,
-                        text,
-                        "rent_decision",
-                        format!("call-rent:{}:{amount_cents}", call.call_id),
-                    );
-                }
-                PurposeOutcome::TourBooked { start, end, .. } => {
-                    let text = format!(
-                        "{label}Tour set on the call with {who}: {} (the property's local \
-                         time), {} minutes, inside your times. This is the assistant's record \
-                         only: nothing was sent to them in writing.",
-                        cp::spoken_time(&start),
-                        (end - start).num_minutes()
-                    );
-                    self.notify_owner(
-                        call,
-                        text,
-                        "tour_booked",
-                        format!("call-tour:{}:{}", call.call_id, start.to_rfc3339()),
-                    );
-                }
-                PurposeOutcome::TourMoved {
-                    from_start,
-                    start,
-                    end,
-                    ..
-                } => {
-                    let text = format!(
-                        "{label}Tour moved on the call with {who}, at their request: from {} \
-                         to {} (the property's local time), {} minutes, inside your times. \
-                         This is the assistant's record only: nothing was sent to them in \
-                         writing.",
-                        cp::spoken_time(&from_start),
-                        cp::spoken_time(&start),
-                        (end - start).num_minutes()
-                    );
-                    self.notify_owner(
-                        call,
-                        text,
-                        "tour_booked",
-                        format!("call-tour:{}:{}", call.call_id, start.to_rfc3339()),
-                    );
-                }
-                PurposeOutcome::TourNeedsOwner { .. } => {
-                    let text = format!(
-                        "{label}Follow-up from the call with {who}: they could not make any of \
-                         your tour times and are waiting for other times from you."
-                    );
-                    self.notify_owner(
-                        call,
-                        text,
-                        "tour_followup",
-                        format!("call-tour-followup:{}", call.call_id),
-                    );
-                }
-                PurposeOutcome::RentAboveLimits { .. } => {}
-            }
-        }
-    }
-
-    /// How the call ended, for the summary: every state named.
-    fn call_end(prior: CallState, call: &CallSession) -> CallEnd {
-        if machine_detected(call) {
-            return CallEnd::Voicemail;
-        }
-        match (call.state, prior) {
-            (CallState::Declined, _) => CallEnd::NoAnswer,
-            // No "cancelled" end exists in the summary; a cancelled call did not complete.
-            (CallState::Failed | CallState::Cancelled, _) => CallEnd::Failed,
-            (_, CallState::HumanJoined) => CallEnd::HandedToOwner,
-            (_, CallState::Intro | CallState::Dialing | CallState::Created) => CallEnd::HungUp,
-            (
-                _,
-                CallState::Active
-                | CallState::AiResumed
-                | CallState::HandoffPending
-                | CallState::OwnerJoining
-                | CallState::Completed
-                | CallState::Failed
-                | CallState::Declined
-                | CallState::Cancelled,
-            ) => CallEnd::Completed,
-        }
-    }
-
-    /// The structured summary's owner text for a bridged call or a call with purposes: the
-    /// Response Agent's kept findings with their cents, the planned questions, the handoffs,
-    /// then the purposes' owner lines inside the text's bound.
-    async fn voice_summary(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: &CallSession,
-        prior: CallState,
-        left: &ClosedVoice,
-    ) -> AppResult<String> {
-        let handoffs: Vec<OwnerHandoffRequest> = HANDOFFS
-            .list(tx, Query::new().eq("project_id", call.project_id))
-            .await?
-            .into_iter()
-            .filter(|h| h.call_id == call.call_id)
-            .collect();
-        let limit = self.rent_limit_cents(tx, call.project_id).await?;
-        let mut input =
-            csum::SummaryInput::from_call(call, Self::call_end(prior, call), handoffs, limit);
-        if let Some((state, ctx)) = &left.agent {
-            if !state.findings.is_empty() {
-                input.findings = state
-                    .findings
-                    .iter()
-                    .map(|f| {
-                        let mut i = InputFinding::from(f);
-                        // A range finding has a string value and no cents; a long bare number
-                        // (an account-like value) is not carried into the summary.
-                        if i.value.as_i64().is_some_and(|n| n.abs() >= 100_000_000)
-                            && i.amount_cents.is_none()
-                        {
-                            i.value = Value::String("[REDACTED]".into());
-                        }
-                        i
-                    })
-                    .collect();
-            }
-            if let Some(ctx) = ctx.as_ref().filter(|c| !c.questions.is_empty()) {
-                input.questions = ctx
-                    .questions
-                    .iter()
-                    .map(|q| csum::OutreachQuestion {
-                        id: q.id.clone(),
-                        text: q.text.clone(),
-                        topic: q.topic.clone(),
-                        claim_type: q.claim_type.clone(),
-                    })
-                    .collect();
-            }
-        }
-        let mut text = csum::owner_text(&csum::summarize(&input));
-        if let Some(extras) = &left.extras {
-            for line in cp::owner_lines(&extras.state) {
-                if text.chars().count() + 1 + line.chars().count() <= csum::MAX_OWNER_TEXT_CHARS {
-                    text.push(' ');
-                    text.push_str(&line);
-                }
-            }
-        }
-        Ok(text)
-    }
-
-    async fn finalize(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-        prior: CallState,
-    ) -> AppResult<CallSession> {
-        let left = self.closed.remove(&call.call_id).unwrap_or_default();
-        let mut call = call;
-        if let Some(q) = left
-            .extras
-            .as_ref()
-            .and_then(|e| e.pending_concession.clone())
-        {
-            // A proposal the rent tool never answered still reaches the owner.
-            call.deferred_questions.push(q);
-        }
-        let voice = left.agent.is_some()
-            || left
-                .extras
-                .as_ref()
-                .is_some_and(|e| e.approved.tour.is_some() || e.approved.negotiation.is_some());
-        let voice_text = if voice {
-            Some(self.voice_summary(tx, &call, prior, &left).await?)
-        } else {
-            None
-        };
+    async fn finalize(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
         let known: Vec<&StructuredFinding> = call
             .findings
             .iter()
@@ -1368,17 +946,9 @@ impl<'a> CallOrchestrator<'a> {
                 call.deferred_questions.join("; ")
             ));
         }
-        // A bridged call, or one with purposes, gets the structured summary's owner text (it
-        // carries the simulated label itself); every other call keeps Python's text.
-        let (summary, text) = match voice_text {
-            Some(t) => (t.clone(), t),
-            None => {
-                let summary = ss_domain::py::strip(&summary).to_owned();
-                let text = format!("{}{summary}", Self::label(&call));
-                (summary, text)
-            }
-        };
-        call.outcome_summary = Some(summary);
+        let summary = ss_domain::py::strip(&summary).to_owned();
+        let mut call = call;
+        call.outcome_summary = Some(summary.clone());
         let call = self.save(tx, call).await?;
         if let Some(comm_id) = call.communication_id {
             if let Some(mut comm) = COMMUNICATIONS
@@ -1409,6 +979,10 @@ impl<'a> CallOrchestrator<'a> {
                     .await?;
             }
         }
+        let text = format!(
+            "{}{summary}",
+            if call.simulated { SIMULATED_LABEL } else { "" }
+        );
         self.notify_owner(
             &call,
             text,
@@ -1535,8 +1109,6 @@ impl<'a> CallOrchestrator<'a> {
         );
         let handoff = handoff.transition(HandoffStatus::Notified)?;
         HANDOFFS.upsert(tx, &handoff).await?;
-        // In the three handoff states nothing flows through the bridge either way.
-        self.app.voice_calls().pause(call.call_id).await;
         Ok(handoff)
     }
 
@@ -1663,13 +1235,13 @@ impl<'a> CallOrchestrator<'a> {
             call.participant_states
                 .push(participant("owner", Some(owner_leg), "dialing"));
             let call = self.save(tx, call).await?;
-            // On a bridged call nothing says the owner is joining: only HUMAN_JOINED says joined.
-            let line = if self.app.voice_calls().is_bridged(call.call_id) {
-                HOLD_FOR_OWNER_LINE
-            } else {
-                "Great news, the owner is joining the call now. One moment please."
-            };
-            let call = self.say(tx, call, line).await?;
+            let call = self
+                .say(
+                    tx,
+                    call,
+                    "Great news, the owner is joining the call now. One moment please.",
+                )
+                .await?;
             return self
                 .advance(
                     tx,
@@ -1747,20 +1319,14 @@ impl<'a> CallOrchestrator<'a> {
             call.transcript
                 .push(turn("system", "[owner joined the call]"));
             let call = self.save(tx, call).await?;
-            let call = self
+            return self
                 .advance(
                     tx,
                     call.call_id,
                     CallState::HumanJoined,
                     Some("owner joined"),
                 )
-                .await?;
-            if self.app.voice_calls().is_bridged(call.call_id) {
-                // The bridge is paused, so this goes out on the carrier (`speak`).
-                let client = self.owner_name(tx, call.owner_id).await?;
-                return self.say(tx, call, &owner_joined_line(&client)).await;
-            }
-            return Ok(call);
+                .await;
         }
         if et == Some("call.hangup") && call.state == CallState::OwnerJoining {
             let question = match call.handoff_request_id {
@@ -1838,1112 +1404,4 @@ impl<'a> CallOrchestrator<'a> {
 /// Number of join tokens currently held (tests).
 pub fn join_token_count() -> usize {
     join_tokens().len()
-}
-
-// ---- Grok Voice: the recording, then the bridge ---------------------------------------------
-//
-// With the bridge on (`Settings::voice_bridge_active`, or a launcher a test installs), a call
-// runs: answered -> INTRO, play the owner's ACTIVE recording and nothing else -> the carrier's
-// `call.playback.ended` for exactly that playback -> ACTIVE: the per-call stream secret, the
-// server-built session, `streaming_start`; the bridge speaks our opening line verbatim before the
-// model may speak -> every finished counterparty line goes through the Response Agent and the
-// functions above (`record_finding`, `request_handoff`) -> the three handoff states pause the
-// bridge -> any terminal state closes it. With the bridge off nothing below runs.
-
-/// The polite fixed line when the recording, the stream or the bridge fails.
-pub const APOLOGY_LINE: &str = "I'm sorry, we're having a technical problem on our side. The \
-                                owner will follow up with you directly. Goodbye.";
-/// Said (on the carrier) when the owner accepted a handoff and is being dialed.
-pub const HOLD_FOR_OWNER_LINE: &str = "Please hold for a moment.";
-/// Said by the server only on the HUMAN_JOINED transition. To a landlord "the owner" is the
-/// property's owner, so the client is named.
-pub fn owner_joined_line(client: &str) -> String {
-    format!("{} has joined the call.", client_name(client))
-}
-/// The client's name as one bounded line (`voice_session_config::field`), or a neutral phrase.
-fn client_name(client: &str) -> String {
-    let c = vsc::field(client);
-    if c.is_empty() {
-        "The person I am calling for".to_owned()
-    } else {
-        c
-    }
-}
-/// A commitment or a sensitive disclosure the model asked about: never approved by a tool
-/// call. The client is named.
-pub fn not_approved_output(client: &str) -> String {
-    let c = client_name(client);
-    json!({
-        "status": "not_approved",
-        "detail": format!(
-            "Not approved; {c} has been asked. Say that you have asked {c}, and do not agree \
-             to or disclose anything."
-        ),
-    })
-    .to_string()
-}
-/// An escalation the model asked for.
-pub fn owner_asked_output(client: &str) -> String {
-    let c = client_name(client);
-    json!({
-        "status": "owner_asked",
-        "detail": format!("{c} has been asked. Say so and wait; do not answer for them."),
-    })
-    .to_string()
-}
-/// The answer when no call or client can be named (an unknown call, an error).
-pub const NOT_APPROVED_OUTPUT: &str = r#"{"status":"not_approved","detail":"Not approved; the person you are calling for has been asked. Say that you have asked them, and do not agree to or disclose anything."}"#;
-/// The stored reason when an answering machine was detected on a call with the voice bridge.
-pub const VOICEMAIL_NOTE: &str = "[answering machine detected; hung up without leaving a message]";
-pub const UNKNOWN_TOOL_OUTPUT: &str = r#"{"status":"unknown_tool"}"#;
-/// How long after the Response Agent's closing line the call is hung up.
-pub const CLOSING_HANGUP_DELAY_S: u64 = 8;
-
-/// The orchestrator's control of one bridge (the live [`BridgeHandle`], or a test's fixture).
-/// Each call answers whether the bridge took it.
-#[async_trait::async_trait]
-pub trait BridgeControl: Send + Sync {
-    async fn say(&self, text: String) -> bool;
-    async fn pause(&self) -> bool;
-    async fn resume(&self) -> bool;
-    async fn stop(&self) -> bool;
-}
-
-#[async_trait::async_trait]
-impl BridgeControl for BridgeHandle {
-    async fn say(&self, text: String) -> bool {
-        BridgeHandle::say(self, text).await.is_ok()
-    }
-    async fn pause(&self) -> bool {
-        BridgeHandle::pause(self).await.is_ok()
-    }
-    async fn resume(&self) -> bool {
-        BridgeHandle::resume(self).await.is_ok()
-    }
-    async fn stop(&self) -> bool {
-        BridgeHandle::stop(self).await.is_ok()
-    }
-}
-
-/// Registers a call's bridge before the carrier's stream connects.
-pub trait BridgeLauncher: Send + Sync {
-    /// The bridge id (the stream URL's path segment) and its control.
-    fn expect(&self, spec: CallBridgeSpec) -> (String, Arc<dyn BridgeControl>);
-    fn remove(&self, bridge_id: &str);
-}
-
-/// The live launcher: the registry the carrier's WebSocket route admits from.
-pub struct LiveBridgeLauncher {
-    pub registry: BridgeRegistry,
-}
-
-impl BridgeLauncher for LiveBridgeLauncher {
-    fn expect(&self, spec: CallBridgeSpec) -> (String, Arc<dyn BridgeControl>) {
-        let (id, handle) = self.registry.expect(spec);
-        (id, Arc::new(handle))
-    }
-    fn remove(&self, bridge_id: &str) {
-        self.registry.remove(bridge_id);
-    }
-}
-
-/// One bridged call's process-local state (lost on restart: a call in progress then gets no
-/// more decisions, and its stream is refused).
-struct VoiceCall {
-    bridge_id: Option<String>,
-    control: Option<Arc<dyn BridgeControl>>,
-    /// SHA-256 of the playback URL of the recording; the ended event must carry that URL.
-    intro_url_sha: Option<String>,
-    paused: bool,
-    context: Option<CallContext>,
-    agent: ConversationState,
-    next_turn: u64,
-}
-
-impl VoiceCall {
-    fn new() -> Self {
-        Self {
-            bridge_id: None,
-            control: None,
-            intro_url_sha: None,
-            paused: false,
-            context: None,
-            agent: ConversationState::default(),
-            next_turn: 1,
-        }
-    }
-}
-
-/// The voice bridges of this process: the carrier route's registry, the launcher (None: the
-/// bridge is off), and one entry per bridged call.
-pub struct VoiceCalls {
-    pub registry: BridgeRegistry,
-    launcher: RwLock<Option<Arc<dyn BridgeLauncher>>>,
-    app: RwLock<Weak<App>>,
-    calls: Mutex<HashMap<Uuid, VoiceCall>>,
-    /// By communication id: what the outreach request carried, until its call starts.
-    requests: Mutex<IndexMap<Uuid, RequestExtras>>,
-    /// By call id: the approved purposes and their state, until the call ends.
-    extras: Mutex<HashMap<Uuid, CallExtras>>,
-}
-
-/// At most this many requests wait for their start; the oldest is dropped first.
-const MAX_PENDING_REQUESTS: usize = 2048;
-
-fn sha_hex(s: &str) -> String {
-    use sha2::Digest;
-    hex::encode(sha2::Sha256::digest(s.as_bytes()))
-}
-
-impl VoiceCalls {
-    pub fn for_settings(settings: &crate::config::Settings) -> Self {
-        let registry = BridgeRegistry::new();
-        let launcher: Option<Arc<dyn BridgeLauncher>> = if settings.voice_bridge_active() {
-            Some(Arc::new(LiveBridgeLauncher {
-                registry: registry.clone(),
-            }))
-        } else {
-            None
-        };
-        Self {
-            registry,
-            launcher: RwLock::new(launcher),
-            app: RwLock::new(Weak::new()),
-            calls: Mutex::new(HashMap::new()),
-            requests: Mutex::new(IndexMap::new()),
-            extras: Mutex::new(HashMap::new()),
-        }
-    }
-
-    /// Keep what an outreach request carried besides its communication's fields (server side
-    /// only). A request with neither questions nor purposes keeps nothing.
-    pub fn stash_request(&self, communication_id: Uuid, extras: RequestExtras) {
-        if extras.questions.is_empty() && !extras.has_purposes() {
-            return;
-        }
-        let mut m = self.requests.lock().unwrap_or_else(|e| e.into_inner());
-        while m.len() >= MAX_PENDING_REQUESTS {
-            m.shift_remove_index(0);
-        }
-        m.insert(communication_id, extras);
-    }
-
-    fn request_extras(&self, communication_id: Uuid) -> Option<RequestExtras> {
-        self.requests
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(&communication_id)
-            .cloned()
-    }
-
-    fn forget_request(&self, communication_id: Uuid) {
-        self.requests
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .shift_remove(&communication_id);
-    }
-
-    /// Whether an approved tour or rent negotiation of the call is not settled yet.
-    fn purposes_open(&self, call_id: Uuid) -> bool {
-        self.extras_map().get(&call_id).is_some_and(|e| {
-            let tour = e.approved.tour.is_some()
-                && e.state.tour.booked.is_none()
-                && !e.state.tour.needs_owner;
-            let rent = e.approved.negotiation.is_some()
-                && e.state.negotiation.with_owner.is_none()
-                && e.state.negotiation.declined.is_none();
-            tour || rent
-        })
-    }
-
-    /// Undo the Response Agent's "ended" after a withheld closing, so later lines are decided.
-    fn reopen_agent(&self, call_id: Uuid) {
-        if let Some(v) = self.map().get_mut(&call_id) {
-            v.agent.ended = false;
-        }
-    }
-
-    fn extras_map(&self) -> std::sync::MutexGuard<'_, HashMap<Uuid, CallExtras>> {
-        self.extras.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    fn set_extras(&self, call_id: Uuid, extras: CallExtras) {
-        self.extras_map().insert(call_id, extras);
-    }
-
-    fn call_extras(&self, call_id: Uuid) -> Option<CallExtras> {
-        self.extras_map().get(&call_id).cloned()
-    }
-
-    /// Whether a call still holds purposes state (tests: dropped at any terminal state).
-    pub fn has_purposes_state(&self, call_id: Uuid) -> bool {
-        self.extras_map().contains_key(&call_id)
-    }
-
-    /// How many outreach requests wait for their start (tests).
-    pub fn pending_requests(&self) -> usize {
-        self.requests
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .len()
-    }
-
-    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<Uuid, VoiceCall>> {
-        self.calls.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    /// Install (or remove) the launcher; tests install a fixture bridge here.
-    pub fn set_launcher(&self, launcher: Option<Arc<dyn BridgeLauncher>>) {
-        *self.launcher.write().unwrap_or_else(|e| e.into_inner()) = launcher;
-    }
-
-    fn launcher(&self) -> Option<Arc<dyn BridgeLauncher>> {
-        self.launcher
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
-    }
-
-    /// Whether new calls take the bridge path.
-    pub fn enabled(&self) -> bool {
-        self.launcher().is_some()
-    }
-
-    /// Remember the shared app, so bridge events (which arrive outside any request) can open
-    /// their own transactions.
-    pub fn bind(&self, app: &Arc<App>) {
-        let mut w = self.app.write().unwrap_or_else(|e| e.into_inner());
-        if w.upgrade().is_none() {
-            *w = Arc::downgrade(app);
-        }
-    }
-
-    fn app_weak(&self) -> Weak<App> {
-        self.app.read().unwrap_or_else(|e| e.into_inner()).clone()
-    }
-
-    pub fn is_bridged(&self, call_id: Uuid) -> bool {
-        self.map().contains_key(&call_id)
-    }
-
-    /// Whether the call has a registered bridge (tests).
-    pub fn has_bridge(&self, call_id: Uuid) -> bool {
-        self.map()
-            .get(&call_id)
-            .is_some_and(|v| v.bridge_id.is_some())
-    }
-
-    /// Whether the call's bridge is paused (tests).
-    pub fn is_paused(&self, call_id: Uuid) -> bool {
-        self.map().get(&call_id).is_some_and(|v| v.paused)
-    }
-
-    /// The control that speaks for the call now: a bridge exists, is not paused, and the call
-    /// is ACTIVE or AI_RESUMED. Otherwise the server speaks on the carrier.
-    fn speaking_control(&self, call: &CallSession) -> Option<Arc<dyn BridgeControl>> {
-        if !matches!(call.state, CallState::Active | CallState::AiResumed) {
-            return None;
-        }
-        self.map()
-            .get(&call.call_id)
-            .filter(|v| !v.paused)
-            .and_then(|v| v.control.clone())
-    }
-
-    async fn pause(&self, call_id: Uuid) {
-        let control = {
-            let mut m = self.map();
-            m.get_mut(&call_id).and_then(|v| {
-                v.paused = true;
-                v.control.clone()
-            })
-        };
-        if let Some(c) = control {
-            c.pause().await;
-        }
-    }
-
-    async fn unpause(&self, call_id: Uuid) {
-        let control = {
-            let mut m = self.map();
-            m.get_mut(&call_id).and_then(|v| {
-                v.paused = false;
-                v.control.clone()
-            })
-        };
-        if let Some(c) = control {
-            c.resume().await;
-        }
-    }
-
-    /// Stop and forget the call's bridge; the stream secret dies with it, and so does the
-    /// purposes state (the limits). What the summary needs is handed back.
-    async fn close(&self, call_id: Uuid) -> ClosedVoice {
-        let entry = self.map().remove(&call_id);
-        let extras = self.extras_map().remove(&call_id);
-        let mut left = ClosedVoice {
-            agent: None,
-            extras,
-        };
-        if let Some(v) = entry {
-            if let (Some(id), Some(l)) = (v.bridge_id.as_deref(), self.launcher()) {
-                l.remove(id);
-            }
-            if let Some(c) = v.control {
-                c.stop().await;
-            }
-            left.agent = Some((v.agent, v.context));
-        }
-        left
-    }
-
-    /// Drop the bridge without a stop (it ended by itself), keep the call bridged-and-paused so
-    /// the server speaks on the carrier.
-    fn detach(&self, call_id: Uuid) {
-        let id = {
-            let mut m = self.map();
-            m.get_mut(&call_id).and_then(|v| {
-                v.paused = true;
-                v.control = None;
-                v.bridge_id.take()
-            })
-        };
-        if let (Some(id), Some(l)) = (id, self.launcher()) {
-            l.remove(&id);
-        }
-    }
-}
-
-impl App {
-    /// The process's voice bridges (built from the settings on first use).
-    pub fn voice_calls(&self) -> Arc<VoiceCalls> {
-        if let Some(v) = self.extensions.get::<VoiceCalls>() {
-            return v;
-        }
-        let v = Arc::new(VoiceCalls::for_settings(&self.settings));
-        self.extensions.insert(v.clone());
-        self.extensions.get::<VoiceCalls>().unwrap_or(v)
-    }
-}
-
-/// `wss://<PUBLIC_BASE_URL host>/api/v1/voice/stream/{bridge_id}?token=<secret>`.
-pub fn stream_url(public_base_url: &str, bridge_id: &str, token: &str) -> String {
-    let base = public_base_url.trim_end_matches('/');
-    let base = if let Some(rest) = base.strip_prefix("https://") {
-        format!("wss://{rest}")
-    } else if let Some(rest) = base.strip_prefix("http://") {
-        format!("ws://{rest}")
-    } else {
-        base.to_owned()
-    };
-    format!("{base}/api/v1/voice/stream/{bridge_id}?token={token}")
-}
-
-/// What a bridge (or the intro watchdog) reports about a call.
-#[derive(Debug, Clone)]
-pub enum BridgeInput {
-    Counterparty(String),
-    Assistant(String),
-    Tool {
-        name: String,
-        arguments: Value,
-    },
-    /// The bridge ended by itself (`EndReason::as_str`).
-    Ended(String),
-    /// The recording's playback did not end within its bound.
-    IntroTimeout,
-}
-
-/// Run one bridge input in its own transaction, then send the owner texts it caused.
-pub async fn bridge_input(app: &Arc<App>, call_id: Uuid, input: BridgeInput) -> AppResult<String> {
-    app.voice_calls().bind(app);
-    let mut tx = app.store.begin().await?;
-    let mut orch = CallOrchestrator::new(app);
-    let out = orch.on_bridge_input(&mut *tx, call_id, input).await?;
-    tx.commit().await?;
-    app.owner_notify()
-        .dispatch(app.clone(), orch.take_notices());
-    Ok(out)
-}
-
-/// The orchestrator's side of one call's bridge.
-pub struct CallBridgeEvents {
-    app: Weak<App>,
-    call_id: Uuid,
-}
-
-impl CallBridgeEvents {
-    async fn run(&self, input: BridgeInput) -> Option<String> {
-        let app = self.app.upgrade()?;
-        match bridge_input(&app, self.call_id, input).await {
-            Ok(s) => Some(s),
-            Err(_) => {
-                // Ids only: an error message is not logged (it could quote call content).
-                logging::warning(
-                    "app.services.call_orchestration",
-                    "bridge event failed",
-                    &[("call_id", Value::String(self.call_id.to_string()))],
-                );
-                None
-            }
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl BridgeEvents for CallBridgeEvents {
-    async fn transcript(&self, line: TranscriptLine) {
-        let input = match line.speaker {
-            BridgeSpeaker::Counterparty => BridgeInput::Counterparty(line.text),
-            BridgeSpeaker::Assistant => BridgeInput::Assistant(line.text),
-        };
-        self.run(input).await;
-    }
-    async fn tool_call(&self, call: ToolCall) -> String {
-        self.run(BridgeInput::Tool {
-            name: call.name,
-            arguments: call.arguments,
-        })
-        .await
-        .unwrap_or_else(|| NOT_APPROVED_OUTPUT.to_owned())
-    }
-    async fn ended(&self, end: BridgeEnd) {
-        self.run(BridgeInput::Ended(end.reason.as_str())).await;
-    }
-}
-
-fn arg_str(v: &Value, k: &str) -> String {
-    let raw = v.get(k).and_then(Value::as_str).unwrap_or("");
-    let (cut, _) = agent::cut(raw);
-    let (red, _, _) = agent::redact(&cut);
-    red.chars().take(300).collect()
-}
-
-impl CallOrchestrator<'_> {
-    /// Carrier events of a bridged call that differ from the fixed-line flow; `None` lets the
-    /// normal handling run.
-    async fn bridged_event(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: &CallSession,
-        et: Option<&str>,
-        p: &serde_json::Map<String, Value>,
-    ) -> AppResult<Option<CallSession>> {
-        match et {
-            // Only the ended event of our own recording's playback moves the call on.
-            Some("call.playback.ended") if call.state == CallState::Intro => {
-                if machine_detected(call) {
-                    return Ok(Some(call.clone())); // being hung up; nothing starts
-                }
-                let expected = self
-                    .app
-                    .voice_calls()
-                    .map()
-                    .get(&call.call_id)
-                    .and_then(|v| v.intro_url_sha.clone());
-                let got = p.get("media_url").and_then(Value::as_str).map(sha_hex);
-                if expected.is_none() || got != expected {
-                    return Ok(Some(call.clone()));
-                }
-                // An ended event without a status does not start the assistant: it is treated
-                // as a failed playback.
-                let status = p
-                    .get("status")
-                    .and_then(Value::as_str)
-                    .unwrap_or("no status");
-                if status != "completed" {
-                    let why =
-                        format!("the recorded introduction did not play to its end ({status})");
-                    return self.fail_politely(tx, call.clone(), &why).await.map(Some);
-                }
-                self.begin_bridge(tx, call.clone()).await.map(Some)
-            }
-            // Nothing else speaks or moves the call during the recording.
-            Some("call.speak.ended" | "call.playback.ended") => Ok(Some(call.clone())),
-            // The bridge carries the speech: the carrier's transcription is not used.
-            Some("call.transcription") => Ok(Some(call.clone())),
-            Some("streaming.failed") if !is_terminal(call.state) => {
-                self.app.voice_calls().detach(call.call_id);
-                self.fail_politely(tx, call.clone(), "the media stream failed")
-                    .await
-                    .map(Some)
-            }
-            _ => Ok(None),
-        }
-    }
-
-    /// `call.answered` with the bridge on: the recording and nothing else.
-    async fn answered_bridged(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-    ) -> AppResult<CallSession> {
-        let vcs = self.app.voice_calls();
-        vcs.map().insert(call.call_id, VoiceCall::new());
-        let Some(reference) = call
-            .intro_recording_reference
-            .clone()
-            .filter(|r| !r.is_empty())
-        else {
-            // No recording (optional): the bridge's opening line is the first thing heard.
-            return self.begin_bridge(tx, call).await;
-        };
-        // A recording revoked or replaced between the approval and the answer is not played;
-        // the call goes on without it and the reason is stored on the call.
-        tx.advisory_xact_lock(crate::services::design::lock_key(
-            "intro-recording",
-            call.owner_id,
-        ))
-        .await?;
-        let active = crate::services::intro_recording::active_for_call(tx, call.owner_id).await?;
-        let Some(intro) = active.filter(|i| i.object_key == reference) else {
-            let mut call = call;
-            call.transcript.push(turn(
-                "system",
-                "[the owner's recorded introduction was revoked or replaced after the approval; \
-                 not played]",
-            ));
-            call.intro_recording_reference = None;
-            let call = self.save(tx, call).await?;
-            return self.begin_bridge(tx, call).await;
-        };
-        let Some(leg) = call.provider_call_id.clone() else {
-            return self
-                .fail_politely(tx, call, "the call has no carrier leg")
-                .await;
-        };
-        let token = crate::security::sign_media_key(
-            self.app.settings.auth_secret.expose(),
-            &reference,
-            900,
-        );
-        let url = format!(
-            "{}/api/v1/media/public/{token}",
-            self.app.settings.public_base_url
-        );
-        let sha = sha_hex(&url);
-        match self.tel(move |t| t.play(&leg, &url)).await? {
-            Ok(()) => {}
-            Err(TelephonyError::Provider(e)) => {
-                let why = format!("the recorded introduction could not start ({})", e.kind);
-                return self.fail_politely(tx, call, &why).await;
-            }
-            Err(TelephonyError::Forbidden(m)) => return Err(AppError::forbidden(m)),
-        }
-        if let Some(v) = vcs.map().get_mut(&call.call_id) {
-            v.intro_url_sha = Some(sha);
-        }
-        let owner = self.owner_name(tx, call.owner_id).await?;
-        let mut call = call;
-        call.transcript.push(turn(
-            "system",
-            format!("[playing {owner}'s recorded introduction; waiting for it to end]"),
-        ));
-        let call = self.save(tx, call).await?;
-        // The watchdog: no matching ended event within the recording's length plus the grace.
-        let bound = std::time::Duration::from_millis(
-            u64::try_from(intro.duration_ms).unwrap_or(60_000)
-                + self.app.settings.voice_intro_grace_s * 1000,
-        );
-        if let Some(app) = vcs.app_weak().upgrade() {
-            let call_id = call.call_id;
-            tokio::spawn(async move {
-                tokio::time::sleep(bound).await;
-                let _ = bridge_input(&app, call_id, BridgeInput::IntroTimeout).await;
-            });
-        }
-        Ok(call)
-    }
-
-    /// After the recording: ACTIVE, the server's session, the stream secret, `streaming_start`.
-    async fn begin_bridge(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
-        let vcs = self.app.voice_calls();
-        if vcs.has_bridge(call.call_id) {
-            return Ok(call); // one bridge per call
-        }
-        let (Some(launcher), Some(leg)) = (vcs.launcher(), call.provider_call_id.clone()) else {
-            return self
-                .fail_politely(tx, call, "the voice bridge is unavailable")
-                .await;
-        };
-        let call = call.transition(CallState::Active)?;
-        let mut call = self.save(tx, call).await?;
-        let owner = self.owner_name(tx, call.owner_id).await?;
-        let extras = vcs.call_extras(call.call_id).unwrap_or_default();
-        let built = vsc::build(
-            tx,
-            &call,
-            &owner,
-            &self.app.settings.xai_voice,
-            &extras.questions,
-            &extras.approved,
-        )
-        .await?;
-        let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-        let key = self
-            .app
-            .settings
-            .xai_api_key
-            .as_ref()
-            .map(|k| k.expose().to_owned())
-            .unwrap_or_default();
-        let spec = CallBridgeSpec {
-            call_control_id: leg.clone(),
-            token: token.clone(),
-            session: built.session.clone(),
-            opening_line: Some(built.opening_line.clone()),
-            xai: crate::integrations::xai_realtime::XaiConfig::new(
-                self.app.settings.xai_realtime_url.clone(),
-                key,
-            ),
-            options: BridgeOptions::default(),
-            events: Arc::new(CallBridgeEvents {
-                app: vcs.app_weak(),
-                call_id: call.call_id,
-            }),
-        };
-        let (bridge_id, control) = launcher.expect(spec);
-        let url = stream_url(&self.app.settings.public_base_url, &bridge_id, &token);
-        let (first, state) = agent::start(&built.context);
-        {
-            let mut m = vcs.map();
-            let v = m.entry(call.call_id).or_insert_with(VoiceCall::new);
-            v.bridge_id = Some(bridge_id);
-            v.control = Some(control);
-            v.paused = false;
-            v.context = Some(built.context.clone());
-            v.agent = state;
-        }
-        let opts = StreamOptions::voice_agent(&url);
-        match self.tel(move |t| t.start_streaming(&leg, &opts)).await? {
-            Ok(()) => {}
-            Err(TelephonyError::Provider(e)) => {
-                vcs.detach(call.call_id);
-                let why = format!("the media stream could not start ({})", e.kind);
-                return self.fail_politely(tx, call, &why).await;
-            }
-            Err(TelephonyError::Forbidden(m)) => return Err(AppError::forbidden(m)),
-        }
-        // The bridge speaks this verbatim before the model may say anything.
-        call.transcript.push(turn("assistant", built.opening_line));
-        let call = self.save(tx, call).await?;
-        self.apply_say(tx, call, &first).await
-    }
-
-    /// The Response Agent's `say` and `end_call`.
-    async fn apply_say(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-        d: &agent::Decision,
-    ) -> AppResult<CallSession> {
-        // The Response Agent closes when its questions are done. While an approved tour or
-        // rent negotiation is still open, that closing is withheld (nothing said, no hangup)
-        // and the agent keeps deciding; it closes on a later line, once they are settled.
-        if d.end_call && self.app.voice_calls().purposes_open(call.call_id) {
-            self.app.voice_calls().reopen_agent(call.call_id);
-            return Ok(call);
-        }
-        let call = match &d.say {
-            Say::Exact(t) => self.say(tx, call, t).await?,
-            // The bridge has no "steer" control: the model follows the server's instructions,
-            // which list the approved questions in this order.
-            Say::Instruct(_) | Say::Silent => call,
-        };
-        if d.end_call {
-            if let Some(leg) = call.provider_call_id.clone() {
-                let t = self.telephony.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_secs(CLOSING_HANGUP_DELAY_S))
-                        .await;
-                    let _ = blocking(move || t.hangup(&leg)).await;
-                });
-            }
-        }
-        Ok(call)
-    }
-
-    /// The fixed-line end: the bridge (if any) is let go, the reason stored, the apology spoken
-    /// on the carrier, the call hung up.
-    async fn fail_politely(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-        why: &str,
-    ) -> AppResult<CallSession> {
-        let vcs = self.app.voice_calls();
-        vcs.detach(call.call_id);
-        let mut call = call;
-        call.transcript
-            .push(turn("system", format!("[{why}; ending the call]")));
-        let call = self.save(tx, call).await?;
-        let call = self.say(tx, call, APOLOGY_LINE).await?;
-        if let Some(leg) = call.provider_call_id.clone() {
-            let _ = self.tel(move |t| t.hangup(&leg)).await?;
-        }
-        Ok(call)
-    }
-
-    /// After a handoff: the Response Agent re-asks the open question, the next one, or closes.
-    async fn agent_resume(&mut self, tx: &mut dyn Tx, call: CallSession) -> AppResult<CallSession> {
-        let decision = {
-            let vcs = self.app.voice_calls();
-            let mut m = vcs.map();
-            m.get_mut(&call.call_id).and_then(|v| {
-                let ctx = v.context.clone()?;
-                let turn_id = v.next_turn;
-                v.next_turn += 1;
-                let (d, st) = agent::resume(&ctx, &v.agent, turn_id);
-                v.agent = st;
-                Some(d)
-            })
-        };
-        match decision {
-            Some(d) => self.apply_say(tx, call, &d).await,
-            None => Ok(call),
-        }
-    }
-
-    /// One bridge input for the call, inside `tx`.
-    pub async fn on_bridge_input(
-        &mut self,
-        tx: &mut dyn Tx,
-        call_id: Uuid,
-        input: BridgeInput,
-    ) -> AppResult<String> {
-        let Some(call) = CALLS.get(tx, call_id).await? else {
-            return Ok(NOT_APPROVED_OUTPUT.to_owned());
-        };
-        lock_project(tx, call.project_id).await?;
-        let mut call = CALLS.require(tx, call_id).await?;
-        let vcs = self.app.voice_calls();
-        if is_terminal(call.state) || !vcs.is_bridged(call_id) {
-            return Ok(match input {
-                // After the call ended the purposes are gone: the module's own refusal.
-                BridgeInput::Tool { name, arguments } if is_purpose_tool(&name) => {
-                    purpose_refusal(&name, &arguments)
-                }
-                BridgeInput::Tool { .. } => NOT_APPROVED_OUTPUT.to_owned(),
-                _ => String::new(),
-            });
-        }
-        match input {
-            BridgeInput::Assistant(text) => {
-                let (cut, _) = agent::cut(&text);
-                let (red, _, _) = agent::redact(&cut);
-                // The opening line and our `say` lines are already in the transcript.
-                let already = call
-                    .transcript
-                    .iter()
-                    .rev()
-                    .take(6)
-                    .any(|t| t.speaker == "assistant" && t.text == red);
-                if !already && !red.trim().is_empty() {
-                    call.transcript.push(turn("assistant", red));
-                    self.save(tx, call).await?;
-                }
-                Ok(String::new())
-            }
-            BridgeInput::Counterparty(text) => {
-                self.on_bridge_utterance(tx, call, &text).await?;
-                Ok(String::new())
-            }
-            BridgeInput::Tool { name, arguments } => {
-                self.on_bridge_tool(tx, call, &name, &arguments).await
-            }
-            BridgeInput::Ended(reason) => {
-                vcs.detach(call_id);
-                let why = format!("the voice assistant ended ({reason})");
-                self.fail_politely(tx, call, &why).await?;
-                Ok(String::new())
-            }
-            BridgeInput::IntroTimeout => {
-                let pending = vcs
-                    .map()
-                    .get(&call_id)
-                    .is_some_and(|v| v.intro_url_sha.is_some() && v.bridge_id.is_none());
-                if call.state == CallState::Intro && pending && !machine_detected(&call) {
-                    self.fail_politely(
-                        tx,
-                        call,
-                        "the recorded introduction did not end within its bound",
-                    )
-                    .await?;
-                }
-                Ok(String::new())
-            }
-        }
-    }
-
-    /// A finished counterparty line: the Response Agent decides; the functions above act.
-    async fn on_bridge_utterance(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-        text: &str,
-    ) -> AppResult<CallSession> {
-        let step = {
-            let vcs = self.app.voice_calls();
-            let mut m = vcs.map();
-            m.get_mut(&call.call_id).and_then(|v| {
-                let ctx = v.context.clone()?;
-                let turn_id = v.next_turn;
-                v.next_turn += 1;
-                let utt = Utterance {
-                    turn_id,
-                    speaker: agent::Speaker::Counterparty,
-                    text: text.to_owned(),
-                };
-                let (d, st) = agent::step(&ctx, &v.agent, &utt);
-                v.agent = st;
-                Some((d, ctx))
-            })
-        };
-        let mut call = call;
-        let Some((d, ctx)) = step else {
-            // No decision state (the bridge never started): keep only the redacted line.
-            let (cut, _) = agent::cut(text);
-            call.transcript
-                .push(turn("counterparty", agent::redact(&cut).0));
-            return self.save(tx, call).await;
-        };
-        // Only the cut and redacted text is stored.
-        call.transcript
-            .push(turn("counterparty", d.stored_text.clone()));
-        let mut call = self.save(tx, call).await?;
-        if !matches!(call.state, CallState::Active | CallState::AiResumed) {
-            return Ok(call); // the owner is (being) connected; nothing is decided or said
-        }
-        for f in &d.findings {
-            let question = f
-                .question_id
-                .as_ref()
-                .and_then(|id| ctx.questions.iter().find(|q| q.id == *id))
-                .map_or_else(|| f.topic.clone(), |q| q.text.clone());
-            let sf = f.to_structured_finding(&question);
-            call.findings.push(sf.clone());
-            call.question_index += 1;
-            call = self.save(tx, call).await?;
-            self.record_finding(tx, &call, f.requirement_id.as_deref(), &sf)
-                .await?;
-        }
-        if let Some(fu) = &d.owner_followup {
-            call.deferred_questions.push(fu.clone());
-        }
-        // While a rent negotiation is approved, `evaluate_rent` answers a counter-offer or a
-        // concession asked ("would the owner go to ..."): the Response Agent's "I can't
-        // negotiate terms myself" line is not spoken over the tool's answer, whichever of the
-        // two arrives first. A proposal the tool has not answered is kept and reaches the owner
-        // as a follow-up if the tool call never comes (by the next counterparty line, or at the
-        // end). A commitment ("do we have a deal at ...?") is a hold and is not touched here.
-        let mut d = d;
-        let negotiating = {
-            let vcs = self.app.voice_calls();
-            let mut m = vcs.extras_map();
-            match m
-                .get_mut(&call.call_id)
-                .filter(|e| e.approved.negotiation.is_some())
-            {
-                Some(e) => {
-                    let answered = std::mem::take(&mut e.rent_tool_since_line);
-                    if let Some(q) = e.pending_concession.take() {
-                        call.deferred_questions.push(q);
-                    }
-                    let concession = d
-                        .escalation
-                        .as_ref()
-                        .filter(|x| x.rule == EscalationRule::Concession && !x.hold)
-                        .map(|x| x.question_for_owner.clone());
-                    if let Some(q) = &concession {
-                        if !answered {
-                            e.pending_concession = Some(q.clone());
-                        }
-                    }
-                    concession.is_some()
-                }
-                None => false,
-            }
-        };
-        if negotiating {
-            d.say = Say::Silent;
-            if std::mem::take(&mut d.end_call) {
-                self.app.voice_calls().reopen_agent(call.call_id);
-            }
-        } else if let Some(esc) = d.escalation.as_ref().filter(|e| !e.hold) {
-            call.deferred_questions.push(esc.question_for_owner.clone());
-        }
-        let call = self.save(tx, call).await?;
-        if let Some(esc) = d.escalation.as_ref().filter(|e| e.hold) {
-            // Pauses the bridge; the hold line then goes out on the carrier.
-            self.request_handoff(tx, call.call_id, esc.reason, &esc.question_for_owner)
-                .await?;
-            let call = CALLS.require(tx, call.call_id).await?;
-            return self.apply_say(tx, call, &d).await;
-        }
-        self.apply_say(tx, call, &d).await
-    }
-
-    /// A tool call. The tour and rent tools are answered by the server's rules from what the
-    /// owner approved for this call; commitments and sensitive disclosures are never approved
-    /// by the model.
-    async fn on_bridge_tool(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-        name: &str,
-        args: &Value,
-    ) -> AppResult<String> {
-        if is_purpose_tool(name) {
-            return self.on_purpose_tool(tx, call, name, args).await;
-        }
-        let client = self.owner_name(tx, call.owner_id).await?;
-        // The owner is asked in the server's words: a fixed question per kind, with the
-        // Response Agent's own question for the latest counterparty line when it raised one.
-        // The model's text is kept only as a redacted transcript note.
-        let (reason, fixed, note, output) = match name {
-            vsc::TOOL_APPROVAL => {
-                let kind = arg_str(args, "kind");
-                let (reason, fixed) = match kind.as_str() {
-                    "commitment" => (
-                        HandoffReason::BindingCommitment,
-                        "The listing contact is asking for a commitment on the call. Nothing \
-                         was agreed. Can you join?",
-                    ),
-                    "sensitive_disclosure" => (
-                        HandoffReason::SensitivePersonalInfo,
-                        "The listing contact is asking for personal or financial information \
-                         (not recorded). Can you speak with them directly?",
-                    ),
-                    _ => (
-                        HandoffReason::ExceedsAuthority,
-                        "The listing contact is asking for something the assistant may not \
-                         decide. Can you join?",
-                    ),
-                };
-                (
-                    reason,
-                    fixed,
-                    arg_str(args, "detail"),
-                    not_approved_output(&client),
-                )
-            }
-            vsc::TOOL_ESCALATE => (
-                HandoffReason::CounterpartyRequestedOwner,
-                "The listing contact asked something only you can answer. Can you join?",
-                arg_str(args, "question"),
-                owner_asked_output(&client),
-            ),
-            _ => return Ok(UNKNOWN_TOOL_OUTPUT.to_owned()),
-        };
-        let latest = self
-            .app
-            .voice_calls()
-            .map()
-            .get(&call.call_id)
-            .and_then(|v| v.agent.decisions.last())
-            .and_then(|d| d.escalation.as_ref())
-            .map(|e| e.question_for_owner.clone())
-            .filter(|q| !q.trim().is_empty());
-        let question = match latest {
-            Some(q) => format!("{fixed} Their last line: {}", vsc::field(&q)),
-            None => fixed.to_owned(),
-        };
-        // No server record approves a commitment or a disclosure on a call (no approval payload
-        // names one), so the answer is always "not approved"; the owner is asked.
-        let mut call = call;
-        call.transcript.push(turn(
-            "system",
-            format!(
-                "[assistant tool {name}: {}; the model's note: {note}]",
-                reason.as_str()
-            ),
-        ));
-        let call = self.save(tx, call).await?;
-        if matches!(call.state, CallState::Active | CallState::AiResumed) {
-            self.request_handoff(tx, call.call_id, reason, &question)
-                .await?;
-        }
-        Ok(output)
-    }
-
-    /// `check_tour_time` / `evaluate_rent`: the module decides from the stored approval and
-    /// state; the new state is stored; the model gets the module's JSON and nothing else. Not
-    /// approved, unreadable arguments, a call that is not the assistant's to lead right now:
-    /// the module's refusal.
-    async fn on_purpose_tool(
-        &mut self,
-        tx: &mut dyn Tx,
-        call: CallSession,
-        name: &str,
-        args: &Value,
-    ) -> AppResult<String> {
-        if !matches!(call.state, CallState::Active | CallState::AiResumed) {
-            return Ok(purpose_refusal(name, args));
-        }
-        let vcs = self.app.voice_calls();
-        let now = Utc::now().fixed_offset();
-        let step = {
-            let mut m = vcs.extras_map();
-            m.get_mut(&call.call_id).map(|e| {
-                let before = e.state.clone();
-                let (out, after) = cp::dispatch(&e.approved, &before, name, args, now);
-                e.state = after.clone();
-                if name == cp::TOOL_EVALUATE_RENT && e.approved.negotiation.is_some() {
-                    e.pending_concession = None;
-                    e.rent_tool_since_line = true;
-                }
-                (out, before, after)
-            })
-        };
-        let Some((out, before, after)) = step else {
-            return Ok(purpose_refusal(name, args));
-        };
-        let decision = out
-            .get("decision")
-            .and_then(Value::as_str)
-            .unwrap_or("unknown")
-            .to_owned();
-        let mut call = call;
-        // The decision's name only: the arguments and the line are not stored here (the line
-        // the assistant speaks arrives as its own transcript turn).
-        call.transcript.push(turn(
-            "system",
-            format!("[assistant tool {name}: {decision}]"),
-        ));
-        let needs_owner = !before.tour.needs_owner && after.tour.needs_owner;
-        if needs_owner {
-            call.deferred_questions.push(
-                "Tour: they could not make any of your times and are waiting for other times \
-                 from you."
-                    .to_owned(),
-            );
-        }
-        let call = self.save(tx, call).await?;
-        self.notify_outcomes(&call, &before, &after);
-        Ok(out.to_string())
-    }
-}
-
-/// Whether an answering machine was detected on this call (the stored reason).
-fn machine_detected(call: &CallSession) -> bool {
-    call.transcript
-        .iter()
-        .any(|t| t.speaker == "system" && t.text == VOICEMAIL_NOTE)
-}
-
-fn is_purpose_tool(name: &str) -> bool {
-    name == cp::TOOL_CHECK_TOUR || name == cp::TOOL_EVALUATE_RENT
-}
-
-/// The module's own answer when nothing is approved for the call (or the call is over).
-fn purpose_refusal(name: &str, args: &Value) -> String {
-    cp::dispatch(
-        &Approved::default(),
-        &PurposeState::default(),
-        name,
-        args,
-        Utc::now().fixed_offset(),
-    )
-    .0
-    .to_string()
 }

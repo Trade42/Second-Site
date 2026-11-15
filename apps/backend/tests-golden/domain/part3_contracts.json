@@ -341,7 +341,7 @@
     "loc": [
      "geometry_source"
     ],
-    "msg": "Input should be 'MATTERPORT_MEASURED', 'CAD_OR_IFC', 'OWNER_MEASURED', 'PHOTO_ESTIMATE', 'FIXTURE' or 'LISTED_AREA_ESTIMATE'"
+    "msg": "Input should be 'MATTERPORT_MEASURED', 'CAD_OR_IFC', 'OWNER_MEASURED', 'PHOTO_ESTIMATE' or 'FIXTURE'"
    }
   ]
  },

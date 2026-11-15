@@ -17,7 +17,6 @@ use serde_json::{json, Value};
 use ss_domain::contracts::{DesignApprovalStatus, DesignRevisionRequest, DesignVersion};
 use ss_server::services::design::{
     bom_lock_key, lock_key, room_requirements_from_profile, version_lock_key, DesignService,
-    NO_FLOOR_NO_AREA,
 };
 use ss_server::store::repo::{rooms, BOMS, DESIGNS, GEOMETRIES, PROPERTIES};
 use ss_server::store::{schema, Query};
@@ -94,23 +93,6 @@ async fn demo(t: &TestApp) -> Demo {
         hollywood: by[HOLLYWOOD].clone(),
         alhambra: by[ALHAMBRA].clone(),
     }
-}
-
-/// Remove the Alhambra listing's stated area (it has no scan), so that it has no floor at all.
-async fn clear_listed_area(t: &TestApp, d: &Demo) {
-    let mut tx = t.app.store.begin().await.unwrap();
-    let mut prop = PROPERTIES
-        .require_in_project(
-            &mut *tx,
-            uuid(&json!(d.alhambra)),
-            uuid(&json!(d.pid)),
-            "property not found",
-        )
-        .await
-        .unwrap();
-    prop.commercial_listing.as_mut().unwrap().available_area_sqm = None;
-    PROPERTIES.upsert(&mut *tx, &prop).await.unwrap();
-    tx.commit().await.unwrap();
 }
 
 fn base(pid: &str) -> String {
@@ -415,9 +397,6 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
     let t = TestApp::new(db, &[]);
     let d = demo(&t).await;
     let (tok, pid) = (d.tok.as_str(), d.pid.as_str());
-    // No scan and no stated area (with an area the listing gets a sketch on an assumed floor:
-    // `tests/design_estimate.rs`).
-    clear_listed_area(&t, &d).await;
     let r = generate(
         &t,
         tok,
@@ -430,7 +409,10 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
     let task = &r.body["task"];
     assert_eq!(task["status"], "FAILED");
     assert_eq!(task["error_code"], "NotFoundError");
-    assert_eq!(task["error_message"], NO_FLOOR_NO_AREA);
+    assert_eq!(
+        task["error_message"],
+        "no measured geometry available for this property"
+    );
     assert!(layouts(&t, tok, pid).await.is_empty());
     assert_eq!(count(&t, &schema::SITE_GEOMETRIES).await, 0);
     let ev = events(&t, tok, pid).await;
@@ -451,7 +433,10 @@ both_backends!(a_property_without_geometry_fails_the_task, |db| {
         .unwrap_err();
     assert_eq!(err.status(), StatusCode::NOT_FOUND);
     assert_eq!(err.error_code(), "GEOMETRY_UNAVAILABLE");
-    assert_eq!(err.to_string(), NO_FLOOR_NO_AREA);
+    assert_eq!(
+        err.to_string(),
+        "no measured geometry available for this property"
+    );
 });
 
 // ---- generation events ------------------------------------------------------------------------------
@@ -1543,8 +1528,6 @@ async fn locks_and_open_transactions(schema: &str) -> (i64, i64) {
 both_backends!(a_slow_geometry_fetch_holds_nothing, |db| {
     let t = TestApp::new(db, &[]);
     let d = demo(&t).await;
-    // Alhambra has no scan; without a stated area its generation fails at once.
-    clear_listed_area(&t, &d).await;
     let gate = gate_geometry_fetches(&t);
     let first = spawn_generate(
         &t,

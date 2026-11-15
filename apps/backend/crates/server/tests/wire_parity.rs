@@ -186,9 +186,6 @@ const INFEASIBLE_MESSAGE: &str = "No layout fits the measured floor: the floor i
 /// See the module documentation: the one deliberate difference, applied to Python's answers.
 fn python_with_deliberate_differences(names: &[String], py: &mut [Value]) {
     let step = |n: &str| names.iter().position(|x| x == n).expect(n);
-    // No scan and (for this step) no stated area: the message says both.
-    py[step("generate without measured geometry")]["task"]["error_message"] =
-        json!(ss_server::services::design::NO_FLOOR_NO_AREA);
     let task = &mut py[step("generate an infeasible program")]["task"];
     let task_id = task["task_id"].clone();
     task["status"] = json!("FAILED");
@@ -347,29 +344,6 @@ async fn stored_design_rows(t: &TestApp) -> Value {
     })
 }
 
-/// Set the Alhambra listing's stated area in the store (no event, no route); returns the old one.
-async fn set_alhambra_area(
-    t: &TestApp,
-    refs: &HashMap<String, String>,
-    area: Option<f64>,
-) -> Option<f64> {
-    let id: uuid::Uuid = refs["property:5380 E ALHAMBRA AVE"].parse().unwrap();
-    let mut tx = t.app.store.begin().await.unwrap();
-    let mut prop = ss_server::store::repo::PROPERTIES
-        .get(&mut *tx, id)
-        .await
-        .unwrap()
-        .unwrap();
-    let listing = prop.commercial_listing.as_mut().unwrap();
-    let old = std::mem::replace(&mut listing.available_area_sqm, area);
-    ss_server::store::repo::PROPERTIES
-        .upsert(&mut *tx, &prop)
-        .await
-        .unwrap();
-    tx.commit().await.unwrap();
-    old
-}
-
 fn resolve(path: &str, refs: &HashMap<String, String>) -> String {
     let mut p = path.to_owned();
     for (k, v) in refs {
@@ -393,14 +367,6 @@ both_backends!(property_slice_matches_python, |db| {
     let mut status_mismatches = Vec::new();
     for s in steps {
         let name = s["name"].as_str().unwrap();
-        // The golden's Alhambra listing states an area and has no scan: it now gets a sketch on
-        // an assumed floor (`tests/design_estimate.rs`). This step replays Python's "no floor"
-        // answer, so the listing has no stated area for this one step only.
-        let saved_listing = if name == "generate without measured geometry" {
-            Some(set_alhambra_area(&t, &refs, None).await)
-        } else {
-            None
-        };
         let method: Method = s["method"].as_str().unwrap().parse().unwrap();
         let path = resolve(s["path"].as_str().unwrap(), &refs);
         let auth = s["auth"].as_bool().unwrap();
@@ -413,9 +379,6 @@ both_backends!(property_slice_matches_python, |db| {
                 body.as_ref(),
             )
             .await;
-        if let Some(area) = saved_listing {
-            set_alhambra_area(&t, &refs, area).await;
-        }
         let status = s["status"].as_u64().unwrap() as u16;
         if r.status.as_u16() != status {
             status_mismatches.push(format!(

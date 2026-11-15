@@ -24,7 +24,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ss_core::Contract;
 use ss_domain::communications::call_payload;
-use ss_domain::communications::call_purposes::CallPurposes;
 use ss_domain::contracts::{
     CallSession, Channel, CommunicationSession, CommunicationState, HandoffStatus, OutreachRequest,
     OwnerHandoffRequest,
@@ -39,9 +38,7 @@ use crate::error::{AppError, AppResult};
 use crate::http::extract::{bearer_user, body_errors_with_input, early_json_body, PathParams};
 use crate::http::routes::properties::property_in_project;
 use crate::services::approvals::ApprovalSpec;
-use crate::services::call_orchestration::{
-    lock_project, request_digest, CallOrchestrator, RequestExtras, StartCall, REQUEST_DIGEST_KEY,
-};
+use crate::services::call_orchestration::{lock_project, CallOrchestrator, StartCall};
 use crate::services::call_simulator::CallSimulator;
 use crate::services::events::Emit;
 use crate::services::notifier::NotifyRequest;
@@ -125,41 +122,6 @@ pub fn py_dict_repr(m: &IndexMap<String, String>) -> String {
         })
         .collect();
     format!("{{{}}}", parts.join(", "))
-}
-
-/// At most this many of a request's own questions are kept for its call.
-pub const MAX_REQUEST_QUESTIONS: usize = 20;
-
-/// The outreach body. `purposes` (a tour request, rent limits) is taken out before the model is
-/// validated and read by itself, so no validation error can echo it: its failure is one fixed
-/// message without the input.
-fn parse_outreach(
-    decoded: crate::http::extract::EarlyBody,
-) -> AppResult<(OutreachRequest, Option<CallPurposes>)> {
-    let mut obj = decoded.into_object()?;
-    let raw = obj.remove("purposes").filter(|v| !v.is_null());
-    let req = OutreachRequest::from_json_value(Value::Object(obj.clone()))
-        .map_err(|e| with_enum_ctx(body_errors_with_input(e, &obj)))?;
-    let purposes_error = |msg: &str| {
-        AppError::RequestValidation(vec![json!({
-            "type": "value_error",
-            "loc": ["body", "purposes"],
-            "msg": msg,
-        })])
-    };
-    let purposes = match raw {
-        None => None,
-        Some(v) => Some(serde_json::from_value::<CallPurposes>(v).map_err(|_| {
-            purposes_error(
-                "purposes could not be read: a tour needs windows with start and end (ISO 8601 \
-                 with a UTC offset); rent limits are whole cents",
-            )
-        })?),
-    };
-    if purposes.is_some() && req.channel != Channel::Voice {
-        return Err(purposes_error("purposes apply to a VOICE outreach only"));
-    }
-    Ok((req, purposes))
 }
 
 fn parse_body<T: Contract>(decoded: crate::http::extract::EarlyBody) -> AppResult<T> {
@@ -308,7 +270,7 @@ async fn outreach(
     let project_id = params.uuid("project_id")?;
     let (out, notices) = crate::in_tx!(app, |tx| {
         let (project_id, owner_id) = owned(&app, tx, project_id, user).await?;
-        let (mut req, purposes) = parse_outreach(decoded)?;
+        let mut req: OutreachRequest = parse_body(decoded)?;
         // The JSON value above holds object keys sorted; Python's dict keeps the body's order,
         // which the approval key (`str(recipient)`) shows. Read the recipient again from the raw
         // body, in document order (a repeated key keeps its first position and its last value,
@@ -321,49 +283,23 @@ async fn outreach(
         lock_project(tx, project_id).await?;
         // Python accepted any property id, even one of another project.
         property_in_project(tx, project_id, req.property_id).await?;
-        // What the call may do besides its questions stays on the server, under the
-        // communication id. Its keyed digest is part of the approved payload (and of the
-        // approval's key), so the approval covers exactly this request's purposes and questions.
-        let extras = RequestExtras {
-            questions: req
-                .questions
-                .iter()
-                .take(MAX_REQUEST_QUESTIONS)
-                .cloned()
-                .collect(),
-            purposes,
-        };
-        let digest = request_digest(app.settings.auth_secret.expose(), &extras);
-        let mut payload = call_payload(project_id, &req.recipient, Some(req.property_id));
-        if let Some(d) = &digest {
-            payload.insert(REQUEST_DIGEST_KEY.into(), Value::String(d.clone()));
-        }
+        let payload = call_payload(project_id, &req.recipient, Some(req.property_id));
         let action = if req.channel == Channel::Voice {
             ActionType::PlaceCall
         } else {
             ActionType::SendMessage
         };
-        let mut summary = format!(
+        let summary = format!(
             "{} to {}: {}",
             req.channel.as_str(),
             get_default(&req.recipient, "name", "contact"),
             req.purpose
         );
-        let mut key = format!(
+        let key = format!(
             "outreach:{project_id}:{}:{}",
             req.property_id,
             py_dict_repr(&req.recipient)
         );
-        if let (Some(d), Some(p)) = (&digest, &extras.purposes) {
-            // The owner sees what the approval covers, without any limit.
-            if p.tour.is_some() {
-                summary.push_str("; the assistant may set up a tour inside your times");
-            }
-            if p.negotiation.is_some() {
-                summary.push_str("; the assistant may discuss the rent inside your limits");
-            }
-            key.push_str(&format!(":request:{}", d.get(..16).unwrap_or(d)));
-        }
         let appr = app
             .approvals()
             .request(
@@ -390,8 +326,6 @@ async fn outreach(
             created_at: ss_core::UtcDateTime::now(),
         };
         COMMUNICATIONS.add(tx, &comm).await?;
-        app.voice_calls()
-            .stash_request(comm.communication_id, extras);
         let notice = NotifyRequest {
             owner_id,
             project_id,

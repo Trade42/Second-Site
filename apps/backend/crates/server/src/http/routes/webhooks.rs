@@ -66,8 +66,6 @@ async fn telnyx(
     .map_err(webhook_error)?;
     let event = ss_domain::py::json_loads_bytes(&body)
         .map_err(|e| AppError::internal_kind("JSONDecodeError", e))?;
-    // Bridge events of the calls this event starts open their own transactions on this app.
-    app.voice_calls().bind(&app);
     let notices = crate::in_tx!(app, |tx| {
         if !record_once(tx, &verified, &event).await? {
             Vec::new() // duplicate: already accepted, do nothing again

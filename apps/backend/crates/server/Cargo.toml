@@ -33,7 +33,7 @@ indexmap = { version = "2", features = ["serde"] }
 thiserror = "2"
 async-trait = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
-axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "original-uri", "matched-path", "multipart", "ws"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "original-uri", "matched-path", "multipart"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["cors", "catch-panic"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
@@ -52,10 +52,6 @@ hyper-util = { version = "0.1", default-features = false, features = ["client-le
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "webpki-tokio"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 http-body-util = "0.1"
-# The xAI realtime client of the voice bridge (integrations/xai_realtime.rs): the same
-# tokio-tungstenite axum's `ws` feature already brings for the carrier side, with rustls (ring,
-# webpki roots) for wss.
-tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 
 [dev-dependencies]
 jsonschema = { version = "0.61.2", default-features = false }

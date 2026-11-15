@@ -49,73 +49,6 @@
       "title": "FinishSpecification",
       "type": "object"
     },
-    "FloorEstimate": {
-      "additionalProperties": false,
-      "description": "What a layout on a floor assumed from the listing's stated area is (DesignVersion.floor_estimate).\n\nNever present on a layout solved on a measured, CAD, owner-measured, photo or fixture floor.",
-      "properties": {
-        "area_measured": {
-          "description": "Always false: the area is the listing's stated figure, not a measurement.",
-          "title": "Area Measured",
-          "type": "boolean"
-        },
-        "assumed_shape": {
-          "description": "e.g. 'rectangle 3:2, one entrance mid short side'.",
-          "title": "Assumed Shape",
-          "type": "string"
-        },
-        "geometry_source": {
-          "$ref": "#/$defs/GeometrySource",
-          "description": "Always LISTED_AREA_ESTIMATE."
-        },
-        "label": {
-          "description": "A short label for display.",
-          "title": "Label",
-          "type": "string"
-        },
-        "listed_area": {
-          "description": "The listing's stated area, as stored.",
-          "exclusiveMinimum": 0,
-          "title": "Listed Area",
-          "type": "number"
-        },
-        "listed_area_unit": {
-          "description": "Unit of listed_area as stored ('sqm': CommercialListing.available_area_sqm).",
-          "title": "Listed Area Unit",
-          "type": "string"
-        },
-        "shape_assumed": {
-          "description": "Always true: the floor's shape is an assumption.",
-          "title": "Shape Assumed",
-          "type": "boolean"
-        },
-        "shows": {
-          "description": "What the sketch can and cannot show, in plain words.",
-          "title": "Shows",
-          "type": "string"
-        },
-        "unknown": {
-          "description": "What is not known about the real floor, e.g. 'columns', 'fixed_walls', 'plumbing'.",
-          "items": {
-            "type": "string"
-          },
-          "title": "Unknown",
-          "type": "array"
-        }
-      },
-      "required": [
-        "geometry_source",
-        "shape_assumed",
-        "area_measured",
-        "listed_area",
-        "listed_area_unit",
-        "assumed_shape",
-        "unknown",
-        "shows",
-        "label"
-      ],
-      "title": "FloorEstimate",
-      "type": "object"
-    },
     "FurniturePlacement": {
       "additionalProperties": false,
       "properties": {
@@ -157,18 +90,6 @@
       ],
       "title": "FurniturePlacement",
       "type": "object"
-    },
-    "GeometrySource": {
-      "enum": [
-        "MATTERPORT_MEASURED",
-        "CAD_OR_IFC",
-        "OWNER_MEASURED",
-        "PHOTO_ESTIMATE",
-        "FIXTURE",
-        "LISTED_AREA_ESTIMATE"
-      ],
-      "title": "GeometrySource",
-      "type": "string"
     },
     "GeometryValidationReport": {
       "additionalProperties": false,
@@ -316,18 +237,6 @@
       },
       "title": "Finish Specifications",
       "type": "array"
-    },
-    "floor_estimate": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/FloorEstimate"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Set only when the layout was solved on a floor assumed from the listing's stated area (LISTED_AREA_ESTIMATE): what is assumed and unknown."
     },
     "furniture_placements": {
       "items": {
