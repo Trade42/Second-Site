@@ -667,6 +667,342 @@ pub fn group_thousands(n: i128) -> String {
     out
 }
 
+/// A compiled regex with Python `re` semantics (str pattern, optionally `re.I`) for the
+/// constructs the ported communication patterns use: literals, alternation, groups, greedy
+/// quantifiers, character classes, `\d`, `\s` and `\b`. Python and the Rust `regex` crate
+/// differ there (part 1 review, R9), and this type closes the gaps:
+///
+/// - `\s` means `str.isspace()` (the pattern is compiled with [`py_regex`]'s translation);
+/// - `\b` uses Python's word characters (`\w` = Unicode letters `L*`, numbers `N*` and `_`; Rust
+///   counts combining marks, connector punctuation, join controls and `Other_Alphabetic`
+///   symbols as word characters and not `No` numbers such as `½`). The text is matched in a
+///   normalized copy where each character whose word status differs is replaced, one character
+///   for one, by a stand-in with Python's status (`ж` for a word character, `☃` otherwise);
+///   neither stand-in can match a pattern literal, a digit or a space;
+/// - with `re.I`, Python also matches `İ` (U+0130) and `ı` (U+0131) for `i`, which Rust's
+///   simple case folding does not: they are replaced by `i` in the normalized copy (Python's
+///   other non-ASCII equivalents of ASCII letters, `K` for `k` and `ſ` for `s`, Rust folds too).
+///
+/// Match positions and groups are reported in the original text. `\d` is Unicode `Nd` in both
+/// engines; the Rust engine's leftmost-first semantics equal Python's backtracking for these
+/// patterns (no backreferences or lookaround). Unicode tables: CPython 3.12 uses Unicode 15.0,
+/// the `regex` crate a newer version; characters assigned after 15.0 may differ (tested).
+#[derive(Debug, Clone)]
+pub struct PyRegex {
+    re: Regex,
+    ignore_case: bool,
+}
+
+/// A match of [`PyRegex::search`]: byte ranges in the original text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PyMatch<'t> {
+    text: &'t str,
+    groups: Vec<Option<(usize, usize)>>,
+}
+
+impl<'t> PyMatch<'t> {
+    /// `m.group(i)` (0 is the whole match); `None` when the group did not participate.
+    pub fn group(&self, i: usize) -> Option<&'t str> {
+        self.groups
+            .get(i)
+            .copied()
+            .flatten()
+            .map(|(a, b)| &self.text[a..b])
+    }
+
+    /// `m.start()`, `m.end()` in bytes of the original text.
+    pub fn span(&self) -> (usize, usize) {
+        self.groups.first().copied().flatten().unwrap_or((0, 0))
+    }
+}
+
+fn rust_word(c: char) -> bool {
+    static W: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = W.get_or_init(|| Regex::new(r"\A\w\z").expect("static regex is valid"));
+    let mut buf = [0u8; 4];
+    re.is_match(c.encode_utf8(&mut buf))
+}
+
+/// CPython's `\w` for str patterns: `str.isalnum()` or `_` (general categories `L*` and `N*`).
+pub fn is_py_word(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric() || c == '_';
+    }
+    static W: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = W.get_or_init(|| Regex::new(r"\A[\p{L}\p{N}]\z").expect("static regex is valid"));
+    let mut buf = [0u8; 4];
+    re.is_match(c.encode_utf8(&mut buf))
+}
+
+impl PyRegex {
+    /// Compile a Python pattern (`re.compile(pattern)`, or with `re.I` when `ignore_case`).
+    /// Patterns are compile-time constants covered by tests; failure is a programming error.
+    pub fn new(pattern: &str, ignore_case: bool) -> Self {
+        let translated = pattern.replace(r"\s", r"[\s\x1C-\x1F]");
+        let full = if ignore_case {
+            format!("(?i){translated}")
+        } else {
+            translated
+        };
+        Self {
+            re: Regex::new(&full).expect("static regex is valid"),
+            ignore_case,
+        }
+    }
+
+    /// The normalized copy of `text` and, for each of its byte offsets at a character boundary
+    /// (and its end), the matching offset in `text`.
+    fn normalize(&self, text: &str) -> (String, Vec<usize>) {
+        let mut out = String::with_capacity(text.len());
+        let mut at = Vec::with_capacity(text.len() + 1);
+        for (i, c) in text.char_indices() {
+            let mapped = if c.is_ascii() {
+                c
+            } else if self.ignore_case && (c == '\u{130}' || c == '\u{131}') {
+                'i'
+            } else {
+                let py = is_py_word(c);
+                if py == rust_word(c) {
+                    c
+                } else if py {
+                    'ж'
+                } else {
+                    '☃'
+                }
+            };
+            let start = out.len();
+            out.push(mapped);
+            at.resize(start + 1, i);
+            at[start] = i;
+        }
+        let end = out.len();
+        at.resize(end + 1, text.len());
+        at[end] = text.len();
+        (out, at)
+    }
+
+    /// `pattern.search(text)`: the first match, with every group.
+    pub fn search<'t>(&self, text: &'t str) -> Option<PyMatch<'t>> {
+        let (norm, at) = self.normalize(text);
+        let caps = self.re.captures(&norm)?;
+        let groups = (0..caps.len())
+            .map(|i| caps.get(i).map(|m| (at[m.start()], at[m.end()])))
+            .collect();
+        Some(PyMatch { text, groups })
+    }
+
+    /// `bool(pattern.search(text))`.
+    pub fn is_match(&self, text: &str) -> bool {
+        let (norm, _) = self.normalize(text);
+        self.re.is_match(&norm)
+    }
+}
+
+/// CPython 3.12's default `sys.get_int_max_str_digits()`: `int()` of a decimal string with more
+/// digits than this (leading zeros included, underscores not) raises `ValueError`.
+const PY_INT_MAX_STR_DIGITS: usize = 4300;
+
+/// `str(int(s))` for any size up to CPython's digit limit: the canonical decimal form of
+/// Python's `int(s)` (same syntax as [`int_of_str`]: Unicode digits and spaces mapped to ASCII,
+/// surrounding whitespace, an optional sign, single underscores between digits). More than
+/// 4,300 digits is an error, as in CPython 3.12 (`sys.get_int_max_str_digits()`).
+pub fn int_literal(s: &str) -> Result<String, String> {
+    let err = || format!("invalid literal for int() with base 10: {}", str_repr(s));
+    let ascii = decimal_and_space_to_ascii(s);
+    let t = ascii.trim_matches(is_c_space);
+    let (negative, digits) = match t.as_bytes().first() {
+        Some(b'-') => (true, &t[1..]),
+        Some(b'+') => (false, &t[1..]),
+        _ => (false, t),
+    };
+    let bytes = digits.as_bytes();
+    if bytes.is_empty() || !bytes[0].is_ascii_digit() || !bytes[bytes.len() - 1].is_ascii_digit() {
+        return Err(err());
+    }
+    let mut out = String::with_capacity(bytes.len() + 1);
+    let mut prev_underscore = false;
+    let mut digit_count = 0usize;
+    for &b in bytes {
+        if b == b'_' {
+            if prev_underscore {
+                return Err(err());
+            }
+            prev_underscore = true;
+            continue;
+        }
+        if !b.is_ascii_digit() {
+            return Err(err());
+        }
+        prev_underscore = false;
+        digit_count += 1;
+        if !(out.is_empty() && b == b'0') {
+            out.push(char::from(b));
+        }
+    }
+    if digit_count > PY_INT_MAX_STR_DIGITS {
+        return Err(format!(
+            "Exceeds the limit ({PY_INT_MAX_STR_DIGITS} digits) for integer string conversion: value has {digit_count} digits; use sys.set_int_max_str_digits() to increase the limit"
+        ));
+    }
+    if out.is_empty() {
+        return Ok("0".into());
+    }
+    if negative {
+        out.insert(0, '-');
+    }
+    Ok(out)
+}
+
+/// `base64.b64decode(s)` with Python's defaults (`validate=False`): a `str` argument must be
+/// ASCII; characters outside the standard alphabet are skipped; decoding stops at a complete
+/// padding sequence; a dangling single character or missing padding is an error
+/// (`binascii.Error`). A port of CPython 3.12 `binascii.a2b_base64` in non-strict mode. `Err`
+/// carries Python's message; every error is a `ValueError` in Python.
+pub fn b64decode(s: &str) -> Result<Vec<u8>, String> {
+    if !s.is_ascii() {
+        return Err("string argument should contain only ASCII characters".into());
+    }
+    fn sextet(c: u8) -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let mut out = Vec::with_capacity(s.len() / 4 * 3 + 3);
+    let mut quad_pos = 0u8;
+    let mut leftchar = 0u8;
+    let mut pads = 0u8;
+    for &c in s.as_bytes() {
+        if c == b'=' {
+            if quad_pos >= 2 {
+                pads += 1;
+                if quad_pos + pads >= 4 {
+                    return Ok(out);
+                }
+            }
+            continue;
+        }
+        let Some(v) = sextet(c) else {
+            continue;
+        };
+        pads = 0;
+        match quad_pos {
+            0 => {
+                quad_pos = 1;
+                leftchar = v;
+            }
+            1 => {
+                quad_pos = 2;
+                out.push((leftchar << 2) | (v >> 4));
+                leftchar = v & 0x0f;
+            }
+            2 => {
+                quad_pos = 3;
+                out.push((leftchar << 4) | (v >> 2));
+                leftchar = v & 0x03;
+            }
+            _ => {
+                quad_pos = 0;
+                out.push((leftchar << 6) | v);
+                leftchar = 0;
+            }
+        }
+    }
+    match quad_pos {
+        0 => Ok(out),
+        1 => Err(format!(
+            "Invalid base64-encoded string: number of data characters ({}) cannot be 1 more than a multiple of 4",
+            out.len() / 3 * 4 + 1
+        )),
+        _ => Err("Incorrect padding".into()),
+    }
+}
+
+/// Append `json.dumps`'s encoding of a string (`ensure_ascii=True`: non-ASCII and control
+/// characters as lower-case `\uXXXX`, astral characters as surrogate pairs).
+pub fn json_push_str(out: &mut String, s: &str) {
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            ' '..='~' => out.push(ch),
+            _ => {
+                let mut buf = [0u16; 2];
+                for unit in ch.encode_utf16(&mut buf) {
+                    out.push_str(&format!("\\u{unit:04x}"));
+                }
+            }
+        }
+    }
+    out.push('"');
+}
+
+/// Append `json.dumps(v, separators=(",", ":"))` (ensure_ascii, Python float repr, map keys in
+/// the map's own order).
+pub fn json_push_compact(out: &mut String, v: &Value) {
+    match v {
+        Value::Null => out.push_str("null"),
+        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                out.push_str(&i.to_string());
+            } else if let Some(u) = n.as_u64() {
+                out.push_str(&u.to_string());
+            } else {
+                out.push_str(&float_repr(n.as_f64().unwrap_or(f64::NAN)));
+            }
+        }
+        Value::String(s) => json_push_str(out, s),
+        Value::Array(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                json_push_compact(out, item);
+            }
+            out.push(']');
+        }
+        Value::Object(map) => {
+            out.push('{');
+            for (i, (k, item)) in map.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                json_push_str(out, k);
+                out.push(':');
+                json_push_compact(out, item);
+            }
+            out.push('}');
+        }
+    }
+}
+
+/// `json.dumps(v, separators=(",", ":"))`.
+pub fn json_dumps_compact(v: &Value) -> String {
+    let mut out = String::new();
+    json_push_compact(&mut out, v);
+    out
+}
+
+/// `json.loads(b)` for bytes: an optional UTF-8 byte-order mark, then UTF-8 JSON. Narrower than
+/// Python: UTF-16/32 input, `NaN`/`Infinity` literals, lone surrogate escapes and nesting deeper
+/// than `serde_json`'s 128 levels are errors here.
+pub fn json_loads_bytes(b: &[u8]) -> Result<Value, String> {
+    let b = b.strip_prefix(b"\xef\xbb\xbf").unwrap_or(b);
+    serde_json::from_slice(b).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -372,8 +372,8 @@ impl MemTx {
 
     /// Delete one row applying ON DELETE rules of referencing tables (recursively).
     fn delete_row(&mut self, t: &'static TableDef, id: Uuid) -> StoreResult<()> {
-        // Referencing rows first.
-        for child in schema::ALL_TABLES {
+        // Referencing rows first (alembic tables and the Rust-owned ones).
+        for child in schema::ALL_TABLES.iter().chain(schema::RUST_OWNED_TABLES) {
             for f in child.foreign_keys.iter().filter(|f| f.references == t.name) {
                 let refs: Vec<Uuid> = {
                     let state = self.state()?;

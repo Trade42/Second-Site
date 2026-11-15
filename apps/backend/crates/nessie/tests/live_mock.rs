@@ -122,11 +122,14 @@ fn intent(op: PaymentOperation, amount: i64) -> PaymentIntent {
         property_id: Uuid::from_u128(2),
         scenario_id: Uuid::from_u128(3),
         plan_item_id: "buildout:renovation".into(),
+        attempt_id: "0123abcd4567".into(),
         action,
         operation: op,
         amount_minor: amount,
         currency: "USD".into(),
-        description: "SIMULATION (Second Site plan): test".into(),
+        description:
+            "SIMULATION (Second Site plan item buildout:renovation, attempt 0123abcd4567): test"
+                .into(),
     }
 }
 
@@ -385,6 +388,7 @@ fn executes_the_three_payment_operations() {
 
     let pay = intent(
         PaymentOperation::PayBill {
+            account_id: "acct_1".into(),
             bill_id: "bill_1".into(),
         },
         690_050,
@@ -402,7 +406,7 @@ fn executes_the_three_payment_operations() {
     assert_eq!(reqs[0].path, "/accounts/acct_1/purchases");
     assert_eq!(
         reqs[0].json(),
-        json!({"merchant_id": "merch_1", "amount_cents": 1200000, "description": "SIMULATION (Second Site plan): test"})
+        json!({"merchant_id": "merch_1", "amount_cents": 1200000, "description": "SIMULATION (Second Site plan item buildout:renovation, attempt 0123abcd4567): test"})
     );
     assert_eq!(reqs[1].path, "/accounts/acct_1/bills");
     assert_eq!(

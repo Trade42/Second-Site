@@ -66,6 +66,7 @@ fn purchase_intent(account: &str, merchant: &str, amount: i64) -> PaymentIntent 
         property_id: Uuid::from_u128(2),
         scenario_id: Uuid::from_u128(3),
         plan_item_id: "buildout:renovation".into(),
+        attempt_id: "0123abcd4567".into(),
         action: ApprovalAction::Purchase,
         operation: PaymentOperation::Purchase {
             account_id: account.into(),
@@ -73,7 +74,9 @@ fn purchase_intent(account: &str, merchant: &str, amount: i64) -> PaymentIntent 
         },
         amount_minor: amount,
         currency: "USD".into(),
-        description: "SIMULATION (Second Site plan): test".into(),
+        description:
+            "SIMULATION (Second Site plan item buildout:renovation, attempt 0123abcd4567): test"
+                .into(),
     }
 }
 
@@ -390,7 +393,9 @@ fn golden_plan_executes_end_to_end() {
 
     let mut records = Vec::new();
     for p in &plan.payments {
-        let intent = plan.intent_for(&p.plan_item_id, &targets).unwrap();
+        let intent = plan
+            .intent_for(&p.plan_item_id, &targets, "0123abcd4567")
+            .unwrap();
         let rec = bank.execute(authorize(&intent)).unwrap();
         assert_eq!(rec.simulation, Simulation::FixtureBank);
         assert_eq!(rec.disclaimer, FIXTURE_BANK_DISCLAIMER);
