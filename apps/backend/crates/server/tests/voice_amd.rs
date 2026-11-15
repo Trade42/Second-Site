@@ -486,3 +486,126 @@ both_backends!(the_models_same_words_are_still_judged, |db| {
         assert_eq!(summary.contains(JUDGED), model_says_it, "{summary}");
     }
 });
+
+// Review (reviewer2-8dc4cd78): the machine event at four moments of a bridged call (before the
+// answer, during the recording, mid-conversation, after the end). On a test call it adds one
+// line, once, and nothing else; on a contact's call the leg is hung up and nothing is spoken.
+impl Ctx {
+    async fn intro_url(&self) -> Value {
+        self.server
+            .requests()
+            .iter()
+            .find(|r| r.path.ends_with("/playback_start"))
+            .map(|r| serde_json::from_slice::<Value>(&r.body).unwrap()["audio_url"].clone())
+            .expect("the recording is played")
+    }
+
+    /// Bring a bridged live call to moment 0 (dialing), 1 (recording playing) or 2 (assistant on).
+    async fn at(&self, moment: u8) -> CallSession {
+        let mut call = self.start().await;
+        if moment >= 1 {
+            call = self.event(&call, "call.answered", json!({})).await;
+            assert_eq!(call.state, CallState::Intro);
+        }
+        if moment >= 2 {
+            let url = self.intro_url().await;
+            call = self
+                .event(
+                    &call,
+                    "call.playback.ended",
+                    json!({"status": "completed", "media_url": url}),
+                )
+                .await;
+            assert_eq!(call.state, CallState::Active);
+        }
+        call
+    }
+}
+
+both_backends!(review_the_machine_event_at_four_moments, |db| {
+    let machine = json!({"result": "machine"});
+    for moment in 0..=2u8 {
+        // The owner's test number: one line, the state and the carrier untouched.
+        let c = Ctx::new(db, Some(&TEST_NUMBER), true).await;
+        let call = c.at(moment).await;
+        let (state, turns, before) = (call.state, call.transcript.len(), sent(&c.server));
+        let mut call = call;
+        for _ in 0..2 {
+            call = c
+                .event(&call, "call.machine.detection.ended", machine.clone())
+                .await;
+        }
+        assert_eq!(notes(&call, MACHINE_NOTE), 1, "moment {moment}");
+        assert_eq!(call.transcript.len(), turns + 1, "moment {moment}");
+        assert_eq!(call.state, state, "moment {moment}");
+        assert_eq!(sent(&c.server), before, "moment {moment}: no request");
+        assert!(!c.bridge.log().iter().any(|l| l == "pause"));
+
+        // A contact: hung up, nothing spoken on the carrier, no assistant line added.
+        let c = Ctx::new(db, Some(&CONTACTS), true).await;
+        let call = c.at(moment).await;
+        assert!(!is_test_call(&call));
+        assert!(dial_bodies(&c.server)[0].contains(r#""answering_machine_detection":"detect""#));
+        let before = sent(&c.server).len();
+        let said = |c: &CallSession| {
+            c.transcript
+                .iter()
+                .filter(|t| t.speaker == "assistant")
+                .count()
+        };
+        let spoken = said(&call);
+        let call = c
+            .event(&call, "call.machine.detection.ended", machine.clone())
+            .await;
+        assert_eq!(&sent(&c.server)[before..], ["hangup"], "moment {moment}");
+        assert_eq!(notes(&call, VOICEMAIL_NOTE), 1, "moment {moment}");
+        assert_eq!(notes(&call, MACHINE_NOTE), 0);
+        assert_eq!(said(&call), spoken, "moment {moment}: nothing spoken");
+    }
+    // After the end: nothing at all, on either kind of call.
+    for extra in [&TEST_NUMBER, &CONTACTS] {
+        let c = Ctx::new(db, Some(extra), true).await;
+        let call = c.at(2).await;
+        let ended = c
+            .event(
+                &call,
+                "call.hangup",
+                json!({"hangup_cause": "normal_clearing"}),
+            )
+            .await;
+        let before = sent(&c.server);
+        let after = c
+            .event(&ended, "call.machine.detection.ended", machine.clone())
+            .await;
+        assert_eq!(
+            serde_json::to_value(&after).unwrap(),
+            serde_json::to_value(&ended).unwrap()
+        );
+        assert_eq!(sent(&c.server), before);
+    }
+});
+
+// Review: the apology's exact words said by the model on a call that then ends normally (no
+// failure, so no server apology at all) are judged; so the exemption is not by the words.
+both_backends!(review_the_models_apology_alone_is_judged, |db| {
+    let c = Ctx::new(db, Some(&TEST_NUMBER), true).await;
+    let call = c.at(2).await;
+    bridge_input(
+        &c.t.app,
+        call.call_id,
+        BridgeInput::Assistant(APOLOGY_LINE.into()),
+    )
+    .await
+    .unwrap();
+    let call = c.call(call.call_id).await;
+    assert_eq!(call.transcript.last().unwrap().text, APOLOGY_LINE);
+    let ended = c
+        .event(
+            &call,
+            "call.hangup",
+            json!({"hangup_cause": "normal_clearing"}),
+        )
+        .await;
+    let summary = ended.outcome_summary.clone().unwrap_or_default();
+    assert!(summary.contains(JUDGED), "{summary}");
+});
