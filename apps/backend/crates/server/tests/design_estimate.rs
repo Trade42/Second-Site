@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::http::StatusCode;
 use serde_json::{json, Value};
-use ss_core::{Contract, Validate};
+use ss_core::Contract;
 use ss_domain::contracts::geometry::{FloorEstimate, LISTED_AREA_NOT_VERIFIED};
 use ss_domain::contracts::{InteriorAsset, SiteGeometry};
 use ss_domain::integrations::base::{ProviderError, ProviderErrorKind};

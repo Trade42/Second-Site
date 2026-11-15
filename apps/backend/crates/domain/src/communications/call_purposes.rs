@@ -10,6 +10,11 @@
 //! The owner's maximum, target and window list never appear in the instructions; the tools return
 //! them one step at a time, and no text for the model contains the maximum unless the maximum is
 //! itself the counter being made (or the counterparty said that number).
+//!
+//! The maximum cannot be found by probing either. A counterparty number gets a verdict (a counter,
+//! a decline, or "I'll bring that to the owner") only until the first number is taken to the owner
+//! and only for the first `2 * max_counters + 2` numbers of the call. Every later number, whatever
+//! it is, gets one neutral line; the owner's records still say which numbers were inside the limit.
 
 use chrono::{DateTime, Duration, FixedOffset, NaiveDateTime, TimeZone};
 use serde::{Deserialize, Serialize};
@@ -32,6 +37,11 @@ pub const COUNTER_ROUNDING_CENTS: i64 = 2_500;
 /// The largest monthly rent the tool accepts ($10,000,000).
 pub const MAX_RENT_CENTS: i64 = 1_000_000_000;
 const MAX_EVENTS: usize = 32;
+/// The largest value of `2 * max_counters + 2`: the event list never forgets this many
+/// counterparty numbers (see [`push_event`]).
+const MAX_PROBES: usize = (2 * MAX_COUNTERS + 2) as usize;
+/// The one line for a counterparty number that gets no verdict.
+const NEUTRAL_LINE: &str = "I'll pass that along as well.";
 
 // ---- What the owner approved (the request) ----------------------------------------------------
 
@@ -470,9 +480,11 @@ pub struct TourDecision {
     pub outcome: Option<PurposeOutcome>,
 }
 
-/// "Tue 17 Nov, 3:00 PM".
+/// "Tuesday 17 November, 3:00 PM": weekday, date and time on the clock of the time's own offset
+/// (the window's, which is the property's). Every line that uses it adds "local time"; a numeric
+/// offset is never printed for a person.
 pub fn spoken_time(t: &DateTime<FixedOffset>) -> String {
-    t.format("%a %-d %b, %-I:%M %p").to_string()
+    t.format("%A %-d %B, %-I:%M %p").to_string()
 }
 
 fn fits(w: &TimeWindow, start: DateTime<FixedOffset>, d: Duration) -> bool {
@@ -648,7 +660,7 @@ pub fn decide_tour(
             return (
                 TourDecision {
                     decision: TourKind::AlreadySet,
-                    say: Some(format!("We already have a tour set for {when}.")),
+                    say: Some(format!("We already have a tour set for {when} local time.")),
                     instruction: "A tour is already set. Ask whether they want to move it; only then call again with moving_booked_tour true.".into(),
                     offered: Vec::new(),
                     outcome: None,
@@ -666,13 +678,13 @@ pub fn decide_tour(
                 st.moved_from = Some(b.start);
                 (
                     TourKind::Move,
-                    format!("Then let's move it to {when}. I'll put that down for {attendee}, and they'll get a confirmation."),
+                    format!("Then let's move it to {when} local time. I'll put that down for {attendee} and let {owner} know."),
                     PurposeOutcome::TourMoved { from_start: b.start, start, end, window_index: i },
                 )
             }
             None => (
                 TourKind::Book,
-                format!("{when} works. I'll put that down for {attendee}, and they'll get a confirmation."),
+                format!("{when} local time works. I'll put that down for {attendee} and let {owner} know."),
                 PurposeOutcome::TourBooked { start, end, window_index: i },
             ),
         };
@@ -707,7 +719,7 @@ pub fn decide_tour(
     (
         TourDecision {
             decision: TourKind::OfferTimes,
-            say: Some(format!("That time doesn't suit {attendee}. Could you do {joined}?")),
+            say: Some(format!("That time doesn't suit {attendee}. Could you do {joined}, local time?")),
             instruction: "Say the line. When they pick one, call check_tour_time with it; if none work, call it with none_of_offered_times_work true.".into(),
             offered: slots,
             outcome: None,
@@ -792,9 +804,33 @@ fn argument(n: &ApprovedNegotiation, i: i64, owner: &str) -> String {
     }
 }
 
+/// How many counterparty numbers this call has heard (as far as the event list remembers; never
+/// under [`MAX_PROBES`] once it has reached it).
+fn numbers_heard(st: &NegotiationState) -> usize {
+    st.events
+        .iter()
+        .filter(|e| e.said_by == SaidBy::Counterparty)
+        .count()
+}
+
+/// After this many counterparty numbers every further one gets the neutral line.
+fn probe_limit(n: &ApprovedNegotiation) -> usize {
+    (2 * n.max_counters.clamp(0, MAX_COUNTERS) + 2) as usize
+}
+
 fn push_event(st: &mut NegotiationState, said_by: SaidBy, amount_cents: i64, what: &str) {
     if st.events.len() >= MAX_EVENTS {
-        st.events.remove(0);
+        // The probing bound counts the counterparty's numbers in this list, so the count must not
+        // fall back under the bound: while few of theirs are held, the oldest of ours goes first.
+        let drop = if numbers_heard(st) <= MAX_PROBES {
+            st.events
+                .iter()
+                .position(|e| e.said_by == SaidBy::Assistant)
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        st.events.remove(drop);
     }
     st.events.push(RentEvent {
         said_by,
@@ -860,9 +896,43 @@ pub fn decide_rent(
     let money = |c: i64| format_money(c, "USD");
     match ask.said_by {
         SaidBy::Counterparty => {
+            // No verdict once a number has gone to the owner, or after the call's share of
+            // numbers: otherwise the answers ("to the owner" up to the maximum, a counter or a
+            // decline above it) would let twenty numbers find the maximum to the cent.
+            let neutral = st.with_owner.is_some() || numbers_heard(&st) >= probe_limit(n);
             push_event(&mut st, SaidBy::Counterparty, cents, "asked");
             st.last_counterparty = Some(cents);
             st.lowest_counterparty = Some(st.lowest_counterparty.map_or(cents, |l| l.min(cents)));
+            if neutral {
+                // For the owner only: the best (lowest) number inside the limit is the one kept
+                // as their decision; nothing said or returned depends on which side this one is.
+                if cents <= n.max_cents {
+                    let best = st.with_owner.map_or(cents, |w| w.min(cents));
+                    st.with_owner = Some(best);
+                    st.declined = None;
+                    st.at_or_under_target = best <= n.target_cents;
+                    st.outcome = Some(PurposeOutcome::RentWithinLimits {
+                        amount_cents: best,
+                        at_or_under_target: best <= n.target_cents,
+                        needs_owner_decision: true,
+                    });
+                } else if st.with_owner.is_none() {
+                    st.declined = Some(cents);
+                    st.outcome = Some(PurposeOutcome::RentAboveLimits {
+                        amount_cents: cents,
+                        lowest_counterparty_cents: st.lowest_counterparty.unwrap_or(cents),
+                    });
+                }
+                return (
+                    rent_line(
+                        RentKind::TakeToOwner,
+                        Some(NEUTRAL_LINE.to_string()),
+                        "Say the line exactly. Do not say or imply that the number is accepted, refused, high or low. Do not state any number.",
+                        None,
+                    ),
+                    st,
+                );
+            }
             if cents <= n.max_cents {
                 st.with_owner = Some(cents);
                 st.declined = None;
@@ -941,6 +1011,13 @@ pub fn decide_rent(
             }
         }
         SaidBy::Assistant => {
+            if numbers_heard(&st) >= probe_limit(n) {
+                // The same answer whatever their numbers were: see the neutral line above.
+                let instr = format!(
+                    "Do not state a new number. Say you will pass what they said to {owner}."
+                );
+                return (rent_line(RentKind::NotApproved, None, &instr, None), st);
+            }
             if let Some(w) = st.with_owner {
                 let instr = format!(
                     "Do not state a new number. Say you will take {} a month to {owner} and get back to them today.",
@@ -953,6 +1030,13 @@ pub fn decide_rent(
                     rent_line(RentKind::NotApproved, None, "Do not state a new number. Say you will let the owner know where they are.", None),
                     st,
                 );
+            }
+            if n.max_counters <= 0 {
+                // No counter was approved: the assistant states no number of its own.
+                let instr = format!(
+                    "Do not state a number. Ask what monthly rent they have in mind; any number they give goes to {owner}."
+                );
+                return (rent_line(RentKind::NotApproved, None, &instr, None), st);
             }
             let allowed = st.highest_offered.unwrap_or(n.target_cents);
             if cents == allowed {
@@ -1087,10 +1171,10 @@ pub fn owner_lines(s: &PurposeState) -> Vec<String> {
         let when = spoken_time(&b.start);
         out.push(match s.tour.moved_from {
             Some(from) => format!(
-                "Tour moved by the assistant at their request from {} to {when} (inside your times). Not confirmed in writing.",
+                "Tour moved by the assistant at their request from {} to {when}, local time (inside your times). Not confirmed in writing.",
                 spoken_time(&from)
             ),
-            None => format!("Tour set by the assistant for {when} (inside your times). Not confirmed in writing."),
+            None => format!("Tour set by the assistant for {when} local time (inside your times). Not confirmed in writing."),
         });
     } else if s.tour.needs_owner {
         out.push("They could not make any of your tour times; they are waiting for other times from you.".into());
@@ -1098,16 +1182,14 @@ pub fn owner_lines(s: &PurposeState) -> Vec<String> {
     let n = &s.negotiation;
     if !n.events.is_empty() {
         let mut parts = Vec::new();
-        let mut seen_counterparty = false;
-        for e in n
-            .events
-            .iter()
-            .rev()
-            .take(8)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-        {
+        // Only the last eight are shown. When earlier ones are left out the line says so, and the
+        // first number shown is not called their opening ask unless it was.
+        let skip = n.events.len().saturating_sub(8);
+        let mut seen_counterparty = n.events.len() >= MAX_EVENTS
+            || n.events[..skip]
+                .iter()
+                .any(|e| e.said_by == SaidBy::Counterparty);
+        for e in &n.events[skip..] {
             parts.push(match (e.said_by, e.what.as_str()) {
                 (SaidBy::Counterparty, _) if !seen_counterparty => {
                     seen_counterparty = true;
@@ -1129,12 +1211,24 @@ pub fn owner_lines(s: &PurposeState) -> Vec<String> {
         if let Some(first) = line.get(..1) {
             line = first.to_uppercase() + &line[1..];
         }
-        if n.with_owner.is_some() {
-            line.push_str(if n.at_or_under_target {
-                ": at or under your target"
+        if skip > 0 {
+            line = format!("Earlier numbers are not shown. {line}");
+        }
+        if let Some(w) = n.with_owner {
+            let side = if n.at_or_under_target {
+                "at or under your target"
             } else {
-                ": inside your limit"
-            });
+                "inside your limit"
+            };
+            match n.last_counterparty {
+                // They named a higher number after it: the lowest stays the one to decide on.
+                Some(last) if last != w => line.push_str(&format!(
+                    ". Their lowest number, {}, is {side}; their latest number is {}",
+                    money(w),
+                    money(last)
+                )),
+                _ => line.push_str(&format!(": {side}")),
+            }
             line.push_str(". Nothing is agreed. Your decision.");
         } else if let Some(last) = n.declined {
             let lowest = n.lowest_counterparty.unwrap_or(last);

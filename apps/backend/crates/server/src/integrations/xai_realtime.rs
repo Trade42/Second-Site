@@ -196,6 +196,27 @@ pub fn function_output(call_id: &str, output: &str) -> Value {
     })
 }
 
+/// A server direction for the model's next turns, as a system message item: no audio, nothing
+/// spoken, and no response is started by it. Schema file `voice-realtime.ws.json`, client event
+/// `conversation.item.create`, item "Message": `type: "message"`, `role: "system"` ("for
+/// system-level context"), optional client-generated `id`, `content[].type: "input_text"`.
+pub fn system_message(id: &str, text: &str) -> Value {
+    json!({
+        "type": "conversation.item.create",
+        "item": {
+            "type": "message",
+            "role": "system",
+            "id": id,
+            "content": [{"type": "input_text", "text": text}],
+        }
+    })
+}
+
+/// Remove a conversation item (`conversation.item.delete {item_id}`, same schema file).
+pub fn delete_item(item_id: &str) -> Value {
+    json!({"type": "conversation.item.delete", "item_id": item_id})
+}
+
 pub fn response_create() -> Value {
     json!({"type": "response.create"})
 }

@@ -491,6 +491,14 @@ UNTOUCHED = "No id here:  two spaces, () brackets, permit 18041-90000-12345, 202
             "5757 W Century Blvd (property c96c80ae-…; ranking b6f0456f-...) ranks first.",
             "5757 W Century Blvd ranks first.",
         ),
+        # review: an id cut after a later group; an id between two clauses never joins their words; a bullet's lead
+        (
+            "5757 W Century Blvd (property c96c80ae-1111-…; ranking b6f0456f-aaaa-4bbb-...) ranks first.",
+            "5757 W Century Blvd ranks first.",
+        ),
+        (f"Do not pick {U1}; pick 5757 W Century Blvd.", "Do not pick; pick 5757 W Century Blvd."),
+        (f"- {U1}: 5757 W Century Blvd", "- 5757 W Century Blvd"),
+        (f"It ranks first. {U1}: see the app.", "It ranks first. see the app."),
         # and a reply without an id is not touched at all
         (UNTOUCHED, UNTOUCHED),
     ],
@@ -515,6 +523,30 @@ def test_reply_is_scrubbed_before_it_is_stored_or_returned(ranked_ctx, container
     run_chat(ranked_ctx, "And the second?", container.settings, model=MODEL, thread_id="ids")
     stdin = json.loads(record.read_text())["stdin"]
     assert "Assistant: The top listing is 12 Example St." in stdin and not cc._UUID_RE.search(stdin)
+
+
+def test_two_listings_outside_the_ranking_do_not_share_a_name():
+    raw = {
+        "ranking": {"ranked": []},
+        "cost_scenarios": [{"property_id": p, "monthly": 1} for p in (P1, P2, P1)],
+    }
+    names = [s["listing"] for s in cc.public_facts(raw)["cost_scenarios"]]
+    assert names[0] == names[2] == cc.UNRANKED_LISTING and names[1] not in ("", names[0])
+
+
+def test_a_huge_reply_is_scrubbed_in_bounded_time(ranked_ctx, container, tmp_path, monkeypatch):
+    import time
+
+    bin_dir, _ = _fake_cli(tmp_path, answer=f"Top: {U1}" + " " * 100_000 + U1)
+    _use(monkeypatch, bin_dir)
+    t0 = time.monotonic()
+    res = run_chat(ranked_ctx, "Which space ranks first?", container.settings, model=MODEL)
+    assert res.reply == "Top" and time.monotonic() - t0 < 20
+    # the scrub itself, without the cut, on 100,000 characters
+    for run in (" ", "-", "_", "\n", ", ", "http://a"):
+        t0 = time.monotonic()
+        assert not cc._ID_RE.search(cc.scrub_ids(U1 + run * (100_000 // len(run)) + U1))
+        assert time.monotonic() - t0 < 20, repr(run)
 
 
 def test_reply_that_is_only_an_id_is_an_empty_answer(ranked_ctx, container, tmp_path, monkeypatch):

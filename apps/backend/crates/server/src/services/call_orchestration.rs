@@ -1229,11 +1229,7 @@ impl<'a> CallOrchestrator<'a> {
 
     /// How the call ended, for the summary: every state named.
     fn call_end(prior: CallState, call: &CallSession) -> CallEnd {
-        if call
-            .transcript
-            .iter()
-            .any(|t| t.speaker == "system" && t.text == VOICEMAIL_NOTE)
-        {
+        if machine_detected(call) {
             return CallEnd::Voicemail;
         }
         match (call.state, prior) {
@@ -1309,9 +1305,7 @@ impl<'a> CallOrchestrator<'a> {
         let mut text = csum::owner_text(&csum::summarize(&input));
         if let Some(extras) = &left.extras {
             for line in cp::owner_lines(&extras.state) {
-                if text.chars().count() + 1 + line.chars().count()
-                    <= csum::MAX_OWNER_TEXT_CHARS
-                {
+                if text.chars().count() + 1 + line.chars().count() <= csum::MAX_OWNER_TEXT_CHARS {
                     text.push(' ');
                     text.push_str(&line);
                 }
@@ -1900,8 +1894,7 @@ pub fn owner_asked_output(client: &str) -> String {
 /// The answer when no call or client can be named (an unknown call, an error).
 pub const NOT_APPROVED_OUTPUT: &str = r#"{"status":"not_approved","detail":"Not approved; the person you are calling for has been asked. Say that you have asked them, and do not agree to or disclose anything."}"#;
 /// The stored reason when an answering machine was detected on a call with the voice bridge.
-pub const VOICEMAIL_NOTE: &str =
-    "[answering machine detected; hung up without leaving a message]";
+pub const VOICEMAIL_NOTE: &str = "[answering machine detected; hung up without leaving a message]";
 pub const UNKNOWN_TOOL_OUTPUT: &str = r#"{"status":"unknown_tool"}"#;
 /// How long after the Response Agent's closing line the call is hung up.
 pub const CLOSING_HANGUP_DELAY_S: u64 = 8;
@@ -2089,7 +2082,10 @@ impl VoiceCalls {
 
     /// How many outreach requests wait for their start (tests).
     pub fn pending_requests(&self) -> usize {
-        self.requests.lock().unwrap_or_else(|e| e.into_inner()).len()
+        self.requests
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     fn map(&self) -> std::sync::MutexGuard<'_, HashMap<Uuid, VoiceCall>> {
@@ -2336,6 +2332,9 @@ impl CallOrchestrator<'_> {
         match et {
             // Only the ended event of our own recording's playback moves the call on.
             Some("call.playback.ended") if call.state == CallState::Intro => {
+                if machine_detected(call) {
+                    return Ok(Some(call.clone())); // being hung up; nothing starts
+                }
                 let expected = self
                     .app
                     .voice_calls()
@@ -2663,7 +2662,7 @@ impl CallOrchestrator<'_> {
                     .map()
                     .get(&call_id)
                     .is_some_and(|v| v.intro_url_sha.is_some() && v.bridge_id.is_none());
-                if call.state == CallState::Intro && pending {
+                if call.state == CallState::Intro && pending && !machine_detected(&call) {
                     self.fail_politely(
                         tx,
                         call,
@@ -2923,6 +2922,13 @@ impl CallOrchestrator<'_> {
         self.notify_outcomes(&call, &before, &after);
         Ok(out.to_string())
     }
+}
+
+/// Whether an answering machine was detected on this call (the stored reason).
+fn machine_detected(call: &CallSession) -> bool {
+    call.transcript
+        .iter()
+        .any(|t| t.speaker == "system" && t.text == VOICEMAIL_NOTE)
 }
 
 fn is_purpose_tool(name: &str) -> bool {

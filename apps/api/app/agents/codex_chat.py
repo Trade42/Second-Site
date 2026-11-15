@@ -106,6 +106,7 @@ _CLAIM_RE = re.compile(
     r"paid|wired|ordered|approved|signed|accepted|locked|confirmed|made an offer)\b",
     re.IGNORECASE,
 )
+SCRUB_INPUT_CHARS = 12_000  # the reply is cut to this before scrub_ids, so the scrub's work is bounded
 MAX_REPLY_CHARS = 4_000  # the reply also goes out by text message (Photon); the rules ask for ~200 words
 
 # Messages that ask the assistant to act. They get ACTION_REPLY and never reach the model.
@@ -308,6 +309,13 @@ def public_facts(facts: dict[str, Any]) -> dict[str, Any]:
     E2...), a map keyed by property id is keyed by the listing's name, and every other record id is left out."""
     labels = listing_labels(facts)
     refs: dict[str, str] = {}
+    unranked: dict[str, str] = {}
+
+    def listing(property_id: str) -> str:  # two listings outside the ranking never share a name
+        if property_id in labels:
+            return labels[property_id]
+        another = f"{UNRANKED_LISTING} (another, {len(unranked) + 1})" if unranked else UNRANKED_LISTING
+        return unranked.setdefault(property_id, another)
 
     def ref(evidence_id: str) -> str:
         return refs.setdefault(evidence_id.lower(), f"E{len(refs) + 1}")
@@ -325,7 +333,7 @@ def public_facts(facts: dict[str, Any]) -> dict[str, Any]:
                     if key:
                         out[key] = walk(v)
                 elif key.endswith("property_id") and _is_id(v):  # property_id, selected_property_id
-                    out[key[: -len("property_id")] + "listing"] = labels.get(v.lower(), UNRANKED_LISTING)
+                    out[key[: -len("property_id")] + "listing"] = listing(v.lower())
                 elif key in ("id", "evidence_id") and _is_id(v):
                     out["ref"] = ref(v)
                 elif key == "evidence_ids" and isinstance(v, list):
@@ -345,17 +353,19 @@ def public_facts(facts: dict[str, Any]) -> dict[str, Any]:
 
 
 _MARK = "\x00"  # stands for a removed id while the words around it are tidied
-_SHORT_ID = r"(?<![0-9A-Za-z-])[0-9a-fA-F]{8}-(?:…|\.\.\.)"  # an id cut short: "c96c80ae-…"
+# An id cut short: "c96c80ae-…", "c96c80ae-1111-4222-..."
+_SHORT_ID = r"(?<![0-9A-Za-z-])[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){0,3}[0-9a-fA-F]{0,11}(?:…|\.\.\.)"
 _ID_RE = re.compile(rf"{_UUID}|{_SHORT_ID}")
 _URL_WITH_ID_RE = re.compile(
     rf"(?:https?://|www\.)[^\s<>()\[\]]*?{_UUID}[^\s<>()\[\]]*?(?=[.,;:!?]*(?:[\s<>()\[\]]|$))", re.IGNORECASE
 )
-_ID_LIST_RE = re.compile(rf"{_MARK}(?:\s*(?:[,;/&]|\band\b|\bor\b)?\s*{_MARK})+")
+# The gaps are bounded ({0,8}) on purpose: two unbounded gaps side by side cost cubic time on a long run of blanks.
+_ID_LIST_RE = re.compile(rf"{_MARK}(?:\s{{0,8}}(?:[,;/&]|\band\b|\bor\b)?\s{{0,8}}{_MARK})+")
 # The words that only introduce an id: "(see) (the) property", "ranking id:", "id =", "evidence ids".
 _ID_LABEL_RE = re.compile(
-    r"(?P<kept>(?:\b(?:with|under|in|from|see|per|by|via|for)\s+)?(?:\b(?:the|its|their|this|that)\s+)?"
+    r"(?P<kept>(?:\b(?:with|under|in|from|see|per|by|via|for)\s{1,8})?(?:\b(?:the|its|their|this|that)\s{1,8})?"
     r"(?:\b(?:property|properties|ranking|rankings|evidence|project|listing|record|approval|scenario|source))?)"
-    rf"(?P<glue>[\s_-]*(?:(?:ids?|uuids?|keys?)\b)?\s*(?:[:=#]|\bis\b|\bare\b)?\s*){_MARK}",
+    rf"(?P<glue>[\s_-]{{0,4}}(?:(?:ids?|uuids?|keys?)\b)?\s{{0,4}}(?:[:=#]|\bis\b|\bare\b)?\s{{0,8}}){_MARK}",
     re.IGNORECASE,
 )
 _NOUN_END_RE = re.compile(
@@ -390,12 +400,21 @@ def scrub_ids(text: str) -> str:
     t = _ID_LIST_RE.sub(_MARK, t)
     t = _ID_LABEL_RE.sub(_label, t)
     t = _ID_LIST_RE.sub(_MARK, t)
-    t = re.sub(rf"[ \t]*[(\[{{]\s*{_MARK}\s*[)\]}}]", "", t)  # brackets that held only ids
-    t = re.sub(rf"(?m)^[ \t]*(?:[-*•][ \t]*)?{_MARK}[ \t]*[.,;]?[ \t]*(?:\n|\Z)", "", t)  # a line of only ids
+    t = re.sub(rf"(?<![ \t])[ \t]*[(\[{{]\s{{0,8}}{_MARK}\s{{0,8}}[)\]}}]", "", t)  # brackets that held only ids
+    # a line of only ids
+    t = re.sub(rf"(?m)^[ \t]*(?:[-*•][ \t]*)?{_MARK}[ \t]*(?:[.,;][ \t]*)?(?:\n|\Z)", "", t)
     t = re.sub(rf"(?<=[.!?])[ \t]*{_MARK}[ \t]*[.!?;,]+", "", t)  # a sentence of only ids
-    t = re.sub(rf"\s*[,;:–—-]\s*{_MARK}(?=\s*(?:[.!?)\]}}]|\n|\Z))", "", t)  # "..., <id>." and "(...; <id>)"
-    t = re.sub(rf"{_MARK}\s*[,;:]\s*", "", t)  # "(<id>; ...)"
-    t = re.sub(rf"[ \t]*{_MARK}[ \t]*", _gap, t).strip()
+    # "..., <id>." and "(...; <id>)"
+    t = re.sub(rf"(?<!\s)\s*[,;:–—-]\s*{_MARK}(?=\s*(?:[.!?)\]}}]|\n|\Z))", "", t)
+    t = re.sub(rf"(?<=[.!?])[ \t]*{_MARK}\s*[,;:]\s*", " ", t)  # "... first. <id>: details"
+    # "(<id>; ...)", "<id>: ..." at the start of a bracket, a line or a bullet; never between two words
+    t = re.sub(
+        rf"(?P<lead>(?<=[(\[{{])|^[ \t]*(?:(?:[-*•]|\d+[.)])[ \t]+)?){_MARK}\s*[,;:]\s*",
+        r"\g<lead>",
+        t,
+        flags=re.MULTILINE,
+    )
+    t = re.sub(rf"(?<![ \t])[ \t]*{_MARK}[ \t]*", _gap, t).strip()
     return t if re.search(r"[0-9A-Za-z]", t) else ""
 
 
@@ -472,6 +491,8 @@ def run_codex(spec: CodexSpec, prompt: str, timeout_s: float | None = None) -> s
                 "exit", f"the Codex CLI stopped with exit code {proc.returncode}", proc.returncode
             )
         answer = out_file.read_text(encoding="utf-8", errors="replace").strip() if out_file.exists() else ""
+    if len(answer) > SCRUB_INPUT_CHARS:  # bound the scrub's work, and leave no id cut in half at the end
+        answer = re.sub(r"[0-9A-Fa-f-]{1,36}\Z", "", answer[:SCRUB_INPUT_CHARS])
     answer = scrub_ids(answer)  # before the reply is stored, returned or cut: no internal id reaches a person
     if not answer:
         raise CodexUnavailable("empty", "the model returned an empty answer")

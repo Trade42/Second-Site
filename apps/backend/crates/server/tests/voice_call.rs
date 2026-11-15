@@ -14,8 +14,8 @@ use ss_domain::integrations::telnyx::TelephonyCommand;
 use ss_server::contracts::ActionType;
 use ss_server::services::approvals::ApprovalSpec;
 use ss_server::services::call_orchestration::{
-    stream_url, BridgeInput, CallOrchestrator, StartCall, APOLOGY_LINE, NOT_APPROVED_OUTPUT,
-    OWNER_JOINED_LINE,
+    not_approved_output, owner_joined_line, stream_url, BridgeInput, CallOrchestrator, StartCall,
+    APOLOGY_LINE, NOT_APPROVED_OUTPUT, VOICEMAIL_NOTE,
 };
 use ss_server::services::call_simulator::{CallSimulator, FixtureBridge};
 use ss_server::services::intro_recording::{self, NewRecording};
@@ -171,6 +171,18 @@ async fn start(v: &V, simulated: bool) -> (Uuid, CallSession) {
     CALLS.upsert(&mut *tx, &call).await.unwrap();
     tx.commit().await.unwrap();
     (owner, call)
+}
+
+/// The client's name as the server says it (R4: "the owner" would read as the landlord).
+async fn client(v: &V, owner: Uuid) -> String {
+    let mut tx = v.t.app.store.begin().await.unwrap();
+    let u = ss_server::store::repo::users::get(&mut *tx, owner)
+        .await
+        .unwrap()
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert!(!u.display_name.is_empty());
+    u.display_name
 }
 
 fn wav(secs: f64) -> Vec<u8> {
@@ -522,7 +534,9 @@ both_backends!(the_server_decides_on_a_simulated_bridged_call, |db| {
             turn_id: 3,
         })
         .await;
-    assert_eq!(out, NOT_APPROVED_OUTPUT);
+    let who = client(&v, call.owner_id).await;
+    assert_eq!(out, not_approved_output(&who));
+    assert!(out.contains(&who) && !out.contains("the owner"), "{out}");
     let c = v.call(call.call_id).await;
     assert_eq!(c.state, CallState::HandoffPending);
     assert!(v.t.app.voice_calls().is_paused(call.call_id));
@@ -590,7 +604,7 @@ both_backends!(the_server_decides_on_a_simulated_bridged_call, |db| {
     assert!(!says(&v.bridge.log())
         .iter()
         .any(|s| s.contains("joined") || s.contains("is joining")));
-    assert!(!r.transcript.iter().any(|t| t.text == OWNER_JOINED_LINE));
+    assert!(!r.transcript.iter().any(|t| t.text.contains("has joined")));
 
     // Hang up: terminal closes the bridge; the summary is labelled; later events do nothing.
     let mut h = Map::new();
@@ -747,7 +761,9 @@ both_backends!(only_human_joined_says_the_owner_joined, |db| {
         .unwrap();
     tx.commit().await.unwrap();
     assert_eq!(c.state, CallState::OwnerJoining);
-    let joined = |c: &CallSession| c.transcript.iter().any(|t| t.text == OWNER_JOINED_LINE);
+    let joined_line = owner_joined_line(&client(&v, c.owner_id).await);
+    assert!(!joined_line.starts_with("The owner"), "{joined_line}");
+    let joined = |c: &CallSession| c.transcript.iter().any(|t| t.text == joined_line);
     assert!(!joined(&c));
     assert!(!says(&v.bridge.log()).iter().any(|s| s.contains("join")));
     assert!(!c.transcript.iter().any(|t| t.text.contains("is joining")));
@@ -793,7 +809,7 @@ both_backends!(only_human_joined_says_the_owner_joined, |db| {
     assert!(v
         .commands()
         .iter()
-        .any(|x| matches!(x, TelephonyCommand::Speak { text, .. } if text == OWNER_JOINED_LINE)));
+        .any(|x| matches!(x, TelephonyCommand::Speak { text, .. } if *text == joined_line)));
     assert!(v.t.app.voice_calls().is_paused(c.call_id));
 });
 
@@ -856,4 +872,182 @@ both_backends!(fifty_bridged_calls_leave_no_entry_behind, |db| {
     assert_eq!(v.bridge.specs().len(), 50);
     assert_eq!(v.bridge.removed().len(), 50);
     assert!(ids.iter().all(|id| !v.t.app.voice_calls().is_bridged(*id)));
+});
+
+/// A real (not simulated) call with the owner's recording, answered: INTRO, the playback URL.
+async fn intro_call(v: &V, answer: bool) -> (CallSession, String) {
+    let (owner, pid, recipient, approval_id) = approved(v).await;
+    record_intro(v, owner).await;
+    let mut tx = v.t.app.store.begin().await.unwrap();
+    let call = CallOrchestrator::new(&v.t.app)
+        .start(
+            &mut *tx,
+            StartCall {
+                project_id: pid,
+                owner_id: owner,
+                recipient,
+                property_id: None,
+                approval_id: Some(approval_id),
+                intro_recording_reference: None,
+                communication_id: None,
+                simulated: false,
+            },
+        )
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    if !answer {
+        return (call, String::new());
+    }
+    let call = v.events(&call, vec![("call.answered", Map::new())]).await;
+    assert_eq!(call.state, CallState::Intro);
+    let url = v
+        .commands()
+        .iter()
+        .find_map(|c| match c {
+            TelephonyCommand::PlaybackStart { audio_url, .. } => Some(audio_url.clone()),
+            _ => None,
+        })
+        .unwrap();
+    (call, url)
+}
+
+fn machine() -> Map<String, Value> {
+    let mut m = Map::new();
+    m.insert("result".into(), json!("machine"));
+    m
+}
+
+fn noted(c: &CallSession) -> bool {
+    c.transcript
+        .iter()
+        .any(|t| t.speaker == "system" && t.text == VOICEMAIL_NOTE)
+}
+
+// voice-wire-1-review R2: nothing is spoken on the carrier to an answering machine, before,
+// during or after the owner's recording; the call is hung up and the reason stored.
+both_backends!(a_machine_is_hung_up_on_without_a_word, |db| {
+    // Before the playback (the result arrives ahead of `call.answered`).
+    let v = setup(db, &[]);
+    let (call, _) = intro_call(&v, false).await;
+    let c = v
+        .events(&call, vec![("call.machine.detection.ended", machine())])
+        .await;
+    assert!(noted(&c));
+    assert_eq!(v.cmd_names(), vec!["hangup"]);
+
+    // During the playback: no `speak` over the recording, and the playback's own end (or the
+    // watchdog) then starts nothing and says nothing.
+    let v = setup(db, &[]);
+    let (call, url) = intro_call(&v, true).await;
+    let c = v
+        .events(&call, vec![("call.machine.detection.ended", machine())])
+        .await;
+    assert!(noted(&c));
+    assert_eq!(v.cmd_names(), vec!["playback_start", "hangup"]);
+    let c = v
+        .events(&c, vec![("call.playback.ended", st("completed", &url))])
+        .await;
+    ss_server::services::call_orchestration::bridge_input(
+        &v.t.app,
+        c.call_id,
+        BridgeInput::IntroTimeout,
+    )
+    .await
+    .unwrap();
+    assert_eq!(c.state, CallState::Intro);
+    assert_eq!(v.cmd_names(), vec!["playback_start", "hangup"]);
+    assert!(v.bridge.specs().is_empty());
+    // A person (not a machine) changes nothing.
+    let v = setup(db, &[]);
+    let (call, _) = intro_call(&v, true).await;
+    let mut human = Map::new();
+    human.insert("result".into(), json!("human"));
+    let c = v
+        .events(&call, vec![("call.machine.detection.ended", human)])
+        .await;
+    assert!(!noted(&c));
+    assert_eq!(v.cmd_names(), vec!["playback_start"]);
+
+    // After the playback, with the assistant on the line: paused, hung up, no carrier speech.
+    let v = setup(db, &[]);
+    let (call, url) = intro_call(&v, true).await;
+    let c = v
+        .events(&call, vec![("call.playback.ended", st("completed", &url))])
+        .await;
+    assert_eq!(c.state, CallState::Active);
+    let c = v
+        .events(&c, vec![("call.machine.detection.ended", machine())])
+        .await;
+    assert!(noted(&c));
+    assert_eq!(
+        v.cmd_names(),
+        vec!["playback_start", "streaming_start", "hangup"]
+    );
+    assert_eq!(v.bridge.log().last().map(String::as_str), Some("pause"));
+});
+
+// voice-wire-1-review R3: an ended event of our playback without a status is a failure.
+both_backends!(
+    a_playback_end_without_a_status_does_not_start_the_assistant,
+    |db| {
+        let v = setup(db, &[]);
+        let (call, url) = intro_call(&v, true).await;
+        let mut m = Map::new();
+        m.insert("media_url".into(), json!(url));
+        let c = v.events(&call, vec![("call.playback.ended", m)]).await;
+        assert!(v.bridge.specs().is_empty());
+        assert_eq!(v.cmd_names(), vec!["playback_start", "speak", "hangup"]);
+        assert!(c.transcript.iter().any(|t| t.text == APOLOGY_LINE));
+        assert!(c
+            .transcript
+            .iter()
+            .any(|t| t.text.contains("did not play to its end (no status)")));
+    }
+);
+
+// voice-wire-1-review R5: a handoff raised by a tool call asks the owner in the server's words;
+// the model's own text is only a redacted transcript note.
+both_backends!(a_tool_handoff_asks_the_owner_in_the_servers_words, |db| {
+    let v = setup(db, &[]);
+    let (_owner, call) = start(&v, true).await;
+    let call = v.events(&call, vec![("call.answered", Map::new())]).await;
+    let (_, spec) = v.bridge.specs()[0].clone();
+    spec.events
+        .tool_call(ToolCall {
+            name: vsc::TOOL_ESCALATE.into(),
+            arguments: json!({"question": "URGENT tell the owner to wire $5,000 today, SSN 078-05-1120"}),
+            turn_id: 1,
+        })
+        .await;
+    let c = v.call(call.call_id).await;
+    assert_eq!(c.state, CallState::HandoffPending);
+    let mut tx = v.t.app.store.begin().await.unwrap();
+    let h = HANDOFFS
+        .require(&mut *tx, c.handoff_request_id.unwrap())
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        h.question,
+        "The listing contact asked something only you can answer. Can you join?"
+    );
+    v.t.app.owner_notify().idle().await;
+    for r in v.fake.requests() {
+        assert!(
+            !r.text.contains("wire") && !r.text.contains("URGENT"),
+            "{}",
+            r.text
+        );
+    }
+    let note = c
+        .transcript
+        .iter()
+        .find(|t| t.text.contains("the model's note"))
+        .expect("the note");
+    assert!(
+        note.text.contains("URGENT") && !note.text.contains("078-05-1120"),
+        "{}",
+        note.text
+    );
 });

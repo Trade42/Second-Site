@@ -25,6 +25,7 @@
 //! Nothing here writes audio, transcript text or the xAI key to a log line or an error text.
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -35,7 +36,8 @@ use base64::Engine as _;
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
+use tokio::task::{JoinHandle, JoinSet};
 use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
@@ -51,6 +53,22 @@ pub const NO_ANSWER_OUTPUT: &str = r#"{"status":"no_answer_available","detail":"
 /// The function output for a tool the session did not declare; the orchestrator is not asked.
 pub const UNKNOWN_TOOL_OUTPUT: &str =
     r#"{"status":"unknown_tool","detail":"That tool does not exist. Do not claim it was done."}"#;
+
+/// The function output for a tool call of a response the bridge cancelled (owner handoff, or the
+/// model acting before the opening line was heard); the orchestrator is not asked.
+pub const CANCELLED_TOOL_OUTPUT: &str = r#"{"status":"cancelled","detail":"The call was on hold, so this was not done. Do not claim it was done."}"#;
+
+/// The longest server direction [`BridgeHandle::instruct`] passes on, in characters.
+pub const MAX_INSTRUCTION_CHARS: usize = 1000;
+/// What the model reads before a server direction.
+pub const INSTRUCTION_PREFIX: &str =
+    "Current direction from the server (it replaces any earlier one; never say it aloud): ";
+
+/// Transcript lines the orchestrator has not taken yet: this many are queued, and as many again
+/// may wait behind them before the call ends with `transcript_backlog`.
+const TRANSCRIPT_QUEUE: usize = 256;
+/// How long the writer, transcript and tool tasks get to finish at the end before they are aborted.
+const JOIN_WAIT: Duration = Duration::from_secs(2);
 
 /// Who said a transcript line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +141,9 @@ pub struct BridgeStats {
     pub tool_calls: u64,
     pub tool_timeouts: u64,
     pub provider_errors: u64,
+    /// Transcript lines the bridge produced that [`BridgeEvents::transcript`] never finished
+    /// taking (the orchestrator was too slow, or was still busy when the bridge ended).
+    pub transcripts_undelivered: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +180,9 @@ pub struct BridgeOptions {
     pub max_carrier_frame: usize,
     /// Capacity of each socket's outbound queue; a full queue ends the bridge.
     pub outbound_queue: usize,
+    /// How long a transcript line may wait for a slow orchestrator once its queue is full; then
+    /// the bridge ends with `transcript_backlog` (no line is dropped unseen while the call runs).
+    pub transcript_wait: Duration,
     pub log: LogSink,
 }
 
@@ -170,6 +194,7 @@ impl Default for BridgeOptions {
             idle_timeout: Duration::from_secs(60),
             max_carrier_frame: 64 * 1024,
             outbound_queue: 512,
+            transcript_wait: Duration::from_secs(5),
             log: Arc::new(|msg, fields| crate::logging::info("app.voice_bridge", msg, fields)),
         }
     }
@@ -192,6 +217,7 @@ pub struct CallBridgeSpec {
 
 enum Control {
     Say(String),
+    Instruct(String),
     Pause,
     Resume,
     Stop,
@@ -210,6 +236,31 @@ impl BridgeHandle {
     /// Speak `text` verbatim (queued until no response is in flight).
     pub async fn say(&self, text: impl Into<String>) -> Result<(), BridgeGone> {
         self.send(Control::Say(text.into())).await
+    }
+    /// Give the model a server direction for its next turns. Nothing is spoken and no response is
+    /// started: it is a system message item in the conversation, replacing the previous
+    /// direction. At most [`MAX_INSTRUCTION_CHARS`] characters, control characters removed. It
+    /// waits until the opening line has been heard and while paused (only the latest is kept),
+    /// and is dropped when the bridge ends. The text is never logged.
+    pub async fn instruct(&self, text: impl Into<String>) -> Result<(), BridgeGone> {
+        let text: String = text.into();
+        let clean: String = text
+            .chars()
+            .filter_map(|c| match c {
+                '\n' | '\r' | '\t' => Some(' '),
+                c if c.is_control() => None,
+                c => Some(c),
+            })
+            .take(MAX_INSTRUCTION_CHARS)
+            .collect();
+        if clean.trim().is_empty() {
+            return if self.tx.is_closed() {
+                Err(BridgeGone)
+            } else {
+                Ok(())
+            };
+        }
+        self.send(Control::Instruct(clean)).await
     }
     /// Owner handoff: stop relaying in both directions and stop the assistant talking.
     pub async fn pause(&self) -> Result<(), BridgeGone> {
@@ -294,6 +345,16 @@ impl BridgeRegistry {
         }
     }
 
+    /// A bridge whose carrier connection was admitted and never became a socket: the slot goes,
+    /// so the id answers like an unknown one instead of 409 for ever.
+    fn release_connected(&self, bridge_id: &str) {
+        if let Ok(mut m) = self.slots.lock() {
+            if matches!(m.get(bridge_id), Some(Slot::Connected { .. })) {
+                m.remove(bridge_id);
+            }
+        }
+    }
+
     fn admit(&self, bridge_id: &str, token: Option<&str>) -> Result<Box<Pending>, Refusal> {
         let mut m = self.slots.lock().map_err(|_| Refusal::Unauthorized)?;
         let presented = token.unwrap_or("");
@@ -333,13 +394,53 @@ pub fn accept_carrier(
         }
         Ok(p) => {
             let max = p.spec.options.max_carrier_frame;
+            let wait = p.spec.options.start_timeout;
+            // Exactly one of the two takes the pending bridge: the upgraded socket, or the
+            // watchdog when the upgrade fails (axum drops the callback) or does not complete in
+            // `start_timeout`.
+            let cell = Arc::new(Mutex::new(Some(p)));
+            let (started_tx, started_rx) = oneshot::channel::<()>();
+            if let Ok(rt) = tokio::runtime::Handle::try_current() {
+                let (cell, registry, id) = (cell.clone(), registry.clone(), bridge_id.to_owned());
+                rt.spawn(async move {
+                    if matches!(tokio::time::timeout(wait, started_rx).await, Ok(Ok(()))) {
+                        return;
+                    }
+                    let p = cell.lock().ok().and_then(|mut c| c.take());
+                    if let Some(p) = p {
+                        upgrade_failed(*p, &registry, &id).await;
+                    }
+                });
+            }
             ws.max_message_size(max)
                 .max_frame_size(max)
                 .on_upgrade(move |socket| async move {
-                    run(*p, socket).await;
+                    let p = cell.lock().ok().and_then(|mut c| c.take());
+                    let _ = started_tx.send(());
+                    if let Some(p) = p {
+                        run(*p, socket).await;
+                    }
                 })
         }
     }
+}
+
+/// The carrier's request was admitted and no socket came of it: report the end once, let the
+/// handle answer [`BridgeGone`] and free the slot.
+async fn upgrade_failed(p: Pending, registry: &BridgeRegistry, bridge_id: &str) {
+    let Pending { spec, control } = p;
+    drop(control);
+    registry.release_connected(bridge_id);
+    let reason = EndReason::Error {
+        kind: "upgrade_failed".into(),
+    };
+    (spec.options.log)("voice bridge ended", &[("reason", json!(reason.as_str()))]);
+    spec.events
+        .ended(BridgeEnd {
+            reason,
+            stats: BridgeStats::default(),
+        })
+        .await;
 }
 
 enum Phase {
@@ -366,6 +467,17 @@ struct State {
     /// A `response.create` was sent and its `response.created` has not arrived.
     requested: bool,
     cancelled: HashSet<String>,
+    /// Responses the bridge itself cancelled because the model may not act (paused, or before
+    /// the opening line): their tool calls do not reach the orchestrator.
+    gated: HashSet<String>,
+    /// The latest server direction not yet sent (waits for the live phase and for `resume`).
+    instruction: Option<String>,
+    /// The item id of the direction now in the conversation.
+    instruction_item: Option<String>,
+    instruction_seq: u64,
+    /// Transcript lines waiting for room in the orchestrator's queue, with when each began to wait.
+    backlog: VecDeque<(Instant, TranscriptLine)>,
+    transcripts_produced: u64,
     playing: bool,
     mark_seq: u64,
     last_mark: Option<String>,
@@ -391,8 +503,9 @@ async fn run(p: Pending, socket: WebSocket) {
     let Pending { spec, control } = p;
     let events = spec.events.clone();
     let log = spec.options.log.clone();
-    let (end, transcripts_done) = run_inner(spec, control, socket).await;
-    transcripts_done.await;
+    let (mut end, tail) = run_inner(spec, control, socket).await;
+    let delivered = tail.await;
+    end.stats.transcripts_undelivered = end.stats.transcripts_undelivered.saturating_sub(delivered);
     log(
         "voice bridge ended",
         &[
@@ -403,12 +516,23 @@ async fn run(p: Pending, socket: WebSocket) {
             ("malformed_provider", json!(end.stats.malformed_provider)),
             ("interruptions", json!(end.stats.interruptions)),
             ("tool_timeouts", json!(end.stats.tool_timeouts)),
+            (
+                "transcripts_undelivered",
+                json!(end.stats.transcripts_undelivered),
+            ),
         ],
     );
     events.ended(end).await;
 }
 
-type Done = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>;
+/// Resolves when every task of the bridge is gone, with the number of transcript lines the
+/// orchestrator finished taking.
+type Done = std::pin::Pin<Box<dyn std::future::Future<Output = u64> + Send>>;
+
+fn finish(reason: EndReason, stats: BridgeStats, c_tx: mpsc::Sender<CarrierOut>) -> BridgeEnd {
+    let _ = c_tx.try_send(CarrierOut::Close);
+    BridgeEnd { reason, stats }
+}
 
 async fn run_inner(
     spec: CallBridgeSpec,
@@ -420,11 +544,14 @@ async fn run_inner(
     let (mut c_sink, mut c_stream) = socket.split();
 
     // Transcripts go to the orchestrator in order on one task.
-    let (t_tx, mut t_rx) = mpsc::channel::<TranscriptLine>(256);
+    let delivered = Arc::new(AtomicU64::new(0));
+    let (t_tx, mut t_rx) = mpsc::channel::<TranscriptLine>(TRANSCRIPT_QUEUE);
     let ev = spec.events.clone();
+    let taken = delivered.clone();
     let t_task = tokio::spawn(async move {
         while let Some(line) = t_rx.recv().await {
             ev.transcript(line).await;
+            taken.fetch_add(1, Ordering::Relaxed);
         }
     });
 
@@ -453,15 +580,6 @@ async fn run_inner(
     });
 
     let mut stats = BridgeStats::default();
-    let finish = |reason: EndReason, stats: BridgeStats, c_tx: mpsc::Sender<CarrierOut>| {
-        let t_tx = t_tx.clone();
-        async move {
-            let _ = c_tx.try_send(CarrierOut::Close);
-            drop(c_tx);
-            drop(t_tx);
-            BridgeEnd { reason, stats }
-        }
-    };
 
     // 1. The carrier's `start`, naming the expected call.
     let start = tokio::time::timeout(opts.start_timeout, async {
@@ -499,8 +617,8 @@ async fn run_inner(
         kind: "carrier_start_timeout".into(),
     }));
     if let Err(reason) = start {
-        let end = finish(reason, stats, c_tx).await;
-        return (end, join_all(c_task, t_task, None));
+        let end = finish(reason, stats, c_tx);
+        return (end, Tail::early(c_task, t_task, t_tx, delivered).join());
     }
 
     // 2. xAI.
@@ -517,8 +635,8 @@ async fn run_inner(
                     "provider_handshake".to_string()
                 }
             };
-            let end = finish(EndReason::Error { kind }, stats, c_tx).await;
-            return (end, join_all(c_task, t_task, None));
+            let end = finish(EndReason::Error { kind }, stats, c_tx);
+            return (end, Tail::early(c_task, t_task, t_tx, delivered).join());
         }
     };
     let (mut x_sink, mut x_stream) = xai_ws.split();
@@ -538,6 +656,8 @@ async fn run_inner(
     });
 
     let (tool_tx, mut tool_rx) = mpsc::channel::<(String, Option<String>)>(32);
+    // Tool calls in flight: aborted when the bridge ends, so none runs on after `ended`.
+    let mut tools: JoinSet<()> = JoinSet::new();
     let mut st = State {
         phase: Phase::AwaitSession,
         paused: false,
@@ -545,6 +665,12 @@ async fn run_inner(
         active: None,
         requested: false,
         cancelled: HashSet::new(),
+        gated: HashSet::new(),
+        instruction: None,
+        instruction_item: None,
+        instruction_seq: 0,
+        backlog: VecDeque::new(),
+        transcripts_produced: 0,
         playing: false,
         mark_seq: 0,
         last_mark: None,
@@ -583,6 +709,24 @@ async fn run_inner(
         };
     }
 
+    // A transcript line for the orchestrator: queued, or waiting in order behind a full queue.
+    macro_rules! tline {
+        ($line:expr) => {{
+            let line: TranscriptLine = $line;
+            st.transcripts_produced += 1;
+            if !st.backlog.is_empty() {
+                st.backlog.push_back((Instant::now(), line));
+            } else if let Err(mpsc::error::TrySendError::Full(line)) = t_tx.try_send(line) {
+                st.backlog.push_back((Instant::now(), line));
+            }
+            if st.backlog.len() > TRANSCRIPT_QUEUE {
+                break EndReason::Error {
+                    kind: "transcript_backlog".into(),
+                };
+            }
+        }};
+    }
+
     let session_deadline = Instant::now() + opts.start_timeout;
     let mut idle_deadline = Instant::now() + opts.idle_timeout;
     let b64 = base64::engine::general_purpose::STANDARD;
@@ -610,8 +754,13 @@ async fn run_inner(
                             }
                             if let Some(a) = st.active.take() {
                                 xsend!(xai::response_cancel(Some(&a.id)));
+                                st.gated.insert(a.id.clone());
                                 st.cancelled.insert(a.id);
                             }
+                        }
+                        Some(Control::Instruct(text)) => {
+                            idle_deadline = Instant::now() + opts.idle_timeout;
+                            st.instruction = Some(text);
                         }
                         Some(Control::Resume) => {
                             st.paused = false;
@@ -621,6 +770,14 @@ async fn run_inner(
                             idle_deadline = Instant::now() + opts.idle_timeout;
                             st.say_queue.push_back(text);
                         }
+                    }
+                }
+                _ = tokio::time::sleep_until(st.backlog.front().map_or(idle_deadline, |(since, _)| *since + opts.transcript_wait)), if !st.backlog.is_empty() => {
+                    break EndReason::Error { kind: "transcript_backlog".into() };
+                }
+                permit = t_tx.reserve(), if !st.backlog.is_empty() => {
+                    if let (Ok(permit), Some((_, line))) = (permit, st.backlog.pop_front()) {
+                        permit.send(line);
                     }
                 }
                 a = tool_rx.recv() => {
@@ -670,6 +827,7 @@ async fn run_inner(
                             } else if !matches!(st.phase, Phase::Live) || st.paused {
                                 // The model may not speak before the opening line or while paused.
                                 xsend!(xai::response_cancel(Some(&id)));
+                                st.gated.insert(id.clone());
                                 st.cancelled.insert(id);
                                 continue;
                             }
@@ -735,7 +893,13 @@ async fn run_inner(
                                 }
                             }
                         }
-                        ServerEvent::FunctionCall { call_id, name, arguments, .. } => {
+                        ServerEvent::FunctionCall { response_id, call_id, name, arguments } => {
+                            if response_id.as_ref().is_some_and(|r| st.gated.contains(r)) {
+                                // The response was cancelled by the hold (or came before the
+                                // opening line): its tool call is not the orchestrator's to act on.
+                                xsend!(xai::function_output(&call_id, CANCELLED_TOOL_OUTPUT));
+                                continue;
+                            }
                             st.stats.tool_calls += 1;
                             st.continue_after_done = false;
                             if !spec.session.tools.iter().any(|t| t.name == name) {
@@ -751,7 +915,8 @@ async fn run_inner(
                             let ev = spec.events.clone();
                             let tx = tool_tx.clone();
                             let bound = opts.tool_timeout;
-                            tokio::spawn(async move {
+                            while tools.try_join_next().is_some() {}
+                            tools.spawn(async move {
                                 let out = tokio::time::timeout(bound, ev.tool_call(call)).await.ok();
                                 let _ = tx.send((call_id, out)).await;
                             });
@@ -777,13 +942,13 @@ async fn run_inner(
                         }
                         ServerEvent::InputTranscript { item_id, transcript } => {
                             let turn = item_id.and_then(|i| st.item_turn.get(&i).copied()).unwrap_or(st.turn);
-                            let _ = t_tx.try_send(TranscriptLine { speaker: Speaker::Counterparty, text: transcript, turn_id: turn, at: Utc::now() });
+                            tline!(TranscriptLine { speaker: Speaker::Counterparty, text: transcript, turn_id: turn, at: Utc::now() });
                         }
                         ServerEvent::OutputTranscriptDone { response_id, transcript } => {
                             let rid = response_id.unwrap_or_default();
                             if !st.cancelled.contains(&rid) && !transcript.is_empty() {
                                 let turn = st.resp_turn.get(&rid).copied().unwrap_or(st.turn);
-                                let _ = t_tx.try_send(TranscriptLine { speaker: Speaker::Assistant, text: transcript, turn_id: turn, at: Utc::now() });
+                                tline!(TranscriptLine { speaker: Speaker::Assistant, text: transcript, turn_id: turn, at: Utc::now() });
                             }
                         }
                         ServerEvent::Error { kind, code } => {
@@ -852,7 +1017,22 @@ async fn run_inner(
                 }
             }
 
-            // After every event: one response at a time, then queued lines.
+            // After every event: the latest server direction (a silent system item; it starts
+            // no response), then one response at a time, then queued lines.
+            if matches!(st.phase, Phase::Live) && !st.paused {
+                if let Some(text) = st.instruction.take() {
+                    if let Some(old) = st.instruction_item.take() {
+                        xsend!(xai::delete_item(&old));
+                    }
+                    st.instruction_seq += 1;
+                    let id = format!("ss_direction_{}", st.instruction_seq);
+                    xsend!(xai::system_message(
+                        &id,
+                        &format!("{INSTRUCTION_PREFIX}{text}")
+                    ));
+                    st.instruction_item = Some(id);
+                }
+            }
             let free = st.active.is_none() && !st.requested && matches!(st.phase, Phase::Live);
             // While paused the continuation waits for `resume` (it would only be cancelled).
             if free && !st.paused && st.continue_after_done && st.pending_calls.is_empty() {
@@ -870,21 +1050,100 @@ async fn run_inner(
 
     let _ = x_tx.try_send(None);
     drop(x_tx);
-    let end = finish(reason, st.stats, c_tx).await;
-    (end, join_all(c_task, t_task, Some(x_task)))
+    // Every line produced; `run` subtracts the ones the orchestrator finished taking.
+    st.stats.transcripts_undelivered = st.transcripts_produced;
+    let end = finish(reason, st.stats, c_tx);
+    let tail = Tail {
+        c: c_task,
+        t: t_task,
+        x: Some(x_task),
+        t_tx,
+        backlog: st.backlog.into_iter().map(|(_, line)| line).collect(),
+        tools,
+        delivered,
+    };
+    (end, tail.join())
 }
 
-fn join_all(
-    c: tokio::task::JoinHandle<()>,
-    t: tokio::task::JoinHandle<()>,
-    x: Option<tokio::task::JoinHandle<()>>,
-) -> Done {
-    Box::pin(async move {
-        let wait = Duration::from_secs(2);
-        let _ = tokio::time::timeout(wait, c).await;
-        if let Some(x) = x {
-            let _ = tokio::time::timeout(wait, x).await;
+/// What is left of a bridge when its loop ends.
+struct Tail {
+    c: JoinHandle<()>,
+    t: JoinHandle<()>,
+    x: Option<JoinHandle<()>>,
+    t_tx: mpsc::Sender<TranscriptLine>,
+    backlog: Vec<TranscriptLine>,
+    tools: JoinSet<()>,
+    delivered: Arc<AtomicU64>,
+}
+
+/// Wait for a task until `deadline`, then abort it: nothing of a bridge outlives its end.
+async fn join_or_abort(mut h: JoinHandle<()>, deadline: Instant) {
+    if tokio::time::timeout_at(deadline, &mut h).await.is_err() {
+        h.abort();
+        let _ = tokio::time::timeout(Duration::from_millis(500), h).await;
+    }
+}
+
+impl Tail {
+    fn early(
+        c: JoinHandle<()>,
+        t: JoinHandle<()>,
+        t_tx: mpsc::Sender<TranscriptLine>,
+        delivered: Arc<AtomicU64>,
+    ) -> Self {
+        Self {
+            c,
+            t,
+            x: None,
+            t_tx,
+            backlog: Vec::new(),
+            tools: JoinSet::new(),
+            delivered,
         }
-        let _ = tokio::time::timeout(wait, t).await;
-    })
+    }
+
+    fn join(self) -> Done {
+        let Self {
+            c,
+            t,
+            x,
+            t_tx,
+            backlog,
+            mut tools,
+            delivered,
+        } = self;
+        Box::pin(async move {
+            let deadline = Instant::now() + JOIN_WAIT;
+            // A tool call still running is not the model's to hear about any more.
+            tools.abort_all();
+            let tools_gone = async {
+                let _ = tokio::time::timeout_at(deadline, tools.shutdown()).await;
+            };
+            // Lines that were waiting get the same bounded chance to be taken, in order.
+            let flush = async move {
+                for line in backlog {
+                    if !matches!(
+                        tokio::time::timeout_at(deadline, t_tx.send(line)).await,
+                        Ok(Ok(()))
+                    ) {
+                        break;
+                    }
+                }
+                drop(t_tx);
+            };
+            let x_gone = async {
+                if let Some(x) = x {
+                    join_or_abort(x, deadline).await;
+                }
+            };
+            tokio::join!(
+                tools_gone,
+                flush,
+                join_or_abort(c, deadline),
+                x_gone,
+                join_or_abort(t, deadline)
+            );
+            delivered.load(Ordering::Relaxed)
+        })
+    }
 }
