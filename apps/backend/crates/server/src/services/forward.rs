@@ -60,7 +60,7 @@ use http_body_util::{BodyExt, Full, Limited};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
-use hyper_util::rt::TokioExecutor;
+use hyper_util::rt::{TokioExecutor, TokioTimer};
 use serde_json::{json, Map, Value};
 use ss_core::IntegrationStatus;
 
@@ -80,6 +80,8 @@ pub const MAX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 pub const NOT_CONFIGURED: &str = "PYTHON_SERVICE_NOT_CONFIGURED";
 pub const UNAVAILABLE: &str = "PYTHON_SERVICE_UNAVAILABLE";
+/// How long an idle pooled connection to the Python service is kept.
+pub const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// Which overall timeout a forwarded route gets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -674,7 +676,13 @@ fn build_client(connect_timeout: Duration) -> Result<HttpsClient, rustls::Error>
         .https_or_http()
         .enable_http1()
         .wrap_connector(http);
-    Ok(Client::builder(TokioExecutor::new()).build(connector))
+    let mut builder = Client::builder(TokioExecutor::new());
+    // Below uvicorn's 5 s keep-alive, so a pooled connection is not reused just as the Python
+    // service closes it.
+    builder
+        .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+        .pool_timer(TokioTimer::new());
+    Ok(builder.build(connector))
 }
 
 /// The `/ready` reporter.

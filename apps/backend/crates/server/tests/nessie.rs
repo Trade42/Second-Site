@@ -387,6 +387,10 @@ both_backends!(the_whole_flow_on_the_fixture_project, |db| {
         .as_str()
         .unwrap()
         .starts_with("Simulation only:"));
+    assert!(a.body["next_step"].as_str().unwrap().contains(&format!(
+        "/api/v1/approvals/{}/decision",
+        approval["approval_id"].as_str().unwrap()
+    )));
     let same = request_approval(&t, &d, prop, ITEM_DEPOSIT).await;
     assert_eq!(same.status, StatusCode::OK, "{}", same.text);
     assert_eq!(same.body["created"], false);

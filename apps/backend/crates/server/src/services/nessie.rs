@@ -46,7 +46,7 @@
 use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use ss_core::{utcnow, Checker, Contract, IntegrationStatus, UtcDateTime, Validate};
 use ss_domain::contracts::{BillOfMaterials, CostScenario, ProviderStatusEntry};
@@ -1473,7 +1473,7 @@ pub async fn request_approval(
             property_id,
             plan_item_id: item.clone(),
             next_step: format!(
-                "Decide it with POST /api/v1/projects/{project_id}/approvals/{}/decision (decision APPROVED or REJECTED, action_payload_hash {}), then POST .../payments/{item}/execute with this approval_id. Simulation only: nothing real is paid or committed.",
+                "Decide it with POST /api/v1/approvals/{}/decision (decision APPROVED or REJECTED, action_payload_hash {}), then POST .../payments/{item}/execute with this approval_id. Simulation only: nothing real is paid or committed.",
                 approval.approval_id, approval.action_payload_hash
             ),
             attempt_id,
@@ -1875,12 +1875,4 @@ pub async fn records_of(
     NESSIE_RECORDS
         .list(tx, Query::new().eq("project_id", project_id))
         .await
-}
-
-/// `{"simulation", "disclaimer"}` of the bank this server uses (for error details).
-pub fn label_of(state: &NessieState) -> Map<String, Value> {
-    let mut m = Map::new();
-    m.insert("simulation".into(), json!(state.simulation()));
-    m.insert("disclaimer".into(), json!(state.simulation().disclaimer()));
-    m
 }

@@ -1337,12 +1337,10 @@ async fn nothing_sensitive_is_logged() {
         let _ = s.read_to_end(&mut out);
         String::from_utf8_lossy(&out).into_owned()
     };
-    let ok = tokio::task::spawn_blocking({
-        let send = send.clone();
-        move || send("/webhooks/photon".into())
-    })
-    .await
-    .unwrap();
+    // `send` only captures the address, so it is `Copy`.
+    let ok = tokio::task::spawn_blocking(move || send("/webhooks/photon".into()))
+        .await
+        .unwrap();
     assert!(ok.starts_with("HTTP/1.1 200"), "{ok}");
     let base = up.base.clone();
     drop(up);

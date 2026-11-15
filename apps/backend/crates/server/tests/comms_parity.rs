@@ -68,7 +68,7 @@ impl Norm {
 
     fn string(&mut self, s: &str) -> String {
         // A Telnyx `client_state` (base64 JSON with a call id): compare what it says.
-        if s.len() >= 16 && s.len() % 4 == 0 {
+        if s.len() >= 16 && s.len().is_multiple_of(4) {
             if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(s) {
                 if let Ok(v @ Value::Object(_)) = serde_json::from_slice::<Value>(&bytes) {
                     if v.get("call_id").is_some() {

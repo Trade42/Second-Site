@@ -393,3 +393,140 @@ async fn texts_beyond_the_route_limits_are_cut_and_bad_labels_refused() {
     tx.commit().await.unwrap();
     db.finish().await;
 }
+
+/// What Python's `notify_owner` records for a key (its `communication.owner_notified` event).
+async fn python_recorded(t: &TestApp, project: Uuid, key: &str, delivery: &str) {
+    let mut tx = t.app.store.begin().await.unwrap();
+    t.app
+        .events()
+        .emit(
+            &mut *tx,
+            ss_server::services::events::Emit::new(
+                ss_server::contracts::EventType::CommunicationOwnerNotified,
+                project,
+                ss_server::contracts::ActorType::Agent,
+                "owner-messaging",
+                format!("notify:{key}"),
+                json!({"communication_id": Uuid::new_v4().to_string(), "delivery": delivery,
+                       "purpose": "approval_request"}),
+            ),
+        )
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+}
+
+both_backends!(
+    a_not_linked_approval_request_is_sent_once_more_after_linking,
+    |db| {
+        let server = MockServer::start_with(|r: &Recorded| {
+            if r.path == "/internal/v1/owner/notify" {
+                ok_answer(Uuid::new_v4(), "not_linked")
+            } else {
+                ok_answer(Uuid::new_v4(), "recorded")
+            }
+        });
+        let t = TestApp::new(db, &[("PYTHON_SERVICE_URL", server.base.as_str())]);
+        let (token, user) = t.dev_token().await;
+        let p = t.create_project(&token, &common::demo_project_body()).await;
+        let pid: Uuid = p["project"]["project_id"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        t.post(
+            &format!("/api/v1/projects/{pid}/properties/search"),
+            Some(&token),
+            &json!({"city": "Los Angeles", "state": "CA"}),
+        )
+        .await;
+        let props = t
+            .get(&format!("/api/v1/projects/{pid}/properties"), Some(&token))
+            .await;
+        let prop = props.body[0]["property_id"].as_str().unwrap().to_owned();
+        let outreach = |name: &'static str| {
+            let (t, token, prop) = (&t, token.clone(), prop.clone());
+            async move {
+                let r = t
+                .post(
+                    &format!("/api/v1/projects/{pid}/outreach"),
+                    Some(&token),
+                    &json!({"property_id": prop, "channel": "VOICE",
+                            "recipient": {"name": name, "phone": "+15555550100"}, "purpose": "check"}),
+                )
+                .await;
+                assert_eq!(r.status.as_u16(), 202, "{}", r.text);
+                t.app.owner_notify().idle().await;
+                r.body["approval"]["approval_id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            }
+        };
+        let keys = || -> Vec<String> {
+            server
+                .requests()
+                .into_iter()
+                .filter(|r| r.path == "/internal/v1/owner/notify")
+                .map(|r| {
+                    serde_json::from_slice::<Value>(&r.body).unwrap()["idempotency_key"]
+                        .as_str()
+                        .unwrap()
+                        .to_owned()
+                })
+                .collect()
+        };
+        let a = outreach("Dana").await;
+        let first = format!("approval-notify:{a}");
+        let linked_key = format!("approval-notify:{a}:linked");
+        assert_eq!(keys(), std::slice::from_ref(&first));
+        python_recorded(&t, pid, &first, "not_linked").await;
+        // Repeated while the channel is still not linked: only the (deduplicated) first key.
+        assert_eq!(outreach("Dana").await, a, "the approval is reused");
+        assert_eq!(keys(), [first.clone(), first.clone()]);
+        // The owner links the channel (Python's Photon code writes this row).
+        let mut tx = t.app.store.begin().await.unwrap();
+        ss_server::store::comms::OWNER_CHANNELS
+            .add(
+                &mut *tx,
+                &ss_domain::contracts::OwnerChannel {
+                    owner_channel_id: Uuid::new_v4(),
+                    owner_id: user,
+                    platform: "imessage".into(),
+                    handle: "+15555550142".into(),
+                    status: ss_domain::contracts::OwnerChannelStatus::Linked,
+                    space_id: Some("spc".into()),
+                    agent_user_id: Some("usr".into()),
+                    last_inbound_message_id: None,
+                    linked_at: None,
+                    updated_at: ss_core::UtcDateTime::now(),
+                },
+            )
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        outreach("Dana").await;
+        assert_eq!(keys()[2..], [first.clone(), linked_key.clone()]);
+        // Python answered the derived key: never again.
+        python_recorded(&t, pid, &linked_key, "accepted").await;
+        outreach("Dana").await;
+        assert_eq!(keys()[4..], *std::slice::from_ref(&first));
+        // An approval whose first answer was recorded, accepted or failed is never re-sent.
+        for (name, delivery) in [("Lee", "recorded"), ("Kim", "accepted"), ("Ana", "failed")] {
+            let b = outreach(name).await;
+            python_recorded(&t, pid, &format!("approval-notify:{b}"), delivery).await;
+            let before = keys().len();
+            outreach(name).await;
+            assert_eq!(
+                keys()[before..],
+                [format!("approval-notify:{b}")],
+                "{delivery}"
+            );
+        }
+        assert_eq!(
+            keys().iter().filter(|k| k.ends_with(":linked")).count(),
+            1,
+            "at most once per approval"
+        );
+    }
+);

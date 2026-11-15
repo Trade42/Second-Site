@@ -31,7 +31,9 @@ use ss_domain::contracts::{
 use uuid::Uuid;
 
 use crate::app::{App, AppState};
-use crate::contracts::{plain_contract, ActionType, ActorType, ApprovalRequest, EventType};
+use crate::contracts::{
+    plain_contract, ActionType, ActorType, ApprovalRequest, ApprovalStatus, EventType,
+};
 use crate::error::{AppError, AppResult};
 use crate::http::extract::{bearer_user, body_errors_with_input, early_json_body, PathParams};
 use crate::http::routes::properties::property_in_project;
@@ -40,7 +42,8 @@ use crate::services::call_orchestration::{lock_project, CallOrchestrator, StartC
 use crate::services::call_simulator::CallSimulator;
 use crate::services::events::Emit;
 use crate::services::notifier::NotifyRequest;
-use crate::store::comms::{CALLS, COMMUNICATIONS, HANDOFFS};
+use crate::store::comms::{channel_for_owner, CALLS, COMMUNICATIONS, HANDOFFS};
+use crate::store::repo::events as event_rows;
 use crate::store::{Query, Tx};
 
 const PREFIX: &str = "/api/v1/projects/{project_id}";
@@ -166,6 +169,79 @@ fn get_default<'m>(m: &'m IndexMap<String, String>, k: &str, default: &'m str) -
     m.get(k).map_or(default, String::as_str)
 }
 
+/// The second key of an approval request text (see [`needs_linked_renotify`]).
+pub fn linked_renotify_key(approval_id: Uuid) -> String {
+    format!("approval-notify:{approval_id}:linked")
+}
+
+/// The `delivery` Python recorded for a notify key in this project (its
+/// `communication.owner_notified` event `notify:<key>`), if any.
+async fn recorded_delivery(
+    tx: &mut dyn Tx,
+    project_id: Uuid,
+    key: &str,
+) -> AppResult<Option<String>> {
+    let rows = event_rows::select(
+        tx,
+        Query::new()
+            .eq("idempotency_key", format!("notify:{key}"))
+            .limit(1),
+    )
+    .await?;
+    let Some(row) = rows.first() else {
+        return Ok(None);
+    };
+    let ev = event_rows::parse(row)?;
+    if ev.project_id != project_id || ev.event_type != EventType::CommunicationOwnerNotified {
+        return Ok(None);
+    }
+    Ok(ev
+        .payload
+        .get("delivery")
+        .and_then(Value::as_str)
+        .map(str::to_owned))
+}
+
+/// A repeated outreach reuses its PENDING approval and therefore its notify key
+/// `approval-notify:<approval id>`. Python's answer for a key is final: when the owner had not
+/// linked their channel the first time (`not_linked`), the repeat gets `not_linked` again and the
+/// owner is never told. So, when the first answer was `not_linked`, the owner's channel now reads
+/// LINKED (with the space and agent ids a send needs, as `notify_owner` checks), and the derived key
+/// `approval-notify:<approval id>:linked` has no recorded answer yet, the approval request is
+/// sent once more under that key. Never after `accepted`, `recorded` or `failed`; at most once
+/// per approval (Python dedupes the derived key, and once it has an answer it is not sent again).
+async fn needs_linked_renotify(
+    tx: &mut dyn Tx,
+    project_id: Uuid,
+    owner_id: Uuid,
+    approval_id: Uuid,
+) -> AppResult<bool> {
+    let first =
+        recorded_delivery(tx, project_id, &format!("approval-notify:{approval_id}")).await?;
+    if first.as_deref() != Some("not_linked") {
+        return Ok(false);
+    }
+    let linked = channel_for_owner(tx, owner_id).await?.is_some_and(|c| {
+        c.status == ss_domain::contracts::OwnerChannelStatus::Linked
+            && c.space_id.as_deref().is_some_and(|s| !s.is_empty())
+            && c.agent_user_id.as_deref().is_some_and(|s| !s.is_empty())
+    });
+    if !linked {
+        return Ok(false);
+    }
+    Ok(event_rows::select(
+        tx,
+        Query::new()
+            .eq(
+                "idempotency_key",
+                format!("notify:{}", linked_renotify_key(approval_id)),
+            )
+            .limit(1),
+    )
+    .await?
+    .is_empty())
+}
+
 /// `POST /projects/{id}/outreach` (202): a communication draft and a PENDING approval. Nothing
 /// is sent until the owner approves and `POST .../calls` executes it.
 async fn outreach(
@@ -248,6 +324,15 @@ async fn outreach(
             purpose: "approval_request".into(),
             idempotency_key: format!("approval-notify:{}", appr.approval_id),
         };
+        let mut notices = vec![notice.clone()];
+        if appr.approval_status == ApprovalStatus::Pending
+            && needs_linked_renotify(tx, project_id, owner_id, appr.approval_id).await?
+        {
+            notices.push(NotifyRequest {
+                idempotency_key: linked_renotify_key(appr.approval_id),
+                ..notice
+            });
+        }
         app.events()
             .emit(
                 tx,
@@ -270,7 +355,7 @@ async fn outreach(
                 communication: comm,
                 approval: appr,
             },
-            vec![notice],
+            notices,
         )
     });
     app.owner_notify().dispatch(app.clone(), notices);
