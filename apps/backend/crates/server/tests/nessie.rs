@@ -13,24 +13,30 @@ mod common;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::http::StatusCode;
 use common::mock_http::{Canned, MockServer, Recorded};
 use serde_json::{json, Value};
 use ss_domain::integrations::base::RetryPolicy;
-use ss_nessie::config::ApiKey;
+use ss_nessie::config::{ApiKey, ProviderMode};
 use ss_nessie::plan::{
     ITEM_DEPOSIT, ITEM_FIRST_MONTH, ITEM_FURNISHING, ITEM_OCCUPANCY_BILL, ITEM_RENOVATION,
 };
 use ss_nessie::{LiveNessieBank, PaymentAuthorization, FIXTURE_BANK_DISCLAIMER};
-use ss_server::contracts::{ActionType, ApprovalStatus};
+use ss_server::config::Settings;
+use ss_server::contracts::{ActionType, ApprovalStatus, JsonMap};
+use ss_server::services::approvals::ApprovalSpec;
 use ss_server::services::nessie::{
     self as svc, approval_evidence, attempt_id_for, install, plan_item_lock_key, sandbox_lock_key,
     NessieState, NESSIE_RECORDS,
 };
+use ss_server::store::memory::MemoryStore;
 use ss_server::store::repo::APPROVALS;
-use ss_server::store::{schema, Query};
+use ss_server::store::{
+    schema, Backend, Filter, Query, Row, Savepoint, Store, StoreError, StoreResult, TableDef, Tx,
+    UpdateOutcome,
+};
 use uuid::Uuid;
 
 use common::*;
@@ -42,6 +48,7 @@ const SANDBOX: &str = "CAPITAL_ONE_NESSIE_SANDBOX";
 
 // ---- Set-up helpers ------------------------------------------------------------------------------
 
+#[derive(Clone)]
 struct Demo {
     tok: String,
     pid: String,
@@ -873,6 +880,9 @@ struct Stub {
     delay_ms: Arc<AtomicU64>,
     /// Transactions read back as completed.
     complete: Arc<AtomicBool>,
+    /// nessie-3: set to true when a purchase POST arrives, before it is answered (the database
+    /// "goes down" between the bank's answer and the outcome recording).
+    down_on_pay: Arc<Mutex<Option<Arc<AtomicBool>>>>,
 }
 
 #[derive(Default)]
@@ -907,12 +917,18 @@ fn stub() -> (MockServer, Stub) {
         mode: Arc::new(Mutex::new(Mode::Normal)),
         delay_ms: Arc::new(AtomicU64::new(0)),
         complete: Arc::new(AtomicBool::new(false)),
+        down_on_pay: Arc::new(Mutex::new(None)),
     };
     let c = ctl.clone();
     let state = Mutex::new(StubState::default());
     let srv = MockServer::start_with(move |r: &Recorded| {
         let body: Value = serde_json::from_slice(&r.body).unwrap_or(Value::Null);
         let parts: Vec<&str> = r.path.trim_start_matches('/').split('/').collect();
+        if r.method == "POST" && r.path.ends_with("/purchases") {
+            if let Some(down) = c.down_on_pay.lock().unwrap().as_ref() {
+                down.store(true, Ordering::SeqCst);
+            }
+        }
         if r.method == "POST" {
             std::thread::sleep(Duration::from_millis(c.delay_ms.load(Ordering::SeqCst)));
         }
@@ -978,6 +994,23 @@ fn stub() -> (MockServer, Stub) {
                 }
                 None => problem(404, "transaction-not-found"),
             },
+            // The account's transactions, newest first (refresh of a MAY_EXIST purchase).
+            ("GET", ["accounts", id, "transactions"]) => {
+                let mut items: Vec<(u64, Value)> = st
+                    .txns
+                    .iter()
+                    .filter(|(_, t)| t["payer_id"] == json!(id) || t["payee_id"] == json!(id))
+                    .map(|(k, t)| {
+                        let n = k.trim_start_matches("txn_").parse::<u64>().unwrap_or(0);
+                        (n, t.clone())
+                    })
+                    .collect();
+                items.sort_by_key(|i| std::cmp::Reverse(i.0));
+                reply(
+                    200,
+                    json!({"items": items.into_iter().map(|(_, t)| t).collect::<Vec<_>>()}),
+                )
+            }
             _ => problem(404, "not-found"),
         }
     });
@@ -1154,7 +1187,14 @@ both_backends!(bank_failures_are_recorded_honestly, |db| {
         tokio::time::sleep(Duration::from_millis(delay)).await;
         assert_eq!(purchases(&srv), before + 1, "{item}");
         let r = execute(&t, &d, prop, item, &id).await;
-        assert_problem(&r, 409, "NESSIE_ALREADY_ATTEMPTED");
+        // nessie-3 F7: the refusal carries the label; an unknown outcome tells the owner to
+        // check the account.
+        labelled_problem(&r, 409, "NESSIE_ALREADY_ATTEMPTED", SANDBOX);
+        assert_eq!(r.body["details"]["attempt_status"], "MAY_EXIST");
+        assert!(r.body["message"]
+            .as_str()
+            .unwrap()
+            .contains("may have been made"));
         let r = t
             .call(
                 axum::http::Method::POST,
@@ -1163,7 +1203,34 @@ both_backends!(bank_failures_are_recorded_honestly, |db| {
                 None,
             )
             .await;
-        assert_problem(&r, 409, "NESSIE_NOTHING_TO_REFRESH");
+        if mode == Mode::Normal {
+            // nessie-3: the timed-out purchase did reach the stub, and its description names the
+            // attempt, so refresh finds it among the account's transactions and settles it.
+            labelled(&r, SANDBOX);
+            assert_eq!(r.body["attempt_status"], "SENT", "{}", r.text);
+            assert_eq!(r.body["record"]["outcome"], "SIMULATED_PENDING");
+            let stored = attempt(&t, pid, prop, item).await.unwrap();
+            assert_eq!(stored.attempt_status, "SENT");
+            assert_eq!(
+                attempt_json(&t, pid, prop, item).await["outcome_source"],
+                svc::SOURCE_REFRESH_FOUND
+            );
+            assert_eq!(
+                stored.nessie_transaction_id,
+                r.body["record"]["nessie_transaction_id"]
+                    .as_str()
+                    .map(str::to_owned)
+            );
+            assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+        } else {
+            // A 503: nothing was created, and the bank cannot tell more; it stays MAY_EXIST.
+            assert_problem(&r, 409, "NESSIE_NOTHING_TO_REFRESH");
+            assert_eq!(r.body["details"]["found"], 0, "{}", r.text);
+            assert_eq!(
+                attempt(&t, pid, prop, item).await.unwrap().attempt_status,
+                "MAY_EXIST"
+            );
+        }
         assert_eq!(purchases(&srv), before + 1, "{item}: never sent twice");
     }
 
@@ -1628,3 +1695,707 @@ both_backends!(
         assert_eq!(rows.len(), 1);
     }
 );
+
+// ---- nessie-3: a committed claim before the bank call (F2), nothing held during it, settings -------
+
+/// A store whose every operation fails while `down` is set: the database going away between the
+/// bank's answer and the recording of the outcome (as a crash there would leave it).
+struct FlakyStore {
+    inner: Arc<dyn Store>,
+    down: Arc<AtomicBool>,
+}
+
+struct FlakyTx {
+    inner: Box<dyn Tx>,
+    down: Arc<AtomicBool>,
+}
+
+fn injected() -> StoreError {
+    StoreError::Database("injected by the test: the database is down".into())
+}
+
+impl FlakyTx {
+    fn check(&self) -> StoreResult<()> {
+        if self.down.load(Ordering::SeqCst) {
+            Err(injected())
+        } else {
+            Ok(())
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl Tx for FlakyTx {
+    fn backend(&self) -> Backend {
+        self.inner.backend()
+    }
+    async fn insert(&mut self, table: &'static TableDef, row: Row) -> StoreResult<Row> {
+        self.check()?;
+        self.inner.insert(table, row).await
+    }
+    async fn get(&mut self, table: &'static TableDef, id: Uuid) -> StoreResult<Option<Row>> {
+        self.check()?;
+        self.inner.get(table, id).await
+    }
+    async fn get_for_update(
+        &mut self,
+        table: &'static TableDef,
+        id: Uuid,
+    ) -> StoreResult<Option<Row>> {
+        self.check()?;
+        self.inner.get_for_update(table, id).await
+    }
+    async fn select(&mut self, table: &'static TableDef, query: &Query) -> StoreResult<Vec<Row>> {
+        self.check()?;
+        self.inner.select(table, query).await
+    }
+    async fn update(
+        &mut self,
+        table: &'static TableDef,
+        id: Uuid,
+        set: Row,
+        expected_version: Option<i64>,
+    ) -> StoreResult<UpdateOutcome> {
+        self.check()?;
+        self.inner.update(table, id, set, expected_version).await
+    }
+    async fn update_where(
+        &mut self,
+        table: &'static TableDef,
+        filters: &[Filter],
+        set: Row,
+    ) -> StoreResult<u64> {
+        self.check()?;
+        self.inner.update_where(table, filters, set).await
+    }
+    async fn delete_where(
+        &mut self,
+        table: &'static TableDef,
+        filters: &[Filter],
+    ) -> StoreResult<u64> {
+        self.check()?;
+        self.inner.delete_where(table, filters).await
+    }
+    async fn advisory_xact_lock(&mut self, key: i64) -> StoreResult<()> {
+        self.check()?;
+        self.inner.advisory_xact_lock(key).await
+    }
+    async fn savepoint(&mut self) -> StoreResult<Savepoint> {
+        self.check()?;
+        self.inner.savepoint().await
+    }
+    async fn release_savepoint(&mut self, sp: Savepoint) -> StoreResult<()> {
+        self.check()?;
+        self.inner.release_savepoint(sp).await
+    }
+    async fn rollback_to_savepoint(&mut self, sp: Savepoint) -> StoreResult<()> {
+        self.check()?;
+        self.inner.rollback_to_savepoint(sp).await
+    }
+    async fn commit(self: Box<Self>) -> StoreResult<()> {
+        self.check()?;
+        self.inner.commit().await
+    }
+    async fn rollback(self: Box<Self>) -> StoreResult<()> {
+        self.inner.rollback().await
+    }
+}
+
+#[async_trait::async_trait]
+impl Store for FlakyStore {
+    fn backend(&self) -> Backend {
+        self.inner.backend()
+    }
+    async fn begin(&self) -> StoreResult<Box<dyn Tx>> {
+        if self.down.load(Ordering::SeqCst) {
+            return Err(injected());
+        }
+        Ok(Box::new(FlakyTx {
+            inner: self.inner.begin().await?,
+            down: self.down.clone(),
+        }))
+    }
+    async fn ping(&self) -> StoreResult<()> {
+        self.inner.ping().await
+    }
+}
+
+const STUB_KEY: &str = "nsk_TEST_server_stub_5d4c3b2a1f0e";
+
+/// The live client pointed at the stub, as one server instance, with these claim times.
+fn stub_state(srv: &MockServer, timeout_s: f64, timing: svc::ClaimTiming) -> NessieState {
+    let bank = LiveNessieBank::with_policy(
+        &srv.base,
+        ApiKey::new(STUB_KEY).unwrap(),
+        RetryPolicy {
+            attempts: 1,
+            backoff_s: 0.0,
+            timeout_s,
+        },
+    );
+    NessieState::with_bank(Arc::new(bank), format!("sandbox:{}", srv.base))
+        .with_claim_timing(timing)
+}
+
+/// Claim times short enough for a test: another instance's claim is dead
+/// `send_window + call_deadline + margin` after it was stored.
+fn short_timing(send_ms: u64, deadline_ms: u64, margin_ms: u64) -> svc::ClaimTiming {
+    svc::ClaimTiming {
+        send_window: Duration::from_millis(send_ms),
+        call_deadline: Duration::from_millis(deadline_ms),
+        margin: Duration::from_millis(margin_ms),
+    }
+}
+
+/// A server (another process when two share a store) on `store`, with `state` as its bank.
+fn app_on(store: Arc<dyn Store>, kind: Kind, state: NessieState) -> TestApp {
+    let app = ss_server::build_app(test_settings(&[]), store);
+    let router = ss_server::http::router(app.clone());
+    install(&app, state);
+    TestApp { app, router, kind }
+}
+
+fn fork(t: &TestApp) -> TestApp {
+    TestApp {
+        app: t.app.clone(),
+        router: t.router.clone(),
+        kind: t.kind,
+    }
+}
+
+/// A second APPROVED approval for the same plan item and plan: the approved payload with another
+/// attempt id (so another payload), created through the approval service and decided by the owner.
+async fn second_approval(t: &TestApp, tok: &str, first: &Value) -> Value {
+    let mut p: JsonMap = serde_json::from_value(first["action_payload"].clone()).unwrap();
+    let old = p["attempt_id"].as_str().unwrap().to_owned();
+    let other = "abcdef012345";
+    p.insert("attempt_id".into(), json!(other));
+    let desc = p["description"].as_str().unwrap().replace(&old, other);
+    p.insert("description".into(), json!(desc));
+    let action: ActionType = serde_json::from_value(first["action_type"].clone()).unwrap();
+    let mut tx = t.app.store.begin().await.unwrap();
+    let spec = ApprovalSpec::new(
+        first["project_id"].as_str().unwrap().parse().unwrap(),
+        first["authorized_owner_id"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap(),
+        "nessie3-test",
+        action,
+        p,
+        "a second approval for the same plan item",
+        format!("nessie3:{}", Uuid::new_v4()),
+    );
+    let a = t.app.approvals().request(&mut *tx, spec).await.unwrap();
+    tx.commit().await.unwrap();
+    let v = serde_json::to_value(&a).unwrap();
+    decide(t, tok, &v, "APPROVED").await;
+    v
+}
+
+/// 409 `NESSIE_ALREADY_ATTEMPTED` for an attempt in this state, with the label in its details.
+fn already(r: &Resp, attempt_status: &str) {
+    labelled_problem(r, 409, "NESSIE_ALREADY_ATTEMPTED", SANDBOX);
+    assert_eq!(
+        r.body["details"]["attempt_status"], attempt_status,
+        "{}",
+        r.text
+    );
+}
+
+async fn refresh(t: &TestApp, d: &Demo, prop: &str, item: &str) -> Resp {
+    t.call(
+        axum::http::Method::POST,
+        &pay_path(&d.pid, prop, item, "refresh"),
+        Some(&d.tok),
+        None,
+    )
+    .await
+}
+
+/// A stored attempt as JSON (fields added by nessie-3 are read by name).
+async fn attempt_json(t: &TestApp, pid: &str, prop: &str, item: &str) -> Value {
+    serde_json::to_value(attempt(t, pid, prop, item).await.unwrap()).unwrap()
+}
+
+async fn wait_past(t: &TestApp, pid: &str, prop: &str, item: &str) {
+    let claim = attempt_json(t, pid, prop, item).await["claim"].clone();
+    let after: chrono::DateTime<chrono::Utc> = claim["settle_after"]
+        .as_str()
+        .expect("the claim records settle_after")
+        .parse()
+        .unwrap();
+    let left = (after - chrono::Utc::now()).num_milliseconds().max(0) as u64;
+    tokio::time::sleep(Duration::from_millis(left + 300)).await;
+}
+
+// The process stops, or the database goes away, after the bank answered and before the outcome
+// is recorded. Injected with a store that fails from the moment the stub receives the payment.
+both_backends!(
+    nessie3_an_outcome_lost_after_the_bank_answered_is_never_paid_twice,
+    |db| {
+        let (srv, ctl) = stub();
+        let down = Arc::new(AtomicBool::new(false));
+        let flaky: Arc<dyn Store> = Arc::new(FlakyStore {
+            inner: db.store.clone(),
+            down: down.clone(),
+        });
+        let timing = short_timing(500, 2000, 500);
+        let t = app_on(flaky, db.kind, stub_state(&srv, 2.0, timing));
+        let d = demo(&t).await;
+        let (tok, pid, prop) = (d.tok.as_str(), d.pid.as_str(), d.hollywood.as_str());
+        assert_eq!(
+            t.post(&sandbox_path(pid), Some(tok), &json!({}))
+                .await
+                .status,
+            StatusCode::CREATED
+        );
+        let purchases = |s: &MockServer| count(s, "POST", "/purchases");
+        let lose_the_outcome = |on: bool| {
+            *ctl.down_on_pay.lock().unwrap() = if on { Some(down.clone()) } else { None };
+            if !on {
+                down.store(false, Ordering::SeqCst);
+            }
+        };
+
+        // 1. This server: the answer says the outcome could not be recorded; the claim stays
+        // IN_FLIGHT; this server's own flow has ended, so the next read settles it MAY_EXIST.
+        let a = request_approval(&t, &d, prop, ITEM_DEPOSIT).await;
+        decide(&t, tok, &a.body["approval"], "APPROVED").await;
+        let id = a.body["approval"]["approval_id"].clone();
+        lose_the_outcome(true);
+        let r = execute(&t, &d, prop, ITEM_DEPOSIT, &id).await;
+        lose_the_outcome(false);
+        eprintln!("NESSIE3-LOST answer: {} {}", r.status.as_u16(), r.text);
+        labelled_problem(&r, 502, "NESSIE_PAYMENT_MAY_EXIST", SANDBOX);
+        assert_eq!(r.body["details"]["recorded"], false);
+        assert_eq!(r.body["details"]["bank_answer"], "SENT");
+        let msg = r.body["message"].as_str().unwrap();
+        assert!(msg.contains("may have been made"), "{msg}");
+        assert!(msg.contains("before trying again"), "{msg}");
+        assert_eq!(purchases(&srv), 1);
+        assert_eq!(
+            attempt(&t, pid, prop, ITEM_DEPOSIT)
+                .await
+                .unwrap()
+                .attempt_status,
+            "IN_FLIGHT"
+        );
+        assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Approved);
+        let r = execute(&t, &d, prop, ITEM_DEPOSIT, &id).await;
+        already(&r, "MAY_EXIST");
+        assert!(r.body["message"]
+            .as_str()
+            .unwrap()
+            .contains("may have been made"));
+        assert_eq!(
+            approval_status(&t, &id).await,
+            ApprovalStatus::Executed,
+            "the approval must be spent in the database"
+        );
+        let stored = attempt_json(&t, pid, prop, ITEM_DEPOSIT).await;
+        assert_eq!(stored["attempt_status"], "MAY_EXIST");
+        assert_eq!(stored["outcome_source"], "UNRECORDED_CLAIM");
+        let second = second_approval(&t, tok, &a.body["approval"]).await;
+        let r = execute(&t, &d, prop, ITEM_DEPOSIT, &second["approval_id"]).await;
+        already(&r, "MAY_EXIST");
+        let r = request_approval(&t, &d, prop, ITEM_DEPOSIT).await;
+        already(&r, "MAY_EXIST");
+        assert_eq!(purchases(&srv), 1, "never paid twice");
+
+        // 2. The same, then a restart: a fresh client with the same bank identity (another server
+        // instance, so only the claim's times tell whether its call may still be running).
+        let a = request_approval(&t, &d, prop, ITEM_RENOVATION).await;
+        decide(&t, tok, &a.body["approval"], "APPROVED").await;
+        let id = a.body["approval"]["approval_id"].clone();
+        lose_the_outcome(true);
+        let r = execute(&t, &d, prop, ITEM_RENOVATION, &id).await;
+        lose_the_outcome(false);
+        labelled_problem(&r, 502, "NESSIE_PAYMENT_MAY_EXIST", SANDBOX);
+        assert_eq!(purchases(&srv), 2);
+        install(&t.app, stub_state(&srv, 2.0, timing));
+        // Within its settle_after the call may still be running elsewhere: refused at once.
+        let r = execute(&t, &d, prop, ITEM_RENOVATION, &id).await;
+        already(&r, "IN_FLIGHT");
+        let r = request_approval(&t, &d, prop, ITEM_RENOVATION).await;
+        already(&r, "IN_FLIGHT");
+        assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Approved);
+        wait_past(&t, pid, prop, ITEM_RENOVATION).await;
+        let r = execute(&t, &d, prop, ITEM_RENOVATION, &id).await;
+        already(&r, "MAY_EXIST");
+        assert!(r.body["message"]
+            .as_str()
+            .unwrap()
+            .contains("Check the sandbox account's transactions"));
+        assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+        let r = request_approval(&t, &d, prop, ITEM_RENOVATION).await;
+        already(&r, "MAY_EXIST");
+        assert_eq!(purchases(&srv), 2, "never paid twice");
+        // The bank can tell: the purchase is in the account, and its description names the attempt.
+        let r = refresh(&t, &d, prop, ITEM_RENOVATION).await;
+        labelled(&r, SANDBOX);
+        assert_eq!(r.body["attempt_status"], "SENT", "{}", r.text);
+        let stored = attempt_json(&t, pid, prop, ITEM_RENOVATION).await;
+        assert_eq!(stored["attempt_status"], "SENT");
+        assert_eq!(stored["outcome_source"], "REFRESH_FOUND_TRANSACTION");
+        assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+        assert_eq!(purchases(&srv), 2);
+    }
+);
+
+// Another server settles a claim whose times say its call is over, but the call was in fact
+// still running (the claim times are set shorter than this client's deadline on purpose): the
+// late answer with the payment makes the attempt SENT; nothing is sent twice.
+both_backends!(
+    nessie3_a_late_bank_answer_after_another_server_settled_the_claim,
+    |db| {
+        let (srv, ctl) = stub();
+        let tiny = short_timing(200, 100, 100);
+        let a = app_on(db.store.clone(), db.kind, stub_state(&srv, 5.0, tiny));
+        let b = app_on(db.store.clone(), db.kind, stub_state(&srv, 5.0, tiny));
+        let d = demo(&a).await;
+        let (tok, pid, prop) = (d.tok.as_str(), d.pid.as_str(), d.hollywood.as_str());
+        a.post(&sandbox_path(pid), Some(tok), &json!({})).await;
+        let ap = request_approval(&a, &d, prop, ITEM_DEPOSIT).await;
+        decide(&a, tok, &ap.body["approval"], "APPROVED").await;
+        let id = ap.body["approval"]["approval_id"].clone();
+        ctl.delay_ms.store(1500, Ordering::SeqCst);
+        let (a1, d1, id1) = (fork(&a), d.clone(), id.clone());
+        let slow = tokio::spawn(async move {
+            let prop = d1.hollywood.clone();
+            execute(&a1, &d1, &prop, ITEM_DEPOSIT, &id1).await
+        });
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        let r = execute(&b, &d, prop, ITEM_DEPOSIT, &id).await;
+        already(&r, "MAY_EXIST");
+        assert_eq!(approval_status(&b, &id).await, ApprovalStatus::Executed);
+        let r = slow.await.unwrap();
+        ctl.delay_ms.store(0, Ordering::SeqCst);
+        assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+        assert_eq!(r.body["attempt_status"], "SENT");
+        assert_eq!(r.body["approval_status"], "EXECUTED");
+        let stored = attempt_json(&a, pid, prop, ITEM_DEPOSIT).await;
+        assert_eq!(stored["attempt_status"], "SENT");
+        assert_eq!(stored["outcome_source"], "BANK_ANSWER_AFTER_SETTLEMENT");
+        assert_eq!(count(&srv, "POST", "/purchases"), 1);
+        let r = execute(&b, &d, prop, ITEM_DEPOSIT, &id).await;
+        already(&r, "SENT");
+        assert_eq!(count(&srv, "POST", "/purchases"), 1);
+    }
+);
+
+// 20 executes of one approval and one of a second approval for the same plan item, all at once,
+// with real separate connections: one payment, and every refusal arrives while the bank call is
+// still running.
+#[tokio::test(flavor = "multi_thread", worker_threads = 6)]
+async fn nessie3_postgres_executes_of_one_item_are_refused_without_waiting_for_the_bank() {
+    let Some(db) = TestDb::new(Kind::Postgres).await else {
+        return;
+    };
+    let (srv, ctl) = stub();
+    let t = app_with_stub(&db, &srv, 10.0);
+    let d = demo(&t).await;
+    let prop = d.hollywood.clone();
+    t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({}))
+        .await;
+    let first = request_approval(&t, &d, &prop, ITEM_DEPOSIT).await;
+    decide(&t, &d.tok, &first.body["approval"], "APPROVED").await;
+    let first_id = first.body["approval"]["approval_id"].clone();
+    let second = second_approval(&t, &d.tok, &first.body["approval"]).await;
+    let bank_ms = 3000u64;
+    ctl.delay_ms.store(bank_ms, Ordering::SeqCst);
+    let mut set = tokio::task::JoinSet::new();
+    for i in 0..21 {
+        let id = if i == 20 {
+            second["approval_id"].clone()
+        } else {
+            first_id.clone()
+        };
+        let (tt, dd, pp) = (fork(&t), d.clone(), prop.clone());
+        set.spawn(async move {
+            let s = Instant::now();
+            let r = execute(&tt, &dd, &pp, ITEM_DEPOSIT, &id).await;
+            (r, s.elapsed())
+        });
+    }
+    let mut paid = 0;
+    let mut refused = Vec::new();
+    while let Some(r) = set.join_next().await {
+        let (r, took) = r.unwrap();
+        if r.status == StatusCode::OK {
+            paid += 1;
+            assert!(took >= Duration::from_millis(bank_ms), "{took:?}");
+        } else {
+            already(&r, "IN_FLIGHT");
+            refused.push(took);
+        }
+    }
+    ctl.delay_ms.store(0, Ordering::SeqCst);
+    let slowest = refused.iter().max().copied().unwrap_or_default();
+    eprintln!(
+        "NESSIE3-PG-21 paid {paid}, refused {} (slowest refusal {slowest:?} during a {bank_ms} ms bank call); bank POSTs {}",
+        refused.len(),
+        count(&srv, "POST", "/purchases")
+    );
+    assert_eq!(paid, 1);
+    assert_eq!(refused.len(), 20);
+    assert!(
+        slowest < Duration::from_millis(bank_ms - 1000),
+        "a refusal waited for the bank call: {slowest:?}"
+    );
+    assert_eq!(count(&srv, "POST", "/purchases"), 1);
+    db.finish().await;
+}
+
+// Requests made while a slow bank call is in progress (four executes of one item, as the review's
+// pool probe): a project list, a business-profile update of the same project, a plan read and
+// another execute are all answered at once.
+both_backends!(
+    nessie3_other_requests_are_answered_during_a_slow_bank_call,
+    |db| {
+        let (srv, ctl) = stub();
+        let t = app_with_stub(db, &srv, 10.0);
+        let d = demo(&t).await;
+        let prop = d.hollywood.clone();
+        t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({}))
+            .await;
+        let a = request_approval(&t, &d, &prop, ITEM_DEPOSIT).await;
+        decide(&t, &d.tok, &a.body["approval"], "APPROVED").await;
+        let id = a.body["approval"]["approval_id"].clone();
+        let bank_ms = 2500u64;
+        ctl.delay_ms.store(bank_ms, Ordering::SeqCst);
+        let mut set = tokio::task::JoinSet::new();
+        for _ in 0..4 {
+            let (tt, dd, pp, ii) = (fork(&t), d.clone(), prop.clone(), id.clone());
+            set.spawn(async move { execute(&tt, &dd, &pp, ITEM_DEPOSIT, &ii).await });
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let mut took = Vec::new();
+        let s = Instant::now();
+        let r = t.get("/api/v1/projects", Some(&d.tok)).await;
+        took.push(("project list", r.status.as_u16(), s.elapsed()));
+        let s = Instant::now();
+        let r = t
+            .put(
+                &format!("/api/v1/projects/{}/business-profile", d.pid),
+                Some(&d.tok),
+                &demo_project_body()["business_profile"],
+            )
+            .await;
+        took.push(("profile update", r.status.as_u16(), s.elapsed()));
+        let s = Instant::now();
+        let r = t.get(&prop_path(&d.pid, &prop, "plan"), Some(&d.tok)).await;
+        took.push(("plan read", r.status.as_u16(), s.elapsed()));
+        let s = Instant::now();
+        let r = execute(&t, &d, &prop, ITEM_DEPOSIT, &id).await;
+        took.push(("another execute", r.status.as_u16(), s.elapsed()));
+        already(&r, "IN_FLIGHT");
+        let mut statuses = Vec::new();
+        while let Some(r) = set.join_next().await {
+            statuses.push(r.unwrap().status.as_u16());
+        }
+        ctl.delay_ms.store(0, Ordering::SeqCst);
+        statuses.sort_unstable();
+        for (name, status, d) in &took {
+            eprintln!(
+                "NESSIE3-DURING {:?} {name}: {status} in {d:?} (bank call {bank_ms} ms)",
+                db.kind
+            );
+        }
+        for (name, status, d) in &took {
+            assert!(*status < 500, "{name}: {status}");
+            assert!(
+                *d < Duration::from_millis(1500),
+                "{name} waited for the bank call: {d:?}"
+            );
+        }
+        assert_eq!(statuses, vec![200, 409, 409, 409]);
+        assert_eq!(count(&srv, "POST", "/purchases"), 1);
+    }
+);
+
+// A refusal by the bank leaves the approval usable and the plan item payable; while the refused
+// call is still running, the item is blocked without waiting; then it is paid exactly once.
+both_backends!(
+    nessie3_a_refusal_leaves_the_approval_usable_and_the_item_is_paid_once,
+    |db| {
+        let (srv, ctl) = stub();
+        let t = app_with_stub(db, &srv, 10.0);
+        let d = demo(&t).await;
+        let prop = d.hollywood.clone();
+        t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({}))
+            .await;
+        let a = request_approval(&t, &d, &prop, ITEM_DEPOSIT).await;
+        decide(&t, &d.tok, &a.body["approval"], "APPROVED").await;
+        let id = a.body["approval"]["approval_id"].clone();
+        *ctl.mode.lock().unwrap() = Mode::Refuse;
+        ctl.delay_ms.store(1500, Ordering::SeqCst);
+        let (tt, dd, pp, ii) = (fork(&t), d.clone(), prop.clone(), id.clone());
+        let slow = tokio::spawn(async move { execute(&tt, &dd, &pp, ITEM_DEPOSIT, &ii).await });
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let s = Instant::now();
+        let r = execute(&t, &d, &prop, ITEM_DEPOSIT, &id).await;
+        let waited = s.elapsed();
+        already(&r, "IN_FLIGHT");
+        assert!(
+            waited < Duration::from_millis(900),
+            "waited for the bank: {waited:?}"
+        );
+        // (No approval request here: it asks the stub for the account first, and the stub serves one
+        // connection at a time, so it would wait for the stalled POST.)
+        let r = slow.await.unwrap();
+        labelled_problem(&r, 422, "NESSIE_PAYMENT_REFUSED", SANDBOX);
+        assert_eq!(r.body["details"]["approval_status"], "APPROVED");
+        assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Approved);
+        assert_eq!(
+            attempt(&t, &d.pid, &prop, ITEM_DEPOSIT)
+                .await
+                .unwrap()
+                .attempt_status,
+            "REFUSED"
+        );
+        assert_eq!(count(&srv, "POST", "/purchases"), 1);
+        *ctl.mode.lock().unwrap() = Mode::Normal;
+        ctl.delay_ms.store(0, Ordering::SeqCst);
+        let r = execute(&t, &d, &prop, ITEM_DEPOSIT, &id).await;
+        assert_eq!(r.status, StatusCode::OK, "{}", r.text);
+        assert_eq!(r.body["record"]["outcome"], "SIMULATED_PENDING");
+        assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+        let stored = attempt(&t, &d.pid, &prop, ITEM_DEPOSIT).await.unwrap();
+        assert_eq!(stored.attempt_status, "SENT");
+        assert_eq!(stored.earlier_refusals.len(), 1);
+        assert_eq!(count(&srv, "POST", "/purchases"), 2);
+        let r = execute(&t, &d, &prop, ITEM_DEPOSIT, &id).await;
+        already(&r, "SENT");
+        assert_eq!(count(&srv, "POST", "/purchases"), 2, "paid once");
+    }
+);
+
+// Graceful shutdown waits for an execute between its two phases, also when its client left.
+#[tokio::test]
+async fn nessie3_shutdown_waits_for_an_execute_between_its_phases() {
+    let db = TestDb::new(Kind::Memory).await.expect("memory");
+    let (srv, ctl) = stub();
+    let t = app_with_stub(&db, &srv, 10.0);
+    let d = demo(&t).await;
+    let prop = d.hollywood.clone();
+    t.post(&sandbox_path(&d.pid), Some(&d.tok), &json!({}))
+        .await;
+    let a = request_approval(&t, &d, &prop, ITEM_DEPOSIT).await;
+    decide(&t, &d.tok, &a.body["approval"], "APPROVED").await;
+    let id = a.body["approval"]["approval_id"].clone();
+    ctl.delay_ms.store(1200, Ordering::SeqCst);
+    let cut = tokio::time::timeout(
+        Duration::from_millis(300),
+        execute(&t, &d, &prop, ITEM_DEPOSIT, &id),
+    )
+    .await;
+    assert!(cut.is_err(), "the client was expected to leave");
+    assert_eq!(
+        svc::wait_for_flows_within(&t.app, Duration::from_millis(50)).await,
+        1,
+        "the execute is at the bank"
+    );
+    let s = Instant::now();
+    assert_eq!(
+        svc::wait_for_flows_within(&t.app, Duration::from_secs(10)).await,
+        0
+    );
+    eprintln!("NESSIE3-SHUTDOWN waited {:?}", s.elapsed());
+    assert!(s.elapsed() < Duration::from_secs(5));
+    ctl.delay_ms.store(0, Ordering::SeqCst);
+    let stored = attempt(&t, &d.pid, &prop, ITEM_DEPOSIT).await.unwrap();
+    assert_eq!(stored.attempt_status, "SENT");
+    assert_eq!(approval_status(&t, &id).await, ApprovalStatus::Executed);
+    assert_eq!(count(&srv, "POST", "/purchases"), 1);
+    db.finish().await;
+}
+
+// NESSIE_PROVIDER_MODE, NESSIE_API_KEY and NESSIE_BASE_URL come through the settings loader:
+// from the `.env` files, with the same precedence as every other name, the environment first.
+// Scratch files only (never the repository's `.env`).
+#[tokio::test]
+async fn nessie3_the_nessie_settings_come_through_the_settings_loader() {
+    let root = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("nessie3-dotenv-{}", Uuid::new_v4().simple()));
+    let dir = root.join("a").join("b");
+    std::fs::create_dir_all(&dir).unwrap();
+    const NEAR_KEY: &str = "nsk_DOTENVCANARY_near_a1b2c3";
+    const FAR_KEY: &str = "nsk_DOTENVCANARY_far_d4e5f6";
+    // `.env` in the working directory, `../../.env` two levels up.
+    std::fs::write(
+        dir.join(".env"),
+        format!("NESSIE_PROVIDER_MODE=live\nNESSIE_API_KEY={NEAR_KEY}\nNESSIE_BASE_URL=http://near.invalid\nPUBLIC_BASE_URL=http://near.invalid\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.join(".env"),
+        format!("NESSIE_API_KEY={FAR_KEY}\nNESSIE_BASE_URL=http://far.invalid\nPUBLIC_BASE_URL=http://far.invalid\n"),
+    )
+    .unwrap();
+    let env = |extra: &[(&str, &str)]| {
+        let mut v = vec![("APP_ENV".to_owned(), "test".to_owned())];
+        v.extend(
+            extra
+                .iter()
+                .map(|(k, x)| ((*k).to_owned(), (*x).to_owned())),
+        );
+        v
+    };
+    let s = Settings::from_sources(&dir, env(&[])).unwrap();
+    // The Nessie names take the file that every other name takes.
+    let near = s.public_base_url == "http://near.invalid";
+    eprintln!(
+        "NESSIE3-SETTINGS the file that wins for every name: {}",
+        if near { ".env" } else { "../../.env" }
+    );
+    let cfg = svc::nessie_config(&s).unwrap();
+    assert_eq!(cfg.mode, ProviderMode::Live, "only `.env` sets it");
+    let (url, key) = if near {
+        ("http://near.invalid", NEAR_KEY)
+    } else {
+        ("http://far.invalid", FAR_KEY)
+    };
+    assert_eq!(cfg.base_url, url);
+    assert_eq!(cfg.api_key.as_ref().map(|k| k.expose()), Some(key));
+    // The environment over both files.
+    let s2 = Settings::from_sources(
+        &dir,
+        env(&[
+            ("NESSIE_PROVIDER_MODE", "fixture"),
+            ("NESSIE_BASE_URL", "http://env.invalid"),
+        ]),
+    )
+    .unwrap();
+    let cfg2 = svc::nessie_config(&s2).unwrap();
+    assert_eq!(cfg2.mode, ProviderMode::Fixture);
+    assert_eq!(cfg2.base_url, "http://env.invalid");
+    // The key is in no Debug output and not in `/ready`.
+    assert!(!format!("{s:?}").contains("DOTENVCANARY"));
+    assert!(!format!("{cfg:?}").contains("DOTENVCANARY"));
+    let app = ss_server::build_app(s, Arc::new(MemoryStore::new()));
+    let router = ss_server::http::router(app.clone());
+    let t = TestApp {
+        app,
+        router,
+        kind: Kind::Memory,
+    };
+    assert_eq!(
+        t.app.nessie().simulation(),
+        ss_nessie::Simulation::NessieSandbox
+    );
+    let r = t.get("/ready", None).await;
+    let entry = r.body["providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["provider"] == "nessie")
+        .unwrap()
+        .clone();
+    assert_eq!(entry["mode"], "live", "{entry}");
+    assert_eq!(entry["credentials_present"], true);
+    assert_eq!(entry["status"], "PARTIAL");
+    assert!(!r.text.contains("DOTENVCANARY"));
+    let _ = std::fs::remove_dir_all(&root);
+}

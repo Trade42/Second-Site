@@ -23,8 +23,9 @@ services:
       interval: 5s
       retries: 20
 
-  # Python app: Photon, the supervisor and the call flow, behind the Rust service. It owns the
-  # migrations (alembic). Host port 8001 is for debugging. Python-only stack, as before:
+  # Python app, behind the Rust service: Photon owner messaging, the supervisor's chat, the Studio
+  # routes and the owner-notify route the Rust service calls. It owns the migrations (alembic).
+  # Host port 8001 is for debugging. Python-only stack, as before:
   #   API_HOST_PORT=8000 API_BACKEND_API_URL= docker compose -f infra/compose.yaml up --build postgres redis api worker
   api:
     build: { context: .., dockerfile: infra/docker/api.Dockerfile }
@@ -48,7 +49,8 @@ services:
 
   # Rust API (apps/backend): the browser's single origin on host port 8000. Starts after api is
   # healthy, so alembic has migrated an empty database first; its own start-up migration then
-  # finds alembic head and does nothing (alembic takes no lock, so the two must not race).
+  # finds alembic head and only adds its own table (alembic takes no lock, so the two must not
+  # race). env_file puts ../.env into the process environment, where the NESSIE_* names are read.
   backend:
     build: { context: .., dockerfile: infra/docker/backend.Dockerfile }
     env_file: [{ path: ../.env, required: false }]
@@ -61,7 +63,7 @@ services:
       OBJECT_STORAGE_LOCAL_DIR: /data/objects
       TASK_EXECUTION_MODE: inline
       CORS_ORIGINS: http://localhost:3000
-      PYTHON_SERVICE_URL: http://api:8000   # owner texts and the forwarder, once they land
+      PYTHON_SERVICE_URL: http://api:8000   # owner texts, and the forwarded Photon, chat and Studio routes
     ports: ["${BACKEND_HOST_PORT:-8000}:8000"]
     volumes: [backend-objects:/data]
     depends_on:

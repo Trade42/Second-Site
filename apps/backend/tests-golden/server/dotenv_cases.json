@@ -541,5 +541,939 @@
     "NESSIE_BASE_URL": ""
    }
   }
+ ],
+ "environ": {
+  "DB_USER": "env_user",
+  "HOME_DIR": "/home/env",
+  "EMPTY_NAME": "",
+  "FROM_ENV": "from the environment",
+  "SELF": "e",
+  "lower_env": "lower"
+ },
+ "files": [
+  {
+   "name": "value from the file",
+   "text": "DB_USER=alice\nDATABASE_URL=postgresql://${DB_USER}@localhost:5432/db\n",
+   "values": [
+    [
+     "DB_USER",
+     "alice"
+    ],
+    [
+     "DATABASE_URL",
+     "postgresql://alice@localhost:5432/db"
+    ]
+   ]
+  },
+  {
+   "name": "value from the environment",
+   "text": "DATABASE_URL=postgresql://${DB_USER}@localhost:5432/db\n",
+   "values": [
+    [
+     "DATABASE_URL",
+     "postgresql://env_user@localhost:5432/db"
+    ]
+   ]
+  },
+  {
+   "name": "double quoted",
+   "text": "URL=\"postgresql://${DB_USER}@h/db\"\n",
+   "values": [
+    [
+     "URL",
+     "postgresql://env_user@h/db"
+    ]
+   ]
+  },
+  {
+   "name": "single quoted",
+   "text": "Q='${DB_USER} and ${UNSET_NAME}  '\n",
+   "values": [
+    [
+     "Q",
+     "env_user and   "
+    ]
+   ]
+  },
+  {
+   "name": "unset is empty",
+   "text": "A=${UNSET_NAME}\n",
+   "values": [
+    [
+     "A",
+     ""
+    ]
+   ]
+  },
+  {
+   "name": "default",
+   "text": "A=${UNSET_NAME:-fallback}\nB=\"${UNSET_NAME:-two words}\"\nC='${UNSET_NAME:-x}'\n",
+   "values": [
+    [
+     "A",
+     "fallback"
+    ],
+    [
+     "B",
+     "two words"
+    ],
+    [
+     "C",
+     "x"
+    ]
+   ]
+  },
+  {
+   "name": "set but empty keeps empty",
+   "text": "A=${EMPTY_NAME:-fallback}\n",
+   "values": [
+    [
+     "A",
+     ""
+    ]
+   ]
+  },
+  {
+   "name": "default when set",
+   "text": "A=${HOME_DIR:-fallback}\n",
+   "values": [
+    [
+     "A",
+     "/home/env"
+    ]
+   ]
+  },
+  {
+   "name": "in the middle",
+   "text": "A=${HOME_DIR}/sub/${DB_USER}.txt\n",
+   "values": [
+    [
+     "A",
+     "/home/env/sub/env_user.txt"
+    ]
+   ]
+  },
+  {
+   "name": "no braces",
+   "text": "A=$HOME_DIR\nB=$\nC=$$\n",
+   "values": [
+    [
+     "A",
+     "$HOME_DIR"
+    ],
+    [
+     "B",
+     "$"
+    ],
+    [
+     "C",
+     "$$"
+    ]
+   ]
+  },
+  {
+   "name": "unclosed",
+   "text": "A=${HOME_DIR\nB=x${\n",
+   "values": [
+    [
+     "A",
+     "${HOME_DIR"
+    ],
+    [
+     "B",
+     "x${"
+    ]
+   ]
+  },
+  {
+   "name": "colon without dash",
+   "text": "A=${HOME_DIR:x}\nB=${HOME_DIR:}\n",
+   "values": [
+    [
+     "A",
+     "${HOME_DIR:x}"
+    ],
+    [
+     "B",
+     "${HOME_DIR:}"
+    ]
+   ]
+  },
+  {
+   "name": "empty name",
+   "text": "A=${}\nB=${:-d}\n",
+   "values": [
+    [
+     "A",
+     ""
+    ],
+    [
+     "B",
+     "d"
+    ]
+   ]
+  },
+  {
+   "name": "colon in the default",
+   "text": "A=${UNSET_NAME:-a:b}\n",
+   "values": [
+    [
+     "A",
+     "a:b"
+    ]
+   ]
+  },
+  {
+   "name": "nested is not nested",
+   "text": "A=${UNSET_NAME:-${HOME_DIR}}\n",
+   "values": [
+    [
+     "A",
+     "${HOME_DIR}"
+    ]
+   ]
+  },
+  {
+   "name": "escaped dollar",
+   "text": "A=\\${HOME_DIR}\nB=\"\\${HOME_DIR}\"\n",
+   "values": [
+    [
+     "A",
+     "\\/home/env"
+    ],
+    [
+     "B",
+     "\\/home/env"
+    ]
+   ]
+  },
+  {
+   "name": "the file wins over the environment",
+   "text": "FROM_ENV=from the file\nB=${FROM_ENV}\n",
+   "values": [
+    [
+     "FROM_ENV",
+     "from the file"
+    ],
+    [
+     "B",
+     "from the file"
+    ]
+   ]
+  },
+  {
+   "name": "only earlier lines",
+   "text": "B=${FROM_ENV}\nFROM_ENV=from the file\nC=${FROM_ENV}\n",
+   "values": [
+    [
+     "B",
+     "from the environment"
+    ],
+    [
+     "FROM_ENV",
+     "from the file"
+    ],
+    [
+     "C",
+     "from the file"
+    ]
+   ]
+  },
+  {
+   "name": "a key without a value",
+   "text": "A\nB=${A:-default}\nC=${A}\n",
+   "values": [
+    [
+     "A",
+     null
+    ],
+    [
+     "B",
+     ""
+    ],
+    [
+     "C",
+     ""
+    ]
+   ]
+  },
+  {
+   "name": "the last value",
+   "text": "A=1\nA=2\nB=${A}\n",
+   "values": [
+    [
+     "A",
+     "2"
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "names are case-sensitive",
+   "text": "a=lower\nB=${A}\nC=${a}\nD=${lower_env}\nE=${LOWER_ENV}\n",
+   "values": [
+    [
+     "a",
+     "lower"
+    ],
+    [
+     "B",
+     ""
+    ],
+    [
+     "C",
+     "lower"
+    ],
+    [
+     "D",
+     "lower"
+    ],
+    [
+     "E",
+     ""
+    ]
+   ]
+  },
+  {
+   "name": "self reference",
+   "text": "SELF=${SELF}x\nSELF=${SELF}y\n",
+   "values": [
+    [
+     "SELF",
+     "exy"
+    ]
+   ]
+  },
+  {
+   "name": "twice",
+   "text": "A=${HOME_DIR}${HOME_DIR}\n",
+   "values": [
+    [
+     "A",
+     "/home/env/home/env"
+    ]
+   ]
+  },
+  {
+   "name": "before a comment",
+   "text": "A=pre ${HOME_DIR} # comment\n",
+   "values": [
+    [
+     "A",
+     "pre /home/env"
+    ]
+   ]
+  },
+  {
+   "name": "unicode name",
+   "text": "A=${ÜNAME:-ü}\n",
+   "values": [
+    [
+     "A",
+     "ü"
+    ]
+   ]
+  },
+  {
+   "name": "export",
+   "text": "export A=${UNSET_NAME:-x}\n",
+   "values": [
+    [
+     "A",
+     "x"
+    ]
+   ]
+  },
+  {
+   "name": "a value made by interpolation is not expanded again",
+   "text": "A=${B}\nB=$${HOME_DIR}\nC=${B}\n",
+   "values": [
+    [
+     "A",
+     ""
+    ],
+    [
+     "B",
+     "$/home/env"
+    ],
+    [
+     "C",
+     "$/home/env"
+    ]
+   ]
+  },
+  {
+   "name": "a value containing a reference",
+   "text": "A=\"${\"\nB=${A}{HOME_DIR}\n",
+   "values": [
+    [
+     "A",
+     "${"
+    ],
+    [
+     "B",
+     "${{HOME_DIR}"
+    ]
+   ]
+  },
+  {
+   "name": "lone CR",
+   "text": "A=1\rB=2\rC=three words\r",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "2"
+    ],
+    [
+     "C",
+     "three words"
+    ]
+   ]
+  },
+  {
+   "name": "CRLF",
+   "text": "A=1\r\nB=2\r\n",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "CR inside quotes",
+   "text": "A=\"x\ry\"\nB='p\rq'\n",
+   "values": [
+    [
+     "A",
+     "x\ny"
+    ],
+    [
+     "B",
+     "p\nq"
+    ]
+   ]
+  },
+  {
+   "name": "mixed",
+   "text": "A=1\r\nB=\"multi\r\nline\"\rC=3",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "multi\nline"
+    ],
+    [
+     "C",
+     "3"
+    ]
+   ]
+  },
+  {
+   "name": "CR then comment",
+   "text": "A=1 # c\rB=2\r",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "double quoted over two lines",
+   "text": "ML=\"first\nOTHER=second\"\nNEXT=1\n",
+   "values": [
+    [
+     "ML",
+     "first\nOTHER=second"
+    ],
+    [
+     "NEXT",
+     "1"
+    ]
+   ]
+  },
+  {
+   "name": "single quoted over two lines",
+   "text": "ML='first\nsecond'\nNEXT=1\n",
+   "values": [
+    [
+     "ML",
+     "first\nsecond"
+    ],
+    [
+     "NEXT",
+     "1"
+    ]
+   ]
+  },
+  {
+   "name": "then a comment",
+   "text": "ML=\"first\nsecond\" # c\nNEXT=1\n",
+   "values": [
+    [
+     "ML",
+     "first\nsecond"
+    ],
+    [
+     "NEXT",
+     "1"
+    ]
+   ]
+  },
+  {
+   "name": "never closed",
+   "text": "ML=\"unterminated\nOTHER=x\n",
+   "values": [
+    [
+     "OTHER",
+     "x"
+    ]
+   ]
+  },
+  {
+   "name": "never closed, single",
+   "text": "ML='unterminated\nOTHER=x\n",
+   "values": [
+    [
+     "OTHER",
+     "x"
+    ]
+   ]
+  },
+  {
+   "name": "escaped quote then a line break",
+   "text": "ML=\"a\\\"b\nc\"\nNEXT=1\n",
+   "values": [
+    [
+     "ML",
+     "a\"b\nc"
+    ],
+    [
+     "NEXT",
+     "1"
+    ]
+   ]
+  },
+  {
+   "name": "escapes over lines",
+   "text": "ML=\"a\\n\nb\\t\"\n",
+   "values": [
+    [
+     "ML",
+     "a\n\nb\t"
+    ]
+   ]
+  },
+  {
+   "name": "quoted key over two lines",
+   "text": "'MULTI\nKEY'=v\nNEXT=1\n",
+   "values": [
+    [
+     "MULTI\nKEY",
+     "v"
+    ],
+    [
+     "NEXT",
+     "1"
+    ]
+   ]
+  },
+  {
+   "name": "junk after a value",
+   "text": "A=\"x\" junk\nB=2\n",
+   "values": [
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "junk after a multi-line value",
+   "text": "A=\"x\ny\" junk\nB=2\n",
+   "values": [
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "interpolated multi-line value",
+   "text": "A=\"${HOME_DIR}\n${DB_USER}\"\n",
+   "values": [
+    [
+     "A",
+     "/home/env\nenv_user"
+    ]
+   ]
+  },
+  {
+   "name": "duplicate keeps the first place",
+   "text": "A=1\nB=2\nA=3\n",
+   "values": [
+    [
+     "A",
+     "3"
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "a later key without a value",
+   "text": "A=1\nA\nB=2\n",
+   "values": [
+    [
+     "A",
+     null
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "case-differing keys",
+   "text": "A=1\na=2\nA=3\n",
+   "values": [
+    [
+     "A",
+     "3"
+    ],
+    [
+     "a",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "BOM",
+   "text": "﻿A=1\nB=2\n",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "information separators are whitespace",
+   "text": "\u001cA=1\nB=a\u001d#c\nC=b\u001e\nD=c\u001f d\n",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "a"
+    ],
+    [
+     "C",
+     "b"
+    ],
+    [
+     "D",
+     "c\u001f d"
+    ]
+   ]
+  },
+  {
+   "name": "other unicode whitespace",
+   "text": "A=a #c\nB=b \n　C=3\n",
+   "values": [
+    [
+     "A",
+     "a"
+    ],
+    [
+     "B",
+     "b"
+    ],
+    [
+     "C",
+     "3"
+    ]
+   ]
+  },
+  {
+   "name": "no final line break",
+   "text": "A=1\nB=2",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "empty",
+   "text": "",
+   "values": []
+  },
+  {
+   "name": "only whitespace",
+   "text": "\n\n  \n\t\n",
+   "values": []
+  },
+  {
+   "name": "comments",
+   "text": "\n# comment\nA=1 # c\n  # indented\nB=2\n",
+   "values": [
+    [
+     "A",
+     "1"
+    ],
+    [
+     "B",
+     "2"
+    ]
+   ]
+  },
+  {
+   "name": "export without a key",
+   "text": "export \nA=1\n",
+   "values": [
+    [
+     "A",
+     "1"
+    ]
+   ]
+  },
+  {
+   "name": "equals first",
+   "text": "=x\nA=1\n",
+   "values": [
+    [
+     "A",
+     "1"
+    ]
+   ]
+  },
+  {
+   "name": ".env.example",
+   "text": "# Second Site environment. Copy to .env (gitignored). NEVER commit real secrets.\n# Every provider defaults to fixture mode: no real calls, messages, or purchases happen.\n\n# ---- APPLICATION ----\nAPP_ENV=development\nLOG_LEVEL=INFO\nCORS_ORIGINS=http://localhost:3000\nPUBLIC_BASE_URL=http://localhost:8000        # public HTTPS in prod: Telnyx/Photon webhooks + intro audio links\nPUBLIC_WEB_URL=http://localhost:3000         # links in owner texts (approvals, handoffs)\nTASK_EXECUTION_MODE=inline          # inline | redis (redis requires the worker)\n\n# ---- DATABASE ----\nDATABASE_URL=postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite\nTEST_DATABASE_URL=postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test\n\n# ---- REDIS ----\nREDIS_URL=redis://localhost:6379/0\n\n# ---- AUTHENTICATION ----\nAUTH_SECRET=change-me-in-any-shared-deployment\nALLOW_DEV_TOKENS=true                # must be false in production\n\n# ---- MODEL PROVIDER (LangChain init_chat_model string). Empty = deterministic supervisor. ----\nSUPERVISOR_MODEL=\n# SUPERVISOR_MODEL=anthropic:claude-sonnet-5-5\nANTHROPIC_API_KEY=\nAGENT_CHECKPOINTER=memory            # memory | postgres\n# Rust API origin for the supervisor tools (e.g. http://localhost:8000, no /api/v1). Empty = tools run in-process.\nBACKEND_API_URL=\n\n# ---- PROVIDER MODES (live | fixture | disabled) ----\nPROPERTY_PROVIDER_MODE=fixture\nPERMIT_PROVIDER_MODE=fixture         # live works without credentials (public Socrata API)\nVOICE_PROVIDER_MODE=fixture\nMESSAGING_PROVIDER_MODE=fixture\nPROCUREMENT_PROVIDER_MODE=fixture\n\n# ---- COSTAR: password-protected data kit (JSONL), not an API. PROPERTY_PROVIDER_MODE=live reads it. ----\n# Extract the kit (zip password from the team, never committed) to .data/costar-kit (gitignored).\nCOSTAR_KIT_DIR=                      # default: <repo>/.data/costar-kit\n\n# ---- MATTERPORT Model API (GraphQL). Token id = API key, token secret = API token. ----\nMATTERPORT_PROVIDER_MODE=fixture     # live: suite scans + measured floor geometry\nMATTERPORT_API_KEY=\nMATTERPORT_API_TOKEN=\nMATTERPORT_SDK_KEY=                  # Showcase SDK (browser embed); not used server-side yet\n\n# ---- VEXCEL API 2.0 (X-API-KEY) ----\nVEXCEL_PROVIDER_MODE=fixture         # live: orthomosaic imagery + roof/structure elements\nVEXCEL_API_KEY=\n\n# ---- LA OPEN DATA (Socrata) ----\nLA_OPEN_DATA_BASE_URL=https://data.lacity.org\nLA_OPEN_DATA_APP_TOKEN=              # optional; raises rate limits\nLA_ELECTRICAL_DATASET=ysqd-apz7\nLA_MECHANICAL_DATASET=67is-svtd\n\n# ---- PHOTON 2.0 (beta) ----\nPHOTON_API_KEY=\nPHOTON_PROJECT_ID=\nPHOTON_WEBHOOK_SECRET=               # whsec_... from the webhook destination\nPHOTON_AGENT_HANDLE=                 # the agent's assigned number, shown to the owner (\"text hi to ...\")\n\n# ---- TELNYX ----\nTELNYX_API_KEY=\nTELNYX_PUBLIC_KEY=                   # base64 Ed25519 public key (Mission Control > Keys)\nTELNYX_CONNECTION_ID=\nTELNYX_FROM_NUMBER=\n\n# ---- XAI VOICE ----\nXAI_API_KEY=\n\n# ---- OBJECT STORAGE ----\nOBJECT_STORAGE_MODE=local\nOBJECT_STORAGE_LOCAL_DIR=./.data/objects\n\n# ---- SAFETY SWITCHES (off by default) ----\nALLOW_LIVE_OUTBOUND_CALLS=false\nALLOW_LIVE_PURCHASES=false\n\n# ---- RUST SERVICE (apps/backend) ----\n# It reads every name above except TEST_DATABASE_URL and BACKEND_API_URL, with the Python app's\n# defaults, plus these. The commented lines show the defaults; uncomment one to change it (an\n# empty HOST= or PORT= is an error, not the default). apps/backend/scripts/run-local.sh sets\n# STORE_BACKEND, HOST, PORT and FIXTURES_DIR itself: with it, set those four in the environment\n# (a line here does not change them).\n# STORE_BACKEND=postgres\n#   postgres | memory. memory is a demo store without a database: nothing is durable.\n# HOST=0.0.0.0\n#   apps/backend/scripts/run-local.sh binds 127.0.0.1 unless HOST is set in the environment.\n# PORT=8000\n# FIXTURES_DIR=\n#   Fixture files read at run time; default: the repository's fixtures/ (image: /app/fixtures).\n# APP_VERSION=0.1.0\n# MATTERPORT_GRAPH_URL=https://api.matterport.com/api/models/graph\n# VEXCEL_BASE_URL=https://api.vexcelgroup.com/v2\n# Python app origin (no /api/v1). The Rust service forwards the Photon routes, the project chat\n# and the Studio routes to it, and texts the owner through it. Unset or blank: those routes\n# answer 503 PYTHON_SERVICE_NOT_CONFIGURED and owner texts are recorded as not sent.\n# Example, Python on 8001:\n# PYTHON_SERVICE_URL=http://localhost:8001\n\n# ---- CAPITAL ONE NESSIE (sandbox only: mock money, never a real bank account) ----\n# Read by the Rust service's Nessie routes, from the process environment only: the service's own\n# .env reading does not cover these three. docker compose passes .env lines in (env_file); with\n# apps/backend/scripts/run-local.sh or a bare run, export them. Mode: empty, fixture or\n# disabled = the labelled in-memory fixture bank; live with a key = the Capital One Nessie\n# sandbox (live without a key: the fixture bank, and /ready says BLOCKED); any other value: every\n# Nessie route answers 503. The key goes in the Authorization header only. Empty base URL =\n# https://v2-prod-api.nessieisreal.com.\nNESSIE_PROVIDER_MODE=\nNESSIE_API_KEY=\nNESSIE_BASE_URL=\n\n# ---- DEPLOYMENT / OBSERVABILITY ----\n# See infra/oracle/README.md. Logs are JSON on stdout.\n",
+   "values": [
+    [
+     "APP_ENV",
+     "development"
+    ],
+    [
+     "LOG_LEVEL",
+     "INFO"
+    ],
+    [
+     "CORS_ORIGINS",
+     "http://localhost:3000"
+    ],
+    [
+     "PUBLIC_BASE_URL",
+     "http://localhost:8000"
+    ],
+    [
+     "PUBLIC_WEB_URL",
+     "http://localhost:3000"
+    ],
+    [
+     "TASK_EXECUTION_MODE",
+     "inline"
+    ],
+    [
+     "DATABASE_URL",
+     "postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite"
+    ],
+    [
+     "TEST_DATABASE_URL",
+     "postgresql+psycopg://secondsite:secondsite@localhost:5432/secondsite_test"
+    ],
+    [
+     "REDIS_URL",
+     "redis://localhost:6379/0"
+    ],
+    [
+     "AUTH_SECRET",
+     "change-me-in-any-shared-deployment"
+    ],
+    [
+     "ALLOW_DEV_TOKENS",
+     "true"
+    ],
+    [
+     "SUPERVISOR_MODEL",
+     ""
+    ],
+    [
+     "ANTHROPIC_API_KEY",
+     ""
+    ],
+    [
+     "AGENT_CHECKPOINTER",
+     "memory"
+    ],
+    [
+     "BACKEND_API_URL",
+     ""
+    ],
+    [
+     "PROPERTY_PROVIDER_MODE",
+     "fixture"
+    ],
+    [
+     "PERMIT_PROVIDER_MODE",
+     "fixture"
+    ],
+    [
+     "VOICE_PROVIDER_MODE",
+     "fixture"
+    ],
+    [
+     "MESSAGING_PROVIDER_MODE",
+     "fixture"
+    ],
+    [
+     "PROCUREMENT_PROVIDER_MODE",
+     "fixture"
+    ],
+    [
+     "COSTAR_KIT_DIR",
+     ""
+    ],
+    [
+     "MATTERPORT_PROVIDER_MODE",
+     "fixture"
+    ],
+    [
+     "MATTERPORT_API_KEY",
+     ""
+    ],
+    [
+     "MATTERPORT_API_TOKEN",
+     ""
+    ],
+    [
+     "MATTERPORT_SDK_KEY",
+     ""
+    ],
+    [
+     "VEXCEL_PROVIDER_MODE",
+     "fixture"
+    ],
+    [
+     "VEXCEL_API_KEY",
+     ""
+    ],
+    [
+     "LA_OPEN_DATA_BASE_URL",
+     "https://data.lacity.org"
+    ],
+    [
+     "LA_OPEN_DATA_APP_TOKEN",
+     ""
+    ],
+    [
+     "LA_ELECTRICAL_DATASET",
+     "ysqd-apz7"
+    ],
+    [
+     "LA_MECHANICAL_DATASET",
+     "67is-svtd"
+    ],
+    [
+     "PHOTON_API_KEY",
+     ""
+    ],
+    [
+     "PHOTON_PROJECT_ID",
+     ""
+    ],
+    [
+     "PHOTON_WEBHOOK_SECRET",
+     ""
+    ],
+    [
+     "PHOTON_AGENT_HANDLE",
+     ""
+    ],
+    [
+     "TELNYX_API_KEY",
+     ""
+    ],
+    [
+     "TELNYX_PUBLIC_KEY",
+     ""
+    ],
+    [
+     "TELNYX_CONNECTION_ID",
+     ""
+    ],
+    [
+     "TELNYX_FROM_NUMBER",
+     ""
+    ],
+    [
+     "XAI_API_KEY",
+     ""
+    ],
+    [
+     "OBJECT_STORAGE_MODE",
+     "local"
+    ],
+    [
+     "OBJECT_STORAGE_LOCAL_DIR",
+     "./.data/objects"
+    ],
+    [
+     "ALLOW_LIVE_OUTBOUND_CALLS",
+     "false"
+    ],
+    [
+     "ALLOW_LIVE_PURCHASES",
+     "false"
+    ],
+    [
+     "NESSIE_PROVIDER_MODE",
+     ""
+    ],
+    [
+     "NESSIE_API_KEY",
+     ""
+    ],
+    [
+     "NESSIE_BASE_URL",
+     ""
+    ]
+   ]
+  }
  ]
 }
