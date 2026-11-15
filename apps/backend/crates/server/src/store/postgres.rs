@@ -43,10 +43,16 @@ pub const MIGRATIONS: &[(&str, &str)] = &[
 /// idempotently (`CREATE TABLE IF NOT EXISTS`) after the alembic revisions, in the same
 /// transaction and under the same migration lock, and never records them in `alembic_version`.
 /// Alembic does not know them, so the Python app's `alembic upgrade head` is unaffected.
-pub const RUST_OWNED_MIGRATIONS: &[(&str, &str)] = &[(
-    "nessie_simulation_records",
-    include_str!("../../migrations/rust-owned/nessie_simulation_records.sql"),
-)];
+pub const RUST_OWNED_MIGRATIONS: &[(&str, &str)] = &[
+    (
+        "nessie_simulation_records",
+        include_str!("../../migrations/rust-owned/nessie_simulation_records.sql"),
+    ),
+    (
+        "owner_intro_recordings",
+        include_str!("../../migrations/rust-owned/owner_intro_recordings.sql"),
+    ),
+];
 
 async fn ensure_rust_owned(conn: &mut PgConnection) -> Result<(), sqlx::Error> {
     for (_, sql) in RUST_OWNED_MIGRATIONS {
