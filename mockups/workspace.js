@@ -129,7 +129,7 @@ let fast = false, busy = false;
 /* ---------------------------------------------------------- conversation */
 
 const log = $('#log');
-const scrollLog = () => { log.scrollTop = 1e9; };
+const scrollLog = () => log.scrollTo({ top: log.scrollHeight, behavior: S.stage === 'discover' && !fast ? 'smooth' : 'auto' });
 function bubble(m) { const el = document.createElement('div'); el.className = 'msg ' + m.who; el.innerHTML = m.html; return el; }
 function say(who, html) { S.msgs.push({ who, html }); log.append(bubble(S.msgs.at(-1))); scrollLog(); save(); }
 const a = html => say('a', html), note = html => say('n', html);
@@ -138,7 +138,7 @@ async function think(ms = 700) {
   const t = document.createElement('div'); t.className = 'typing'; t.innerHTML = '<i></i><i></i><i></i>';
   log.append(t); scrollLog(); await new Promise(r => setTimeout(r, ms)); t.remove();
 }
-function replies(list) { S.replies = list; $('#replies').innerHTML = list.map(t => `<button type="button">${esc(t)}</button>`).join(''); scrollLog(); save(); }
+function replies(list) { S.replies = list; $('#replies').innerHTML = list.map((t, i) => `<button type="button" style="--choice:${i}">${esc(t)}</button>`).join(''); scrollLog(); save(); }
 async function send(text) {
   text = text.trim(); if (!text || busy) return;
   busy = true; say('u', esc(text)); replies([]);
@@ -146,6 +146,30 @@ async function send(text) {
 }
 
 /* ------------------------------------------------------------ 1 discover */
+
+function animateSearch(el, frames, options = {}) {
+  if (fast || S.stage !== 'discover') return;
+  el.getAnimations().forEach(a => a.cancel());
+  return el.animate(frames, { duration: 400, easing: getComputedStyle(el).getPropertyValue('--ease').trim(), ...options });
+}
+function enterSearch() {
+  if (S.stage !== 'discover') { document.body.classList.remove('search-boot'); return; }
+  const fade = (selector, delay, duration) => animateSearch($(selector), [{ opacity: 0 }, { opacity: 1 }], { delay, duration, fill: 'backwards' });
+  fade('.bar', 100, 500); fade('#discover .mapbox', 350, 650); fade('#discover .chat-slot', 500, 550);
+  const strip = $('#strip').getBoundingClientRect(), cards = $$('#strip > .frame'), rects = cards.map(card => card.getBoundingClientRect()), deckX = Math.max(strip.right, ...rects.map(r => r.right)) + 80;
+  cards.forEach((card, i) => {
+    const r = rects[i], dx = deckX - r.left, dy = strip.top - r.top, opacity = card.classList.contains('saved') || card.classList.contains('none') ? 1 : .7;
+    // Deal horizontally from one stack; only the final slide introduces the zigzag offset.
+    const frames = Array.from({ length: 61 }, (_, n) => {
+      const t = n / 60, travel = Math.min(t / .72, 1), remaining = (1 - travel) ** 3;
+      const slide = clamp((t - .66) / .34, 0, 1), zigzag = slide * slide * (3 - 2 * slide);
+      const squash = slide > 0 && slide < 1 ? Math.sin(Math.PI * slide) ** 2 * .035 : 0;
+      return { offset: t, opacity: opacity * Math.min(t / .16, 1), transform: `translate3d(${dx * remaining}px, ${dy * (1 - zigzag)}px, 0) scaleX(${1 - squash})` };
+    });
+    animateSearch(card, frames, { duration: 820, delay: 250 + i * 140, easing: 'linear', fill: 'backwards' });
+  });
+  document.body.classList.remove('search-boot');
+}
 
 const WORDNUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
 const STEPS = [
@@ -229,13 +253,29 @@ function frameHTML(p) {
 }
 function renderStrip() {
   const strip = $('#strip');
-  if (!strip.children.length) strip.innerHTML = FRAMES.map(f => `<div class="frame" style="--g:${f.g};--h:calc(var(--strip-h) * ${f.h});--y:calc(var(--strip-h) * ${f.y});--t:${f.t}s;--d:${f.d}s"></div>`).join('');
+  const arriving = !strip.children.length;
+  if (!strip.children.length) strip.innerHTML = FRAMES.map(f => `<div class="frame" style="--g:${f.g};--h:calc(var(--strip-h) * ${f.h});--y:calc(var(--strip-h) * ${f.y})"></div>`).join('');
   $$('.frame', strip).forEach((el, i) => {
     const id = S.slots[i] || '';
     if (id) el.dataset.property = id; else delete el.dataset.property;
     if (el.dataset.id !== id) {
+      let ghost;
+      if (!arriving && !fast && el.dataset.id) {
+        $('.frame-ghost', el)?.remove();
+        ghost = document.createElement('div'); ghost.className = 'frame-ghost'; ghost.inert = true; ghost.setAttribute('aria-hidden', 'true'); ghost.innerHTML = $('img', el)?.outerHTML || '';
+      }
       el.dataset.id = id;
       if (id) { el.innerHTML = frameHTML(P[id]); } else { el.innerHTML = 'No more spaces fit'; }
+      if (ghost) {
+        el.append(ghost);
+        const reveal = () => {
+          if (!ghost.isConnected) return;
+          const animation = animateSearch(ghost, [{ opacity: 1 }, { opacity: 0 }]);
+          if (animation) animation.finished.then(() => ghost.remove(), () => ghost.remove()); else ghost.remove();
+        };
+        const image = $('img', el);
+        if (image) image.decode().catch(() => {}).then(reveal); else reveal();
+      }
     }
     el.className = 'frame' + (id ? '' : ' none') + (S.saved.includes(id) ? ' saved' : '') + (S.open === id && id ? ' open' : '');
     $('[data-act=save]', el)?.setAttribute('aria-pressed', S.saved.includes(id));
@@ -243,8 +283,15 @@ function renderStrip() {
 }
 function renderBrief() {
   const rows = STEPS.filter(s => s.key in S.req), el = $('#brief');
+  const previous = new Map($$('dd', el).map(dd => [dd.querySelector('[data-edit]')?.dataset.edit, dd.textContent]));
   el.hidden = !rows.length;
   el.innerHTML = rows.length ? `<dl>${rows.map(s => `<dt>${s.label}</dt><dd><button type="button" data-edit="${s.key}" aria-label="Change ${s.label.toLowerCase()}">${esc(s.show(S.req))}</button></dd>`).join('')}</dl>` : '';
+  $$('dd', el).forEach(dd => {
+    if (previous.get(dd.querySelector('[data-edit]').dataset.edit) !== dd.textContent) {
+      const frames = [{ opacity: .45, transform: 'translateY(4px)' }, { opacity: 1, transform: 'translateY(0)' }];
+      animateSearch(dd, frames); animateSearch(dd.previousElementSibling, [{ opacity: .4 }, { opacity: 1 }]);
+    }
+  });
 }
 let map, pins = {}, fitKey = '';
 function initMap() {
@@ -268,7 +315,7 @@ function renderMap() {
   fitKey = key;
   const b = new maplibregl.LngLatBounds(); vis.forEach(p => b.extend([p.lon, p.lat]));
   const wide = innerWidth > 860;
-  map.fitBounds(b, { padding: { top: 60, bottom: 60, left: wide ? 300 : 40, right: wide ? 70 : 40 }, maxZoom: 13.2, duration: fast ? 0 : 1600 });
+  map.fitBounds(b, { padding: { top: 60, bottom: 60, left: wide ? 300 : 40, right: wide ? 70 : 40 }, maxZoom: 13.2, duration: fast ? 0 : 1200, essential: true });
 }
 function renderDiscover() { renderStrip(); renderBrief(); renderMap(); renderNav(); }
 
@@ -795,4 +842,5 @@ replies(S.replies);
 initMap();
 go(S.stage);
 if (!S.msgs.length) ask();
+enterSearch();
 if (['searched', 'compare', 'furnish'].includes(start)) seed(start);

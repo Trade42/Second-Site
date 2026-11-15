@@ -58,23 +58,23 @@ main { min-height: 0; }
 @keyframes fade { from { opacity: 0; } }
 
 /* ---------- 1. Search ---------- */
-#discover { grid-template-rows: var(--strip-h) minmax(0, 1fr); }
+#discover { grid-template-rows: var(--strip-h) minmax(0, 1fr); animation: none; }
 .strip { display: flex; gap: var(--gap); align-items: flex-start; min-width: 0; }
 .frame {
   position: relative; flex: var(--g) 1 0; min-width: 0; height: var(--h); margin-top: var(--y);
   border-radius: 10px; overflow: hidden; background: var(--tint2); color: #fff; cursor: pointer;
   transition: flex-grow .5s var(--ease), opacity .2s var(--ease);
-  animation: drift var(--t) ease-in-out var(--d) infinite alternate;
 }
 .frame:not(.saved):not(.none) { opacity: .7; }
-/* Vertical-only drift: horizontal gaps never change. */
-@keyframes drift { from { transform: translateY(-1.5px); } to { transform: translateY(1.5px); } }
+.search-boot .bar, .search-boot #discover .frame, .search-boot #discover .mapbox, .search-boot #discover .chat-slot { opacity: 0; }
+.frame-ghost { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: var(--tint); pointer-events: none; }
 .frame:hover, .frame:focus-within, .frame.open { flex-grow: calc(var(--g) * 1.3); }
 /* The photo keeps one rendered size, large enough for the widest frame. Only the frame moves. */
 .frame img {
   position: absolute; left: 50%; top: 50%; width: max(38vw, 100%); height: var(--strip-h);
-  transform: translate(-50%, -50%); object-fit: cover; animation: fade .5s ease;
+  transform: translate(-50%, -50%); object-fit: cover; transition: opacity .3s var(--ease);
 }
+.frame-ghost::after { content: ""; position: absolute; inset: 40% 0 0; background: linear-gradient(transparent, rgba(20, 21, 17, .72)); }
 .frame::after { content: ""; position: absolute; inset: 40% 0 0; background: linear-gradient(transparent, rgba(20, 21, 17, .72)); pointer-events: none; }
 .save-card { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border-radius: 10px; }
 .save-card:focus-visible { outline-offset: -3px; }
@@ -89,7 +89,7 @@ main { min-height: 0; }
 .acts button:hover, .close:hover { background: #fff; }
 .acts [data-act=dismiss] { visibility: hidden; opacity: 0; transition: opacity .15s; }
 .frame:hover .acts [data-act=dismiss], .frame:focus-within .acts [data-act=dismiss], .frame.open .acts [data-act=dismiss] { visibility: visible; opacity: 1; }
-.frame.loading img { opacity: .35; transition: opacity .3s; }
+.frame.loading img { opacity: .55; }
 .frame.none { cursor: default; background: var(--tint); color: var(--ink3); display: grid; place-items: center; font-size: 14px; animation: none; }
 .frame.none::after { display: none; }
 
@@ -143,6 +143,28 @@ main { min-height: 0; }
 
 .composer button:hover { background: var(--accent-hover); }
 .composer:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Search uses short arrivals and interruptible feedback; results retain their slots. */
+#discover .brief { animation: none; }
+#discover .pin::before { transition: background .16s var(--ease), scale .2s var(--ease); }
+#discover .pin:is(.hot, .on)::before { scale: 1.35; }
+#discover .msg { animation: search-message .4s var(--ease); }
+@keyframes search-message { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+#discover .replies button { animation: search-choice .4s var(--ease) backwards; animation-delay: calc(var(--choice, 0) * 60ms); }
+@keyframes search-choice { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+#discover .replies button { transition: background .16s, transform .16s var(--ease); }
+@media (hover: hover) and (pointer: fine) {
+  #discover .replies button:hover { transform: translateY(-1px); }
+}
+#discover .replies button:active { transform: scale(.97); }
+#discover .composer button { transition: background .16s, transform .16s var(--ease); }
+#discover .composer button:active { transform: scale(.97); }
+#discover .composer { transition: box-shadow .3s var(--ease), background .3s var(--ease); }
+#discover .composer:focus-within { box-shadow: var(--float); }
+body[data-stage=discover] .stages button { transition: color .25s, transform .2s var(--ease); }
+body[data-stage=discover] .stages button:active { transform: scale(.95); }
+#discover .brief dd button { transition: background .25s, transform .2s var(--ease); }
+#discover .brief dd button:active { transform: scale(.97); }
 
 /* ---------- 2 & 3. Sidebar + canvas ---------- */
 #compare, #furnish { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
@@ -377,7 +399,7 @@ button.room:hover { background: rgba(110, 126, 114, .1); }
   .tile:hover .box, .tile:focus-visible .box { animation: spin 5s linear infinite; }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  body:not([data-stage=discover]) *, body:not([data-stage=discover]) *::before, body:not([data-stage=discover]) *::after { animation: none !important; transition: none !important; }
 }
 
 @media (max-height: 560px) and (min-width: 861px) {
